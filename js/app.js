@@ -478,9 +478,12 @@ function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQual
 
         const drawH = img.height * verticalScale;
 
-        const dx =
-            centerX +
-            projectedX * (img.width * 0.42);
+        // When cylinderAmount=0, projectedX=0 so all slices collapse to centerX
+        // (each overwrites the last → only a transparent 2px strip remains visible).
+        // Use natural source-position placement instead.
+        const dx = cylinderAmount === 0
+            ? centerX + (sx + sliceW / 2 - img.width / 2)
+            : centerX + projectedX * (img.width * 0.42);
 
         const dy =
             centerY -
