@@ -474,8 +474,11 @@ function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQual
 
         const depth = Math.cos(theta);
 
-        const verticalScale =
-            0.82 + (depth * 0.18);
+        // A cylinder label runs parallel to the cylinder axis — only horizontal
+        // dimension is foreshortened (handled by projectedSliceW), not vertical.
+        // The old 0.82+depth*0.18 created spherical barrel distortion: top and
+        // bottom edges bowed inward at the sides, making arc look asymmetric.
+        const verticalScale = 1.0;
 
         const arcCurve =
             arcAmount * 4 *
