@@ -1,4 +1,32 @@
 window.addEventListener("DOMContentLoaded", () => {
+    
+let backgrounds = [];
+let designs = [];
+let canvasData = [];
+let activeIndices = [];
+let editMode = "window";
+let activeDesignObject = null;
+let activeDesignWindow = null;
+let lastSelectedIndex = null;
+
+let clipEditMode = false;
+let clipCurvePoints = [];
+let activeCurvePreview = null;
+let currentCurveHandle = null;
+let isDraggingCurveHandle = false;
+
+let activeBezierHelpers = [];
+
+let clipPolygonClosed = false;
+let currentMaskIndex = 0;
+
+let activeClipWindowIndex = null;
+
+let suppressNextWrapperClick = false;
+
+// stores clipping masks per background type
+let backgroundMaskTemplates = {};
+    
 document.getElementById("resetBtn").addEventListener("click", ()=>{
 
     if(clipEditMode){
