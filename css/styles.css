@@ -1,1 +1,111 @@
+body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; }
+.sticky-header {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 1000;
+    border-bottom: 1px solid #ccc;
+    padding: 10px 0;
+}
+.controls {
+    margin: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.controls label {
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.controls input[type="range"],
+.controls input[type="number"] {
+    width: 90px;
+    padding: 4px;
+    font-size: 14px;
+    text-align: center;
+}
+.canvas-container {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px;
+    width: 100%;
+    max-width: 1800px;
+    margin: 0 auto;
+    padding: 20px;
+    box-sizing: border-box;
+    align-items: start;
+}
 
+.canvas-container > * {
+    min-width: 0;
+}
+
+@media (max-width: 1400px) {
+    .canvas-container {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 1050px) {
+    .canvas-container {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .canvas-container {
+        grid-template-columns: repeat(1, minmax(0, 1fr));
+    }
+}
+.canvas-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    border: 2px solid transparent;
+    width: 100%;
+    max-width: 420px;
+    min-width: 0;
+    overflow: hidden;
+    vertical-align: top;
+    box-sizing: border-box;
+    align-items: center;
+    justify-self: center;
+}
+
+.canvas-wrapper canvas {
+    width: 100% !important;
+    height: auto !important;
+    display: block;
+}
+
+
+
+.filename-input {
+    margin-top: 5px;
+    width: calc(100% - 12px);
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.canvas-wrapper.active {
+    border: 2px solid #1e5eff !important;
+    box-shadow: 0 0 0 1px #1e5eff;
+}
+.canvas-wrapper.design-active {
+    border: 2px solid orange !important;
+    box-shadow: 0 0 0 1px orange;
+}
+
+
+#deleteClipBtn{
+    background:#ff2b2b !important;
+    color:white !important;
+    border:2px solid black !important;
+    padding:8px 12px !important;
+    font-weight:bold !important;
+}
