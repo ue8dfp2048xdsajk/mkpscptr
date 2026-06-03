@@ -1429,8 +1429,8 @@ function createCanvasPreviews(){
             wrapper.className = "canvas-wrapper";
 
             const canvasEl = document.createElement("canvas");
-            canvasEl.width = data.bg.width;
-            canvasEl.height = data.bg.height;
+            canvasEl.width = data.bg.naturalWidth || data.bg.width;
+            canvasEl.height = data.bg.naturalHeight || data.bg.height;
 
             wrapper.appendChild(canvasEl);
 
@@ -1456,8 +1456,8 @@ function createCanvasPreviews(){
 
             data.fabricCanvas = fabricCanvas;
 
-            const realWidth = data.bg.width;
-            const realHeight = data.bg.height;
+            const realWidth = data.bg.naturalWidth || data.bg.width;
+            const realHeight = data.bg.naturalHeight || data.bg.height;
 
             const containerWidth = container.clientWidth;
             const gapSpace = 20 * 3;
@@ -1485,6 +1485,7 @@ function createCanvasPreviews(){
             data.initialX = data.x;
             data.initialY = data.y;
 
+            console.log("BG SOURCE", data.bg);
             fabric.Image.fromURL(data.bg.src, function(bgImg){
 
                 bgImg.set({
