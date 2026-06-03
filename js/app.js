@@ -451,6 +451,11 @@ function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQual
         : Math.max(260, Math.floor(img.width / 3.5));
     const sliceW = Math.max(2, Math.ceil(img.width / slices));
 
+    // Normalize projection so content always spans full design width.
+    // Without this, sin(θ) * 0.42 shrinks the design to 84% at cylinder=100
+    // and ~59% at cylinder=50, forcing users to manually rescale after warping.
+    const sinMax = Math.sin((Math.PI / 2) * (Math.abs(cylinderAmount) / 100));
+
     for(let i = 0; i < slices; i++){
 
         const sx = i * sliceW;
@@ -478,12 +483,12 @@ function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQual
 
         const drawH = img.height * verticalScale;
 
-        // When cylinderAmount=0, projectedX=0 so all slices collapse to centerX
-        // (each overwrites the last → only a transparent 2px strip remains visible).
-        // Use natural source-position placement instead.
+        // When cylinderAmount=0, projectedX=0 so all slices collapse to centerX.
+        // Otherwise normalize: divide by sinMax so edges always land at ±img.width/2
+        // from center regardless of cylinder amount — design width stays constant.
         const dx = cylinderAmount === 0
             ? centerX + (sx + sliceW / 2 - img.width / 2)
-            : centerX + projectedX * (img.width * 0.42);
+            : centerX + (projectedX / sinMax) * (img.width / 2);
 
         const dy =
             centerY -
