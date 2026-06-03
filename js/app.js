@@ -455,7 +455,13 @@ function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQual
 
         const sx = i * sliceW;
 
-        const nx = ((i + 0.5) / slices) * 2 - 1;
+        // nx must be derived from source pixel position, not slice index.
+        // sliceW = ceil(img.width/slices) so slices×sliceW > img.width —
+        // the excess slices read transparent pixels and would push all real
+        // content toward the left half of the cylinder if nx used the index.
+        const nx = Math.max(-1, Math.min(1,
+            (sx + sliceW * 0.5) / img.width * 2 - 1
+        ));
 
         const theta = nx * (Math.PI / 2) * (cylinderAmount / 100);
 
