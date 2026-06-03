@@ -1,3 +1,4 @@
+window.addEventListener("DOMContentLoaded", () => {
 document.getElementById("resetBtn").addEventListener("click", ()=>{
 
     if(clipEditMode){
