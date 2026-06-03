@@ -74,6 +74,7 @@ document.addEventListener('mouseup', ()=>{
 
 const warpAmount = document.getElementById("warpAmount");
 const arcAmount = document.getElementById("arcAmount");
+const arcTilt = document.getElementById("arcTilt");
 const perspectiveTop = document.getElementById("perspectiveTop");
 const perspectiveLeft = document.getElementById("perspectiveLeft");
 const opacityAmount = document.getElementById("opacityAmount");
@@ -416,7 +417,7 @@ function applyPerspectiveDistortion(sourceCanvas, data){
 }
 
 
-function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQuality = false) {
+function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, targetCanvas, lowQuality = false) {
 
     const temp = targetCanvas;
 
@@ -486,6 +487,12 @@ function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQual
 
         const drawH = img.height * verticalScale;
 
+        // Arc tilt: makes top and bottom curve by different amounts.
+        // tiltK > 0 (camera from above): bottom curves more, top curves less.
+        // tiltK < 0 (camera from below): top curves more, bottom curves less.
+        // Scales with img.height so the effect is consistent across design sizes.
+        const tiltK = (arcTiltAmount / 100) * img.height * 0.18 * (1 - nx * nx);
+
         // When cylinderAmount=0, projectedX=0 so all slices collapse to centerX.
         // Otherwise normalize: divide by sinMax so edges always land at ±img.width/2
         // from center regardless of cylinder amount — design width stays constant.
@@ -493,10 +500,15 @@ function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQual
             ? centerX + (sx + sliceW / 2 - img.width / 2)
             : centerX + (projectedX / sinMax) * (img.width / 2);
 
+        // tiltK shifts the top edge and compresses/stretches height so top and
+        // bottom arcs are independent: top = arcCurve + tiltK, bottom = arcCurve - tiltK.
         const dy =
             centerY -
             drawH / 2 +
-            arcCurve;
+            arcCurve +
+            tiltK;
+
+        const drawH_tilt = Math.max(1, drawH - 2 * tiltK);
 
         const projectedSliceW =
             sliceW *
@@ -514,7 +526,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQual
             Math.round(dx - (projectedSliceW / 2)),
             Math.round(dy),
             Math.ceil(projectedSliceW + 1),
-            Math.ceil(drawH)
+            Math.ceil(drawH_tilt)
         );
     }
 
@@ -558,6 +570,7 @@ function syncSliders() {
 
 warpAmount.value = data.warpAmount || 0;
     arcAmount.value = data.arcAmount || 0;
+    arcTilt.value = data.arcTilt || 0;
     opacityAmount.value = Math.round((data.opacity ?? 1) * 100);
     blurAmount.value = data.blurAmount || 0;
     perspectiveTop.value = data.perspectiveTop || 0;
@@ -925,6 +938,7 @@ async function applyWarpToData(data, lowQuality = false){
         blurredSource,
         data.warpAmount,
         data.arcAmount,
+        data.arcTilt ?? 0,
         data.warpCanvas,
         lowQuality
     );
@@ -1052,6 +1066,7 @@ function updateFromSliders(event){
     const requiresWarp =
         activeSliderType === "warpAmount" ||
         activeSliderType === "arcAmount" ||
+        activeSliderType === "arcTilt" ||
         activeSliderType === "blurAmount" ||
         activeSliderType === "perspectiveTop"  ||
         activeSliderType === "perspectiveLeft" ;
@@ -1077,6 +1092,7 @@ function updateFromSliders(event){
 
         data.warpAmount = parseFloat(warpAmount.value);
         data.arcAmount = parseFloat(arcAmount.value);
+        data.arcTilt = parseFloat(arcTilt.value);
         data.perspectiveTop = parseFloat(perspectiveTop.value);
         data.perspectiveLeft = parseFloat(perspectiveLeft.value);
 
@@ -1169,6 +1185,7 @@ function updateFromSliders(event){
 
 warpAmount.addEventListener("input", updateFromSliders);
 arcAmount.addEventListener("input", updateFromSliders);
+arcTilt.addEventListener("input", updateFromSliders);
 opacityAmount.addEventListener("input", updateFromSliders);
 blurAmount.addEventListener("input", updateFromSliders);
 blendMode.addEventListener("change", updateFromSliders);
@@ -1332,6 +1349,7 @@ function createCanvasData(bgObj, designObj){
         scaleY: null,
         warpAmount: 0,
         arcAmount: 0,
+        arcTilt: 0,
         opacity: 1,
         blurAmount: 0,
         blendMode: "normal",
@@ -1368,6 +1386,7 @@ function createCanvasData(bgObj, designObj){
         initialRotation: 0,
         initialWarpAmount: 0,
         initialArcAmount: 0,
+        initialArcTilt: 0,
         initialOpacity: 1,
         initialBlurAmount: 0,
         initialBlendMode: "normal",
@@ -2673,6 +2692,7 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
 
         data.warpAmount = data.initialWarpAmount;
         data.arcAmount = data.initialArcAmount;
+        data.arcTilt = data.initialArcTilt;
         data.opacity = data.initialOpacity;
         data.blurAmount = data.initialBlurAmount;
         data.blendMode = data.initialBlendMode;
@@ -2736,6 +2756,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
 
             warpAmount: data.warpAmount ?? 0,
             arcAmount: data.arcAmount ?? 0,
+            arcTilt: data.arcTilt ?? 0,
             opacity: data.opacity ?? 1,
             blurAmount: data.blurAmount ?? 0,
             blendMode: data.blendMode ?? "normal",
@@ -2869,6 +2890,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
             warpAmount: saved.warpAmount,
             arcAmount: saved.arcAmount,
+            arcTilt: saved.arcTilt ?? 0,
 
             opacity: saved.opacity ?? 1,
             blurAmount: saved.blurAmount ?? 0,
