@@ -72,7 +72,6 @@ document.addEventListener('mouseup', ()=>{
 
 
 
-const warpType = document.getElementById("warpType");
 const warpAmount = document.getElementById("warpAmount");
 const arcAmount = document.getElementById("arcAmount");
 const perspectiveTop = document.getElementById("perspectiveTop");
@@ -1157,15 +1156,16 @@ document.getElementById('bgUpload').addEventListener('change', function(event){
         return;
     }
 
-    backgrounds = [];
-
     const files = Array.from(event.target.files);
 
     if(!files.length) return;
 
+    // pre-allocate so images always appear in selection order
+    backgrounds = new Array(files.length);
+
     let loaded = 0;
 
-    files.forEach(file=>{
+    files.forEach((file, i)=>{
 
         const reader = new FileReader();
 
@@ -1175,10 +1175,10 @@ document.getElementById('bgUpload').addEventListener('change', function(event){
 
             img.onload = function(){
 
-                backgrounds.push({
+                backgrounds[i] = {
                     img: img,
                     name: file.name
-                });
+                };
 
                 loaded++;
 
