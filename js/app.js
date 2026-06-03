@@ -70,9 +70,6 @@ document.addEventListener('mouseup', ()=>{
     }, 0);
 });
 
-
-
-const warpType = document.getElementById("warpType");
 const warpAmount = document.getElementById("warpAmount");
 const arcAmount = document.getElementById("arcAmount");
 const perspectiveTop = document.getElementById("perspectiveTop");
