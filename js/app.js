@@ -478,7 +478,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, targetCanvas, lowQual
             0.82 + (depth * 0.18);
 
         const arcCurve =
-            arcAmount *
+            arcAmount * 4 *
             (1 - Math.pow(nx, 2));
 
         const drawH = img.height * verticalScale;
