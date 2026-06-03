@@ -2037,7 +2037,7 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
         data.fabricCanvas.requestRenderAll();
     });
 
-
+});
 document.getElementById("addClipAreaBtn").addEventListener("click", ()=>{
 
     if(!clipEditMode){
