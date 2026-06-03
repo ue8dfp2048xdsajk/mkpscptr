@@ -2040,6 +2040,8 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
         data.fabricCanvas.requestRenderAll();
     });
 
+});
+
 
 document.getElementById("addClipAreaBtn").addEventListener("click", ()=>{
 
@@ -2122,8 +2124,6 @@ document.getElementById("deleteClipBtn").addEventListener("click", ()=>{
 
         activeCurvePreview = null;
     }
-});
-
 });
 
 
