@@ -2121,8 +2121,6 @@ document.getElementById("deleteClipBtn").addEventListener("click", ()=>{
     }
 });
 
-});
-
 
 
 
