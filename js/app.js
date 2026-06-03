@@ -2659,6 +2659,8 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         data.opacity = data.initialOpacity;
         data.blurAmount = data.initialBlurAmount;
         data.blendMode = data.initialBlendMode;
+        data.perspectiveTop = data.initialPerspectiveTop;
+        data.perspectiveLeft = data.initialPerspectiveLeft;
 
         // restore original design object
         if(data.designObject){
