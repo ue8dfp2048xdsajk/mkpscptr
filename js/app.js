@@ -297,7 +297,17 @@ function applyPerspectiveDistortion(sourceCanvas, data){
     const out = document.createElement('canvas');
     const ctx = out.getContext('2d');
 
-    const pad = 420;
+    // Compute minimum padding to prevent clipping when perspective
+    // values go negative (image expands beyond the canvas edge).
+    // Keep 420 as the floor so zero/positive values are unchanged.
+    const hPadNeeded = top < 0
+        ? Math.ceil(srcW * (-top) / 360)
+        : 0;
+    const leftDenom = 360 - 2 * Math.abs(left);
+    const vPadNeeded = (left < 0 && leftDenom > 0)
+        ? Math.ceil(srcH * (-left) / leftDenom)
+        : 0;
+    const pad = Math.max(hPadNeeded, vPadNeeded, 420);
 
     out.width = srcW + (pad * 2);
     out.height = srcH + (pad * 2);
