@@ -3248,13 +3248,23 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
 
     localStorage.removeItem('mockup_autosave');
 
-    // Reset canvas immediately so the current state also reflects a clean slate
+    // Reset all state
     canvasData = [];
     backgrounds = [];
     designs = [];
+    activeIndices = [];
+    activeDesignWindow = null;
+    lastSelectedIndex = null;
 
     document.getElementById("canvasContainer").innerHTML = "";
     document.getElementById("loadingIndicator").style.display = "none";
+
+    // Clear file input labels so "4 files" / "3 files" badges disappear
+    document.getElementById("bgUpload").value = "";
+    document.getElementById("designUpload").value = "";
+
+    updateSelectButtonState();
+    syncSliders();
 });
 
 
