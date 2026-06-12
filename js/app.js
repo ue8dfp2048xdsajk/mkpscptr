@@ -673,10 +673,12 @@ function clearBezierHelpers(canvas){
             obj.excludeFromExport &&
             (
                 obj.isBezierHelper ||
-                obj.isTempCurvePreview ||
-                obj.isRubberBand    ||
-                obj.isMarchingDark  ||
-                obj.isMarchingLight
+                obj.isRubberBand   ||
+                // Only remove marching-ants paths that are temporary
+                // (live editor preview). Finalized overlays have
+                // isTempCurvePreview === false and must stay visible.
+                ((obj.isMarchingDark || obj.isMarchingLight || obj.isTempCurvePreview) &&
+                  obj.isTempCurvePreview)
             )
         )
         .forEach(obj=>{
