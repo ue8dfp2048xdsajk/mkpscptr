@@ -2800,10 +2800,13 @@ function buildSnapshot(){
 
             filename: data.filename,
 
+            // Normalise duplicate positions the same way the main design x/y are
+            // normalised — divide by previewScale so values are in bg-image-pixel
+            // space.  The restore path multiplies back up by the new previewScale.
             duplicates: (data.extraDesignObjects || []).map(obj=>({
 
-                left: obj.left,
-                top: obj.top,
+                left: obj.left  / data.previewScale,
+                top:  obj.top   / data.previewScale,
 
                 scaleX: obj.scaleX / data.previewScale,
                 scaleY: obj.scaleY / data.previewScale,
@@ -3087,8 +3090,10 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                     data.designObject.clone(cloned=>{
 
                         cloned.set({
-                            left: dup.left,
-                            top: dup.top,
+                            // dup.left/top are normalised (bg-image-pixel space);
+                            // multiply by new previewScale to get canvas pixels.
+                            left: dup.left * previewScale,
+                            top:  dup.top  * previewScale,
 
                             scaleX:
                                 dup.scaleX * previewScale,
