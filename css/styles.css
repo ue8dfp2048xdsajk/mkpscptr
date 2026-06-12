@@ -28,7 +28,7 @@ body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0
     font-size: 14px;
     text-align: center;
 }
-.canvas-container {
+#canvasContainer {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 20px;
@@ -40,24 +40,24 @@ body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0
     align-items: start;
 }
 
-.canvas-container > * {
+#canvasContainer > * {
     min-width: 0;
 }
 
 @media (max-width: 1400px) {
-    .canvas-container {
+    #canvasContainer {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 1050px) {
-    .canvas-container {
+    #canvasContainer {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 700px) {
-    .canvas-container {
+    #canvasContainer {
         grid-template-columns: repeat(1, minmax(0, 1fr));
     }
 }
