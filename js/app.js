@@ -308,7 +308,11 @@ function applyPerspectiveDistortion(sourceCanvas, data){
     const vPadNeeded = (left < 0 && leftDenom > 0)
         ? Math.ceil(srcH * (-left) / leftDenom)
         : 0;
-    const pad = Math.max(hPadNeeded, vPadNeeded, 420);
+    // 420px floor was massively oversized — it created 840px of empty transparent
+    // space around every design regardless of actual perspective values, making
+    // Fabric handles expand far beyond the design. Dynamic formulas already compute
+    // the exact needed padding; keep only a small 20px safety margin as the floor.
+    const pad = Math.max(hPadNeeded, vPadNeeded, 20);
 
     out.width = srcW + (pad * 2);
     out.height = srcH + (pad * 2);
