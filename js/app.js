@@ -2905,8 +2905,26 @@ function buildSnapshot(){
             noiseAmount: data.noiseAmount ?? 0,
             blendMode: data.blendMode ?? "normal",
 
-            maskPaths: data.maskPaths ?? [],
-            maskPath: data.maskPath ?? null,
+            // Normalise mask-path coordinates by dividing by previewScale so
+            // they are stored in background-image-pixel space — the same
+            // normalisation applied to x/y/scaleX/scaleY.  The restore path
+            // multiplies back up by the new previewScale.
+            maskPaths: (data.maskPaths ?? []).map(path=>
+                path.map(p=>({
+                    x:  p.x  / data.previewScale,
+                    y:  p.y  / data.previewScale,
+                    cx: p.cx !== undefined ? p.cx / data.previewScale : undefined,
+                    cy: p.cy !== undefined ? p.cy / data.previewScale : undefined
+                }))
+            ),
+            maskPath: data.maskPath
+                ? data.maskPath.map(p=>({
+                    x:  p.x  / data.previewScale,
+                    y:  p.y  / data.previewScale,
+                    cx: p.cx !== undefined ? p.cx / data.previewScale : undefined,
+                    cy: p.cy !== undefined ? p.cy / data.previewScale : undefined
+                  }))
+                : null,
             maskEnabled: data.maskEnabled ?? false,
             maskType: data.maskType ?? null,
 
@@ -3162,6 +3180,30 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         // initialX/Y used by Reset — must also be in preview-canvas pixels.
         data.initialX = data.x;
         data.initialY = data.y;
+
+        // Mask paths were normalised on save (÷ previewScale).  Scale them
+        // back up to canvas-pixel space for the current previewScale.
+        const scalePoints = (path, s) => path.map(p=>({
+            x:  p.x  * s,
+            y:  p.y  * s,
+            cx: p.cx !== undefined ? p.cx * s : undefined,
+            cy: p.cy !== undefined ? p.cy * s : undefined
+        }));
+
+        data.maskPaths = (saved.maskPaths || []).map(path=>
+            scalePoints(path, previewScale)
+        );
+
+        const scaledMaskPath = saved.maskPath
+            ? scalePoints(saved.maskPath, previewScale)
+            : null;
+
+        data.maskPath = scaledMaskPath;
+
+        // clipCurvePoints drives the live editor; keep it in sync.
+        data.clipCurvePoints = scaledMaskPath
+            ? JSON.parse(JSON.stringify(scaledMaskPath))
+            : [];
 
         fabricCanvas.setWidth(bgImg.width * previewScale);
         fabricCanvas.setHeight(bgImg.height * previewScale);
