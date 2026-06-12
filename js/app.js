@@ -510,9 +510,17 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
 
         const drawH_tilt = Math.max(1, drawH - 2 * tiltK);
 
-        const projectedSliceW =
-            sliceW *
-            (0.55 + depth * 0.45);
+        // projectedSliceW must match the actual derivative of dx w.r.t. slice index,
+        // otherwise slices spread wider than they draw and leave transparent gaps.
+        // Old formula (0.55 + depth*0.45) was calibrated for the un-normalized
+        // projection; with normalization the center spacing is π/2 * sliceW (~3.14px)
+        // but the old formula only drew 2px there — causing periodic 1px gaps.
+        const projectedSliceW = cylinderAmount === 0
+            ? sliceW
+            : Math.max(
+                depth * (Math.PI / 2) * (Math.abs(cylinderAmount) / 100) / sinMax * sliceW,
+                1
+              );
 
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = "medium";
