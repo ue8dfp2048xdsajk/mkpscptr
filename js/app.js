@@ -2766,8 +2766,16 @@ function buildSnapshot(){
             designSrc: data.designOriginal ? data.designOriginal.src : null,
             designName: data.designName,
 
-            x: mainObj ? mainObj.left : data.x,
-            y: mainObj ? mainObj.top : data.y,
+            // Normalise position the same way scaleX/scaleY are normalised:
+            // divide by previewScale so the value is in background-image pixels,
+            // not in preview-canvas pixels.  The restore path multiplies back up
+            // by the new previewScale, keeping the relative position intact.
+            x: mainObj
+                ? (mainObj.left  / data.previewScale)
+                : (data.x        / (data.previewScale || 1)),
+            y: mainObj
+                ? (mainObj.top   / data.previewScale)
+                : (data.y        / (data.previewScale || 1)),
 
             scale: data.scale,
 
@@ -3028,6 +3036,15 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             Math.min(1, targetColumnWidth / realWidth);
 
         data.previewScale = previewScale;
+
+        // saved.x / saved.y are now in background-image-pixel space (normalised).
+        // Scale back up to preview-canvas pixels for this previewScale.
+        data.x = saved.x * previewScale;
+        data.y = saved.y * previewScale;
+
+        // initialX/Y used by Reset — must also be in preview-canvas pixels.
+        data.initialX = data.x;
+        data.initialY = data.y;
 
         fabricCanvas.setWidth(bgImg.width * previewScale);
         fabricCanvas.setHeight(bgImg.height * previewScale);
