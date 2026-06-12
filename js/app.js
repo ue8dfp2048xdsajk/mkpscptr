@@ -1167,15 +1167,24 @@ function updateFromSliders(event){
     // only do HQ render AFTER user stops dragging
     clearTimeout(globalHQTimer);
 
-    globalHQTimer = setTimeout(()=>{
+    globalHQTimer = setTimeout(async ()=>{
 
-        activeIndices.forEach(index=>{
+        // Render visible canvases first so the user sees results immediately,
+        // then yield between each off-screen item so the UI stays responsive.
+        const wrapper = i => canvasData[i]?.fabricCanvas?.lowerCanvasEl?.parentElement;
+        const sorted = [...activeIndices].sort((a, b)=>{
+            const av = isElementVisible(wrapper(a)) ? 0 : 1;
+            const bv = isElementVisible(wrapper(b)) ? 0 : 1;
+            return av - bv;
+        });
+
+        for(const index of sorted){
 
             const data = canvasData[index];
 
             if(data.designObject){
 
-                applyWarpToData(data, false);
+                await applyWarpToData(data, false);
 
                 const allObjects = getAllDesignObjects(data);
 
@@ -1193,8 +1202,11 @@ function updateFromSliders(event){
                 });
 
                 data.fabricCanvas.requestRenderAll();
+
+                // yield after each item so the browser can paint and handle events
+                await new Promise(r => setTimeout(r, 0));
             }
-        });
+        }
 
     }, 220);
 }
@@ -1746,7 +1758,10 @@ function attachFabricEvents(data, targetObject = null){
                 obj.top += deltaY;
             });
 
-            target.fabricCanvas.requestRenderAll();
+            // only re-render canvases currently on screen; off-screen ones
+            // get the position update but skip the expensive paint call
+            const tw = target.fabricCanvas.lowerCanvasEl.parentElement;
+            if(isElementVisible(tw)) target.fabricCanvas.requestRenderAll();
         });
 
         designTarget.lastLeft = designTarget.left;
@@ -1802,7 +1817,8 @@ function attachFabricEvents(data, targetObject = null){
                 obj.setCoords();
             });
 
-            target.fabricCanvas.requestRenderAll();
+            const sw = target.fabricCanvas.lowerCanvasEl.parentElement;
+            if(isElementVisible(sw)) target.fabricCanvas.requestRenderAll();
         });
 
         data.fabricCanvas.requestRenderAll();
@@ -1830,7 +1846,8 @@ function attachFabricEvents(data, targetObject = null){
                 obj.angle = angle;
             });
 
-            target.fabricCanvas.requestRenderAll();
+            const rw = target.fabricCanvas.lowerCanvasEl.parentElement;
+            if(isElementVisible(rw)) target.fabricCanvas.requestRenderAll();
         });
 
         data.fabricCanvas.requestRenderAll();
@@ -2868,7 +2885,7 @@ function autoSaveSession(){
             // quota exceeded or private browsing — silently skip
         }
 
-    }, 800);
+    }, 2500);
 }
 
 
