@@ -1245,6 +1245,9 @@ document.getElementById('bgUpload').addEventListener('change', function(event){
 
                 // render ONCE after all images loaded
                 if(loaded === files.length){
+                    // Sort alphabetically so order is deterministic regardless
+                    // of which FileReader.onload callback fires first.
+                    backgrounds.sort((a, b) => a.name.localeCompare(b.name));
                     createCanvasPreviews();
                 }
             };
@@ -1338,6 +1341,9 @@ document.getElementById('designUpload').addEventListener('change', async functio
     }
 
     loadingIndicator.innerText = "Loading previews...";
+
+    // Sort alphabetically so order is deterministic regardless of async load order.
+    designs.sort((a, b) => a.name.localeCompare(b.name));
 
     createCanvasPreviews();
 });
@@ -3299,6 +3305,7 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
 
 
 let resizeTimer;
+let _resizeRestoreInProgress = false;
 
 window.addEventListener('resize', ()=>{
 
@@ -3308,14 +3315,25 @@ window.addEventListener('resize', ()=>{
 
         if(!canvasData.length) return;
 
-        // Rebuild at new viewport width while preserving all effects and transforms.
-        // createCanvasPreviews() resets everything to defaults; snapshot-restore keeps state.
-        const snapshot = buildSnapshot();
+        // Guard against concurrent restores: if a previous resize is still
+        // running its async restore, skip this one entirely so canvasData
+        // is never written by two calls at once (which scrambles the order).
+        if(_resizeRestoreInProgress) return;
 
-        await createCanvasPreviewsFromSnapshot(snapshot);
+        _resizeRestoreInProgress = true;
 
-        syncSliders();
-        updateWindowBorders();
+        try {
+            // Rebuild at new viewport width while preserving all effects and transforms.
+            // createCanvasPreviews() resets everything to defaults; snapshot-restore keeps state.
+            const snapshot = buildSnapshot();
+
+            await createCanvasPreviewsFromSnapshot(snapshot);
+
+            syncSliders();
+            updateWindowBorders();
+        } finally {
+            _resizeRestoreInProgress = false;
+        }
 
     }, 150);
 });
