@@ -437,7 +437,10 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "medium";
 
-    const pad = Math.abs(arcAmount) * 6;
+    // pad must cover both arc displacement (max = arcAmount px at centre) and
+    // tilt displacement (max = 0.18 × img.height × |arcTiltAmount|/100 at centre).
+    const pad = Math.abs(arcAmount) * 6
+        + Math.ceil(Math.abs(arcTiltAmount) / 100 * img.height * 0.2);
 
     temp.width = img.width + pad;
     temp.height = img.height + pad * 2;
