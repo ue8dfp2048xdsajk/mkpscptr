@@ -3242,6 +3242,22 @@ document.getElementById("loadProgressInput").addEventListener("change", function
 });
 
 
+document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
+
+    if(!confirm("Clear the autosaved session? The canvas will start blank on the next page load.")) return;
+
+    localStorage.removeItem('mockup_autosave');
+
+    // Reset canvas immediately so the current state also reflects a clean slate
+    canvasData = [];
+    backgrounds = [];
+    designs = [];
+
+    document.getElementById("canvasContainer").innerHTML = "";
+    document.getElementById("loadingIndicator").style.display = "none";
+});
+
+
 let resizeTimer;
 
 window.addEventListener('resize', ()=>{
