@@ -669,7 +669,8 @@ function clearBezierHelpers(canvas){
             obj.excludeFromExport &&
             (
                 obj.isBezierHelper ||
-                obj.isTempCurvePreview
+                obj.isTempCurvePreview ||
+                obj.isRubberBand
             )
         )
         .forEach(obj=>{
@@ -699,8 +700,8 @@ function drawBezierHelpers(canvas, points){
                 const line = new fabric.Line(
                     [p1.x, p1.y, p2.x, p2.y],
                     {
-                        stroke:'rgba(95,143,255,0.45)',
-                        strokeWidth:0.6,
+                        stroke:'rgba(180,180,180,0.5)',
+                        strokeWidth:0.5,
                         selectable:false,
                         evented:false,
                         excludeFromExport:true,
@@ -720,9 +721,9 @@ function drawBezierHelpers(canvas, points){
             left: point.x,
             top: point.y,
             radius: 2.2,
-            fill: 'rgba(30,94,255,0.55)',
-            stroke:'rgba(255,255,255,0.55)',
-            strokeWidth:0.6,
+            fill: 'rgba(230,230,230,0.85)',
+            stroke:'rgba(80,80,80,0.7)',
+            strokeWidth:0.5,
             originX:'center',
             originY:'center',
             selectable:false,
@@ -746,8 +747,8 @@ function drawBezierHelpers(canvas, points){
         const leftLine = new fabric.Line(
             [point.x, point.y, leftHandleX, point.y],
             {
-                stroke:'rgba(160,191,255,0.35)',
-                strokeWidth:0.45,
+                stroke:'rgba(180,180,180,0.35)',
+                strokeWidth:0.4,
                 selectable:false,
                 evented:false,
                 excludeFromExport:true,
@@ -765,8 +766,8 @@ function drawBezierHelpers(canvas, points){
                     : point.y
             ],
             {
-                stroke:'rgba(30,94,255,0.55)',
-                strokeWidth:0.45,
+                stroke:'rgba(180,180,180,0.5)',
+                strokeWidth:0.4,
                 selectable:false,
                 evented:false,
                 excludeFromExport:true,
@@ -787,9 +788,9 @@ function drawBezierHelpers(canvas, points){
                     ? point.cy
                     : point.y,
             radius:1.4,
-            fill:'rgba(255,255,255,0.45)',
-            stroke:'rgba(30,94,255,0.55)',
-            strokeWidth:0.55,
+            fill:'rgba(255,255,255,0.7)',
+            stroke:'rgba(140,140,140,0.7)',
+            strokeWidth:0.5,
             originX:'center',
             originY:'center',
             selectable:false,
@@ -864,13 +865,19 @@ function createCurveOverlay(
     return new fabric.Path(
         buildCurvePathString(points, closed),
         {
-            fill: (
-                closed && !isTemporary
-            )
-                ? 'rgba(0,0,255,0.08)'
-                : 'rgba(0,0,255,0)',
-            stroke: '#1e5eff',
-            strokeWidth: 0.85,
+            // Photoshop pen-path aesthetic: thin light-grey line with a
+            // white glow so it reads clearly on any background.
+            fill: closed && !isTemporary
+                ? 'rgba(255,255,255,0.04)'
+                : 'rgba(0,0,0,0)',
+            stroke: 'rgba(215,215,215,0.95)',
+            strokeWidth: 0.55,
+            shadow: new fabric.Shadow({
+                color: 'rgba(255,255,255,0.8)',
+                blur: 3,
+                offsetX: 0,
+                offsetY: 0
+            }),
             selectable: false,
             evented: false,
             excludeFromExport: true,
@@ -2116,6 +2123,12 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
 
             clearBezierHelpers(data.fabricCanvas);
 
+            // clearBezierHelpers now also removes rubber-band lines,
+            // but remove any that slipped through on other canvases
+            data.fabricCanvas.getObjects()
+                .filter(obj => obj.isRubberBand)
+                .forEach(obj => data.fabricCanvas.remove(obj));
+
             if(activeCurvePreview){
                 data.fabricCanvas.remove(activeCurvePreview);
             }
@@ -2297,7 +2310,8 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             targetCanvas.getObjects()
                 .filter(obj =>
                     obj.isBezierHelper ||
-                    obj.isTempCurvePreview
+                    obj.isTempCurvePreview ||
+                    obj.isRubberBand
                 )
                 .forEach(obj=>{
                     targetCanvas.remove(obj);
@@ -2616,8 +2630,52 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
     fabricCanvas.on('mouse:move', function(opt){
 
+        if(!clipEditMode) return;
+
+        // Rubber-band: live tether line from the last placed point to the
+        // cursor so the user sees the next segment before clicking — same
+        // feel as the Photoshop pen tool.
         if(
-            !clipEditMode ||
+            !isDraggingCurveHandle &&
+            !clipPolygonClosed    &&
+            clipCurvePoints.length > 0 &&
+            index === activeClipWindowIndex
+        ){
+            const pointer = fabricCanvas.getPointer(opt.e);
+            const last    = clipCurvePoints[clipCurvePoints.length - 1];
+
+            // clear any stale rubber-band line from this canvas
+            fabricCanvas.getObjects()
+                .filter(obj => obj.isRubberBand)
+                .forEach(obj => fabricCanvas.remove(obj));
+
+            const rb = new fabric.Line(
+                [last.x, last.y, pointer.x, pointer.y],
+                {
+                    stroke: 'rgba(210,210,210,0.8)',
+                    strokeWidth: 0.55,
+                    strokeDashArray: [5, 3],
+                    shadow: new fabric.Shadow({
+                        color: 'rgba(255,255,255,0.7)',
+                        blur: 2,
+                        offsetX: 0,
+                        offsetY: 0
+                    }),
+                    selectable:      false,
+                    evented:         false,
+                    excludeFromExport: true,
+                    isRubberBand:    true,
+                    objectCaching:   false
+                }
+            );
+
+            fabricCanvas.add(rb);
+            rb.bringToFront();
+            fabricCanvas.requestRenderAll();
+            return;
+        }
+
+        if(
             !isDraggingCurveHandle ||
             !currentCurveHandle
         ){
