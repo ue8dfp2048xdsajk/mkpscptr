@@ -1050,6 +1050,8 @@ async function applyWarpToData(data, lowQuality = false){
     data.fabricCanvas.requestRenderAll();
 
     attachFabricEvents(data);
+
+    autoSaveSession();
 }
 
 
@@ -1826,6 +1828,11 @@ function attachFabricEvents(data, targetObject = null){
         });
 
         data.fabricCanvas.requestRenderAll();
+    });
+
+    // persist position/scale/rotation changes that don't go through applyWarpToData
+    designTarget.on('mouseup', ()=>{
+        autoSaveSession();
     });
 }
 
@@ -2745,9 +2752,9 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
 
 
 
-document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
+function buildSnapshot(){
 
-    const snapshot = canvasData.map(data=>{
+    return canvasData.map(data=>{
 
         const mainObj = data.designObject;
 
@@ -2772,6 +2779,8 @@ document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
             warpAmount: data.warpAmount ?? 0,
             arcAmount: data.arcAmount ?? 0,
             arcTilt: data.arcTilt ?? 0,
+            perspectiveTop: data.perspectiveTop ?? 0,
+            perspectiveLeft: data.perspectiveLeft ?? 0,
             opacity: data.opacity ?? 1,
             blurAmount: data.blurAmount ?? 0,
             blendMode: data.blendMode ?? "normal",
@@ -2795,6 +2804,35 @@ document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
             }))
         };
     });
+}
+
+
+let _autoSaveTimer = null;
+
+function autoSaveSession(){
+
+    if(!canvasData.length) return;
+
+    clearTimeout(_autoSaveTimer);
+
+    _autoSaveTimer = setTimeout(()=>{
+
+        try {
+            localStorage.setItem(
+                'mockup_autosave',
+                JSON.stringify(buildSnapshot())
+            );
+        } catch(e){
+            // quota exceeded or private browsing — silently skip
+        }
+
+    }, 800);
+}
+
+
+document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
+
+    const snapshot = buildSnapshot();
 
     const blob = new Blob(
         [JSON.stringify(snapshot, null, 2)],
@@ -2906,6 +2944,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             warpAmount: saved.warpAmount,
             arcAmount: saved.arcAmount,
             arcTilt: saved.arcTilt ?? 0,
+            perspectiveTop: saved.perspectiveTop ?? 0,
+            perspectiveLeft: saved.perspectiveLeft ?? 0,
 
             opacity: saved.opacity ?? 1,
             blurAmount: saved.blurAmount ?? 0,
@@ -3191,11 +3231,42 @@ window.addEventListener('resize', ()=>{
 
     clearTimeout(resizeTimer);
 
-    resizeTimer = setTimeout(()=>{
+    resizeTimer = setTimeout(async ()=>{
 
-        if(backgrounds.length){
-            createCanvasPreviews();
-        }
+        if(!canvasData.length) return;
+
+        // Rebuild at new viewport width while preserving all effects and transforms.
+        // createCanvasPreviews() resets everything to defaults; snapshot-restore keeps state.
+        const snapshot = buildSnapshot();
+
+        await createCanvasPreviewsFromSnapshot(snapshot);
+
+        syncSliders();
+        updateWindowBorders();
 
     }, 150);
+});
+
+
+window.addEventListener('DOMContentLoaded', async ()=>{
+
+    const raw = localStorage.getItem('mockup_autosave');
+
+    if(!raw) return;
+
+    let snapshot;
+
+    try {
+        snapshot = JSON.parse(raw);
+    } catch(e){
+        localStorage.removeItem('mockup_autosave');
+        return;
+    }
+
+    if(!Array.isArray(snapshot) || !snapshot.length) return;
+
+    await createCanvasPreviewsFromSnapshot(snapshot);
+
+    syncSliders();
+    updateWindowBorders();
 });
