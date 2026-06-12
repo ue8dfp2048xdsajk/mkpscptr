@@ -89,6 +89,10 @@ let pendingWarpUpdate = false;
 let globalHQTimer = null;
 let activeSliderType = null;
 
+// marching ants animation
+let _marchingAntsTimer  = null;
+let _marchingAntsOffset = 0;
+
 
 function trimTransparentPixels(img){
 
@@ -670,7 +674,9 @@ function clearBezierHelpers(canvas){
             (
                 obj.isBezierHelper ||
                 obj.isTempCurvePreview ||
-                obj.isRubberBand
+                obj.isRubberBand    ||
+                obj.isMarchingDark  ||
+                obj.isMarchingLight
             )
         )
         .forEach(obj=>{
@@ -856,40 +862,86 @@ function buildCurvePathString(points, closed = true){
     return path;
 }
 
+// Returns [darkPath, lightPath] — two overlapping dashed paths that together
+// create Photoshop polygon-lasso "marching ants": black and white dashes
+// interleaved so the outline is visible on any background colour.
+// The animation loop (startMarchingAnts) scrolls strokeDashOffset over time.
 function createCurveOverlay(
     points,
     closed = false,
     isTemporary = true
 ){
+    const pathStr = buildCurvePathString(points, closed);
 
-    return new fabric.Path(
-        buildCurvePathString(points, closed),
-        {
-            // Photoshop pen-path aesthetic: thin light-grey line with a
-            // white glow so it reads clearly on any background.
-            fill: closed && !isTemporary
-                ? 'rgba(255,255,255,0.04)'
-                : 'rgba(0,0,0,0)',
-            stroke: 'rgba(215,215,215,0.95)',
-            strokeWidth: 0.55,
-            shadow: new fabric.Shadow({
-                color: 'rgba(255,255,255,0.8)',
-                blur: 3,
-                offsetX: 0,
-                offsetY: 0
-            }),
-            selectable: false,
-            evented: false,
-            excludeFromExport: true,
+    const common = {
+        fill:             'rgba(0,0,0,0)',
+        strokeWidth:      1,
+        strokeDashArray:  [4, 4],
+        selectable:       false,
+        evented:          false,
+        excludeFromExport:true,
+        isTempCurvePreview: isTemporary,
+        objectCaching:    false
+    };
 
-            // ONLY live editor previews should be removable.
-            // Finalized overlays must persist while drawing
-            // additional polygons.
-            isTempCurvePreview: isTemporary,
+    // dark layer — black dashes
+    const dark = new fabric.Path(pathStr, {
+        ...common,
+        stroke:           'rgba(0,0,0,0.85)',
+        strokeDashOffset: _marchingAntsOffset,
+        isMarchingDark:   true
+    });
 
-            objectCaching: false
-        }
-    );
+    // light layer — white dashes, offset by half the dash cycle so they
+    // fill the gaps left by the dark dashes
+    const light = new fabric.Path(pathStr, {
+        ...common,
+        stroke:           'rgba(255,255,255,0.92)',
+        strokeDashOffset: (_marchingAntsOffset + 4) % 8,
+        isMarchingLight:  true
+    });
+
+    return [dark, light];
+}
+
+
+function startMarchingAnts(){
+    if(_marchingAntsTimer) return;
+
+    _marchingAntsTimer = setInterval(()=>{
+
+        _marchingAntsOffset = (_marchingAntsOffset + 1) % 8;
+
+        canvasData.forEach(data=>{
+            if(!data.fabricCanvas) return;
+
+            let dirty = false;
+
+            data.fabricCanvas.getObjects().forEach(obj=>{
+
+                if(obj.isMarchingDark){
+                    obj.strokeDashOffset = _marchingAntsOffset;
+                    dirty = true;
+                }
+
+                if(obj.isMarchingLight){
+                    obj.strokeDashOffset = (_marchingAntsOffset + 4) % 8;
+                    dirty = true;
+                }
+            });
+
+            if(dirty) data.fabricCanvas.requestRenderAll();
+        });
+
+    }, 80);
+}
+
+
+function stopMarchingAnts(){
+    if(_marchingAntsTimer){
+        clearInterval(_marchingAntsTimer);
+        _marchingAntsTimer = null;
+    }
 }
 
 
@@ -970,18 +1022,18 @@ function addClipOverlay(data){
 
     allMasks.forEach(path=>{
 
-        const overlay =
+        const overlays =
             createCurveOverlay(
                 path,
                 true,
                 false
             );
 
-        data.clipOverlays.push(overlay);
-
-        data.fabricCanvas.add(overlay);
-
-        overlay.bringToFront();
+        overlays.forEach(o=>{
+            data.clipOverlays.push(o);
+            data.fabricCanvas.add(o);
+            o.bringToFront();
+        });
     });
 
     if(data.designObject){
@@ -2117,6 +2169,8 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
     // exiting clip mode
     if(!clipEditMode){
 
+        stopMarchingAnts();
+
         activeClipWindowIndex = null;
 
         canvasData.forEach(data=>{
@@ -2130,7 +2184,7 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
                 .forEach(obj => data.fabricCanvas.remove(obj));
 
             if(activeCurvePreview){
-                data.fabricCanvas.remove(activeCurvePreview);
+                activeCurvePreview.forEach(o=> data.fabricCanvas.remove(o));
             }
 
             activeCurvePreview = null;
@@ -2145,6 +2199,8 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
     }
 
     // entering clip mode
+    startMarchingAnts();
+
     activeCurvePreview = null;
 
     const sourceData = canvasData[activeIndices[0]];
@@ -2189,14 +2245,14 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
                     true
                 );
 
-            data.fabricCanvas.add(activeCurvePreview);
+            activeCurvePreview.forEach(o=> data.fabricCanvas.add(o));
 
             drawBezierHelpers(
                 data.fabricCanvas,
                 clipCurvePoints
             );
 
-            activeCurvePreview.bringToFront();
+            activeCurvePreview.forEach(o=> o.bringToFront());
 
             activeBezierHelpers.forEach(obj=>{
                 obj.bringToFront();
@@ -2285,9 +2341,9 @@ document.getElementById("deleteClipBtn").addEventListener("click", ()=>{
     );
 
     if(activeCurvePreview){
-        canvasData[activeIndices[0]].fabricCanvas
-            .remove(activeCurvePreview);
-
+        activeCurvePreview.forEach(o=>
+            canvasData[activeIndices[0]].fabricCanvas.remove(o)
+        );
         activeCurvePreview = null;
     }
 });
@@ -2322,13 +2378,13 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                 return;
             }
 
-            const overlay =
+            const overlays =
                 createCurveOverlay(
                     clipCurvePoints,
                     clipPolygonClosed
                 );
 
-            targetCanvas.add(overlay);
+            overlays.forEach(o=> targetCanvas.add(o));
 
             // Photoshop-style workflow:
             // while user is still drawing the polygon,
@@ -2341,7 +2397,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                     clipCurvePoints
                 );
 
-                overlay.bringToFront();
+                overlays.forEach(o=> o.bringToFront());
 
                 activeBezierHelpers.forEach(obj=>{
                     obj.bringToFront();
@@ -2644,33 +2700,39 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             const pointer = fabricCanvas.getPointer(opt.e);
             const last    = clipCurvePoints[clipCurvePoints.length - 1];
 
-            // clear any stale rubber-band line from this canvas
+            // clear any stale rubber-band lines from this canvas
             fabricCanvas.getObjects()
                 .filter(obj => obj.isRubberBand)
                 .forEach(obj => fabricCanvas.remove(obj));
 
-            const rb = new fabric.Line(
+            const rbCommon = {
+                strokeWidth:       1,
+                strokeDashArray:   [4, 4],
+                selectable:        false,
+                evented:           false,
+                excludeFromExport: true,
+                isRubberBand:      true,
+                objectCaching:     false
+            };
+
+            // dark layer
+            const rbDark = new fabric.Line(
                 [last.x, last.y, pointer.x, pointer.y],
-                {
-                    stroke: 'rgba(210,210,210,0.8)',
-                    strokeWidth: 0.55,
-                    strokeDashArray: [5, 3],
-                    shadow: new fabric.Shadow({
-                        color: 'rgba(255,255,255,0.7)',
-                        blur: 2,
-                        offsetX: 0,
-                        offsetY: 0
-                    }),
-                    selectable:      false,
-                    evented:         false,
-                    excludeFromExport: true,
-                    isRubberBand:    true,
-                    objectCaching:   false
-                }
+                { ...rbCommon, stroke: 'rgba(0,0,0,0.85)',
+                  strokeDashOffset: _marchingAntsOffset }
             );
 
-            fabricCanvas.add(rb);
-            rb.bringToFront();
+            // white layer — interleaved with dark
+            const rbLight = new fabric.Line(
+                [last.x, last.y, pointer.x, pointer.y],
+                { ...rbCommon, stroke: 'rgba(255,255,255,0.92)',
+                  strokeDashOffset: (_marchingAntsOffset + 4) % 8 }
+            );
+
+            fabricCanvas.add(rbDark);
+            fabricCanvas.add(rbLight);
+            rbDark.bringToFront();
+            rbLight.bringToFront();
             fabricCanvas.requestRenderAll();
             return;
         }
