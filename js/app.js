@@ -2611,6 +2611,38 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 }
 
 
+// Render one canvas item to a full-resolution PNG blob
+async function exportDataToBlob(data){
+
+    data.fabricCanvas.discardActiveObject();
+
+    const hiddenOverlayObjects = [];
+
+    data.fabricCanvas.getObjects().forEach(obj=>{
+        if(obj.excludeFromExport){
+            hiddenOverlayObjects.push(obj);
+            obj.visible = false;
+        }
+    });
+
+    data.fabricCanvas.requestRenderAll();
+
+    const exportMultiplier = 1 / data.previewScale;
+
+    const dataURL = data.fabricCanvas.toDataURL({
+        format: 'png',
+        quality: 1,
+        multiplier: exportMultiplier,
+        enableRetinaScaling: true
+    });
+
+    hiddenOverlayObjects.forEach(obj=>{ obj.visible = true; });
+    data.fabricCanvas.requestRenderAll();
+
+    return await (await fetch(dataURL)).blob();
+}
+
+
 document.getElementById("exportBtn").addEventListener("click", async ()=>{
 
     if(clipEditMode){
@@ -2618,68 +2650,61 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
         return;
     }
 
-    if(!activeIndices.length) return;
-
-    let dirHandle;
-
-    try{
-        dirHandle = await window.showDirectoryPicker();
-    } catch(err){
+    if(!activeIndices.length){
+        alert("Select at least one canvas window before exporting.");
         return;
     }
 
+    // --- Path A: File System Access API (Chrome/Edge, HTTPS) ---
+    if(typeof window.showDirectoryPicker === "function"){
+
+        let dirHandle;
+
+        try{
+            dirHandle = await window.showDirectoryPicker();
+        } catch(err){
+            // User cancelled the picker — do nothing
+            return;
+        }
+
+        for(let index of activeIndices){
+
+            const data = canvasData[index];
+            const blob = await exportDataToBlob(data);
+
+            const fileHandle = await dirHandle.getFileHandle(
+                data.filename + ".png",
+                { create: true }
+            );
+
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+        }
+
+        alert("Exported " + activeIndices.length + " file(s)!");
+        return;
+    }
+
+    // --- Path B: fallback download for Firefox / Safari / HTTP ---
+    // Trigger individual <a download> for each selected canvas.
     for(let index of activeIndices){
 
         const data = canvasData[index];
+        const blob = await exportDataToBlob(data);
 
-        data.fabricCanvas.discardActiveObject();
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement("a");
 
-        // hide ALL editor-only overlay objects during export
-        const hiddenOverlayObjects = [];
+        a.href     = url;
+        a.download = data.filename + ".png";
+        a.click();
 
-        data.fabricCanvas.getObjects().forEach(obj=>{
+        // Small delay so the browser registers each download separately
+        await new Promise(r => setTimeout(r, 150));
 
-            if(obj.excludeFromExport){
-
-                hiddenOverlayObjects.push(obj);
-
-                obj.visible = false;
-            }
-        });
-
-        data.fabricCanvas.requestRenderAll();
-
-        // Export at original full resolution
-        const exportMultiplier = 1 / data.previewScale;
-
-        const dataURL = data.fabricCanvas.toDataURL({
-            format: 'png',
-            quality: 1,
-            multiplier: exportMultiplier,
-            enableRetinaScaling: true
-        });
-
-        // restore editor overlays after export
-        hiddenOverlayObjects.forEach(obj=>{
-            obj.visible = true;
-        });
-
-        data.fabricCanvas.requestRenderAll();
-
-        const blob = await (await fetch(dataURL)).blob();
-
-        const fileHandle = await dirHandle.getFileHandle(
-            data.filename + ".png",
-            {create:true}
-        );
-
-        const writable = await fileHandle.createWritable();
-
-        await writable.write(blob);
-        await writable.close();
+        URL.revokeObjectURL(url);
     }
-
-    alert("Exported selected previews!");
 });
 
 
