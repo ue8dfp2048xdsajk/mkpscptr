@@ -79,6 +79,7 @@ const perspectiveTop = document.getElementById("perspectiveTop");
 const perspectiveLeft = document.getElementById("perspectiveLeft");
 const opacityAmount = document.getElementById("opacityAmount");
 const blurAmount = document.getElementById("blurAmount");
+const noiseAmount = document.getElementById("noiseAmount");
 const blendMode = document.getElementById("blendMode");
 
 
@@ -278,6 +279,53 @@ function applyGaussianBlurToImage(sourceImg, blurRadius){
     return blurCanvas;
 }
 
+
+
+// Applies Photoshop-style monochromatic Gaussian noise to a canvas/image.
+// noisePercent: 0–100, where 100 = maximum grain (amplitude ≈ ±127 luminance).
+// Returns the original source unchanged when noisePercent is 0 (fast path).
+function applyNoiseToImage(source, noisePercent){
+
+    if(!noisePercent || noisePercent <= 0) return source;
+
+    const w = source.width || source.naturalWidth;
+    const h = source.height || source.naturalHeight;
+
+    const c = document.createElement('canvas');
+    c.width  = w;
+    c.height = h;
+
+    const ctx = c.getContext('2d');
+    ctx.drawImage(source, 0, 0);
+
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const px = imageData.data;
+
+    // amplitude scales so 100 % ≈ ±127 (half of 255),
+    // matching Photoshop's Gaussian noise visual range
+    const amplitude = (noisePercent / 100) * 127;
+
+    for(let i = 0; i < px.length; i += 4){
+
+        if(px[i + 3] === 0) continue; // leave fully-transparent pixels alone
+
+        // Box-Muller transform → Gaussian random variable (mean 0, σ ≈ 1)
+        const u1 = Math.random() || 1e-10;
+        const u2 = Math.random();
+        const z  = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+
+        // Monochromatic: same offset on R, G, B so hue is preserved
+        const delta = z * amplitude * 0.5;
+
+        px[i]     = Math.min(255, Math.max(0, px[i]     + delta));
+        px[i + 1] = Math.min(255, Math.max(0, px[i + 1] + delta));
+        px[i + 2] = Math.min(255, Math.max(0, px[i + 2] + delta));
+        // alpha (px[i+3]) intentionally unchanged
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    return c;
+}
 
 
 function applyPerspectiveDistortion(sourceCanvas, data){
@@ -587,7 +635,8 @@ warpAmount.value = data.warpAmount || 0;
     arcAmount.value = data.arcAmount || 0;
     arcTilt.value = data.arcTilt || 0;
     opacityAmount.value = Math.round((data.opacity ?? 1) * 100);
-    blurAmount.value = data.blurAmount || 0;
+    blurAmount.value  = data.blurAmount  || 0;
+    noiseAmount.value = data.noiseAmount || 0;
     perspectiveTop.value = data.perspectiveTop || 0;
     perspectiveLeft.value = data.perspectiveLeft || 0;
     blendMode.value = data.blendMode || "normal";
@@ -949,8 +998,12 @@ async function applyWarpToData(data, lowQuality = false){
         (data.blurAmount || 0) / 5
     );
 
+    // Noise is applied after blur (so grain isn't softened) but before warp
+    // (so it rides along with the texture distortion, matching PS behaviour).
+    const noisySource = applyNoiseToImage(blurredSource, data.noiseAmount || 0);
+
     const warpedBaseCanvas = createWarpedImage(
-        blurredSource,
+        noisySource,
         data.warpAmount,
         data.arcAmount,
         data.arcTilt ?? 0,
@@ -1085,6 +1138,7 @@ function updateFromSliders(event){
         activeSliderType === "arcAmount" ||
         activeSliderType === "arcTilt" ||
         activeSliderType === "blurAmount" ||
+        activeSliderType === "noiseAmount" ||
         activeSliderType === "perspectiveTop"  ||
         activeSliderType === "perspectiveLeft" ;
 
@@ -1123,9 +1177,15 @@ function updateFromSliders(event){
             Math.min(100, parseFloat(blurAmount.value) || 0)
         );
 
-        data.opacity = parseFloat(opacityAmount.value) / 100;
+        noiseAmount.value = Math.max(
+            0,
+            Math.min(100, parseFloat(noiseAmount.value) || 0)
+        );
+
+        data.opacity    = parseFloat(opacityAmount.value) / 100;
         data.blurAmount = parseFloat(blurAmount.value);
-        data.blendMode = blendMode.value;
+        data.noiseAmount = parseFloat(noiseAmount.value);
+        data.blendMode  = blendMode.value;
 
         const wrapper =
             data.fabricCanvas.lowerCanvasEl.parentElement;
@@ -1217,6 +1277,7 @@ arcAmount.addEventListener("input", updateFromSliders);
 arcTilt.addEventListener("input", updateFromSliders);
 opacityAmount.addEventListener("input", updateFromSliders);
 blurAmount.addEventListener("input", updateFromSliders);
+noiseAmount.addEventListener("input", updateFromSliders);
 blendMode.addEventListener("change", updateFromSliders);
 perspectiveTop.addEventListener("input", updateFromSliders);
 perspectiveLeft.addEventListener("input", updateFromSliders);
@@ -1387,6 +1448,7 @@ function createCanvasData(bgObj, designObj){
         arcTilt: 0,
         opacity: 1,
         blurAmount: 0,
+        noiseAmount: 0,
         blendMode: "normal",
         perspectiveTop: 0,
         perspectiveLeft: 0,
@@ -2764,8 +2826,9 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         data.arcAmount = data.initialArcAmount;
         data.arcTilt = data.initialArcTilt;
         data.opacity = data.initialOpacity;
-        data.blurAmount = data.initialBlurAmount;
-        data.blendMode = data.initialBlendMode;
+        data.blurAmount  = data.initialBlurAmount;
+        data.noiseAmount = data.initialNoiseAmount ?? 0;
+        data.blendMode   = data.initialBlendMode;
         data.perspectiveTop = data.initialPerspectiveTop;
         data.perspectiveLeft = data.initialPerspectiveLeft;
 
@@ -2839,6 +2902,7 @@ function buildSnapshot(){
             perspectiveLeft: data.perspectiveLeft ?? 0,
             opacity: data.opacity ?? 1,
             blurAmount: data.blurAmount ?? 0,
+            noiseAmount: data.noiseAmount ?? 0,
             blendMode: data.blendMode ?? "normal",
 
             maskPaths: data.maskPaths ?? [],
@@ -3008,6 +3072,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
             opacity: saved.opacity ?? 1,
             blurAmount: saved.blurAmount ?? 0,
+            noiseAmount: saved.noiseAmount ?? 0,
             blendMode: saved.blendMode ?? "normal",
 
             maskPaths:
@@ -3042,6 +3107,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             initialArcAmount: saved.arcAmount,
             initialOpacity: saved.opacity ?? 1,
             initialBlurAmount: saved.blurAmount ?? 0,
+            initialNoiseAmount: saved.noiseAmount ?? 0,
             initialBlendMode: saved.blendMode ?? "normal"
         };
 
