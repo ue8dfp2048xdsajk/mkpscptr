@@ -2617,8 +2617,17 @@ function attachFabricEvents(data, targetObject = null){
 
         } else {
 
-            // Extra layer: sync only the same-index peer in other selected windows
+            // Extra layer: move other selected objects in the SAME window first,
+            // then sync same-index peers in other selected windows.
             const layerIdx = (data.extraDesignObjects || []).indexOf(designTarget);
+
+            selectedDesigns.forEach(obj => {
+                if(obj === designTarget) return;
+                if(obj._ownerData !== data) return; // only same-window peers
+                obj.left += deltaX;
+                obj.top  += deltaY;
+                obj.setCoords();
+            });
 
             activeIndices.forEach(index=>{
 
@@ -2698,6 +2707,17 @@ function attachFabricEvents(data, targetObject = null){
 
             const layerIdx = (data.extraDesignObjects || []).indexOf(designTarget);
 
+            // Scale other selected objects in the SAME window first
+            selectedDesigns.forEach(obj => {
+                if(obj === designTarget) return;
+                if(obj._ownerData !== data) return;
+                obj.scaleX  = scaleX;
+                obj.scaleY  = scaleY;
+                obj.left   += deltaX;
+                obj.top    += deltaY;
+                obj.setCoords();
+            });
+
             activeIndices.forEach(index=>{
 
                 if(canvasData[index] === data) return;
@@ -2750,6 +2770,14 @@ function attachFabricEvents(data, targetObject = null){
         } else {
 
             const layerIdx = (data.extraDesignObjects || []).indexOf(designTarget);
+
+            // Rotate other selected objects in the SAME window first
+            selectedDesigns.forEach(obj => {
+                if(obj === designTarget) return;
+                if(obj._ownerData !== data) return;
+                obj.angle = angle;
+                obj.setCoords();
+            });
 
             activeIndices.forEach(index=>{
 
