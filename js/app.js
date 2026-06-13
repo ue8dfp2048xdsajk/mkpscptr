@@ -1100,7 +1100,7 @@ async function applyWarpToData(data, lowQuality = false){
 
         if(data.extraDesignObjects?.length){
 
-            data.extraDesignObjects.forEach(obj=>{
+            data.extraDesignObjects.forEach((obj, i)=>{
 
                 const prevLeft = obj.left;
                 const prevTop = obj.top;
@@ -1108,7 +1108,36 @@ async function applyWarpToData(data, lowQuality = false){
                 const prevScaleY = obj.scaleY;
                 const prevAngle = obj.angle;
 
-                obj.setElement(warpedCanvas);
+                // Uploaded designs have their own source image; apply the same
+                // warp pipeline to that source so they distort correctly too.
+                const ownOriginal = data.extraDesignOriginals?.[i];
+                let elementToUse = warpedCanvas;
+
+                if(ownOriginal){
+
+                    const ownBlurred = applyGaussianBlurToImage(
+                        ownOriginal,
+                        (data.blurAmount || 0) / 5
+                    );
+
+                    const ownNoisy = applyNoiseToImage(
+                        ownBlurred,
+                        data.noiseAmount || 0
+                    );
+
+                    const ownWarpedBase = createWarpedImage(
+                        ownNoisy,
+                        data.warpAmount,
+                        data.arcAmount,
+                        data.arcTilt ?? 0,
+                        data.warpCanvas,
+                        lowQuality
+                    );
+
+                    elementToUse = applyPerspectiveDistortion(ownWarpedBase, data);
+                }
+
+                obj.setElement(elementToUse);
 
                 applyClipMaskToObject(obj, data);
 
@@ -2045,6 +2074,7 @@ document.getElementById("designModeBtn").addEventListener("click", ()=>{
         activeIndices = [activeDesignWindow];
 
         document.getElementById("designModeBtn").innerText = "Exit Design Mode";
+        document.getElementById("uploadDesignBtn").style.display = "inline-block";
         document.getElementById("duplicateDesignBtn").style.display = "inline-block";
         document.getElementById("deleteDesignBtn").style.display = "inline-block";
 
@@ -2058,6 +2088,7 @@ document.getElementById("designModeBtn").addEventListener("click", ()=>{
         activeDesignWindow = null;
 
         document.getElementById("designModeBtn").innerText = "Design Mode";
+        document.getElementById("uploadDesignBtn").style.display = "none";
         document.getElementById("duplicateDesignBtn").style.display = "none";
         document.getElementById("deleteDesignBtn").style.display = "none";
 
@@ -2136,17 +2167,147 @@ document.getElementById("deleteDesignBtn").addEventListener("click", ()=>{
         return;
     }
 
+    const delIdx = (data.extraDesignObjects || []).indexOf(activeDesignObject);
+
     data.fabricCanvas.remove(activeDesignObject);
 
     data.extraDesignObjects =
-        data.extraDesignObjects.filter(
+        (data.extraDesignObjects || []).filter(
             obj => obj !== activeDesignObject
         );
+
+    // keep extraDesignOriginals in sync with extraDesignObjects
+    if(delIdx !== -1 && data.extraDesignOriginals){
+        data.extraDesignOriginals.splice(delIdx, 1);
+    }
 
     activeDesignObject = null;
 
     data.fabricCanvas.discardActiveObject();
     data.fabricCanvas.requestRenderAll();
+});
+
+
+// Upload a brand-new design image into the active design-mode window.
+// It becomes an independent layer with its own source, so warp/blur/noise
+// apply to it separately from the main design and from any clones.
+document.getElementById("uploadDesignBtn").addEventListener("click", ()=>{
+
+    if(clipEditMode){ showClipModeNotice(); return; }
+
+    if(editMode !== "design" || activeDesignWindow === null) return;
+
+    const data = canvasData[activeDesignWindow];
+
+    if(!data.designObject){
+        alert("Load a background and design first, then use Upload Design to add more.");
+        return;
+    }
+
+    document.getElementById("uploadDesignInput").value = "";
+    document.getElementById("uploadDesignInput").click();
+});
+
+
+document.getElementById("uploadDesignInput").addEventListener("change", async function(){
+
+    if(editMode !== "design" || activeDesignWindow === null) return;
+
+    const file = this.files[0];
+
+    if(!file) return;
+
+    const data = canvasData[activeDesignWindow];
+
+    const loadingIndicator = document.getElementById("loadingIndicator");
+    loadingIndicator.style.display = "block";
+    loadingIndicator.innerText = "Loading design...";
+
+    await new Promise(resolve=>{
+
+        const reader = new FileReader();
+
+        reader.onload = function(e){
+
+            const img = new Image();
+
+            img.onload = async function(){
+
+                let finalImg = img;
+
+                const isJpg =
+                    file.type === "image/jpeg" ||
+                    file.type === "image/jpg";
+
+                if(!isJpg){
+                    await new Promise(r=> requestAnimationFrame(r));
+                    finalImg = trimTransparentPixels(img);
+                }
+
+                const finalize = ()=>{
+
+                    // Store the original so warp can be applied to it
+                    data.extraDesignOriginals = data.extraDesignOriginals || [];
+                    data.extraDesignOriginals.push(finalImg);
+
+                    // Create the fabric.Image at the same centre position as
+                    // the main design so the user can immediately see and
+                    // reposition it.
+                    const cx = data.fabricCanvas.getWidth()  / 2;
+                    const cy = data.fabricCanvas.getHeight() / 2;
+
+                    const fabricImg = new fabric.Image(finalImg, {
+                        left:   cx,
+                        top:    cy,
+                        scaleX: (data.scaleX || data.scale || 1) * data.previewScale,
+                        scaleY: (data.scaleY || data.scale || 1) * data.previewScale,
+                        angle:  data.rotation || 0,
+                        opacity: data.opacity ?? 1,
+                        globalCompositeOperation:
+                            data.blendMode === 'multiply' ? 'multiply'
+                            : data.blendMode === 'screen'  ? 'screen'
+                            : 'source-over',
+                        originX: 'center',
+                        originY: 'center',
+                        transparentCorners: false,
+                        cornerColor: 'blue',
+                        cornerStyle: 'circle'
+                    });
+
+                    fabricImg._uploadedDesignName = file.name;
+
+                    data.extraDesignObjects = data.extraDesignObjects || [];
+                    data.extraDesignObjects.push(fabricImg);
+
+                    applyClipMaskToObject(fabricImg, data);
+
+                    data.fabricCanvas.add(fabricImg);
+                    attachFabricEvents(data, fabricImg);
+
+                    data.fabricCanvas.setActiveObject(fabricImg);
+                    activeDesignObject = fabricImg;
+
+                    data.fabricCanvas.requestRenderAll();
+
+                    loadingIndicator.style.display = "none";
+
+                    autoSaveSession();
+
+                    resolve();
+                };
+
+                if(finalImg.complete){
+                    finalize();
+                } else {
+                    finalImg.onload = finalize;
+                }
+            };
+
+            img.src = e.target.result;
+        };
+
+        reader.readAsDataURL(file);
+    });
 });
 
 
@@ -3055,7 +3216,7 @@ function buildSnapshot(){
             // Normalise duplicate positions the same way the main design x/y are
             // normalised — divide by previewScale so values are in bg-image-pixel
             // space.  The restore path multiplies back up by the new previewScale.
-            duplicates: (data.extraDesignObjects || []).map(obj=>({
+            duplicates: (data.extraDesignObjects || []).map((obj, i)=>({
 
                 left: obj.left  / data.previewScale,
                 top:  obj.top   / data.previewScale,
@@ -3063,7 +3224,14 @@ function buildSnapshot(){
                 scaleX: obj.scaleX / data.previewScale,
                 scaleY: obj.scaleY / data.previewScale,
 
-                angle: obj.angle
+                angle: obj.angle,
+
+                // Uploaded designs store their own image source so they
+                // survive save/restore independently of the main design.
+                src:  data.extraDesignOriginals?.[i]?.src  ?? null,
+                name: data.extraDesignOriginals?.[i]
+                    ? (obj._uploadedDesignName || null)
+                    : null
             }))
         };
     });
@@ -3363,44 +3531,97 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
             for(const dup of saved.duplicates){
 
-                await new Promise(resolve=>{
+                if(dup.src){
 
-                    data.designObject.clone(cloned=>{
+                    // Restore an independently-uploaded design from its saved
+                    // data URL (different source from the main design).
+                    await new Promise(resolve=>{
 
-                        cloned.set({
-                            // dup.left/top are normalised (bg-image-pixel space);
-                            // multiply by new previewScale to get canvas pixels.
-                            left: dup.left * previewScale,
-                            top:  dup.top  * previewScale,
+                        const img = new Image();
 
-                            scaleX:
-                                dup.scaleX * previewScale,
+                        img.onload = ()=>{
 
-                            scaleY:
-                                dup.scaleY * previewScale,
+                            const fabricImg = new fabric.Image(img, {
+                                left: dup.left * previewScale,
+                                top:  dup.top  * previewScale,
+                                scaleX: dup.scaleX * previewScale,
+                                scaleY: dup.scaleY * previewScale,
+                                angle: dup.angle,
+                                opacity: dup.opacity ?? data.opacity,
+                                globalCompositeOperation:
+                                    dup.blendMode === 'multiply'
+                                        ? 'multiply'
+                                        : dup.blendMode === 'screen'
+                                            ? 'screen'
+                                            : 'source-over',
+                                originX: 'center',
+                                originY: 'center',
+                                transparentCorners: false,
+                                cornerColor: 'blue',
+                                cornerStyle: 'circle'
+                            });
 
-                            angle: dup.angle,
+                            fabricImg._uploadedDesignName = dup.name || '';
 
-                            opacity:
-                                dup.opacity ?? data.opacity,
+                            data.extraDesignOriginals = data.extraDesignOriginals || [];
+                            data.extraDesignOriginals.push(img);
 
-                            globalCompositeOperation:
-                                dup.blendMode === 'multiply'
-                                    ? 'multiply'
-                                    : dup.blendMode === 'screen'
-                                        ? 'screen'
-                                        : 'source-over'
-                        });
+                            data.extraDesignObjects.push(fabricImg);
 
-                        data.extraDesignObjects.push(cloned);
+                            fabricCanvas.add(fabricImg);
+                            attachFabricEvents(data, fabricImg);
 
-                        fabricCanvas.add(cloned);
+                            resolve();
+                        };
 
-                        attachFabricEvents(data, cloned);
-
-                        resolve();
+                        img.src = dup.src;
                     });
-                });
+
+                } else {
+
+                    // Restore a cloned design — same source as main design.
+                    await new Promise(resolve=>{
+
+                        data.designObject.clone(cloned=>{
+
+                            cloned.set({
+                                // dup.left/top are normalised (bg-image-pixel space);
+                                // multiply by new previewScale to get canvas pixels.
+                                left: dup.left * previewScale,
+                                top:  dup.top  * previewScale,
+
+                                scaleX:
+                                    dup.scaleX * previewScale,
+
+                                scaleY:
+                                    dup.scaleY * previewScale,
+
+                                angle: dup.angle,
+
+                                opacity:
+                                    dup.opacity ?? data.opacity,
+
+                                globalCompositeOperation:
+                                    dup.blendMode === 'multiply'
+                                        ? 'multiply'
+                                        : dup.blendMode === 'screen'
+                                            ? 'screen'
+                                            : 'source-over'
+                            });
+
+                            data.extraDesignOriginals = data.extraDesignOriginals || [];
+                            data.extraDesignOriginals.push(null);
+
+                            data.extraDesignObjects.push(cloned);
+
+                            fabricCanvas.add(cloned);
+
+                            attachFabricEvents(data, cloned);
+
+                            resolve();
+                        });
+                    });
+                }
             }
         }
 
