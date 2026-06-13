@@ -2908,16 +2908,22 @@ document.getElementById("selectAllBtn").addEventListener("click", ()=>{
     if(activeIndices.length > 0){
 
         activeIndices = [];
-
-updateWindowBorders();
+        selectedDesigns.clear();
 
     } else {
 
         activeIndices = canvasData.map((_,i)=>i);
-
-updateWindowBorders();
+        selectedDesigns.clear();
+        canvasData.forEach(d => {
+            if(d?.designObject){
+                if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                selectedDesigns.add(d.designObject);
+            }
+        });
     }
 
+    refreshFabricHandles();
+    updateWindowBorders();
     updateSelectButtonState();
 });
 
