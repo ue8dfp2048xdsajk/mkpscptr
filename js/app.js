@@ -7,6 +7,12 @@ let clipCopySelectMode = false;   // true while user is picking copy targets
 let clipCopySourceIndex = null;   // which window the clipping will be copied FROM
 
 // ── Color layer state ────────────────────────────────────────────────────────
+// ── Global undo / redo ───────────────────────────────────────────────────────
+let globalUndoStack = [];
+let globalRedoStack = [];
+const MAX_UNDO_HISTORY = 50;
+let _sliderUndoLocked = false;   // one push per slider drag gesture
+
 let colorLayerMode  = false;
 let brushTool       = 'brush'; // 'brush' | 'eraser'
 let brushColor      = '#ff0000';
@@ -778,6 +784,229 @@ function updateBrushCursor(nativeEvent, previewScale){
 function hideBrushCursor(){
     const ring = document.getElementById('brushCursorRing');
     if(ring) ring.style.display = 'none';
+}
+
+// ── Undo / redo engine ────────────────────────────────────────────────────────
+
+function captureWindowState(data){
+    return {
+        x: data.x, y: data.y,
+        scale: data.scale, scaleX: data.scaleX, scaleY: data.scaleY,
+        rotation: data.rotation,
+        warpAmount:    data.warpAmount    ?? 0,
+        arcAmount:     data.arcAmount     ?? 0,
+        arcTilt:       data.arcTilt       ?? 0,
+        perspectiveTop:  data.perspectiveTop  ?? 0,
+        perspectiveLeft: data.perspectiveLeft ?? 0,
+        opacity:    data.opacity    ?? 1,
+        blurAmount: data.blurAmount ?? 0,
+        noiseAmount: data.noiseAmount ?? 0,
+        blendMode:  data.blendMode  ?? 'normal',
+        maskEnabled: !!data.maskEnabled,
+        maskType:  data.maskType ?? null,
+        maskPath:  data.maskPath  ? JSON.parse(JSON.stringify(data.maskPath))  : null,
+        maskPaths: JSON.parse(JSON.stringify(data.maskPaths || [])),
+        colorLayerImageData: data.colorLayerCtx
+            ? data.colorLayerCtx.getImageData(
+                0, 0,
+                data.colorLayerCanvas.width,
+                data.colorLayerCanvas.height)
+            : null,
+        colorLayerOpacity:   data.colorLayerFabricObj?.opacity ?? 1,
+        colorLayerBlendMode: data.colorLayerFabricObj?.globalCompositeOperation ?? 'source-over',
+        designFx: data.designObject?._fx
+            ? JSON.parse(JSON.stringify(data.designObject._fx))
+            : null,
+        duplicates: (data.extraDesignObjects || []).map((obj, i) => ({
+            left: obj.left, top: obj.top,
+            scaleX: obj.scaleX, scaleY: obj.scaleY,
+            angle: obj.angle,
+            src:  data.extraDesignOriginals?.[i]?.src ?? null,
+            name: obj._uploadedDesignName ?? null,
+            fx:   obj._fx ? JSON.parse(JSON.stringify(obj._fx)) : null
+        }))
+    };
+}
+
+async function restoreDuplicatesFromState(data, savedDups){
+    const targetCount = savedDups.length;
+
+    // Remove extra fabric objects
+    while((data.extraDesignObjects || []).length > targetCount){
+        const removed = data.extraDesignObjects.pop();
+        data.extraDesignOriginals && data.extraDesignOriginals.pop();
+        data.fabricCanvas.remove(removed);
+    }
+
+    // Update kept objects
+    const keepCount = Math.min(targetCount, (data.extraDesignObjects || []).length);
+    for(let i = 0; i < keepCount; i++){
+        const obj = data.extraDesignObjects[i];
+        const s   = savedDups[i];
+        obj.set({ left: s.left, top: s.top,
+                  scaleX: s.scaleX, scaleY: s.scaleY, angle: s.angle });
+        if(s.fx) obj._fx = JSON.parse(JSON.stringify(s.fx));
+        obj.setCoords();
+    }
+
+    // Re-create missing objects
+    for(let i = (data.extraDesignObjects || []).length; i < targetCount; i++){
+        const s = savedDups[i];
+        await new Promise(resolve => {
+            const build = (imgEl) => {
+                const fImg = new fabric.Image(imgEl, {
+                    left: s.left, top: s.top,
+                    scaleX: s.scaleX, scaleY: s.scaleY,
+                    angle: s.angle,
+                    selectable: true, evented: true
+                });
+                fImg._fx = s.fx ? JSON.parse(JSON.stringify(s.fx)) : _defaultFx(data);
+                if(s.name) fImg._uploadedDesignName = s.name;
+
+                data.extraDesignObjects  = data.extraDesignObjects  || [];
+                data.extraDesignOriginals = data.extraDesignOriginals || [];
+                data.extraDesignObjects.push(fImg);
+                data.extraDesignOriginals.push(s.src ? { src: s.src } : null);
+
+                data.fabricCanvas.add(fImg);
+                attachFabricEvents(data, fImg);
+                applyClipMaskToObject(fImg, data);
+                resolve();
+            };
+            if(s.src){
+                const img = new Image();
+                img.onload  = () => build(img);
+                img.onerror = () => build(data.designOriginal);
+                img.src = s.src;
+            } else if(data.designOriginal){
+                build(data.designOriginal);
+            } else {
+                resolve();
+            }
+        });
+    }
+}
+
+async function restoreWindowState(data, state){
+    data.x = state.x;   data.y = state.y;
+    data.scale  = state.scale;
+    data.scaleX = state.scaleX;  data.scaleY = state.scaleY;
+    data.rotation    = state.rotation;
+    data.warpAmount  = state.warpAmount  ?? 0;
+    data.arcAmount   = state.arcAmount   ?? 0;
+    data.arcTilt     = state.arcTilt     ?? 0;
+    data.perspectiveTop  = state.perspectiveTop  ?? 0;
+    data.perspectiveLeft = state.perspectiveLeft ?? 0;
+    data.opacity    = state.opacity    ?? 1;
+    data.blurAmount = state.blurAmount ?? 0;
+    data.noiseAmount = state.noiseAmount ?? 0;
+    data.blendMode  = state.blendMode  ?? 'normal';
+
+    if(data.designObject){
+        data.designObject._fx = state.designFx
+            ? JSON.parse(JSON.stringify(state.designFx)) : null;
+        data.designObject.set({
+            left:  state.x,  top: state.y,
+            angle: state.rotation,
+            scaleX: (state.scaleX ?? state.scale) * data.previewScale,
+            scaleY: (state.scaleY ?? state.scale) * data.previewScale,
+            opacity: state.opacity ?? 1,
+            globalCompositeOperation:
+                state.blendMode === 'multiply' ? 'multiply'
+                : state.blendMode === 'screen'  ? 'screen'
+                : 'source-over'
+        });
+    }
+
+    await applyWarpToData(data, false);
+
+    data.maskEnabled = state.maskEnabled;
+    data.maskType    = state.maskType;
+    data.maskPath    = state.maskPath  ? JSON.parse(JSON.stringify(state.maskPath))  : null;
+    data.maskPaths   = JSON.parse(JSON.stringify(state.maskPaths || []));
+    getAllDesignObjects(data).forEach(obj => applyClipMaskToObject(obj, data));
+    addClipOverlay(data);
+
+    if(state.colorLayerImageData){
+        initColorLayer(data);
+        data.colorLayerCtx.clearRect(
+            0, 0, data.colorLayerCanvas.width, data.colorLayerCanvas.height);
+        data.colorLayerCtx.putImageData(state.colorLayerImageData, 0, 0);
+        if(data.colorLayerFabricObj){
+            data.colorLayerFabricObj.set({
+                opacity: state.colorLayerOpacity ?? 1,
+                globalCompositeOperation: state.colorLayerBlendMode ?? 'source-over'
+            });
+        }
+    } else if(data.colorLayerFabricObj){
+        data.fabricCanvas.remove(data.colorLayerFabricObj);
+        data.colorLayerFabricObj = null;
+        data.colorLayerCanvas    = null;
+        data.colorLayerCtx       = null;
+        data.colorLayerHistory   = [];
+    }
+
+    await restoreDuplicatesFromState(data, state.duplicates || []);
+
+    data.fabricCanvas.discardActiveObject();
+    data.fabricCanvas.requestRenderAll();
+}
+
+function pushGlobalUndo(){
+    if(!canvasData.length || !activeIndices.length) return;
+    const affected = [...activeIndices];
+    globalUndoStack.push({
+        affected,
+        states: affected.map(i => captureWindowState(canvasData[i]))
+    });
+    if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+    globalRedoStack = [];
+    updateUndoRedoButtons();
+}
+
+async function performGlobalUndo(){
+    if(!globalUndoStack.length) return;
+    const entry = globalUndoStack.pop();
+    globalRedoStack.push({
+        affected: entry.affected,
+        states: entry.affected
+            .filter(i => i < canvasData.length)
+            .map(i => captureWindowState(canvasData[i]))
+    });
+    for(let i = 0; i < entry.affected.length; i++){
+        const idx = entry.affected[i];
+        if(idx < canvasData.length){
+            await restoreWindowState(canvasData[idx], entry.states[i]);
+        }
+    }
+    syncSliders();
+    updateUndoRedoButtons();
+}
+
+async function performGlobalRedo(){
+    if(!globalRedoStack.length) return;
+    const entry = globalRedoStack.pop();
+    globalUndoStack.push({
+        affected: entry.affected,
+        states: entry.affected
+            .filter(i => i < canvasData.length)
+            .map(i => captureWindowState(canvasData[i]))
+    });
+    for(let i = 0; i < entry.affected.length; i++){
+        const idx = entry.affected[i];
+        if(idx < canvasData.length){
+            await restoreWindowState(canvasData[idx], entry.states[i]);
+        }
+    }
+    syncSliders();
+    updateUndoRedoButtons();
+}
+
+function updateUndoRedoButtons(){
+    const u = document.getElementById('undoBtn');
+    const r = document.getElementById('redoBtn');
+    if(u) u.disabled = !globalUndoStack.length;
+    if(r) r.disabled = !globalRedoStack.length;
 }
 
 function paintAtNorm(normX, normY){
@@ -1656,6 +1885,19 @@ blendMode.addEventListener("change", updateFromSliders);
 perspectiveTop.addEventListener("input", updateFromSliders);
 perspectiveLeft.addEventListener("input", updateFromSliders);
 
+// Push one undo snapshot per slider drag gesture
+[warpAmount, arcAmount, arcTilt, opacityAmount, blurAmount,
+ noiseAmount, perspectiveTop, perspectiveLeft].forEach(el => {
+    el.addEventListener('mousedown', () => {
+        if(!_sliderUndoLocked){ _sliderUndoLocked = true; pushGlobalUndo(); }
+    });
+    el.addEventListener('mouseup', () => { _sliderUndoLocked = false; });
+});
+blendMode.addEventListener('mousedown', () => {
+    if(!_sliderUndoLocked){ _sliderUndoLocked = true; pushGlobalUndo(); }
+});
+blendMode.addEventListener('change', () => { _sliderUndoLocked = false; });
+
 
 document.getElementById('bgUpload').addEventListener('change', function(event){
 
@@ -2224,6 +2466,7 @@ function attachFabricEvents(data, targetObject = null){
         suppressNextWrapperClick = true;
         designTarget.lastLeft = designTarget.left;
         designTarget.lastTop = designTarget.top;
+        pushGlobalUndo();
     });
 
     designTarget.on('scaling', ()=>{
@@ -2416,6 +2659,8 @@ document.getElementById("duplicateDesignBtn").addEventListener("click", ()=>{
 
     if(!sourceObj) return;
 
+    pushGlobalUndo();
+
     sourceObj.clone((cloned)=>{
 
         // Clone inherits the source object's per-object effects so it starts
@@ -2473,6 +2718,8 @@ document.getElementById("deleteDesignBtn").addEventListener("click", ()=>{
         alert("Cannot delete original design");
         return;
     }
+
+    pushGlobalUndo();
 
     const delIdx = (data.extraDesignObjects || []).indexOf(activeDesignObject);
 
@@ -2764,6 +3011,7 @@ document.getElementById("addClipAreaBtn").addEventListener("click", ()=>{
         return;
     }
 
+    pushGlobalUndo();
     clipCurvePoints = [];
     clipPolygonClosed = false;
 
@@ -2790,6 +3038,8 @@ document.getElementById("deleteClipBtn").addEventListener("click", ()=>{
     if(!activeIndices.length){
         return;
     }
+
+    pushGlobalUndo();
 
     activeIndices.forEach(index=>{
 
@@ -2883,6 +3133,8 @@ document.getElementById("copyClipBtn").addEventListener("click", ()=>{
 document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
 
     if(clipCopySourceIndex === null) return;
+
+    pushGlobalUndo();
 
     const src = canvasData[clipCopySourceIndex];
 
@@ -3023,15 +3275,28 @@ document.getElementById("brushSoftnessSlider").addEventListener("input", e=>{
     brushSoftness = parseInt(e.target.value, 10);
 });
 
+// Global Cmd/Ctrl+Z → Undo, Cmd/Ctrl+Shift+Z → Redo
+// (Clip-mode in-progress point removal is handled by its own guarded handler
+//  which calls stopPropagation, so it takes priority when clipEditMode is true.)
 document.addEventListener('keydown', function(e){
-    if(!colorLayerMode) return;
-    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z'){
-        e.preventDefault();
-        e.stopPropagation();
-        activeIndices.forEach(i=> undoColorLayer(canvasData[i]));
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 'z') return;
+    if(clipEditMode) return;    // clip's own handler deals with it
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.shiftKey){
+        performGlobalRedo();
+    } else {
+        performGlobalUndo();
     }
 });
 
+document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{
+    if(!_sliderUndoLocked){ _sliderUndoLocked = true; pushGlobalUndo(); }
+});
+document.getElementById("colorLayerOpacityInput").addEventListener("mouseup", ()=>{
+    _sliderUndoLocked = false;
+});
 document.getElementById("colorLayerOpacityInput").addEventListener("input", e=>{
     colorLayerOpacity =
         Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) / 100;
@@ -3045,7 +3310,11 @@ document.getElementById("colorLayerOpacityInput").addEventListener("input", e=>{
     });
 });
 
+document.getElementById("colorLayerModeSelect").addEventListener("mousedown", ()=>{
+    if(!_sliderUndoLocked){ _sliderUndoLocked = true; pushGlobalUndo(); }
+});
 document.getElementById("colorLayerModeSelect").addEventListener("change", e=>{
+    _sliderUndoLocked = false;
     colorLayerBlendMode = e.target.value;
 
     activeIndices.forEach(i=>{
@@ -3300,6 +3569,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                 clipCurvePoints[clickedHandle.pointIndex];
 
             isDraggingCurveHandle = true;
+            pushGlobalUndo();   // capture before bezier handle adjustment
 
             return;
         }
@@ -3325,6 +3595,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                 currentCurveHandle.isAnchorPoint = true;
 
                 isDraggingCurveHandle = true;
+                pushGlobalUndo();   // capture before anchor point adjustment
 
                 return;
             }
@@ -3372,6 +3643,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             // on the visible first anchor point
             if(dist < 34){
 
+                pushGlobalUndo();   // capture before polygon is closed/finalized
                 clipPolygonClosed = true;
 
                 finalizePolygon();
@@ -3535,8 +3807,8 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             if(!canvasData[i].colorLayerFabricObj) initColorLayer(canvasData[i]);
         });
 
-        // Snapshot before every stroke for Cmd+Z undo
-        activeIndices.forEach(i=> pushColorLayerHistory(canvasData[i]));
+        // Snapshot before every stroke for undo
+        pushGlobalUndo();
 
         const ptr  = fabricCanvas.getPointer(opt.e);
         const norm = { x: ptr.x / data.previewScale, y: ptr.y / data.previewScale };
@@ -3614,6 +3886,9 @@ async function exportDataToBlob(data){
 }
 
 
+document.getElementById("undoBtn").addEventListener("click", () => performGlobalUndo());
+document.getElementById("redoBtn").addEventListener("click", () => performGlobalRedo());
+
 document.getElementById("exportBtn").addEventListener("click", async ()=>{
 
     if(clipEditMode){
@@ -3683,6 +3958,8 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
 document.getElementById("resetBtn").addEventListener("click", ()=>{
 
     if(!activeIndices.length) return;
+
+    pushGlobalUndo();
 
     activeIndices.forEach(index=>{
 

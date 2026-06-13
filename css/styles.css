@@ -7,6 +7,23 @@ body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0
     border-bottom: 1px solid #ccc;
     padding: 10px 0;
 }
+
+#undoBtn, #redoBtn {
+    background: #f0f0f0;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s;
+}
+#undoBtn:hover:not(:disabled), #redoBtn:hover:not(:disabled) {
+    background: #ddd;
+}
+#undoBtn:disabled, #redoBtn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
 .controls {
     margin: 10px;
     display: flex;
