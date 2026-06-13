@@ -17,6 +17,14 @@ let designEraserDown     = false;  // true while mouse button held in eraser mod
 let designEraserSize     = 30;     // eraser radius in CSS pixels (visual size on screen)
 let designEraserSoftness = 60;     // 0 = hard edge, 100 = fully soft
 
+let designWarpMode   = false;      // true while free-form mesh warp is active
+let warpActiveData   = null;       // canvasData entry that owns the warp session
+let warpTargetObjs   = [];         // fabric objects being warped
+let warpPoints       = [];         // 4×4 array of {x,y} in Fabric canvas coordinates
+let warpSourceCanvas = null;       // rasterised source image for the warp target(s)
+let warpSourceBounds = null;       // {left,top,width,height} of source in Fabric coords
+let warpDragRC       = null;       // {r,c} of control point being dragged, or null
+
 let colorLayerMode  = false;
 let brushTool       = 'brush'; // 'brush' | 'eraser'
 let brushColor      = '#ff0000';
@@ -873,6 +881,339 @@ function exitDesignEraserMode() {
 
 // Release eraser stroke if mouse is lifted anywhere in the window
 window.addEventListener('mouseup', () => { if (designEraserMode) designEraserDown = false; });
+
+// ── Free-form Mesh Warp ───────────────────────────────────────────────────────
+
+function _bernstein3(i, t) {
+    const mt = 1 - t;
+    if (i === 0) return mt*mt*mt;
+    if (i === 1) return 3*t*mt*mt;
+    if (i === 2) return 3*t*t*mt;
+    return t*t*t;
+}
+
+// Evaluate the 4×4 bicubic Bézier patch at parameter (u,v).
+// warpPoints[row][col] are the control points; u = col direction, v = row direction.
+function _evalWarpPatch(u, v) {
+    let x = 0, y = 0;
+    for (let r = 0; r < 4; r++) {
+        const bv = _bernstein3(r, v);
+        for (let c = 0; c < 4; c++) {
+            const w = bv * _bernstein3(c, u);
+            x += w * warpPoints[r][c].x;
+            y += w * warpPoints[r][c].y;
+        }
+    }
+    return {x, y};
+}
+
+// Render a textured triangle onto ctx.
+// Source triangle: (sx0,sy0),(sx1,sy1),(sx2,sy2) in img pixel space.
+// Destination triangle: (dx0,dy0),(dx1,dy1),(dx2,dy2) in ctx space.
+// Uses an affine transform + clip to map the source patch to the destination triangle.
+function _drawTexturedTriangle(ctx, img,
+        sx0, sy0, dx0, dy0,
+        sx1, sy1, dx1, dy1,
+        sx2, sy2, dx2, dy2) {
+    const det = sx0*(sy1-sy2) + sx1*(sy2-sy0) + sx2*(sy0-sy1);
+    if (Math.abs(det) < 0.5) return;
+    const a = (dx0*(sy1-sy2) + dx1*(sy2-sy0) + dx2*(sy0-sy1)) / det;
+    const c = (dx0*(sx2-sx1) + dx1*(sx0-sx2) + dx2*(sx1-sx0)) / det;
+    const e = (dx0*(sx1*sy2-sx2*sy1) + dx1*(sx2*sy0-sx0*sy2) + dx2*(sx0*sy1-sx1*sy0)) / det;
+    const b = (dy0*(sy1-sy2) + dy1*(sy2-sy0) + dy2*(sy0-sy1)) / det;
+    const d = (dy0*(sx2-sx1) + dy1*(sx0-sx2) + dy2*(sx1-sx0)) / det;
+    const f = (dy0*(sx1*sy2-sx2*sy1) + dy1*(sx2*sy0-sx0*sy2) + dy2*(sx0*sy1-sx1*sy0)) / det;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(dx0, dy0);
+    ctx.lineTo(dx1, dy1);
+    ctx.lineTo(dx2, dy2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.transform(a, b, c, d, e, f);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+}
+
+// Render the bicubic warp using forward-mapped triangle subdivision.
+// Returns {canvas, left, top} — canvas is the warped image; left/top are its
+// top-left corner in Fabric canvas coordinates.
+function _renderBicubicWarp() {
+    const N    = 40;
+    const srcW = warpSourceCanvas.width;
+    const srcH = warpSourceCanvas.height;
+
+    // Compute output bounding box by densely sampling the patch boundary + interior
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const steps = 24;
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        for (const [u, v] of [[t,0],[t,1],[0,t],[1,t],[t,t]]) {
+            const p = _evalWarpPatch(u, v);
+            if (p.x < minX) minX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y > maxY) maxY = p.y;
+        }
+    }
+    const outW = Math.max(1, Math.ceil(maxX - minX) + 2);
+    const outH = Math.max(1, Math.ceil(maxY - minY) + 2);
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width  = outW;
+    outCanvas.height = outH;
+    const outCtx = outCanvas.getContext('2d');
+    outCtx.imageSmoothingEnabled = true;
+    outCtx.imageSmoothingQuality = 'high';
+
+    for (let ri = 0; ri < N; ri++) {
+        for (let ci = 0; ci < N; ci++) {
+            const u0 = ci / N, u1 = (ci + 1) / N;
+            const v0 = ri / N, v1 = (ri + 1) / N;
+
+            const sx0 = u0 * srcW, sy0 = v0 * srcH;
+            const sx1 = u1 * srcW, sy1 = v1 * srcH;
+
+            const D00 = _evalWarpPatch(u0, v0);
+            const D10 = _evalWarpPatch(u1, v0);
+            const D01 = _evalWarpPatch(u0, v1);
+            const D11 = _evalWarpPatch(u1, v1);
+
+            _drawTexturedTriangle(outCtx, warpSourceCanvas,
+                sx0, sy0, D00.x - minX, D00.y - minY,
+                sx1, sy0, D10.x - minX, D10.y - minY,
+                sx0, sy1, D01.x - minX, D01.y - minY
+            );
+            _drawTexturedTriangle(outCtx, warpSourceCanvas,
+                sx1, sy1, D11.x - minX, D11.y - minY,
+                sx0, sy1, D01.x - minX, D01.y - minY,
+                sx1, sy0, D10.x - minX, D10.y - minY
+            );
+        }
+    }
+    return { canvas: outCanvas, left: minX, top: minY };
+}
+
+// Draw the warp overlay (grid + handles) directly onto a Fabric canvas context.
+function _drawWarpOverlay(ctx) {
+    if (!designWarpMode || warpPoints.length !== 4) return;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+
+    // Bezier grid lines
+    ctx.strokeStyle = 'rgba(74,158,255,0.9)';
+    ctx.lineWidth   = 1.3;
+    ctx.setLineDash([]);
+
+    for (let r = 0; r < 4; r++) {               // horizontal curves
+        const p = warpPoints[r];
+        ctx.beginPath();
+        ctx.moveTo(p[0].x, p[0].y);
+        ctx.bezierCurveTo(p[1].x, p[1].y, p[2].x, p[2].y, p[3].x, p[3].y);
+        ctx.stroke();
+    }
+    for (let c = 0; c < 4; c++) {               // vertical curves
+        const p = [warpPoints[0][c], warpPoints[1][c], warpPoints[2][c], warpPoints[3][c]];
+        ctx.beginPath();
+        ctx.moveTo(p[0].x, p[0].y);
+        ctx.bezierCurveTo(p[1].x, p[1].y, p[2].x, p[2].y, p[3].x, p[3].y);
+        ctx.stroke();
+    }
+
+    // Control point handles
+    for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+            const p          = warpPoints[r][c];
+            const isCorner   = (r === 0 || r === 3) && (c === 0 || c === 3);
+            const isDragging = warpDragRC && warpDragRC.r === r && warpDragRC.c === c;
+
+            ctx.beginPath();
+            if (isCorner) {
+                const s = isDragging ? 7 : 5;
+                ctx.rect(p.x - s, p.y - s, s * 2, s * 2);
+                ctx.fillStyle   = '#ffffff';
+                ctx.fill();
+                ctx.strokeStyle = isDragging ? '#0055cc' : '#555555';
+                ctx.lineWidth   = isDragging ? 2 : 1.5;
+                ctx.stroke();
+            } else {
+                const rad = isDragging ? 7 : 5;
+                ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+                ctx.fillStyle   = isDragging ? '#0055cc' : '#4a9eff';
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth   = 1.5;
+                ctx.stroke();
+            }
+        }
+    }
+    ctx.restore();
+}
+
+function enterDesignWarpMode() {
+    let targets = [...selectedDesigns];
+    if (targets.length === 0) {
+        for (const d of canvasData) {
+            const ao = d.fabricCanvas.getActiveObject();
+            if (ao) { targets = [ao]; break; }
+        }
+    }
+    if (targets.length === 0) {
+        alert('Select at least one design layer before using Warp.');
+        return;
+    }
+
+    // Find owning canvasData
+    let ownerData = null;
+    for (const d of canvasData) {
+        const allObjs = [d.designObject, ...(d.extraDesignObjects || [])].filter(Boolean);
+        if (targets.some(t => allObjs.includes(t))) { ownerData = d; break; }
+    }
+    if (!ownerData) return;
+
+    designWarpMode   = true;
+    warpActiveData   = ownerData;
+    warpTargetObjs   = targets.filter(t => {
+        const all = [ownerData.designObject, ...(ownerData.extraDesignObjects || [])].filter(Boolean);
+        return all.includes(t);
+    });
+    if (warpTargetObjs.length === 0) warpTargetObjs = targets;
+
+    // Compute combined bounding box in Fabric canvas coordinates
+    const rects = warpTargetObjs.map(o => o.getBoundingRect(true, true));
+    const minX  = Math.min(...rects.map(r => r.left));
+    const minY  = Math.min(...rects.map(r => r.top));
+    const maxX  = Math.max(...rects.map(r => r.left + r.width));
+    const maxY  = Math.max(...rects.map(r => r.top  + r.height));
+    warpSourceBounds = {left: minX, top: minY, width: maxX - minX, height: maxY - minY};
+
+    // Rasterise all selected objects onto the source canvas
+    const srcW = Math.max(1, Math.ceil(warpSourceBounds.width));
+    const srcH = Math.max(1, Math.ceil(warpSourceBounds.height));
+    warpSourceCanvas         = document.createElement('canvas');
+    warpSourceCanvas.width   = srcW;
+    warpSourceCanvas.height  = srcH;
+    const sCtx = warpSourceCanvas.getContext('2d');
+    sCtx.imageSmoothingEnabled = true;
+    sCtx.imageSmoothingQuality = 'high';
+
+    warpTargetObjs.forEach(obj => {
+        const mtx = obj.calcTransformMatrix();
+        sCtx.save();
+        sCtx.transform(mtx[0], mtx[1], mtx[2], mtx[3],
+                        mtx[4] - warpSourceBounds.left,
+                        mtx[5] - warpSourceBounds.top);
+        const el = ensureErasableCanvas(obj);
+        sCtx.drawImage(el, -obj.width / 2, -obj.height / 2, obj.width, obj.height);
+        sCtx.restore();
+    });
+
+    // Initialise 4×4 control point grid evenly over the bounding box
+    warpPoints = [];
+    for (let r = 0; r < 4; r++) {
+        warpPoints.push([]);
+        for (let c = 0; c < 4; c++) {
+            warpPoints[r].push({
+                x: minX + (c / 3) * warpSourceBounds.width,
+                y: minY + (r / 3) * warpSourceBounds.height
+            });
+        }
+    }
+    warpDragRC = null;
+
+    // Disable Fabric selection (same pattern as eraser)
+    canvasData.forEach(d => {
+        d.fabricCanvas.selection = false;
+        d.fabricCanvas.forEachObject(o => {
+            o._prevSelectable = o.selectable;
+            o._prevEvented    = o.evented;
+            o.selectable      = false;
+            o.evented         = false;
+        });
+        d.fabricCanvas.discardActiveObject();
+        d.fabricCanvas.requestRenderAll();
+    });
+    selectedDesigns.clear();
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+
+    document.getElementById('designWarpBtn').textContent      = 'Exit Warp';
+    document.getElementById('warpModeControls').style.display = 'inline-flex';
+    document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = 'crosshair');
+}
+
+function exitDesignWarpMode(apply) {
+    // Capture everything needed for async image creation before we clear state
+    const applyData = warpActiveData;
+    const applyObjs = [...warpTargetObjs];
+    let renderResult = null;
+    if (apply && applyData && warpSourceCanvas) {
+        renderResult = _renderBicubicWarp();
+    }
+
+    // Clear warp state immediately
+    designWarpMode   = false;
+    warpActiveData   = null;
+    warpTargetObjs   = [];
+    warpPoints       = [];
+    warpSourceCanvas = null;
+    warpSourceBounds = null;
+    warpDragRC       = null;
+
+    // Restore Fabric selection
+    canvasData.forEach(d => {
+        d.fabricCanvas.selection = true;
+        d.fabricCanvas.forEachObject(o => {
+            o.selectable = (o._prevSelectable !== undefined) ? o._prevSelectable : true;
+            o.evented    = (o._prevEvented    !== undefined) ? o._prevEvented    : true;
+            delete o._prevSelectable;
+            delete o._prevEvented;
+        });
+        d.fabricCanvas.requestRenderAll();
+    });
+    document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = '');
+    document.getElementById('designWarpBtn').textContent      = 'Warp';
+    document.getElementById('warpModeControls').style.display = 'none';
+
+    // Apply warped result as a new Fabric image (async due to fromURL)
+    if (renderResult && applyData) {
+        const { canvas: outCanvas, left, top } = renderResult;
+        const fc = applyData.fabricCanvas;
+
+        applyObjs.forEach(obj => fc.remove(obj));
+        const isMain   = applyObjs.includes(applyData.designObject);
+        const newExtras = (applyData.extraDesignObjects || []).filter(o => !applyObjs.includes(o));
+
+        fabric.Image.fromURL(outCanvas.toDataURL(), (newImg) => {
+            newImg.set({
+                left:    left + outCanvas.width  / 2,
+                top:     top  + outCanvas.height / 2,
+                originX: 'center',
+                originY: 'center',
+                selectable: true,
+                evented:    true,
+            });
+            newImg._ownerData = applyData;
+            newImg._fx        = _defaultFx(applyData);
+
+            fc.add(newImg);
+            if (isMain) applyData.designObject = newImg;
+            newExtras.push(newImg);
+            applyData.extraDesignObjects = newExtras;
+
+            fc.setActiveObject(newImg);
+            selectedDesigns.add(newImg);
+            fc.requestRenderAll();
+            refreshFabricHandles();
+            updateWindowBorders();
+            updateLayerButtons();
+            pushGlobalUndo();
+        });
+    }
+}
+
+window.addEventListener('mouseup', () => { if (designWarpMode) warpDragRC = null; });
 
 // ── Color layer helpers ──────────────────────────────────────────────────────
 
@@ -2797,6 +3138,11 @@ function attachFabricEvents(data, targetObject = null){
                 }
                 ctx.restore();
             });
+
+            // Warp overlay — only drawn on the canvas that owns the warp session
+            if (designWarpMode && data === warpActiveData) {
+                _drawWarpOverlay(ctx);
+            }
         });
 
         // Design-layer eraser mouse handlers — active only when designEraserMode is true.
@@ -2812,6 +3158,32 @@ function attachFabricEvents(data, targetObject = null){
         });
         data.fabricCanvas.on('mouse:up', () => {
             if (designEraserMode) designEraserDown = false;
+        });
+
+        // Warp-mode mouse handlers — drag control points to deform the mesh.
+        data.fabricCanvas.on('mouse:down', (opt) => {
+            if (!designWarpMode || data !== warpActiveData) return;
+            const pointer = data.fabricCanvas.getPointer(opt.e);
+            let bestDist2 = 18 * 18;
+            let bestRC    = null;
+            for (let r = 0; r < 4; r++) {
+                for (let c = 0; c < 4; c++) {
+                    const p  = warpPoints[r][c];
+                    const dx = p.x - pointer.x, dy = p.y - pointer.y;
+                    const d2 = dx*dx + dy*dy;
+                    if (d2 < bestDist2) { bestDist2 = d2; bestRC = {r, c}; }
+                }
+            }
+            warpDragRC = bestRC;
+        });
+        data.fabricCanvas.on('mouse:move', (opt) => {
+            if (!designWarpMode || !warpDragRC || data !== warpActiveData) return;
+            const pointer = data.fabricCanvas.getPointer(opt.e);
+            warpPoints[warpDragRC.r][warpDragRC.c] = {x: pointer.x, y: pointer.y};
+            data.fabricCanvas.requestRenderAll();
+        });
+        data.fabricCanvas.on('mouse:up', () => {
+            if (designWarpMode) warpDragRC = null;
         });
     }
 
@@ -3227,6 +3599,16 @@ document.getElementById("designEraserSoftnessSlider").addEventListener("input", 
     designEraserSoftness = parseInt(e.target.value, 10);
     document.getElementById("designEraserSoftnessVal").textContent = designEraserSoftness;
 });
+
+document.getElementById("designWarpBtn").addEventListener("click", () => {
+    if (designWarpMode) {
+        exitDesignWarpMode(false);
+    } else {
+        enterDesignWarpMode();
+    }
+});
+document.getElementById("warpApplyBtn").addEventListener("click", () => exitDesignWarpMode(true));
+document.getElementById("warpCancelBtn").addEventListener("click", () => exitDesignWarpMode(false));
 
 
 
