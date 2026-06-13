@@ -694,8 +694,42 @@ function initColorLayer(data){
     data.fabricCanvas.sendToBack(fabricImg);
     if(data.backgroundObject) data.fabricCanvas.sendToBack(data.backgroundObject);
 
+    data.colorLayerHistory = [];   // ImageData undo stack
+
     applyClipMaskToObject(fabricImg, data);
     data.fabricCanvas.requestRenderAll();
+}
+
+function pushColorLayerHistory(data){
+    if(!data.colorLayerCtx) return;
+    const snap = data.colorLayerCtx.getImageData(
+        0, 0,
+        data.colorLayerCanvas.width,
+        data.colorLayerCanvas.height
+    );
+    if(!data.colorLayerHistory) data.colorLayerHistory = [];
+    data.colorLayerHistory.push(snap);
+    if(data.colorLayerHistory.length > 30) data.colorLayerHistory.shift();
+}
+
+function undoColorLayer(data){
+    if(!data.colorLayerHistory || !data.colorLayerHistory.length) return;
+    const snap = data.colorLayerHistory.pop();
+    data.colorLayerCtx.putImageData(snap, 0, 0);
+    data.fabricCanvas.requestRenderAll();
+}
+
+// Build a multi-stop radial gradient approximating (1-t)^gamma falloff
+// innerR: start of falloff (hard core ends here), outerR: full brush extent
+function buildSoftGradient(ctx, x, y, innerR, outerR, rgb, gamma){
+    const g = ctx.createRadialGradient(x, y, innerR, x, y, outerR);
+    const steps = 10;
+    for(let i = 0; i <= steps; i++){
+        const t   = i / steps;
+        const op  = Math.pow(1 - t, gamma);
+        g.addColorStop(t, `rgba(${rgb},${op.toFixed(4)})`);
+    }
+    return g;
 }
 
 function paintDot(ctx, x, y, size, softness, hexColor){
@@ -708,21 +742,16 @@ function paintDot(ctx, x, y, size, softness, hexColor){
         ctx.arc(x, y, size, 0, Math.PI * 2);
         ctx.fillStyle = `rgb(${rgb})`;
         ctx.fill();
-    } else if(softness >= 100){
-        // Fully soft — gradient centre → edge
-        const g = ctx.createRadialGradient(x, y, 0, x, y, size);
-        g.addColorStop(0, `rgba(${rgb},1)`);
-        g.addColorStop(1, `rgba(${rgb},0)`);
-        ctx.beginPath();
-        ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
     } else {
-        // Photoshop-style: solid core up to hardR, then feather to edge
+        // softness 1-100:
+        //   hardR = hard-core radius (shrinks to 0 at softness=100)
+        //   gamma controls how steeply opacity falls in the soft zone:
+        //     low softness → gamma ~1 (gentle feather)
+        //     high softness → gamma ~4 (very fast fall-off = much softer feel)
         const hardR = size * (1 - softness / 100);
-        const g = ctx.createRadialGradient(x, y, hardR, x, y, size);
-        g.addColorStop(0, `rgba(${rgb},1)`);
-        g.addColorStop(1, `rgba(${rgb},0)`);
+        const gamma = 1 + (softness / 100) * 3;   // 1 → 4 across the range
+
+        const g = buildSoftGradient(ctx, x, y, hardR, size, rgb, gamma);
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
         ctx.fillStyle = g;
@@ -2965,6 +2994,15 @@ document.getElementById("brushSoftnessSlider").addEventListener("input", e=>{
     brushSoftness = parseInt(e.target.value, 10);
 });
 
+document.addEventListener('keydown', function(e){
+    if(!colorLayerMode) return;
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z'){
+        e.preventDefault();
+        e.stopPropagation();
+        activeIndices.forEach(i=> undoColorLayer(canvasData[i]));
+    }
+});
+
 document.getElementById("colorLayerOpacityInput").addEventListener("input", e=>{
     colorLayerOpacity =
         Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) / 100;
@@ -3467,6 +3505,9 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
         activeIndices.forEach(i=>{
             if(!canvasData[i].colorLayerFabricObj) initColorLayer(canvasData[i]);
         });
+
+        // Snapshot before every stroke for Cmd+Z undo
+        activeIndices.forEach(i=> pushColorLayerHistory(canvasData[i]));
 
         const ptr  = fabricCanvas.getPointer(opt.e);
         const norm = { x: ptr.x / data.previewScale, y: ptr.y / data.previewScale };
