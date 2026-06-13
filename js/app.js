@@ -374,13 +374,10 @@ function applyNoiseToImage(source, noisePercent){
 
 function applyPerspectiveDistortion(sourceCanvas, data){
 
-    const top = data.perspectiveTop || 0;
+    const top  = data.perspectiveTop  || 0;
     const left = data.perspectiveLeft || 0;
 
-    if(
-        top === 0 &&        left === 0 &&
-        false
-    ){
+    if(top === 0 && left === 0){
         return sourceCanvas;
     }
 
@@ -390,123 +387,102 @@ function applyPerspectiveDistortion(sourceCanvas, data){
     const out = document.createElement('canvas');
     const ctx = out.getContext('2d');
 
-    // Compute minimum padding to prevent clipping when perspective
-    // values go negative (image expands beyond the canvas edge).
-    // Keep 420 as the floor so zero/positive values are unchanged.
+    // Padding to prevent clipping when perspective goes negative.
     const hPadNeeded = top < 0
         ? Math.ceil(srcW * (-top) / 360)
         : 0;
-    const leftDenom = 360 - 2 * Math.abs(left);
+    const leftDenom  = 360 - 2 * Math.abs(left);
     const vPadNeeded = (left < 0 && leftDenom > 0)
         ? Math.ceil(srcH * (-left) / leftDenom)
         : 0;
-    // 420px floor was massively oversized — it created 840px of empty transparent
-    // space around every design regardless of actual perspective values, making
-    // Fabric handles expand far beyond the design. Dynamic formulas already compute
-    // the exact needed padding; keep only a small 20px safety margin as the floor.
     const pad = Math.max(hPadNeeded, vPadNeeded, 20);
 
-    out.width = srcW + (pad * 2);
-    out.height = srcH + (pad * 2);
+    out.width  = srcW + pad * 2;
+    out.height = srcH + pad * 2;
+
+    const outW = out.width;
+    const outH = out.height;
 
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "medium";
+    ctx.imageSmoothingQuality = 'medium';
 
-    // horizontal slices = top/bottom perspective
+    const topScale = 1 - (top / 180);
+
+    // y-centre of the image content in the output canvas
+    const centerY = pad + srcH * 0.5;
+
+    // Left-perspective scale factor at a given output-canvas x position.
+    // Linear in xd: left edge (xd≈pad) gets the most compression,
+    // right edge (xd≈pad+srcW) is unchanged.
+    const leftScaleAt = xd => 1 - (left / 180) * (1 - xd / outW);
+
+    // ── Single combined pass ──────────────────────────────────────────────────
+    // Previous approach: two sequential passes (top then left). That caused
+    // bending when both were non-zero because the left pass scaled based on
+    // the intermediate x-position (already shifted by top perspective), creating
+    // a second-order y-distortion in straight lines.
+    //
+    // Fix: one pass per horizontal source slice. For each slice we compute
+    // an affine transform that simultaneously encodes both effects:
+    //
+    //   x_out = (targetW/srcW)·x  +  dx_L
+    //   y_out = ((y_R−y_L)/srcW)·x  +  lsL·y  +  (y_L − lsL·srcY)
+    //
+    // where y_L / y_R are the correct destination y-positions of this row's
+    // top at the left and right x-edges respectively (accounting for left
+    // perspective). Because both the x-range and y-offsets are derived from
+    // the SAME source coordinate t_y, all lines that are straight in the
+    // source remain straight in the output — regardless of which combination
+    // of sliders is used.
+
     const horizontalSlices = 180;
 
-    for(let y = 0; y < horizontalSlices; y++){
+    for(let i = 0; i < horizontalSlices; i++){
 
-        const t = y / (horizontalSlices - 1);
-
-        const srcY = t * srcH;
+        const t_y    = i / (horizontalSlices - 1);   // 0 … 1
+        const srcY   = t_y * srcH;
         const sliceH = Math.max(2, srcH / horizontalSlices);
 
-        // preserve original top-perspective behaviour:
-        // affect ONLY the top slices instead of
-        // uniformly scaling the whole image
-        const topScale =
-            1 - (top / 180);
+        // Width of this row (top perspective — linear in t_y)
+        const widthScale = topScale + (1 - topScale) * t_y;
+        const targetW    = srcW * widthScale;
 
-        const widthScale =
-            topScale + ((1 - topScale) * t);
+        // Left/right x-bounds of this row in the output canvas
+        const dx_L = pad + (srcW - targetW) * 0.5;
+        const dx_R = dx_L + targetW;
 
-        const targetW =
-            srcW * widthScale;
+        // Left-perspective scale at the left and right x-edges of this row
+        const lsL = leftScaleAt(dx_L);
+        const lsR = leftScaleAt(dx_R);
 
-        const dx =
-            pad +
-            ((out.width - (pad * 2) - targetW) / 2);
+        // Destination y-position of this row's top pixel, at each x-edge:
+        //   y_top(xd) = centerY + (srcY − srcH/2) · leftScale(xd)
+        const y_L = centerY + (srcY - srcH * 0.5) * lsL;
+        const y_R = centerY + (srcY - srcH * 0.5) * lsR;
 
-        const dy =
-            pad + srcY;
+        // Affine matrix for ctx.setTransform(a, b, c, d, e, f) where:
+        //   x_out = a·x_user + c·y_user + e
+        //   y_out = b·x_user + d·y_user + f
+        //
+        // We draw the slice at user coords (0, srcY, srcW, sliceH) and let
+        // the transform place it at the correct output position.
+        const a = targetW / srcW;               // x-scale from top perspective
+        const b = (y_R - y_L) / srcW;          // x→y shear from left perspective
+        const c = 0;                             // no y→x shear
+        const d = lsL;                           // y-scale from left perspective
+        const e = dx_L;                          // x translation
+        const f = y_L - lsL * srcY;             // y translation (absorbs srcY offset)
 
+        ctx.save();
+        ctx.setTransform(a, b, c, d, e, f);
         ctx.drawImage(
             sourceCanvas,
-            0,
-            Math.round(srcY),
-            srcW,
-            Math.ceil(sliceH),
-            Math.round(dx),
-            Math.round(dy),
-            Math.ceil(targetW + 1),
-            Math.ceil(sliceH + 1)
+            0,              Math.round(srcY),
+            srcW,           Math.ceil(sliceH + 1),
+            0,              Math.round(srcY),
+            srcW,           Math.ceil(sliceH + 1)
         );
-    }
-
-    // LEFT / RIGHT perspective pass
-    // done AFTER top/bottom so they stay independent
-
-    if(left !== 0){
-
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-
-        tempCanvas.width = out.width;
-        tempCanvas.height = out.height;
-
-        tempCtx.drawImage(out, 0, 0);
-
-        ctx.clearRect(0, 0, out.width, out.height);
-
-        const verticalSlices = 180;
-
-        for(let x = 0; x < verticalSlices; x++){
-
-            const t = x / (verticalSlices - 1);
-
-            const srcX = t * out.width;
-            const sliceW = Math.max(2, out.width / verticalSlices);
-
-            // LEFT affects ONLY left side
-            const leftScale =
-                1 - ((left / 180) * (1 - t));
-
-            const heightScale = leftScale;
-
-            const targetH =
-                out.height * heightScale;
-
-            // anchor expansion from center while
-            // preserving full visible bounds
-            const extraSpace =
-                targetH - out.height;
-
-            const dy =
-                -(extraSpace / 2);
-
-            ctx.drawImage(
-                tempCanvas,
-                Math.round(srcX),
-                0,
-                Math.ceil(sliceW),
-                out.height,
-                Math.round(srcX),
-                Math.round(dy),
-                Math.ceil(sliceW + 1),
-                Math.ceil(targetH + 1)
-            );
-        }
+        ctx.restore();
     }
 
     return out;
