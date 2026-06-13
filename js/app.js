@@ -3,6 +3,8 @@ let designs = [];
 let canvasData = [];
 let activeIndices = [];
 let editMode = "window";
+let clipCopySelectMode = false;   // true while user is picking copy targets
+let clipCopySourceIndex = null;   // which window the clipping will be copied FROM
 let activeDesignObject = null;
 let activeDesignWindow = null;
 let lastSelectedIndex = null;
@@ -35,6 +37,12 @@ document.addEventListener('click', function(e){
         return;
     }
 
+    // In copy-select mode we lift all restrictions so the user can click
+    // other windows normally to build their selection.
+    if(clipCopySelectMode){
+        return;
+    }
+
     const insideSelectedWindow =
         e.target.closest('.canvas-wrapper.active');
 
@@ -47,11 +55,15 @@ document.addEventListener('click', function(e){
     const addClipAreaButton =
         e.target.id === 'addClipAreaBtn';
 
+    const copyClipButton =
+        e.target.id === 'copyClipBtn';
+
     if(
         insideSelectedWindow ||
         exitButton ||
         deleteClipButton ||
-        addClipAreaButton
+        addClipAreaButton ||
+        copyClipButton
     ){
         return;
     }
@@ -1869,7 +1881,7 @@ function createCanvasPreviews(){
                 return;
             }
 
-            if(clipEditMode){
+            if(clipEditMode && !clipCopySelectMode){
                 return;
             }
 
@@ -2462,8 +2474,17 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
     document.getElementById("deleteClipBtn").style.display =
         clipEditMode ? "inline-block" : "none";
 
-    document.getElementById("copyClipToAllBtn").style.display =
+    document.getElementById("copyClipBtn").style.display =
         clipEditMode ? "inline-block" : "none";
+
+    // always hide the "to selected" button when toggling clip mode
+    document.getElementById("copyClipToSelectedBtn").style.display = "none";
+
+    // reset copy-select state when exiting clip mode
+    if(!clipEditMode){
+        clipCopySelectMode = false;
+        clipCopySourceIndex = null;
+    }
 
     // exiting clip mode
     if(!clipEditMode){
@@ -2651,9 +2672,9 @@ document.getElementById("deleteClipBtn").addEventListener("click", ()=>{
 
 
 
-document.getElementById("copyClipToAllBtn").addEventListener("click", ()=>{
+// ── "Copy Clipping" — enter target-selection mode ────────────────────────────
+document.getElementById("copyClipBtn").addEventListener("click", ()=>{
 
-    // Source: the window currently being edited in clip mode
     const srcIndex =
         activeClipWindowIndex !== null
             ? activeClipWindowIndex
@@ -2668,9 +2689,31 @@ document.getElementById("copyClipToAllBtn").addEventListener("click", ()=>{
         return;
     }
 
-    // maskPaths are stored in canvas-pixel space (× previewScale).
-    // Normalise to background-image-pixel space first, then re-scale
-    // for each target window's own previewScale.
+    // Save source and enter selection mode
+    clipCopySourceIndex  = srcIndex;
+    clipCopySelectMode   = true;
+
+    // Clear selection so user starts fresh picking targets
+    activeIndices = [];
+    updateWindowBorders();
+
+    // Swap buttons
+    document.getElementById("copyClipBtn").style.display         = "none";
+    document.getElementById("copyClipToSelectedBtn").style.display = "inline-block";
+    // Also hide editing buttons that don't apply during target selection
+    document.getElementById("addClipAreaBtn").style.display      = "none";
+    document.getElementById("deleteClipBtn").style.display       = "none";
+});
+
+
+// ── "Copy Clipping to Selected" — apply and return to clip mode ───────────────
+document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
+
+    if(clipCopySourceIndex === null) return;
+
+    const src = canvasData[clipCopySourceIndex];
+
+    // Normalise from canvas-pixel space to bg-image-pixel space
     const normalisedPaths = src.maskPaths.map(path=>
         path.map(p=>({
             x:  p.x  / src.previewScale,
@@ -2682,11 +2725,13 @@ document.getElementById("copyClipToAllBtn").addEventListener("click", ()=>{
 
     let copied = 0;
 
-    canvasData.forEach((data, i)=>{
+    // Apply to every selected window (excluding the source itself)
+    activeIndices.forEach(i=>{
 
-        if(i === srcIndex) return;
+        if(i === clipCopySourceIndex) return;
 
-        const s = data.previewScale;
+        const data = canvasData[i];
+        const s    = data.previewScale;
 
         data.maskPaths = normalisedPaths.map(path=>
             path.map(p=>({
@@ -2697,9 +2742,9 @@ document.getElementById("copyClipToAllBtn").addEventListener("click", ()=>{
             }))
         );
 
-        data.maskPath  = data.maskPaths[data.maskPaths.length - 1];
+        data.maskPath    = data.maskPaths[data.maskPaths.length - 1];
         data.maskEnabled = true;
-        data.maskType  = src.maskType;
+        data.maskType    = src.maskType;
 
         addClipOverlay(data);
 
@@ -2712,10 +2757,24 @@ document.getElementById("copyClipToAllBtn").addEventListener("click", ()=>{
         copied++;
     });
 
-    if(copied === 0){
-        alert("No other windows to copy to.");
-    } else {
-        alert(`Clipping copied to ${copied} other window${copied > 1 ? "s" : ""}.`);
+    // Restore source window as the sole selection and re-lock clip mode
+    const restoredIndex = clipCopySourceIndex;
+    clipCopySelectMode  = false;
+    clipCopySourceIndex = null;
+
+    activeIndices = [restoredIndex];
+
+    updateWindowBorders();
+    updateSelectButtonState?.();
+
+    // Restore editing buttons
+    document.getElementById("copyClipToSelectedBtn").style.display = "none";
+    document.getElementById("copyClipBtn").style.display           = "inline-block";
+    document.getElementById("addClipAreaBtn").style.display        = "inline-block";
+    document.getElementById("deleteClipBtn").style.display         = "inline-block";
+
+    if(copied > 0){
+        alert(`Clipping copied to ${copied} window${copied > 1 ? "s" : ""}.`);
     }
 });
 
