@@ -2983,6 +2983,11 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             activeClipWindowIndex = index;
         }
 
+        // In copy-select mode the user is picking target windows —
+        // don't block or draw on any canvas, just let the wrapper
+        // click handler handle the selection.
+        if(clipCopySelectMode) return;
+
         // prevent drawing on other windows
         if(index !== activeClipWindowIndex){
 
