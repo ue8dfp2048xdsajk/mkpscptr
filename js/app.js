@@ -1661,7 +1661,7 @@ async function applyWarpToData(data, lowQuality = false){
     newImg._fx = _defaultFx(data);
 
     data.fabricCanvas.add(newImg);
-    data.fabricCanvas.setActiveObject(newImg);
+    data.fabricCanvas.discardActiveObject();
     data.fabricCanvas.requestRenderAll();
 
     attachFabricEvents(data);
