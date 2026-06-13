@@ -2464,6 +2464,7 @@ function createCanvasPreviews(){
 
                 refreshFabricHandles();
                 updateWindowBorders();
+                updateLayerButtons();
                 syncSliders();
                 updateSelectButtonState();
             });
@@ -4974,6 +4975,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
                 refreshFabricHandles();
                 updateWindowBorders();
+                updateLayerButtons();
                 syncSliders();
                 updateSelectButtonState();
             });
