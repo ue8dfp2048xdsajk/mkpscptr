@@ -631,11 +631,28 @@ function syncSliders() {
     if(!activeIndices.length) return;
 
     const data = canvasData[activeIndices[0]];
+
+    // In design mode, sliders reflect the selected object's own effects.
+    if(editMode === "design" && activeDesignObject?._fx){
+
+        const fx = activeDesignObject._fx;
+        warpAmount.value    = fx.warpAmount    || 0;
+        arcAmount.value     = fx.arcAmount     || 0;
+        arcTilt.value       = fx.arcTilt       || 0;
+        opacityAmount.value = Math.round((fx.opacity ?? 1) * 100);
+        blurAmount.value    = fx.blurAmount    || 0;
+        noiseAmount.value   = fx.noiseAmount   || 0;
+        perspectiveTop.value  = fx.perspectiveTop  || 0;
+        perspectiveLeft.value = fx.perspectiveLeft || 0;
+        blendMode.value       = fx.blendMode       || "normal";
+        return;
+    }
+
     const obj = data.designObject;
 
     if(!obj) return;
 
-warpAmount.value = data.warpAmount || 0;
+    warpAmount.value = data.warpAmount || 0;
     arcAmount.value = data.arcAmount || 0;
     arcTilt.value = data.arcTilt || 0;
     opacityAmount.value = Math.round((data.opacity ?? 1) * 100);
@@ -1046,6 +1063,69 @@ function addClipOverlay(data){
 
 
 
+// Creates a default _fx settings bag from the window-level data object.
+// Used to initialise a design object's per-object effects on first use.
+function _defaultFx(data){
+    return {
+        warpAmount:      data.warpAmount      ?? 0,
+        arcAmount:       data.arcAmount       ?? 0,
+        arcTilt:         data.arcTilt         ?? 0,
+        perspectiveTop:  data.perspectiveTop  ?? 0,
+        perspectiveLeft: data.perspectiveLeft ?? 0,
+        opacity:         data.opacity         ?? 1,
+        blurAmount:      data.blurAmount      ?? 0,
+        noiseAmount:     data.noiseAmount     ?? 0,
+        blendMode:       data.blendMode       ?? 'normal'
+    };
+}
+
+// Apply the full blur → noise → warp → perspective pipeline to ONE design
+// object using its own _fx bag.  Called both from the design-mode slider
+// handler (only the selected object) and from applyWarpToData (extra objects).
+function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
+
+    const fx = obj._fx || _defaultFx(data);
+
+    if(!srcOriginal) return;
+
+    if(!obj._warpCanvas) obj._warpCanvas = document.createElement('canvas');
+
+    const blurred    = applyGaussianBlurToImage(srcOriginal, (fx.blurAmount||0)/5);
+    const noisy      = applyNoiseToImage(blurred, fx.noiseAmount||0);
+    const warpedBase = createWarpedImage(
+        noisy,
+        fx.warpAmount    ||0,
+        fx.arcAmount     ||0,
+        fx.arcTilt       ??0,
+        obj._warpCanvas,
+        lowQuality
+    );
+    const warped = applyPerspectiveDistortion(warpedBase, fx);
+
+    const prevLeft   = obj.left;
+    const prevTop    = obj.top;
+    const prevScaleX = obj.scaleX;
+    const prevScaleY = obj.scaleY;
+    const prevAngle  = obj.angle;
+
+    obj.setElement(warped);
+    applyClipMaskToObject(obj, data);
+
+    obj.set({
+        left:   prevLeft,
+        top:    prevTop,
+        scaleX: prevScaleX,
+        scaleY: prevScaleY,
+        angle:  prevAngle,
+        opacity: fx.opacity ?? 1,
+        globalCompositeOperation:
+            fx.blendMode === 'multiply' ? 'multiply'
+            : fx.blendMode === 'screen'  ? 'screen'
+            : 'source-over'
+    });
+}
+
+
 async function applyWarpToData(data, lowQuality = false){
 
     if(!data.designOriginal) return;
@@ -1102,59 +1182,13 @@ async function applyWarpToData(data, lowQuality = false){
 
             data.extraDesignObjects.forEach((obj, i)=>{
 
-                const prevLeft = obj.left;
-                const prevTop = obj.top;
-                const prevScaleX = obj.scaleX;
-                const prevScaleY = obj.scaleY;
-                const prevAngle = obj.angle;
+                // Each extra object uses its own _fx (set in design mode).
+                // Uploads have their own source image; clones fall back to the
+                // main design's source so the full pipeline runs from scratch.
+                const srcForObj =
+                    data.extraDesignOriginals?.[i] || data.designOriginal;
 
-                // Uploaded designs have their own source image; apply the same
-                // warp pipeline to that source so they distort correctly too.
-                const ownOriginal = data.extraDesignOriginals?.[i];
-                let elementToUse = warpedCanvas;
-
-                if(ownOriginal){
-
-                    const ownBlurred = applyGaussianBlurToImage(
-                        ownOriginal,
-                        (data.blurAmount || 0) / 5
-                    );
-
-                    const ownNoisy = applyNoiseToImage(
-                        ownBlurred,
-                        data.noiseAmount || 0
-                    );
-
-                    const ownWarpedBase = createWarpedImage(
-                        ownNoisy,
-                        data.warpAmount,
-                        data.arcAmount,
-                        data.arcTilt ?? 0,
-                        data.warpCanvas,
-                        lowQuality
-                    );
-
-                    elementToUse = applyPerspectiveDistortion(ownWarpedBase, data);
-                }
-
-                obj.setElement(elementToUse);
-
-                applyClipMaskToObject(obj, data);
-
-                obj.set({
-                    left: prevLeft,
-                    top: prevTop,
-                    scaleX: prevScaleX,
-                    scaleY: prevScaleY,
-                    angle: prevAngle,
-                    opacity: data.opacity ?? 1,
-                    globalCompositeOperation:
-                        data.blendMode === 'multiply'
-                            ? 'multiply'
-                            : data.blendMode === 'screen'
-                                ? 'screen'
-                                : 'source-over'
-                });
+                _applyWarpToOneObject(obj, data, srcForObj, lowQuality);
             });
         }
 
@@ -1187,6 +1221,10 @@ async function applyWarpToData(data, lowQuality = false){
     });
 
     data.designObject = newImg;
+
+    // Initialise per-object effects from the current window settings so the
+    // sliders correctly reflect this object when it's selected in design mode.
+    newImg._fx = _defaultFx(data);
 
     data.fabricCanvas.add(newImg);
     data.fabricCanvas.setActiveObject(newImg);
@@ -1222,6 +1260,74 @@ function updateFromSliders(event){
 
     activeSliderType =
         event?.target?.id || activeSliderType;
+
+    // ── Design mode: only update the currently selected design object ─────────
+    if(editMode === "design" && activeDesignObject && activeDesignWindow !== null){
+
+        const data = canvasData[activeDesignWindow];
+        const obj  = activeDesignObject;
+
+        opacityAmount.value = Math.max(0, Math.min(100, parseFloat(opacityAmount.value)||0));
+        blurAmount.value    = Math.max(0, Math.min(100, parseFloat(blurAmount.value)   ||0));
+        noiseAmount.value   = Math.max(0, Math.min(100, parseFloat(noiseAmount.value)  ||0));
+
+        obj._fx = {
+            warpAmount:      parseFloat(warpAmount.value),
+            arcAmount:       parseFloat(arcAmount.value),
+            arcTilt:         parseFloat(arcTilt.value),
+            perspectiveTop:  parseFloat(perspectiveTop.value),
+            perspectiveLeft: parseFloat(perspectiveLeft.value),
+            opacity:         parseFloat(opacityAmount.value) / 100,
+            blurAmount:      parseFloat(blurAmount.value),
+            noiseAmount:     parseFloat(noiseAmount.value),
+            blendMode:       blendMode.value
+        };
+
+        const requiresWarpObj =
+            activeSliderType === "warpAmount"     ||
+            activeSliderType === "arcAmount"      ||
+            activeSliderType === "arcTilt"        ||
+            activeSliderType === "blurAmount"     ||
+            activeSliderType === "noiseAmount"    ||
+            activeSliderType === "perspectiveTop" ||
+            activeSliderType === "perspectiveLeft";
+
+        if(!requiresWarpObj){
+            obj.set({
+                opacity: obj._fx.opacity,
+                globalCompositeOperation:
+                    obj._fx.blendMode === 'multiply' ? 'multiply'
+                    : obj._fx.blendMode === 'screen'  ? 'screen'
+                    : 'source-over'
+            });
+            data.fabricCanvas.requestRenderAll();
+            return;
+        }
+
+        // Get the original source image for this object
+        const isMain     = obj === data.designObject;
+        const extraIdx   = isMain ? -1 : (data.extraDesignObjects||[]).indexOf(obj);
+        const srcOriginal = isMain
+            ? data.designOriginal
+            : (data.extraDesignOriginals?.[extraIdx] || data.designOriginal);
+
+        if(!srcOriginal) return;
+
+        // Fast low-quality preview while dragging
+        _applyWarpToOneObject(obj, data, srcOriginal, true);
+        data.fabricCanvas.requestRenderAll();
+
+        // High-quality render after the user stops
+        clearTimeout(globalHQTimer);
+        globalHQTimer = setTimeout(()=>{
+            _applyWarpToOneObject(obj, data, srcOriginal, false);
+            data.fabricCanvas.requestRenderAll();
+            autoSaveSession();
+        }, 220);
+
+        return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const requiresWarp =
         activeSliderType === "warpAmount" ||
@@ -1881,6 +1987,12 @@ function attachFabricEvents(data, targetObject = null){
 
         if(editMode === "design"){
             activeDesignObject = designTarget;
+            // Ensure the object has its own _fx (may be missing on old sessions)
+            if(!designTarget._fx){
+                const d = data; // closure
+                designTarget._fx = _defaultFx(d);
+            }
+            syncSliders();
         }
     });
 
@@ -2121,20 +2233,30 @@ document.getElementById("duplicateDesignBtn").addEventListener("click", ()=>{
 
     sourceObj.clone((cloned)=>{
 
+        // Clone inherits the source object's per-object effects so it starts
+        // with the same warp/opacity settings; user can then tweak independently.
+        cloned._fx = sourceObj._fx
+            ? { ...sourceObj._fx }
+            : _defaultFx(data);
+
+        const fx = cloned._fx;
+
         cloned.set({
             left: sourceObj.left + 40,
-            top: sourceObj.top + 20,
-            opacity: data.opacity ?? 1,
+            top:  sourceObj.top  + 20,
+            opacity: fx.opacity ?? 1,
             globalCompositeOperation:
-                data.blendMode === 'multiply'
-                    ? 'multiply'
-                    : data.blendMode === 'screen'
-                        ? 'screen'
-                        : 'source-over'
+                fx.blendMode === 'multiply' ? 'multiply'
+                : fx.blendMode === 'screen'  ? 'screen'
+                : 'source-over'
         });
 
-        data.extraDesignObjects = data.extraDesignObjects || [];
+        data.extraDesignObjects  = data.extraDesignObjects  || [];
+        data.extraDesignOriginals = data.extraDesignOriginals || [];
+
         data.extraDesignObjects.push(cloned);
+        // null = clone uses same source as main design
+        data.extraDesignOriginals.push(null);
 
         data.fabricCanvas.add(cloned);
         attachFabricEvents(data, cloned);
@@ -2275,6 +2397,14 @@ document.getElementById("uploadDesignInput").addEventListener("change", async fu
                     });
 
                     fabricImg._uploadedDesignName = file.name;
+                    // New upload starts clean — no warp/blur/etc until user sets them in design mode
+                    fabricImg._fx = {
+                        warpAmount: 0, arcAmount: 0, arcTilt: 0,
+                        perspectiveTop: 0, perspectiveLeft: 0,
+                        opacity: data.opacity ?? 1,
+                        blurAmount: 0, noiseAmount: 0,
+                        blendMode: data.blendMode ?? 'normal'
+                    };
 
                     data.extraDesignObjects = data.extraDesignObjects || [];
                     data.extraDesignObjects.push(fabricImg);
@@ -3216,6 +3346,9 @@ function buildSnapshot(){
             // Normalise duplicate positions the same way the main design x/y are
             // normalised — divide by previewScale so values are in bg-image-pixel
             // space.  The restore path multiplies back up by the new previewScale.
+            // Save the main design's per-object effects (set in design mode)
+            designFx: data.designObject?._fx ?? null,
+
             duplicates: (data.extraDesignObjects || []).map((obj, i)=>({
 
                 left: obj.left  / data.previewScale,
@@ -3231,7 +3364,10 @@ function buildSnapshot(){
                 src:  data.extraDesignOriginals?.[i]?.src  ?? null,
                 name: data.extraDesignOriginals?.[i]
                     ? (obj._uploadedDesignName || null)
-                    : null
+                    : null,
+
+                // Per-object effects set in design mode
+                fx: obj._fx ?? null
             }))
         };
     });
@@ -3527,6 +3663,11 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         await applyWarpToData(data,false);
         await new Promise(r=>setTimeout(r,40));
 
+        // Restore per-object effects on the main design (saved by design mode)
+        if(saved.designFx && data.designObject){
+            data.designObject._fx = saved.designFx;
+        }
+
         if(saved.duplicates?.length){
 
             for(const dup of saved.duplicates){
@@ -3562,6 +3703,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             });
 
                             fabricImg._uploadedDesignName = dup.name || '';
+                            fabricImg._fx = dup.fx || _defaultFx(data);
 
                             data.extraDesignOriginals = data.extraDesignOriginals || [];
                             data.extraDesignOriginals.push(img);
@@ -3608,6 +3750,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                                             ? 'screen'
                                             : 'source-over'
                             });
+
+                            cloned._fx = dup.fx || _defaultFx(data);
 
                             data.extraDesignOriginals = data.extraDesignOriginals || [];
                             data.extraDesignOriginals.push(null);
