@@ -640,6 +640,28 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
 
 
 
+// Show Fabric handles on all selected designs; hide on all others.
+function refreshFabricHandles(){
+    canvasData.forEach(d => {
+        if(!d.fabricCanvas) return;
+        const ownSelected = [...selectedDesigns].filter(obj =>
+            obj === d.designObject ||
+            (d.extraDesignObjects||[]).includes(obj)
+        );
+        if(ownSelected.length > 0){
+            const toActivate = ownSelected[ownSelected.length - 1];
+            if(d.fabricCanvas.getActiveObject() !== toActivate){
+                d.fabricCanvas.setActiveObject(toActivate);
+            }
+        } else {
+            if(d.fabricCanvas.getActiveObject()){
+                d.fabricCanvas.discardActiveObject();
+            }
+        }
+        d.fabricCanvas.requestRenderAll();
+    });
+}
+
 function updateWindowBorders(){
     document.querySelectorAll(".canvas-wrapper")
         .forEach((w,i)=>{
@@ -652,7 +674,7 @@ function updateWindowBorders(){
                     (d.designObject && selectedDesigns.has(d.designObject)) ||
                     (d.extraDesignObjects||[]).some(obj => selectedDesigns.has(obj))
                 );
-                if(hasSelected || activeIndices.includes(i)) w.classList.add("active");
+                if(hasSelected) w.classList.add("active");
             } else if(activeIndices.includes(i)){
                 if(editMode === "design" && i === activeDesignWindow){
                     w.classList.add("design-active");
@@ -2427,13 +2449,6 @@ function createCanvasPreviews(){
                 return;
             }
 
-            // Clicking a window wrapper (not a canvas object) clears design-select
-            if(selectedDesigns.size > 0 && editMode !== "design"){
-                selectedDesigns.clear();
-                updateWindowBorders();
-                updateLayerButtons();
-            }
-
                 if(editMode === "design"){
 
                     if(index !== activeDesignWindow){
@@ -2451,8 +2466,10 @@ function createCanvasPreviews(){
 
                 const isModifierMultiSelect = e.metaKey || e.ctrlKey;
 
-                // SHIFT = range select
+                // SHIFT = range select — adds windows AND their original designs
                 if(e.shiftKey){
+
+                    const prevIndices = [...activeIndices];
 
                     if(lastSelectedIndex === null){
 
@@ -2475,35 +2492,71 @@ function createCanvasPreviews(){
                         ])];
                     }
 
-                // CMD / CTRL = individual toggle select
+                    // Add original designs of newly-included windows
+                    activeIndices.forEach(i => {
+                        const d = canvasData[i];
+                        if(d?.designObject && !selectedDesigns.has(d.designObject)){
+                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                            selectedDesigns.add(d.designObject);
+                        }
+                    });
+                    // Remove designs belonging to windows no longer in activeIndices
+                    prevIndices.filter(i => !activeIndices.includes(i)).forEach(i => {
+                        const d = canvasData[i];
+                        if(d){
+                            selectedDesigns.delete(d.designObject);
+                            (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
+                        }
+                    });
+
+                    lastSelectedIndex = index;
+
+                // CMD / CTRL = toggle window + its original design
                 } else if(isModifierMultiSelect){
 
                     if(activeIndices.includes(index)){
 
-                        activeIndices =
-                            activeIndices.filter(i => i !== index);
+                        activeIndices = activeIndices.filter(i => i !== index);
+
+                        const d = canvasData[index];
+                        if(d){
+                            selectedDesigns.delete(d.designObject);
+                            (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
+                        }
 
                     } else {
 
                         activeIndices.push(index);
+
+                        const d = canvasData[index];
+                        if(d?.designObject){
+                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                            selectedDesigns.add(d.designObject);
+                        }
                     }
 
                     lastSelectedIndex = index;
 
-                // normal click = single select
+                // Normal click = single-window select + its original design
                 } else {
 
                     activeIndices = [index];
-
                     lastSelectedIndex = index;
+
+                    selectedDesigns.clear();
+                    const d = canvasData[index];
+                    if(d?.designObject){
+                        if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                        selectedDesigns.add(d.designObject);
+                    }
                 }
 
                 if(e.shiftKey){
                     lastSelectedIndex = index;
                 }
 
+                refreshFabricHandles();
                 updateWindowBorders();
-
                 syncSliders();
                 updateSelectButtonState();
             });
@@ -2558,34 +2611,52 @@ function attachFabricEvents(data, targetObject = null){
 
             const target = opt.target;
 
-            if(!target){
-                // Clicked blank canvas — clear design selection
-                if(selectedDesigns.size > 0){
-                    selectedDesigns.clear();
-                    updateWindowBorders();
-                    updateLayerButtons();
-                    syncSliders();
-                }
-                return;
-            }
+            // No target = blank canvas click; let the wrapper click handler deal with it
+            if(!target) return;
 
             const isDesign = target === data.designObject ||
                              (data.extraDesignObjects||[]).includes(target);
             if(!isDesign) return;
 
-            const isMulti = opt.e?.metaKey || opt.e?.ctrlKey || opt.e?.shiftKey;
+            const isCmd   = opt.e?.metaKey || opt.e?.ctrlKey;
+            const isShift = opt.e?.shiftKey;
+            const winIdx  = canvasData.indexOf(data);
 
-            if(isMulti){
+            if(isCmd){
+                // Cmd/Ctrl: toggle this specific design object only
                 if(selectedDesigns.has(target)){
                     selectedDesigns.delete(target);
+                    // If no designs from this window remain selected, deselect the window
+                    const anyLeft = [...selectedDesigns].some(obj =>
+                        obj === data.designObject ||
+                        (data.extraDesignObjects||[]).includes(obj)
+                    );
+                    if(!anyLeft && winIdx !== -1){
+                        activeIndices = activeIndices.filter(i => i !== winIdx);
+                    }
                 } else {
+                    if(!target._fx) target._fx = _defaultFx(data);
                     selectedDesigns.add(target);
+                    if(winIdx !== -1 && !activeIndices.includes(winIdx)){
+                        activeIndices.push(winIdx);
+                    }
+                }
+            } else if(isShift){
+                // Shift on design = window-select: add this window + its original design
+                if(!data.designObject._fx) data.designObject._fx = _defaultFx(data);
+                selectedDesigns.add(data.designObject);
+                if(winIdx !== -1 && !activeIndices.includes(winIdx)){
+                    activeIndices.push(winIdx);
                 }
             } else {
+                // Plain click: select only this one design
                 selectedDesigns.clear();
+                if(!target._fx) target._fx = _defaultFx(data);
                 selectedDesigns.add(target);
+                if(winIdx !== -1) activeIndices = [winIdx];
             }
 
+            refreshFabricHandles();
             updateWindowBorders();
             updateLayerButtons();
             syncSliders();
@@ -2870,6 +2941,9 @@ document.getElementById("designModeBtn").addEventListener("click", ()=>{
 
         // lock selection to one window only
         activeIndices = [activeDesignWindow];
+
+        // clear design-object selection when entering design mode
+        selectedDesigns.clear();
 
         document.getElementById("designModeBtn").innerText = "Exit Design Mode";
         document.getElementById("uploadDesignBtn").style.display = "inline-block";
@@ -5057,13 +5131,6 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                 return;
             }
 
-            // Clicking a window wrapper (not a canvas object) clears design-select
-            if(selectedDesigns.size > 0 && editMode !== "design"){
-                selectedDesigns.clear();
-                updateWindowBorders();
-                updateLayerButtons();
-            }
-
                 if(editMode === "design"){
 
                     if(index !== activeDesignWindow){
@@ -5081,8 +5148,10 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
                 const isModifierMultiSelect = e.metaKey || e.ctrlKey;
 
-                // SHIFT = range select
+                // SHIFT = range select — adds windows AND their original designs
                 if(e.shiftKey){
+
+                    const prevIndices = [...activeIndices];
 
                     if(lastSelectedIndex === null){
 
@@ -5105,35 +5174,71 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                         ])];
                     }
 
-                // CMD / CTRL = individual toggle select
+                    // Add original designs of newly-included windows
+                    activeIndices.forEach(i => {
+                        const d = canvasData[i];
+                        if(d?.designObject && !selectedDesigns.has(d.designObject)){
+                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                            selectedDesigns.add(d.designObject);
+                        }
+                    });
+                    // Remove designs belonging to windows no longer in activeIndices
+                    prevIndices.filter(i => !activeIndices.includes(i)).forEach(i => {
+                        const d = canvasData[i];
+                        if(d){
+                            selectedDesigns.delete(d.designObject);
+                            (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
+                        }
+                    });
+
+                    lastSelectedIndex = index;
+
+                // CMD / CTRL = toggle window + its original design
                 } else if(isModifierMultiSelect){
 
                     if(activeIndices.includes(index)){
 
-                        activeIndices =
-                            activeIndices.filter(i => i !== index);
+                        activeIndices = activeIndices.filter(i => i !== index);
+
+                        const d = canvasData[index];
+                        if(d){
+                            selectedDesigns.delete(d.designObject);
+                            (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
+                        }
 
                     } else {
 
                         activeIndices.push(index);
+
+                        const d = canvasData[index];
+                        if(d?.designObject){
+                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                            selectedDesigns.add(d.designObject);
+                        }
                     }
 
                     lastSelectedIndex = index;
 
-                // normal click = single select
+                // Normal click = single-window select + its original design
                 } else {
 
                     activeIndices = [index];
-
                     lastSelectedIndex = index;
+
+                    selectedDesigns.clear();
+                    const d = canvasData[index];
+                    if(d?.designObject){
+                        if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                        selectedDesigns.add(d.designObject);
+                    }
                 }
 
                 if(e.shiftKey){
                     lastSelectedIndex = index;
                 }
 
+                refreshFabricHandles();
                 updateWindowBorders();
-
                 syncSliders();
                 updateSelectButtonState();
             });
