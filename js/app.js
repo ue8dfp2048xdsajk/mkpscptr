@@ -2583,6 +2583,36 @@ function attachFabricEvents(data, targetObject = null){
             updateLayerButtons();
             syncSliders();
         });
+
+        // Draw selection handles on every selected object that isn't Fabric's active object.
+        // This lets multiple objects in the same window show transform handles simultaneously
+        // without needing a fabric.ActiveSelection (which would break our cross-window sync).
+        data.fabricCanvas.on('after:render', () => {
+            const canvas = data.fabricCanvas;
+            const ctx    = canvas.contextContainer;
+            const active = canvas.getActiveObject();
+
+            [...selectedDesigns].forEach(obj => {
+                const isOwn =
+                    obj === data.designObject ||
+                    (data.extraDesignObjects||[]).includes(obj);
+                if(!isOwn) return;
+                if(obj === active) return; // already has Fabric's native handles
+
+                ctx.save();
+                try {
+                    obj._renderControls(ctx, { hasBorders: true, hasControls: true });
+                } catch(_) {
+                    // fallback: plain selection border
+                    const br = obj.getBoundingRect(true, true);
+                    ctx.strokeStyle = '#2196F3';
+                    ctx.lineWidth   = 2;
+                    ctx.setLineDash([5, 3]);
+                    ctx.strokeRect(br.left, br.top, br.width, br.height);
+                }
+                ctx.restore();
+            });
+        });
     }
 
     // mouse:down handler manages selectedDesigns and syncSliders; selected event is unused.
