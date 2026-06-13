@@ -416,73 +416,86 @@ function applyPerspectiveDistortion(sourceCanvas, data){
     // right edge (xd≈pad+srcW) is unchanged.
     const leftScaleAt = xd => 1 - (left / 180) * (1 - xd / outW);
 
-    // ── Single combined pass ──────────────────────────────────────────────────
-    // Previous approach: two sequential passes (top then left). That caused
-    // bending when both were non-zero because the left pass scaled based on
-    // the intermediate x-position (already shifted by top perspective), creating
-    // a second-order y-distortion in straight lines.
+    // ── Single combined pass with vertical sub-strips ─────────────────────────
+    // Using one affine transform per full horizontal row caused horizontal
+    // transparent stripes at large "left" values.  Root cause: the transform
+    // uses d = lsL (left-edge y-scale) for the entire row width, but the
+    // output y-step between adjacent slices at the *right* edge is
+    // lsR × step_srcY — larger than lsL × step_srcY when left is big.
+    // That gap grows to a visible stripe at extreme slider values.
     //
-    // Fix: one pass per horizontal source slice. For each slice we compute
-    // an affine transform that simultaneously encodes both effects:
+    // Fix: split each horizontal row into N_SUB narrow vertical sub-strips so
+    // that lsL ≈ lsR within each strip, then compute the minimum source
+    // read-height (drawH) that guarantees ≥1 output pixel of overlap at both
+    // edges:
+    //   lsL × drawH ≥ lsR × step_srcY + 1  →  drawH ≥ (lsR×step + 1) / lsL
     //
-    //   x_out = (targetW/srcW)·x  +  dx_L
-    //   y_out = ((y_R−y_L)/srcW)·x  +  lsL·y  +  (y_L − lsL·srcY)
-    //
-    // where y_L / y_R are the correct destination y-positions of this row's
-    // top at the left and right x-edges respectively (accounting for left
-    // perspective). Because both the x-range and y-offsets are derived from
-    // the SAME source coordinate t_y, all lines that are straight in the
-    // source remain straight in the output — regardless of which combination
-    // of sliders is used.
+    // Because both x-range and y-offsets come from the same source t_y, all
+    // originally straight lines remain straight in the output.
 
     const horizontalSlices = 180;
+    const N_SUB     = 10;    // vertical sub-strips per horizontal slice
+    const step_srcY = srcH / Math.max(horizontalSlices - 1, 1);
 
     for(let i = 0; i < horizontalSlices; i++){
 
-        const t_y    = i / (horizontalSlices - 1);   // 0 … 1
+        const t_y    = i / (horizontalSlices - 1);
         const srcY   = t_y * srcH;
         const sliceH = Math.max(2, srcH / horizontalSlices);
 
         // Width of this row (top perspective — linear in t_y)
         const widthScale = topScale + (1 - topScale) * t_y;
         const targetW    = srcW * widthScale;
+        const rowDxL     = pad + (srcW - targetW) * 0.5;
 
-        // Left/right x-bounds of this row in the output canvas
-        const dx_L = pad + (srcW - targetW) * 0.5;
-        const dx_R = dx_L + targetW;
+        for(let s = 0; s < N_SUB; s++){
 
-        // Left-perspective scale at the left and right x-edges of this row
-        const lsL = leftScaleAt(dx_L);
-        const lsR = leftScaleAt(dx_R);
+            const subT_L = s       / N_SUB;
+            const subT_R = (s + 1) / N_SUB;
 
-        // Destination y-position of this row's top pixel, at each x-edge:
-        //   y_top(xd) = centerY + (srcY − srcH/2) · leftScale(xd)
-        const y_L = centerY + (srcY - srcH * 0.5) * lsL;
-        const y_R = centerY + (srcY - srcH * 0.5) * lsR;
+            // Sub-strip x range in source and output canvas
+            const sub_sx  = subT_L * srcW;
+            const sub_sw  = (subT_R - subT_L) * srcW;
+            const sub_dxL = rowDxL + subT_L * targetW;
+            const sub_dxR = rowDxL + subT_R * targetW;
 
-        // Affine matrix for ctx.setTransform(a, b, c, d, e, f) where:
-        //   x_out = a·x_user + c·y_user + e
-        //   y_out = b·x_user + d·y_user + f
-        //
-        // We draw the slice at user coords (0, srcY, srcW, sliceH) and let
-        // the transform place it at the correct output position.
-        const a = targetW / srcW;               // x-scale from top perspective
-        const b = (y_R - y_L) / srcW;          // x→y shear from left perspective
-        const c = 0;                             // no y→x shear
-        const d = lsL;                           // y-scale from left perspective
-        const e = dx_L;                          // x translation
-        const f = y_L - lsL * srcY;             // y translation (absorbs srcY offset)
+            // Left-perspective scale at sub-strip edges
+            const lsL = leftScaleAt(sub_dxL);
+            const lsR = leftScaleAt(sub_dxR);
 
-        ctx.save();
-        ctx.setTransform(a, b, c, d, e, f);
-        ctx.drawImage(
-            sourceCanvas,
-            0,              Math.round(srcY),
-            srcW,           Math.ceil(sliceH + 1),
-            0,              Math.round(srcY),
-            srcW,           Math.ceil(sliceH + 1)
-        );
-        ctx.restore();
+            // y-position of this row's top at each sub-strip edge
+            const yL = centerY + (srcY - srcH * 0.5) * lsL;
+            const yR = centerY + (srcY - srcH * 0.5) * lsR;
+
+            // Affine transform: ctx.setTransform(a, b, c, d, e, f)
+            //   x_out = a·x + c·y + e
+            //   y_out = b·x + d·y + f
+            const a = (sub_dxR - sub_dxL) / sub_sw;
+            const b = (yR - yL) / sub_sw;
+            const d = lsL;
+            const e = sub_dxL;
+            const f = yL - lsL * srcY;
+
+            // Minimum source height so lsL×drawH ≥ lsR×step + 1
+            const lsLsafe = Math.max(Math.abs(lsL), 0.001);
+            const lsRmax  = Math.max(lsL, lsR);
+            const minDrawH = Math.ceil((lsRmax * step_srcY + 1) / lsLsafe);
+            const drawH    = Math.min(
+                Math.max(Math.ceil(sliceH + 1), minDrawH),
+                srcH   // never read past source canvas bottom
+            );
+
+            ctx.save();
+            ctx.setTransform(a, b, 0, d, e, f);
+            ctx.drawImage(
+                sourceCanvas,
+                Math.round(sub_sx),    Math.round(srcY),
+                Math.ceil(sub_sw + 1), drawH,
+                Math.round(sub_sx),    Math.round(srcY),
+                Math.ceil(sub_sw + 1), drawH
+            );
+            ctx.restore();
+        }
     }
 
     return out;
