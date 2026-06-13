@@ -797,7 +797,19 @@ function enterDesignEraserMode() {
     // Disable object selection on every canvas so mouse events reach the eraser handler
     canvasData.forEach(d => {
         d.fabricCanvas.selection = false;
-        d.fabricCanvas.forEachObject(o => { o._prevSelectable = o.selectable; o.selectable = false; });
+        d.fabricCanvas.forEachObject(o => {
+            o._prevSelectable     = o.selectable;
+            o._prevEvented        = o.evented;
+            o.selectable          = false;
+            o.evented             = false;
+            o.lockMovementX       = true;
+            o.lockMovementY       = true;
+            o.lockRotation        = true;
+            o.lockScalingX        = true;
+            o.lockScalingY        = true;
+            o.lockSkewingX        = true;
+            o.lockSkewingY        = true;
+        });
         d.fabricCanvas.discardActiveObject();
         d.fabricCanvas.requestRenderAll();
     });
@@ -819,8 +831,17 @@ function exitDesignEraserMode() {
     canvasData.forEach(d => {
         d.fabricCanvas.selection = true;
         d.fabricCanvas.forEachObject(o => {
-            o.selectable = (o._prevSelectable !== undefined) ? o._prevSelectable : true;
+            o.selectable    = (o._prevSelectable !== undefined) ? o._prevSelectable : true;
+            o.evented       = (o._prevEvented    !== undefined) ? o._prevEvented    : true;
+            o.lockMovementX = false;
+            o.lockMovementY = false;
+            o.lockRotation  = false;
+            o.lockScalingX  = false;
+            o.lockScalingY  = false;
+            o.lockSkewingX  = false;
+            o.lockSkewingY  = false;
             delete o._prevSelectable;
+            delete o._prevEvented;
         });
         d.fabricCanvas.requestRenderAll();
     });
