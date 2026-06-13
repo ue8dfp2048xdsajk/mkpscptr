@@ -46,6 +46,13 @@ document.addEventListener('click', function(e){
     const insideSelectedWindow =
         e.target.closest('.canvas-wrapper.active');
 
+    // Before the user has clicked on any canvas (activeClipWindowIndex is null),
+    // no window has been locked yet.  Allow clicks into ANY canvas-wrapper so the
+    // first mouse:down can set the lock normally.
+    const insideAnyWindow =
+        activeClipWindowIndex === null &&
+        e.target.closest('.canvas-wrapper');
+
     const exitButton =
         e.target.id === 'editClipBtn';
 
@@ -60,6 +67,7 @@ document.addEventListener('click', function(e){
 
     if(
         insideSelectedWindow ||
+        insideAnyWindow ||
         exitButton ||
         deleteClipButton ||
         addClipAreaButton ||
