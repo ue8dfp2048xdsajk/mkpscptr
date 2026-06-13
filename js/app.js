@@ -12,6 +12,10 @@ let globalRedoStack = [];
 const MAX_UNDO_HISTORY = 50;
 let _sliderUndoLocked = false;   // one push per slider drag gesture
 
+let designEraserMode = false;   // true while design-layer eraser is active
+let designEraserDown = false;   // true while mouse button held in eraser mode
+const DESIGN_ERASER_RADIUS = 25; // canvas-pixel radius of the eraser
+
 let colorLayerMode  = false;
 let brushTool       = 'brush'; // 'brush' | 'eraser'
 let brushColor      = '#ff0000';
@@ -688,6 +692,96 @@ function getAllDesignObjects(data){
     if(data.colorLayerFabricObj) objs.push(data.colorLayerFabricObj);
     return objs;
 }
+
+// ── Design-layer eraser ──────────────────────────────────────────────────────
+
+// Ensure a fabric.Image's underlying element is a writable canvas so we can
+// draw destination-out circles directly onto the pixel data.
+function ensureErasableCanvas(obj) {
+    const el = obj.getElement();
+    if (el && el.tagName === 'CANVAS') return el;
+    const src  = el || obj._originalElement;
+    const c    = document.createElement('canvas');
+    c.width    = (src && (src.naturalWidth || src.width))  || obj.width;
+    c.height   = (src && (src.naturalHeight || src.height)) || obj.height;
+    if (src) c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+    obj.setElement(c);
+    return c;
+}
+
+// Erase a soft circle from obj at a Fabric canvas-space point.
+function eraseFromObject(obj, pointer) {
+    const el  = ensureErasableCanvas(obj);
+    const ctx = el.getContext('2d');
+    // Convert Fabric canvas-space → object-local space (origin = object center)
+    const inv   = fabric.util.invertTransform(obj.calcTransformMatrix());
+    const local = fabric.util.transformPoint(pointer, inv);
+    // Object-local → element pixel coordinates
+    const sx = el.width  / obj.width;
+    const sy = el.height / obj.height;
+    const px = (local.x + obj.width  / 2) * sx;
+    const py = (local.y + obj.height / 2) * sy;
+    // Radius: constant visual size in canvas pixels, scaled back to element pixels
+    const scl    = Math.min(obj.scaleX || 1, obj.scaleY || 1);
+    const radius = Math.max(1, DESIGN_ERASER_RADIUS / scl * Math.min(sx, sy));
+    // Soft-edged erase via radial gradient mask
+    const grad = ctx.createRadialGradient(px, py, 0, px, py, radius);
+    grad.addColorStop(0,   'rgba(0,0,0,1)');
+    grad.addColorStop(0.6, 'rgba(0,0,0,0.8)');
+    grad.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(px, py, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+// Apply the eraser at a canvas-space point to all design objects in one window.
+function applyDesignEraserAt(data, pointer) {
+    const targets = [];
+    if (data.designObject)       targets.push(data.designObject);
+    if (data.extraDesignObjects) targets.push(...data.extraDesignObjects);
+    targets.forEach(obj => eraseFromObject(obj, pointer));
+    if (targets.length) data.fabricCanvas.requestRenderAll();
+}
+
+function enterDesignEraserMode() {
+    designEraserMode = true;
+    document.getElementById('designEraserBtn').textContent = 'Exit Eraser Mode';
+    // Disable object selection on every canvas so mouse events reach the eraser handler
+    canvasData.forEach(d => {
+        d.fabricCanvas.selection = false;
+        d.fabricCanvas.forEachObject(o => { o._prevSelectable = o.selectable; o.selectable = false; });
+        d.fabricCanvas.discardActiveObject();
+        d.fabricCanvas.requestRenderAll();
+    });
+    selectedDesigns.clear();
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    // Crosshair cursor on all canvas wrappers
+    document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = 'crosshair');
+}
+
+function exitDesignEraserMode() {
+    designEraserMode = false;
+    designEraserDown = false;
+    document.getElementById('designEraserBtn').textContent = 'Eraser';
+    canvasData.forEach(d => {
+        d.fabricCanvas.selection = true;
+        d.fabricCanvas.forEachObject(o => {
+            o.selectable = (o._prevSelectable !== undefined) ? o._prevSelectable : true;
+            delete o._prevSelectable;
+        });
+        d.fabricCanvas.requestRenderAll();
+    });
+    document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = '');
+}
+
+// Release eraser stroke if mouse is lifted anywhere in the window
+window.addEventListener('mouseup', () => { if (designEraserMode) designEraserDown = false; });
 
 // ── Color layer helpers ──────────────────────────────────────────────────────
 
@@ -2613,6 +2707,21 @@ function attachFabricEvents(data, targetObject = null){
                 ctx.restore();
             });
         });
+
+        // Design-layer eraser mouse handlers — active only when designEraserMode is true.
+        // Objects are made non-selectable on entry so clicks go straight to these handlers.
+        data.fabricCanvas.on('mouse:down', (opt) => {
+            if (!designEraserMode) return;
+            designEraserDown = true;
+            applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
+        });
+        data.fabricCanvas.on('mouse:move', (opt) => {
+            if (!designEraserMode || !designEraserDown) return;
+            applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
+        });
+        data.fabricCanvas.on('mouse:up', () => {
+            if (designEraserMode) designEraserDown = false;
+        });
     }
 
     // mouse:down handler manages selectedDesigns and syncSliders; selected event is unused.
@@ -3010,7 +3119,13 @@ document.getElementById("deleteLayerBtn").addEventListener("click", ()=>{
     autoSaveSession();
 });
 
-
+document.getElementById("designEraserBtn").addEventListener("click", () => {
+    if (designEraserMode) {
+        exitDesignEraserMode();
+    } else {
+        enterDesignEraserMode();
+    }
+});
 
 
 
