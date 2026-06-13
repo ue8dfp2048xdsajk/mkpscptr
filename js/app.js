@@ -2874,6 +2874,177 @@ document.getElementById("uploadDesignInput").addEventListener("change", async fu
 
 
 
+// ── Add Layer ─────────────────────────────────────────────────────────────────
+document.getElementById("addLayerBtn").addEventListener("click", ()=>{
+
+    if(clipEditMode){ showClipModeNotice(); return; }
+
+    if(!activeIndices.length){
+        alert("Select one or more windows first.");
+        return;
+    }
+
+    const anyHasDesign = activeIndices.some(i => canvasData[i].designObject);
+    if(!anyHasDesign){
+        alert("Load a background and design first, then add layers.");
+        return;
+    }
+
+    document.getElementById("layerUpload").value = "";
+    document.getElementById("layerUpload").click();
+});
+
+document.getElementById("layerUpload").addEventListener("change", async function(){
+
+    if(clipEditMode){ showClipModeNotice(); return; }
+    if(!activeIndices.length) return;
+
+    const files = Array.from(this.files);
+    if(!files.length) return;
+
+    // Snapshot ALL selected windows before adding layers
+    pushGlobalUndo();
+
+    const loadingIndicator = document.getElementById("loadingIndicator");
+    loadingIndicator.style.display = "block";
+
+    // Remember which window indices were selected at upload time
+    const targetIndices = [...activeIndices];
+    let lastAddedByIndex = {};   // index → last fabricImg added
+
+    for(let fi = 0; fi < files.length; fi++){
+
+        const file = files[fi];
+        loadingIndicator.innerText =
+            `Loading layer ${fi + 1} / ${files.length}…`;
+
+        await new Promise(resolve => {
+
+            const reader = new FileReader();
+
+            reader.onload = function(e){
+
+                const img = new Image();
+
+                img.onload = async function(){
+
+                    let finalImg = img;
+                    const isJpg =
+                        file.type === "image/jpeg" ||
+                        file.type === "image/jpg";
+
+                    if(!isJpg){
+                        await new Promise(r => requestAnimationFrame(r));
+                        finalImg = trimTransparentPixels(img);
+                    }
+
+                    const finalize = () => {
+
+                        targetIndices.forEach(index => {
+
+                            const data = canvasData[index];
+                            if(!data.designObject) return;
+
+                            const canvasW = data.fabricCanvas.getWidth();
+                            const canvasH = data.fabricCanvas.getHeight();
+
+                            // Scale overlay to ~35% of the shorter canvas edge
+                            const maxDim = Math.min(canvasW, canvasH) * 0.35;
+                            const imgScale = Math.min(
+                                maxDim / finalImg.width,
+                                maxDim / finalImg.height
+                            );
+
+                            const fabricImg = new fabric.Image(finalImg, {
+                                left:   canvasW / 2,
+                                top:    canvasH / 2,
+                                scaleX: imgScale,
+                                scaleY: imgScale,
+                                angle:  0,
+                                opacity: 1,
+                                globalCompositeOperation: 'source-over',
+                                originX: 'center',
+                                originY: 'center',
+                                transparentCorners: false,
+                                cornerColor: '#ff6600',
+                                cornerStyle: 'circle'
+                            });
+
+                            fabricImg._isOverlay          = true;
+                            fabricImg._uploadedDesignName = file.name;
+                            fabricImg._fx = {
+                                warpAmount: 0, arcAmount: 0, arcTilt: 0,
+                                perspectiveTop: 0, perspectiveLeft: 0,
+                                opacity: 1,
+                                blurAmount: 0, noiseAmount: 0,
+                                blendMode: 'normal'
+                            };
+
+                            data.extraDesignObjects   = data.extraDesignObjects   || [];
+                            data.extraDesignOriginals = data.extraDesignOriginals || [];
+                            data.extraDesignObjects.push(fabricImg);
+                            data.extraDesignOriginals.push(finalImg);
+
+                            applyClipMaskToObject(fabricImg, data);
+                            data.fabricCanvas.add(fabricImg);
+                            attachFabricEvents(data, fabricImg);
+                            data.fabricCanvas.requestRenderAll();
+
+                            lastAddedByIndex[index] = fabricImg;
+                        });
+
+                        resolve();
+                    };
+
+                    if(finalImg.complete){
+                        finalize();
+                    } else {
+                        finalImg.onload = finalize;
+                    }
+                };
+
+                img.src = e.target.result;
+            };
+
+            reader.readAsDataURL(file);
+        });
+
+        await new Promise(r => requestAnimationFrame(r));
+    }
+
+    loadingIndicator.style.display = "none";
+    autoSaveSession();
+
+    // Auto-enter design mode when exactly one window was targeted so the
+    // user can immediately select and reposition the new overlay layer.
+    if(targetIndices.length === 1){
+
+        const idx  = targetIndices[0];
+        const data = canvasData[idx];
+
+        if(editMode !== "design"){
+            editMode = "design";
+            activeDesignWindow = idx;
+            activeIndices = [idx];
+            document.getElementById("designModeBtn").innerText    = "Exit Design Mode";
+            document.getElementById("uploadDesignBtn").style.display    = "inline-block";
+            document.getElementById("duplicateDesignBtn").style.display = "inline-block";
+            document.getElementById("deleteDesignBtn").style.display    = "inline-block";
+            document.getElementById("selectAllBtn").disabled = true;
+            updateWindowBorders();
+        }
+
+        const lastOverlay = lastAddedByIndex[idx];
+        if(lastOverlay){
+            data.fabricCanvas.setActiveObject(lastOverlay);
+            activeDesignObject = lastOverlay;
+            syncSliders();
+            data.fabricCanvas.requestRenderAll();
+        }
+    }
+});
+
+
 document.getElementById("editClipBtn").addEventListener("click", ()=>{
 
     if(!activeIndices.length){
