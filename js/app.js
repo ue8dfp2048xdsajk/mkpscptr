@@ -2537,17 +2537,28 @@ function createCanvasPreviews(){
 
                     lastSelectedIndex = index;
 
-                // Normal click = single-window select + its original design
+                // Normal click = if window already selected keep group; else single-select
                 } else {
 
-                    activeIndices = [index];
                     lastSelectedIndex = index;
 
-                    selectedDesigns.clear();
-                    const d = canvasData[index];
-                    if(d?.designObject){
-                        if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                        selectedDesigns.add(d.designObject);
+                    if(!activeIndices.includes(index)){
+                        // Clicking an unselected window — start fresh
+                        activeIndices = [index];
+                        selectedDesigns.clear();
+                        const d = canvasData[index];
+                        if(d?.designObject){
+                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                            selectedDesigns.add(d.designObject);
+                        }
+                    } else {
+                        // Window already in selection — keep everything, just ensure
+                        // its design is represented in selectedDesigns
+                        const d = canvasData[index];
+                        if(d?.designObject && !selectedDesigns.has(d.designObject)){
+                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                            selectedDesigns.add(d.designObject);
+                        }
                     }
                 }
 
@@ -2649,11 +2660,22 @@ function attachFabricEvents(data, targetObject = null){
                     activeIndices.push(winIdx);
                 }
             } else {
-                // Plain click: select only this one design
-                selectedDesigns.clear();
-                if(!target._fx) target._fx = _defaultFx(data);
-                selectedDesigns.add(target);
-                if(winIdx !== -1) activeIndices = [winIdx];
+                // Plain click: if design is already selected, keep all selections
+                // (user is interacting within the existing group — don't break it).
+                // Only reset to a single selection when clicking an unselected design.
+                if(!selectedDesigns.has(target)){
+                    selectedDesigns.clear();
+                    if(!target._fx) target._fx = _defaultFx(data);
+                    selectedDesigns.add(target);
+                    if(winIdx !== -1) activeIndices = [winIdx];
+                    refreshFabricHandles();
+                    updateWindowBorders();
+                    updateLayerButtons();
+                    syncSliders();
+                }
+                // else: already selected — Fabric handles the active object naturally,
+                // all selections remain untouched.
+                return;
             }
 
             refreshFabricHandles();
@@ -5225,17 +5247,28 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
                     lastSelectedIndex = index;
 
-                // Normal click = single-window select + its original design
+                // Normal click = if window already selected keep group; else single-select
                 } else {
 
-                    activeIndices = [index];
                     lastSelectedIndex = index;
 
-                    selectedDesigns.clear();
-                    const d = canvasData[index];
-                    if(d?.designObject){
-                        if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                        selectedDesigns.add(d.designObject);
+                    if(!activeIndices.includes(index)){
+                        // Clicking an unselected window — start fresh
+                        activeIndices = [index];
+                        selectedDesigns.clear();
+                        const d = canvasData[index];
+                        if(d?.designObject){
+                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                            selectedDesigns.add(d.designObject);
+                        }
+                    } else {
+                        // Window already in selection — keep everything, just ensure
+                        // its design is represented in selectedDesigns
+                        const d = canvasData[index];
+                        if(d?.designObject && !selectedDesigns.has(d.designObject)){
+                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                            selectedDesigns.add(d.designObject);
+                        }
                     }
                 }
 
