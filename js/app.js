@@ -429,9 +429,10 @@ function applyPerspectiveDistortion(sourceCanvas, data){
     const out = document.createElement('canvas');
     const ctx = out.getContext('2d');
 
-    // Padding to prevent clipping when perspective goes negative.
-    const hPadNeeded = top < 0
-        ? Math.ceil(srcW * (-top) / 360)
+    // Minimum horizontal padding: stretched row dx = pad - srcW*|top|/180 ≥ 0
+    // → pad ≥ srcW * |top| / 180  (same derivation as vPadNeeded, transposed).
+    const hPadNeeded = Math.abs(top) > 0
+        ? Math.ceil(srcW * Math.abs(top) / 180)
         : 0;
     // Correct minimum padding: content top in output = dy + pad*leftScale ≥ 0
     // → pad ≥ srcH * L/2, where L = max leftScale - 1 = |left|/90 (for 2× formula).
@@ -450,10 +451,11 @@ function applyPerspectiveDistortion(sourceCanvas, data){
     ctx.imageSmoothingQuality = 'medium';
 
     // ── Pass 1: top/bottom perspective (horizontal slices) ───────────────────
-    // Width of each row interpolates linearly from topScale (top) to 1 (bottom),
-    // keeping all edges perfectly straight.
+    // Width of each row is scaled by widthScale, which is 1 on the untouched
+    // side and 1+|top|/90 on the stretched side — straight lines, no curves.
+    // Source has no padding, so t is already content-normalised (t=0 = top edge,
+    // t=1 = bottom edge). top > 0: top side stretches; top < 0: bottom side stretches.
 
-    const topScale         = 1 - (top / 180);
     const horizontalSlices = 180;
 
     for(let y = 0; y < horizontalSlices; y++){
@@ -462,8 +464,12 @@ function applyPerspectiveDistortion(sourceCanvas, data){
         const srcY   = t * srcH;
         const sliceH = Math.max(2, srcH / horizontalSlices);
 
-        const widthScale = topScale + (1 - topScale) * t;
-        const targetW    = srcW * widthScale;
+        // top > 0: top edge (t=0) at max width, bottom edge (t=1) untouched
+        // top < 0: top edge (t=0) untouched, bottom edge (t=1) at max width
+        const widthScale = top > 0
+            ? 1 + (top  / 90) * (1 - t)
+            : 1 + (-top / 90) * t;
+        const targetW = srcW * widthScale;
 
         const dx = pad + (srcW - targetW) / 2;
         const dy = pad + srcY;
