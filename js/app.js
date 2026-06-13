@@ -647,11 +647,12 @@ function updateWindowBorders(){
             const d = canvasData[i];
             if(selectedDesigns.size > 0){
                 // Design-select mode: highlight windows that contain a selected object
+                // OR windows in activeIndices (their designs move too via the sync handlers)
                 const hasSelected = d && (
                     (d.designObject && selectedDesigns.has(d.designObject)) ||
                     (d.extraDesignObjects||[]).some(obj => selectedDesigns.has(obj))
                 );
-                if(hasSelected) w.classList.add("active");
+                if(hasSelected || activeIndices.includes(i)) w.classList.add("active");
             } else if(activeIndices.includes(i)){
                 if(editMode === "design" && i === activeDesignWindow){
                     w.classList.add("design-active");
