@@ -995,10 +995,47 @@ function _renderBicubicWarp() {
 }
 
 // Draw the warp overlay (grid + handles) directly onto a Fabric canvas context.
+// Draw the live deformed preview of the warped design directly onto the Fabric canvas ctx.
+// Source pixels come from warpSourceCanvas (CSS-space); destination positions are Fabric CSS coords
+// from _evalWarpPatch. Uses N=20 subdivision (fast enough for real-time dragging).
+function _drawWarpPreview(ctx) {
+    if (!warpSourceCanvas || !warpPoints.length) return;
+    const N    = 20;
+    const srcW = warpSourceCanvas.width;
+    const srcH = warpSourceCanvas.height;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    for (let ri = 0; ri < N; ri++) {
+        for (let ci = 0; ci < N; ci++) {
+            const u0 = ci / N,     u1 = (ci + 1) / N;
+            const v0 = ri / N,     v1 = (ri + 1) / N;
+            const sx0 = u0 * srcW, sy0 = v0 * srcH;
+            const sx1 = u1 * srcW, sy1 = v1 * srcH;
+            const D00 = _evalWarpPatch(u0, v0);
+            const D10 = _evalWarpPatch(u1, v0);
+            const D01 = _evalWarpPatch(u0, v1);
+            const D11 = _evalWarpPatch(u1, v1);
+            _drawTexturedTriangle(ctx, warpSourceCanvas,
+                sx0, sy0, D00.x, D00.y,
+                sx1, sy0, D10.x, D10.y,
+                sx0, sy1, D01.x, D01.y);
+            _drawTexturedTriangle(ctx, warpSourceCanvas,
+                sx1, sy1, D11.x, D11.y,
+                sx0, sy1, D01.x, D01.y,
+                sx1, sy0, D10.x, D10.y);
+        }
+    }
+    ctx.restore();
+}
+
 function _drawWarpOverlay(ctx) {
     if (!designWarpMode || warpPoints.length !== 4) return;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
+
+    // Live deformed design preview — drawn first so grid sits on top
+    _drawWarpPreview(ctx);
 
     // Bezier grid lines
     ctx.strokeStyle = 'rgba(74,158,255,0.9)';
@@ -1071,9 +1108,7 @@ function enterDesignWarpMode() {
     }
     if (!ownerData) return;
 
-    designWarpMode   = true;
-    warpActiveData   = ownerData;
-    warpTargetObjs   = targets.filter(t => {
+    warpTargetObjs = targets.filter(t => {
         const all = [ownerData.designObject, ...(ownerData.extraDesignObjects || [])].filter(Boolean);
         return all.includes(t);
     });
@@ -1087,26 +1122,58 @@ function enterDesignWarpMode() {
     const maxY  = Math.max(...rects.map(r => r.top  + r.height));
     warpSourceBounds = {left: minX, top: minY, width: maxX - minX, height: maxY - minY};
 
-    // Rasterise all selected objects onto the source canvas
-    const srcW = Math.max(1, Math.ceil(warpSourceBounds.width));
-    const srcH = Math.max(1, Math.ceil(warpSourceBounds.height));
-    warpSourceCanvas         = document.createElement('canvas');
-    warpSourceCanvas.width   = srcW;
-    warpSourceCanvas.height  = srcH;
+    // Rasterise target objects using Fabric's own rendering pipeline:
+    //   1. Hide every non-target object (and the canvas background image)
+    //   2. Let Fabric render the isolated target objects
+    //   3. Copy the exact bounding-box region from the lower canvas element
+    //      (down-sampling from physical pixels → CSS pixels so the source canvas
+    //       lives in the same coordinate space as warpPoints / _evalWarpPatch)
+    //   4. Restore everything
+    // This guarantees we capture exactly what the user sees — effects, padding,
+    // perspective distortion and all — without any manual transform arithmetic.
+    const fc       = ownerData.fabricCanvas;
+    const allFObjs = fc.getObjects();
+
+    allFObjs.forEach(o => {
+        if (!warpTargetObjs.includes(o)) {
+            o._warpHiddenVis = o.visible;
+            o.visible = false;
+        }
+    });
+    const savedBg = fc.backgroundImage;
+    if (savedBg) fc.backgroundImage = null;
+
+    fc.discardActiveObject();
+    fc.renderAll();
+
+    const lc  = fc.lowerCanvasEl;
+    const dpr = lc.width / fc.getWidth();                       // device pixel ratio
+    const lcX = Math.round(warpSourceBounds.left   * dpr);
+    const lcY = Math.round(warpSourceBounds.top    * dpr);
+    const lcW = Math.max(1, Math.round(warpSourceBounds.width  * dpr));
+    const lcH = Math.max(1, Math.round(warpSourceBounds.height * dpr));
+    const cssW = Math.max(1, Math.ceil(warpSourceBounds.width));
+    const cssH = Math.max(1, Math.ceil(warpSourceBounds.height));
+
+    warpSourceCanvas        = document.createElement('canvas');
+    warpSourceCanvas.width  = cssW;
+    warpSourceCanvas.height = cssH;
     const sCtx = warpSourceCanvas.getContext('2d');
     sCtx.imageSmoothingEnabled = true;
     sCtx.imageSmoothingQuality = 'high';
+    sCtx.drawImage(lc, lcX, lcY, lcW, lcH, 0, 0, cssW, cssH);
 
-    warpTargetObjs.forEach(obj => {
-        const mtx = obj.calcTransformMatrix();
-        sCtx.save();
-        sCtx.transform(mtx[0], mtx[1], mtx[2], mtx[3],
-                        mtx[4] - warpSourceBounds.left,
-                        mtx[5] - warpSourceBounds.top);
-        const el = ensureErasableCanvas(obj);
-        sCtx.drawImage(el, -obj.width / 2, -obj.height / 2, obj.width, obj.height);
-        sCtx.restore();
+    allFObjs.forEach(o => {
+        if (o._warpHiddenVis !== undefined) {
+            o.visible = o._warpHiddenVis;
+            delete o._warpHiddenVis;
+        }
     });
+    if (savedBg) fc.backgroundImage = savedBg;
+
+    // Hide the target objects so the after:render overlay can draw the live
+    // deformed preview in their place (see _drawWarpPreview / _drawWarpOverlay).
+    warpTargetObjs.forEach(o => { o._warpWasVisible = o.visible; o.visible = false; });
 
     // Initialise 4×4 control point grid evenly over the bounding box
     warpPoints = [];
@@ -1119,7 +1186,9 @@ function enterDesignWarpMode() {
             });
         }
     }
-    warpDragRC = null;
+    warpDragRC     = null;
+    designWarpMode = true;
+    warpActiveData = ownerData;
 
     // Disable Fabric selection (same pattern as eraser)
     canvasData.forEach(d => {
@@ -1144,6 +1213,13 @@ function enterDesignWarpMode() {
 }
 
 function exitDesignWarpMode(apply) {
+    // Restore target object visibility first — they were hidden so the overlay
+    // could draw the live deformed preview in their place.
+    warpTargetObjs.forEach(o => {
+        o.visible = (o._warpWasVisible !== undefined) ? o._warpWasVisible : true;
+        delete o._warpWasVisible;
+    });
+
     // Capture everything needed for async image creation before we clear state
     const applyData = warpActiveData;
     const applyObjs = [...warpTargetObjs];
