@@ -12,9 +12,10 @@ let globalRedoStack = [];
 const MAX_UNDO_HISTORY = 50;
 let _sliderUndoLocked = false;   // one push per slider drag gesture
 
-let designEraserMode = false;   // true while design-layer eraser is active
-let designEraserDown = false;   // true while mouse button held in eraser mode
-const DESIGN_ERASER_RADIUS = 25; // canvas-pixel radius of the eraser
+let designEraserMode     = false;  // true while design-layer eraser is active
+let designEraserDown     = false;  // true while mouse button held in eraser mode
+let designEraserSize     = 30;     // eraser radius in CSS pixels (visual size on screen)
+let designEraserSoftness = 60;     // 0 = hard edge, 100 = fully soft
 
 let colorLayerMode  = false;
 let brushTool       = 'brush'; // 'brush' | 'eraser'
@@ -710,31 +711,51 @@ function ensureErasableCanvas(obj) {
 }
 
 // Erase a soft circle from obj at a Fabric canvas-space point.
-function eraseFromObject(obj, pointer) {
+// data is the owning canvasData entry, used to convert CSS px → Fabric units.
+function eraseFromObject(obj, data, pointer) {
     const el  = ensureErasableCanvas(obj);
     const ctx = el.getContext('2d');
+
+    // CSS-pixel radius → Fabric canvas units
+    const cvEl       = data.fabricCanvas.upperCanvasEl;
+    const rect       = cvEl.getBoundingClientRect();
+    const cssToFabric = (rect.width > 0) ? (cvEl.width / rect.width) : 1;
+    const fabricRadius = designEraserSize * cssToFabric;
+
     // Convert Fabric canvas-space → object-local space (origin = object center)
     const inv   = fabric.util.invertTransform(obj.calcTransformMatrix());
     const local = fabric.util.transformPoint(pointer, inv);
+
     // Object-local → element pixel coordinates
     const sx = el.width  / obj.width;
     const sy = el.height / obj.height;
     const px = (local.x + obj.width  / 2) * sx;
     const py = (local.y + obj.height / 2) * sy;
-    // Radius: constant visual size in canvas pixels, scaled back to element pixels
+
+    // Radius in element pixels (compensate for object scale and element:object ratio)
     const scl    = Math.min(obj.scaleX || 1, obj.scaleY || 1);
-    const radius = Math.max(1, DESIGN_ERASER_RADIUS / scl * Math.min(sx, sy));
-    // Soft-edged erase via radial gradient mask
-    const grad = ctx.createRadialGradient(px, py, 0, px, py, radius);
-    grad.addColorStop(0,   'rgba(0,0,0,1)');
-    grad.addColorStop(0.6, 'rgba(0,0,0,0.8)');
-    grad.addColorStop(1,   'rgba(0,0,0,0)');
+    const radius = Math.max(1, fabricRadius / scl * Math.min(sx, sy));
+
+    // Softness: inner hard core radius where erase is 100%, fades to 0 at outer edge
+    const softFrac  = designEraserSoftness / 100;
+    const innerR    = Math.max(0, radius * (1 - softFrac) - 0.5);
+
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(px, py, radius, 0, Math.PI * 2);
-    ctx.fill();
+    if (softFrac < 0.02) {
+        // Hard eraser — solid fill
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+    } else {
+        const grad = ctx.createRadialGradient(px, py, innerR, px, py, radius);
+        grad.addColorStop(0, 'rgba(0,0,0,1)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
     ctx.restore();
 }
 
@@ -743,13 +764,36 @@ function applyDesignEraserAt(data, pointer) {
     const targets = [];
     if (data.designObject)       targets.push(data.designObject);
     if (data.extraDesignObjects) targets.push(...data.extraDesignObjects);
-    targets.forEach(obj => eraseFromObject(obj, pointer));
+    targets.forEach(obj => eraseFromObject(obj, data, pointer));
     if (targets.length) data.fabricCanvas.requestRenderAll();
 }
+
+function updateEraserCursor(e) {
+    if (!designEraserMode) return;
+    const cursor = document.getElementById('designEraserCursor');
+    const inner  = document.getElementById('designEraserInner');
+    if (!cursor) return;
+    const d = designEraserSize * 2;
+    cursor.style.left   = e.clientX + 'px';
+    cursor.style.top    = e.clientY + 'px';
+    cursor.style.width  = d + 'px';
+    cursor.style.height = d + 'px';
+    // Inner dashed ring marks where the hard core ends and soft falloff begins
+    const hardFrac = 1 - designEraserSoftness / 100;
+    const innerD   = d * hardFrac;
+    const inset    = (d - innerD) / 2;
+    inner.style.width  = innerD + 'px';
+    inner.style.height = innerD + 'px';
+    inner.style.left   = inset + 'px';
+    inner.style.top    = inset + 'px';
+    inner.style.display = (designEraserSoftness > 2 && designEraserSoftness < 98) ? 'block' : 'none';
+}
+document.addEventListener('mousemove', updateEraserCursor);
 
 function enterDesignEraserMode() {
     designEraserMode = true;
     document.getElementById('designEraserBtn').textContent = 'Exit Eraser Mode';
+    document.getElementById('designEraserControls').style.display = 'inline-flex';
     // Disable object selection on every canvas so mouse events reach the eraser handler
     canvasData.forEach(d => {
         d.fabricCanvas.selection = false;
@@ -761,14 +805,17 @@ function enterDesignEraserMode() {
     refreshFabricHandles();
     updateWindowBorders();
     updateLayerButtons();
-    // Crosshair cursor on all canvas wrappers
-    document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = 'crosshair');
+    // Hide system cursor on canvas wrappers; show ring cursor instead
+    document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = 'none');
+    const cursor = document.getElementById('designEraserCursor');
+    if (cursor) cursor.style.display = 'block';
 }
 
 function exitDesignEraserMode() {
     designEraserMode = false;
     designEraserDown = false;
     document.getElementById('designEraserBtn').textContent = 'Eraser';
+    document.getElementById('designEraserControls').style.display = 'none';
     canvasData.forEach(d => {
         d.fabricCanvas.selection = true;
         d.fabricCanvas.forEachObject(o => {
@@ -778,6 +825,8 @@ function exitDesignEraserMode() {
         d.fabricCanvas.requestRenderAll();
     });
     document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = '');
+    const cursor = document.getElementById('designEraserCursor');
+    if (cursor) cursor.style.display = 'none';
 }
 
 // Release eraser stroke if mouse is lifted anywhere in the window
@@ -3125,6 +3174,16 @@ document.getElementById("designEraserBtn").addEventListener("click", () => {
     } else {
         enterDesignEraserMode();
     }
+});
+
+document.getElementById("designEraserSizeSlider").addEventListener("input", e => {
+    designEraserSize = parseInt(e.target.value, 10);
+    document.getElementById("designEraserSizeVal").textContent = designEraserSize;
+});
+
+document.getElementById("designEraserSoftnessSlider").addEventListener("input", e => {
+    designEraserSoftness = parseInt(e.target.value, 10);
+    document.getElementById("designEraserSoftnessVal").textContent = designEraserSoftness;
 });
 
 

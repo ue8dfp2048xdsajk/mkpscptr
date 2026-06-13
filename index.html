@@ -72,6 +72,14 @@
         <button id="duplicateLayerBtn" style="display:none;">Duplicate Layer</button>
         <button id="deleteLayerBtn" style="display:none;">Delete Layer</button>
         <button id="designEraserBtn">Eraser</button>
+        <span id="designEraserControls" style="display:none;align-items:center;gap:6px;margin-left:4px;">
+            <span style="font-size:11px;">Size</span>
+            <input type="range" id="designEraserSizeSlider" min="5" max="200" value="30" style="width:80px;vertical-align:middle;">
+            <span id="designEraserSizeVal" style="font-size:11px;min-width:24px;">30</span>
+            <span style="font-size:11px;">Soft</span>
+            <input type="range" id="designEraserSoftnessSlider" min="0" max="100" value="60" style="width:80px;vertical-align:middle;">
+            <span id="designEraserSoftnessVal" style="font-size:11px;min-width:24px;">60</span>
+        </span>
         <button id="addLayerBtn" title="Upload images as overlay layers onto selected windows">Add Layer</button>
         <input type="file" id="layerUpload" accept="image/*" multiple style="display:none;">
         <button id="editClipBtn">Edit Clipping</button>
@@ -119,6 +127,9 @@ Preparing designs...
 
 <div class="canvas-container" id="canvasContainer"></div>
 <div id="brushCursorRing"></div>
+<div id="designEraserCursor" style="display:none;">
+    <div id="designEraserInner"></div>
+</div>
 
 <script type="module" src="js/app.js"></script>
 

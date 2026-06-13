@@ -154,3 +154,21 @@ body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0
     transform: translate(-50%, -50%);
     z-index: 9999;
 }
+
+#designEraserCursor {
+    position: fixed;
+    pointer-events: none;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.9);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.75);
+    transform: translate(-50%, -50%);
+    z-index: 99999;
+}
+
+#designEraserInner {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px dashed rgba(255,255,255,0.65);
+    box-sizing: border-box;
+    display: none;
+}
