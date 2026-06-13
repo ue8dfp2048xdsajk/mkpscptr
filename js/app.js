@@ -406,95 +406,68 @@ function applyPerspectiveDistortion(sourceCanvas, data){
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'medium';
 
-    const topScale = 1 - (top / 180);
+    // ── Pass 1: top/bottom perspective (horizontal slices) ───────────────────
+    // Width of each row interpolates linearly from topScale (top) to 1 (bottom),
+    // keeping all edges perfectly straight.
 
-    // y-centre of the image content in the output canvas
-    const centerY = pad + srcH * 0.5;
-
-    // Left-perspective scale factor at a given output-canvas x position.
-    // Linear in xd: left edge (xd≈pad) gets the most compression,
-    // right edge (xd≈pad+srcW) is unchanged.
-    const leftScaleAt = xd => 1 - (left / 180) * (1 - xd / outW);
-
-    // ── Single combined pass with vertical sub-strips ─────────────────────────
-    // Using one affine transform per full horizontal row caused horizontal
-    // transparent stripes at large "left" values.  Root cause: the transform
-    // uses d = lsL (left-edge y-scale) for the entire row width, but the
-    // output y-step between adjacent slices at the *right* edge is
-    // lsR × step_srcY — larger than lsL × step_srcY when left is big.
-    // That gap grows to a visible stripe at extreme slider values.
-    //
-    // Fix: split each horizontal row into N_SUB narrow vertical sub-strips so
-    // that lsL ≈ lsR within each strip, then compute the minimum source
-    // read-height (drawH) that guarantees ≥1 output pixel of overlap at both
-    // edges:
-    //   lsL × drawH ≥ lsR × step_srcY + 1  →  drawH ≥ (lsR×step + 1) / lsL
-    //
-    // Because both x-range and y-offsets come from the same source t_y, all
-    // originally straight lines remain straight in the output.
-
+    const topScale         = 1 - (top / 180);
     const horizontalSlices = 180;
-    const N_SUB     = 10;    // vertical sub-strips per horizontal slice
-    const step_srcY = srcH / Math.max(horizontalSlices - 1, 1);
 
-    for(let i = 0; i < horizontalSlices; i++){
+    for(let y = 0; y < horizontalSlices; y++){
 
-        const t_y    = i / (horizontalSlices - 1);
-        const srcY   = t_y * srcH;
+        const t      = y / (horizontalSlices - 1);
+        const srcY   = t * srcH;
         const sliceH = Math.max(2, srcH / horizontalSlices);
 
-        // Width of this row (top perspective — linear in t_y)
-        const widthScale = topScale + (1 - topScale) * t_y;
+        const widthScale = topScale + (1 - topScale) * t;
         const targetW    = srcW * widthScale;
-        const rowDxL     = pad + (srcW - targetW) * 0.5;
 
-        for(let s = 0; s < N_SUB; s++){
+        const dx = pad + (srcW - targetW) / 2;
+        const dy = pad + srcY;
 
-            const subT_L = s       / N_SUB;
-            const subT_R = (s + 1) / N_SUB;
+        ctx.drawImage(
+            sourceCanvas,
+            0,              Math.round(srcY),
+            srcW,           Math.ceil(sliceH),
+            Math.round(dx), Math.round(dy),
+            Math.ceil(targetW + 1), Math.ceil(sliceH + 1)
+        );
+    }
 
-            // Sub-strip x range in source and output canvas
-            const sub_sx  = subT_L * srcW;
-            const sub_sw  = (subT_R - subT_L) * srcW;
-            const sub_dxL = rowDxL + subT_L * targetW;
-            const sub_dxR = rowDxL + subT_R * targetW;
+    // ── Pass 2: left/right perspective (vertical slices) ─────────────────────
+    // Height of each column interpolates linearly from leftScale (left) to 1
+    // (right). Vertical slices always span full canvas height → no horizontal
+    // gaps or stripes possible.
 
-            // Left-perspective scale at sub-strip edges
-            const lsL = leftScaleAt(sub_dxL);
-            const lsR = leftScaleAt(sub_dxR);
+    if(left !== 0){
 
-            // y-position of this row's top at each sub-strip edge
-            const yL = centerY + (srcY - srcH * 0.5) * lsL;
-            const yR = centerY + (srcY - srcH * 0.5) * lsR;
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx    = tempCanvas.getContext('2d');
+        tempCanvas.width  = out.width;
+        tempCanvas.height = out.height;
+        tempCtx.drawImage(out, 0, 0);
+        ctx.clearRect(0, 0, out.width, out.height);
 
-            // Affine transform: ctx.setTransform(a, b, c, d, e, f)
-            //   x_out = a·x + c·y + e
-            //   y_out = b·x + d·y + f
-            const a = (sub_dxR - sub_dxL) / sub_sw;
-            const b = (yR - yL) / sub_sw;
-            const d = lsL;
-            const e = sub_dxL;
-            const f = yL - lsL * srcY;
+        const verticalSlices = 180;
 
-            // Minimum source height so lsL×drawH ≥ lsR×step + 1
-            const lsLsafe = Math.max(Math.abs(lsL), 0.001);
-            const lsRmax  = Math.max(lsL, lsR);
-            const minDrawH = Math.ceil((lsRmax * step_srcY + 1) / lsLsafe);
-            const drawH    = Math.min(
-                Math.max(Math.ceil(sliceH + 1), minDrawH),
-                srcH   // never read past source canvas bottom
-            );
+        for(let x = 0; x < verticalSlices; x++){
 
-            ctx.save();
-            ctx.setTransform(a, b, 0, d, e, f);
+            const t      = x / (verticalSlices - 1);
+            const srcX   = t * out.width;
+            const sliceW = Math.max(2, out.width / verticalSlices);
+
+            const leftScale  = 1 - ((left / 180) * (1 - t));
+            const targetH    = out.height * leftScale;
+            const extraSpace = targetH - out.height;
+            const dy         = -(extraSpace / 2);
+
             ctx.drawImage(
-                sourceCanvas,
-                Math.round(sub_sx),    Math.round(srcY),
-                Math.ceil(sub_sw + 1), drawH,
-                Math.round(sub_sx),    Math.round(srcY),
-                Math.ceil(sub_sw + 1), drawH
+                tempCanvas,
+                Math.round(srcX), 0,
+                Math.ceil(sliceW), out.height,
+                Math.round(srcX),  Math.round(dy),
+                Math.ceil(sliceW + 1), Math.ceil(targetH + 1)
             );
-            ctx.restore();
         }
     }
 
