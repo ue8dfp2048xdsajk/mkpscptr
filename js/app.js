@@ -8,6 +8,7 @@ let clipCopySourceIndex = null;   // which window the clipping will be copied FR
 
 // ── Color layer state ────────────────────────────────────────────────────────
 let colorLayerMode  = false;
+let brushTool       = 'brush'; // 'brush' | 'eraser'
 let brushColor      = '#ff0000';
 let brushSize       = 20;
 let brushSoftness   = 30;
@@ -732,9 +733,11 @@ function buildSoftGradient(ctx, x, y, innerR, outerR, rgb, gamma){
     return g;
 }
 
-function paintDot(ctx, x, y, size, softness, hexColor){
+function paintDot(ctx, x, y, size, softness, hexColor, compositeOp = 'source-over'){
     ctx.save();
-    const rgb = hexToRgb(hexColor);
+    ctx.globalCompositeOperation = compositeOp;
+    // For destination-out (eraser) the colour is irrelevant — only alpha matters
+    const rgb = compositeOp === 'destination-out' ? '0,0,0' : hexToRgb(hexColor);
 
     if(softness <= 0){
         // Fully hard — plain filled circle
@@ -778,11 +781,12 @@ function hideBrushCursor(){
 }
 
 function paintAtNorm(normX, normY){
+    const compositeOp = brushTool === 'eraser' ? 'destination-out' : 'source-over';
     activeIndices.forEach(i=>{
         const d = canvasData[i];
         if(!d.colorLayerCtx) return;
         const s = d.previewScale;
-        paintDot(d.colorLayerCtx, normX * s, normY * s, brushSize * s, brushSoftness, brushColor);
+        paintDot(d.colorLayerCtx, normX * s, normY * s, brushSize * s, brushSoftness, brushColor, compositeOp);
         d.fabricCanvas.requestRenderAll();
     });
 }
@@ -2043,7 +2047,14 @@ function createCanvasPreviews(){
                 return;
             }
 
-            if((clipEditMode && !clipCopySelectMode) || colorLayerMode){
+            if(clipEditMode && !clipCopySelectMode){
+                return;
+            }
+
+            if(colorLayerMode){
+                if(!activeIndices.includes(index)){
+                    alert("Exit Color Layer mode to interact with other windows.");
+                }
                 return;
             }
 
@@ -2969,6 +2980,7 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
     } else {
 
         colorLayerMode  = false;
+        brushTool       = 'brush';
         isColorPainting = false;
         lastPaintNorm   = null;
         hideBrushCursor();
@@ -2978,7 +2990,24 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
 
         document.getElementById("addColorLayerBtn").innerText       = "Add Color Layer";
         document.getElementById("colorLayerControls").style.display = "none";
+        document.getElementById("brushToolBtn").classList.add("active");
+        document.getElementById("eraserToolBtn").classList.remove("active");
+        document.getElementById("brushColorPicker").style.visibility = '';
     }
+});
+
+document.getElementById("brushToolBtn").addEventListener("click", ()=>{
+    brushTool = 'brush';
+    document.getElementById("brushToolBtn").classList.add("active");
+    document.getElementById("eraserToolBtn").classList.remove("active");
+    document.getElementById("brushColorPicker").style.visibility = '';
+});
+
+document.getElementById("eraserToolBtn").addEventListener("click", ()=>{
+    brushTool = 'eraser';
+    document.getElementById("eraserToolBtn").classList.add("active");
+    document.getElementById("brushToolBtn").classList.remove("active");
+    document.getElementById("brushColorPicker").style.visibility = 'hidden';
 });
 
 document.getElementById("brushColorPicker").addEventListener("input", e=>{
@@ -4252,7 +4281,14 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                 return;
             }
 
-            if((clipEditMode && !clipCopySelectMode) || colorLayerMode){
+            if(clipEditMode && !clipCopySelectMode){
+                return;
+            }
+
+            if(colorLayerMode){
+                if(!activeIndices.includes(index)){
+                    alert("Exit Color Layer mode to interact with other windows.");
+                }
                 return;
             }
 
