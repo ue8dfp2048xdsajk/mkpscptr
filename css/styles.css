@@ -109,5 +109,16 @@ body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0
 }
 
 .canvas-wrapper.color-layer-mode .upper-canvas {
-    cursor: crosshair !important;
+    cursor: none !important;
+}
+
+#brushCursorRing {
+    position: fixed;
+    pointer-events: none;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.85);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.7);
+    display: none;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
 }

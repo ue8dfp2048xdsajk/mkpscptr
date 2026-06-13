@@ -700,16 +700,52 @@ function initColorLayer(data){
 
 function paintDot(ctx, x, y, size, softness, hexColor){
     ctx.save();
-    const rgb       = hexToRgb(hexColor);
-    const hardR     = size * (1 - softness / 100);
-    const gradient  = ctx.createRadialGradient(x, y, Math.max(0, hardR - 0.5), x, y, size);
-    gradient.addColorStop(0, `rgba(${rgb},1)`);
-    gradient.addColorStop(1, `rgba(${rgb},0)`);
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.fillStyle = gradient;
-    ctx.fill();
+    const rgb = hexToRgb(hexColor);
+
+    if(softness <= 0){
+        // Fully hard — plain filled circle
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgb(${rgb})`;
+        ctx.fill();
+    } else if(softness >= 100){
+        // Fully soft — gradient centre → edge
+        const g = ctx.createRadialGradient(x, y, 0, x, y, size);
+        g.addColorStop(0, `rgba(${rgb},1)`);
+        g.addColorStop(1, `rgba(${rgb},0)`);
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fillStyle = g;
+        ctx.fill();
+    } else {
+        // Photoshop-style: solid core up to hardR, then feather to edge
+        const hardR = size * (1 - softness / 100);
+        const g = ctx.createRadialGradient(x, y, hardR, x, y, size);
+        g.addColorStop(0, `rgba(${rgb},1)`);
+        g.addColorStop(1, `rgba(${rgb},0)`);
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fillStyle = g;
+        ctx.fill();
+    }
+
     ctx.restore();
+}
+
+function updateBrushCursor(nativeEvent, previewScale){
+    const ring = document.getElementById('brushCursorRing');
+    if(!ring) return;
+    const d = Math.round(brushSize * previewScale * 2);
+    ring.style.width  = d + 'px';
+    ring.style.height = d + 'px';
+    ring.style.left   = nativeEvent.clientX + 'px';
+    ring.style.top    = nativeEvent.clientY + 'px';
+    ring.style.display = 'block';
+}
+
+function hideBrushCursor(){
+    const ring = document.getElementById('brushCursorRing');
+    if(ring) ring.style.display = 'none';
 }
 
 function paintAtNorm(normX, normY){
@@ -2906,6 +2942,7 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
         colorLayerMode  = false;
         isColorPainting = false;
         lastPaintNorm   = null;
+        hideBrushCursor();
 
         document.querySelectorAll('.canvas-wrapper')
             .forEach(w=> w.classList.remove('color-layer-mode'));
@@ -2921,6 +2958,7 @@ document.getElementById("brushColorPicker").addEventListener("input", e=>{
 
 document.getElementById("brushSizeSlider").addEventListener("input", e=>{
     brushSize = parseInt(e.target.value, 10);
+    // Ring size updates live on next mousemove — nothing extra needed here
 });
 
 document.getElementById("brushSoftnessSlider").addEventListener("input", e=>{
@@ -3439,7 +3477,12 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
     });
 
     fabricCanvas.on('mouse:move', function(opt){
-        if(!colorLayerMode || !isColorPainting) return;
+        if(!colorLayerMode) return;
+
+        // Always update cursor ring
+        updateBrushCursor(opt.e, data.previewScale);
+
+        if(!isColorPainting) return;
         if(!activeIndices.includes(index)) return;
 
         const ptr  = fabricCanvas.getPointer(opt.e);
@@ -3459,6 +3502,13 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
         isColorPainting = false;
         lastPaintNorm   = null;
     });
+
+    // Hide cursor ring when mouse leaves this canvas wrapper
+    if(fabricCanvas.wrapperEl){
+        fabricCanvas.wrapperEl.addEventListener('mouseleave', function(){
+            if(colorLayerMode) hideBrushCursor();
+        });
+    }
 }
 
 
