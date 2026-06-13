@@ -498,11 +498,17 @@ function applyPerspectiveDistortion(sourceCanvas, data){
             const srcX   = t * out.width;
             const sliceW = Math.max(2, out.width / verticalSlices);
 
-            // left > 0: right side stretches (t=1 gets max scale)
-            // left < 0: left side stretches (t=0 gets max scale)
+            // t_c: normalised position within the design content (0 = left edge, 1 = right edge).
+            // Using the full-canvas t would make content edges slightly non-zero,
+            // causing both sides to stretch. Anchoring to content bounds ensures
+            // exactly scale=1 at the untouched side and scale=1+|left|/180 at the stretched side.
+            const t_c = Math.max(0, Math.min(1, (srcX - pad) / srcW));
+
+            // left > 0: right side stretches, left side untouched
+            // left < 0: left side stretches, right side untouched
             const leftScale = left > 0
-                ? 1 + (left / 180) * t
-                : 1 - (left / 180) * (1 - t);
+                ? 1 + (left  / 180) * t_c
+                : 1 + (-left / 180) * (1 - t_c);
             const targetH    = out.height * leftScale;
             const extraSpace = targetH - out.height;
             const dy         = -(extraSpace / 2);
