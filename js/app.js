@@ -2555,21 +2555,25 @@ function attachFabricEvents(data, targetObject = null){
                     activeIndices.push(winIdx);
                 }
             } else {
-                // Plain click: if design is already selected, keep all selections
-                // (user is interacting within the existing group — don't break it).
-                // Only reset to a single selection when clicking an unselected design.
+                // Plain click on a design object.
+                // Within the already-active window: add to the current selection so the
+                // user can freely accumulate any number of designs/layers without needing
+                // a modifier key.  Clicking in a different window starts fresh.
                 if(!selectedDesigns.has(target)){
-                    selectedDesigns.clear();
+                    const clickingInActiveWindow = activeIndices.includes(winIdx);
+                    if(!clickingInActiveWindow){
+                        // Different window — clear and start fresh
+                        selectedDesigns.clear();
+                        if(winIdx !== -1) activeIndices = [winIdx];
+                    }
                     if(!target._fx) target._fx = _defaultFx(data);
                     selectedDesigns.add(target);
-                    if(winIdx !== -1) activeIndices = [winIdx];
                     refreshFabricHandles();
                     updateWindowBorders();
                     updateLayerButtons();
                     syncSliders();
                 }
-                // else: already selected — Fabric handles the active object naturally,
-                // all selections remain untouched.
+                // else: already selected — Fabric handles active object naturally.
                 return;
             }
 
@@ -2654,9 +2658,16 @@ function attachFabricEvents(data, targetObject = null){
         const left   = designTarget.left;
         const top    = designTarget.top;
 
+        // Compute delta so cross-window peers move relative to their own position
+        // (avoids "jump" where other windows' designs teleport to this window's coords).
+        const deltaX = left - (designTarget.lastLeft || left);
+        const deltaY = top  - (designTarget.lastTop  || top);
+
         if(isMainDesign){
 
+            // Same-window: set absolute — all layers here share one coordinate space.
             getAllDesignObjects(data).forEach(obj=>{
+                if(obj === designTarget) return;
                 obj.scaleX = scaleX;
                 obj.scaleY = scaleY;
                 obj.left   = left;
@@ -2664,6 +2675,7 @@ function attachFabricEvents(data, targetObject = null){
                 obj.setCoords();
             });
 
+            // Cross-window: apply delta so remote designs don't jump.
             activeIndices.forEach(index=>{
 
                 if(canvasData[index] === data) return;
@@ -2671,10 +2683,10 @@ function attachFabricEvents(data, targetObject = null){
                 const target = canvasData[index];
 
                 getAllDesignObjects(target).forEach(obj=>{
-                    obj.scaleX = scaleX;
-                    obj.scaleY = scaleY;
-                    obj.left   = left;
-                    obj.top    = top;
+                    obj.scaleX  = scaleX;
+                    obj.scaleY  = scaleY;
+                    obj.left   += deltaX;
+                    obj.top    += deltaY;
                     obj.setCoords();
                 });
 
@@ -2693,10 +2705,10 @@ function attachFabricEvents(data, targetObject = null){
                 const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
 
                 if(peer){
-                    peer.scaleX = scaleX;
-                    peer.scaleY = scaleY;
-                    peer.left   = left;
-                    peer.top    = top;
+                    peer.scaleX  = scaleX;
+                    peer.scaleY  = scaleY;
+                    peer.left   += deltaX;
+                    peer.top    += deltaY;
                     peer.setCoords();
                 }
 
@@ -2704,6 +2716,9 @@ function attachFabricEvents(data, targetObject = null){
                 if(isElementVisible(sw)) canvasData[index].fabricCanvas.requestRenderAll();
             });
         }
+
+        designTarget.lastLeft = left;
+        designTarget.lastTop  = top;
 
         data.fabricCanvas.requestRenderAll();
     });
