@@ -102,10 +102,3 @@ body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0
 }
 
 
-#deleteClipBtn{
-    background:#ff2b2b !important;
-    color:white !important;
-    border:2px solid black !important;
-    padding:8px 12px !important;
-    font-weight:bold !important;
-}
