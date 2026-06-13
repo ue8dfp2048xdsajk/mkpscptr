@@ -2462,6 +2462,9 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
     document.getElementById("deleteClipBtn").style.display =
         clipEditMode ? "inline-block" : "none";
 
+    document.getElementById("copyClipToAllBtn").style.display =
+        clipEditMode ? "inline-block" : "none";
+
     // exiting clip mode
     if(!clipEditMode){
 
@@ -2646,6 +2649,75 @@ document.getElementById("deleteClipBtn").addEventListener("click", ()=>{
 
 
 
+
+
+document.getElementById("copyClipToAllBtn").addEventListener("click", ()=>{
+
+    // Source: the window currently being edited in clip mode
+    const srcIndex =
+        activeClipWindowIndex !== null
+            ? activeClipWindowIndex
+            : (activeIndices.length ? activeIndices[0] : null);
+
+    if(srcIndex === null) return;
+
+    const src = canvasData[srcIndex];
+
+    if(!src.maskPaths || !src.maskPaths.length){
+        alert("No clipping areas to copy. Draw at least one clipping area first.");
+        return;
+    }
+
+    // maskPaths are stored in canvas-pixel space (× previewScale).
+    // Normalise to background-image-pixel space first, then re-scale
+    // for each target window's own previewScale.
+    const normalisedPaths = src.maskPaths.map(path=>
+        path.map(p=>({
+            x:  p.x  / src.previewScale,
+            y:  p.y  / src.previewScale,
+            ...(p.cx !== undefined ? { cx: p.cx / src.previewScale } : {}),
+            ...(p.cy !== undefined ? { cy: p.cy / src.previewScale } : {})
+        }))
+    );
+
+    let copied = 0;
+
+    canvasData.forEach((data, i)=>{
+
+        if(i === srcIndex) return;
+
+        const s = data.previewScale;
+
+        data.maskPaths = normalisedPaths.map(path=>
+            path.map(p=>({
+                x:  p.x  * s,
+                y:  p.y  * s,
+                ...(p.cx !== undefined ? { cx: p.cx * s } : {}),
+                ...(p.cy !== undefined ? { cy: p.cy * s } : {})
+            }))
+        );
+
+        data.maskPath  = data.maskPaths[data.maskPaths.length - 1];
+        data.maskEnabled = true;
+        data.maskType  = src.maskType;
+
+        addClipOverlay(data);
+
+        getAllDesignObjects(data).forEach(obj=>{
+            applyClipMaskToObject(obj, data);
+        });
+
+        data.fabricCanvas.requestRenderAll();
+
+        copied++;
+    });
+
+    if(copied === 0){
+        alert("No other windows to copy to.");
+    } else {
+        alert(`Clipping copied to ${copied} other window${copied > 1 ? "s" : ""}.`);
+    }
+});
 
 
 function attachClipDrawing(wrapper, fabricCanvas, data, index){
