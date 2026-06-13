@@ -2459,6 +2459,9 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
     document.getElementById("addClipAreaBtn").style.display =
         clipEditMode ? "inline-block" : "none";
 
+    document.getElementById("deleteClipBtn").style.display =
+        clipEditMode ? "inline-block" : "none";
+
     // exiting clip mode
     if(!clipEditMode){
 
