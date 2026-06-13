@@ -73,6 +73,20 @@
         <button id="deleteDesignBtn" style="display:none;">Delete Design</button>
         <input type="file" id="uploadDesignInput" accept="image/*" style="display:none;">
         <button id="editClipBtn">Edit Clipping</button>
+        <button id="addColorLayerBtn">Add Color Layer</button>
+        <span id="colorLayerControls" style="display:none;align-items:center;gap:4px;">
+            <input type="color" id="brushColorPicker" value="#ff0000" title="Paint color" style="cursor:pointer;width:28px;height:22px;padding:1px;border:1px solid #ccc;vertical-align:middle;">
+            <span style="font-size:11px;">Size</span>
+            <input type="range" id="brushSizeSlider" min="1" max="150" value="20" style="width:70px;vertical-align:middle;">
+            <span style="font-size:11px;">Soft</span>
+            <input type="range" id="brushSoftnessSlider" min="0" max="100" value="30" style="width:70px;vertical-align:middle;">
+            <input type="number" id="colorLayerOpacityInput" min="0" max="100" value="100" style="width:55px;" title="Color Opacity %">
+            <select id="colorLayerModeSelect" title="Color Layer Mode">
+                <option value="source-over">Normal</option>
+                <option value="multiply">Multiply</option>
+                <option value="screen">Screen</option>
+            </select>
+        </span>
 <button id="addClipAreaBtn" style="display:none;">Add Clipping Area</button>
 <button id="copyClipBtn" style="display:none;">Copy Clipping</button>
 <button id="copyClipToSelectedBtn" style="display:none;">Copy Clipping to Selected</button>

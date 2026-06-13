@@ -5,6 +5,16 @@ let activeIndices = [];
 let editMode = "window";
 let clipCopySelectMode = false;   // true while user is picking copy targets
 let clipCopySourceIndex = null;   // which window the clipping will be copied FROM
+
+// ── Color layer state ────────────────────────────────────────────────────────
+let colorLayerMode  = false;
+let brushColor      = '#ff0000';
+let brushSize       = 20;
+let brushSoftness   = 30;
+let colorLayerOpacity    = 1;
+let colorLayerBlendMode  = 'source-over';
+let isColorPainting = false;
+let lastPaintNorm   = null;   // last painted point in bg-image-pixel space
 let activeDesignObject = null;
 let activeDesignWindow = null;
 let lastSelectedIndex = null;
@@ -642,7 +652,86 @@ function getAllDesignObjects(data){
     if(data.extraDesignObjects){
         objs.push(...data.extraDesignObjects);
     }
+    // Color layer lives between bg and designs; include it so clipping updates apply to it too
+    if(data.colorLayerFabricObj) objs.push(data.colorLayerFabricObj);
     return objs;
+}
+
+// ── Color layer helpers ──────────────────────────────────────────────────────
+
+function hexToRgb(hex){
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    return `${r},${g},${b}`;
+}
+
+function initColorLayer(data){
+    if(data.colorLayerFabricObj) return;
+
+    const w = data.fabricCanvas.getWidth();
+    const h = data.fabricCanvas.getHeight();
+
+    const offscreen = document.createElement('canvas');
+    offscreen.width  = w;
+    offscreen.height = h;
+
+    data.colorLayerCanvas = offscreen;
+    data.colorLayerCtx    = offscreen.getContext('2d');
+
+    const fabricImg = new fabric.Image(offscreen, {
+        left: 0, top: 0,
+        selectable: false, evented: false,
+        originX: 'left', originY: 'top',
+        opacity: colorLayerOpacity,
+        globalCompositeOperation: colorLayerBlendMode
+    });
+
+    data.colorLayerFabricObj = fabricImg;
+    data.fabricCanvas.add(fabricImg);
+
+    // Stack: bg first (index 0), color layer next (index 1), designs above
+    data.fabricCanvas.sendToBack(fabricImg);
+    if(data.backgroundObject) data.fabricCanvas.sendToBack(data.backgroundObject);
+
+    applyClipMaskToObject(fabricImg, data);
+    data.fabricCanvas.requestRenderAll();
+}
+
+function paintDot(ctx, x, y, size, softness, hexColor){
+    ctx.save();
+    const rgb       = hexToRgb(hexColor);
+    const hardR     = size * (1 - softness / 100);
+    const gradient  = ctx.createRadialGradient(x, y, Math.max(0, hardR - 0.5), x, y, size);
+    gradient.addColorStop(0, `rgba(${rgb},1)`);
+    gradient.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+    ctx.restore();
+}
+
+function paintAtNorm(normX, normY){
+    activeIndices.forEach(i=>{
+        const d = canvasData[i];
+        if(!d.colorLayerCtx) return;
+        const s = d.previewScale;
+        paintDot(d.colorLayerCtx, normX * s, normY * s, brushSize * s, brushSoftness, brushColor);
+        d.fabricCanvas.requestRenderAll();
+    });
+}
+
+function interpolatePaint(fromNorm, toNorm){
+    const dx   = toNorm.x - fromNorm.x;
+    const dy   = toNorm.y - fromNorm.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const step = Math.max(0.5, brushSize * 0.25);
+    const n    = Math.max(1, Math.ceil(dist / step));
+    for(let i = 1; i <= n; i++){
+        const t = i / n;
+        paintAtNorm(fromNorm.x + dx*t, fromNorm.y + dy*t);
+    }
 }
 
 
@@ -1889,7 +1978,7 @@ function createCanvasPreviews(){
                 return;
             }
 
-            if(clipEditMode && !clipCopySelectMode){
+            if((clipEditMode && !clipCopySelectMode) || colorLayerMode){
                 return;
             }
 
@@ -2787,6 +2876,83 @@ document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
 });
 
 
+// ── Color layer button + controls ────────────────────────────────────────────
+document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
+
+    if(clipEditMode){ showClipModeNotice(); return; }
+
+    if(!colorLayerMode){
+
+        if(!activeIndices.length){
+            alert("Select at least one window first.");
+            return;
+        }
+
+        colorLayerMode = true;
+
+        // Init color layer on every selected window
+        activeIndices.forEach(i=>{
+            initColorLayer(canvasData[i]);
+            const el = canvasData[i].fabricCanvas.lowerCanvasEl;
+            const wr = el && el.closest('.canvas-wrapper');
+            if(wr) wr.classList.add('color-layer-mode');
+        });
+
+        document.getElementById("addColorLayerBtn").innerText       = "Exit Color Layer";
+        document.getElementById("colorLayerControls").style.display = "inline-flex";
+
+    } else {
+
+        colorLayerMode  = false;
+        isColorPainting = false;
+        lastPaintNorm   = null;
+
+        document.querySelectorAll('.canvas-wrapper')
+            .forEach(w=> w.classList.remove('color-layer-mode'));
+
+        document.getElementById("addColorLayerBtn").innerText       = "Add Color Layer";
+        document.getElementById("colorLayerControls").style.display = "none";
+    }
+});
+
+document.getElementById("brushColorPicker").addEventListener("input", e=>{
+    brushColor = e.target.value;
+});
+
+document.getElementById("brushSizeSlider").addEventListener("input", e=>{
+    brushSize = parseInt(e.target.value, 10);
+});
+
+document.getElementById("brushSoftnessSlider").addEventListener("input", e=>{
+    brushSoftness = parseInt(e.target.value, 10);
+});
+
+document.getElementById("colorLayerOpacityInput").addEventListener("input", e=>{
+    colorLayerOpacity =
+        Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)) / 100;
+
+    activeIndices.forEach(i=>{
+        const d = canvasData[i];
+        if(d.colorLayerFabricObj){
+            d.colorLayerFabricObj.set('opacity', colorLayerOpacity);
+            d.fabricCanvas.requestRenderAll();
+        }
+    });
+});
+
+document.getElementById("colorLayerModeSelect").addEventListener("change", e=>{
+    colorLayerBlendMode = e.target.value;
+
+    activeIndices.forEach(i=>{
+        const d = canvasData[i];
+        if(d.colorLayerFabricObj){
+            d.colorLayerFabricObj.set('globalCompositeOperation', colorLayerBlendMode);
+            d.fabricCanvas.requestRenderAll();
+        }
+    });
+});
+
+
 function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
     function redrawEditor(){
@@ -3253,6 +3419,46 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
         currentCurveHandle = null;
     });
+
+    // ── Color layer painting ─────────────────────────────────────────────────
+    fabricCanvas.on('mouse:down', function(opt){
+        if(!colorLayerMode) return;
+        if(!activeIndices.includes(index)) return;
+
+        // Ensure color layer exists on every active window
+        activeIndices.forEach(i=>{
+            if(!canvasData[i].colorLayerFabricObj) initColorLayer(canvasData[i]);
+        });
+
+        const ptr  = fabricCanvas.getPointer(opt.e);
+        const norm = { x: ptr.x / data.previewScale, y: ptr.y / data.previewScale };
+
+        isColorPainting = true;
+        lastPaintNorm   = norm;
+        paintAtNorm(norm.x, norm.y);
+    });
+
+    fabricCanvas.on('mouse:move', function(opt){
+        if(!colorLayerMode || !isColorPainting) return;
+        if(!activeIndices.includes(index)) return;
+
+        const ptr  = fabricCanvas.getPointer(opt.e);
+        const norm = { x: ptr.x / data.previewScale, y: ptr.y / data.previewScale };
+
+        if(lastPaintNorm){
+            interpolatePaint(lastPaintNorm, norm);
+        } else {
+            paintAtNorm(norm.x, norm.y);
+        }
+
+        lastPaintNorm = norm;
+    });
+
+    fabricCanvas.on('mouse:up', function(){
+        if(!colorLayerMode) return;
+        isColorPainting = false;
+        lastPaintNorm   = null;
+    });
 }
 
 
@@ -3515,7 +3721,14 @@ function buildSnapshot(){
 
                 // Per-object effects set in design mode
                 fx: obj._fx ?? null
-            }))
+            })),
+
+            // Color layer — save as data URL (bg-image scale); null if never painted
+            colorLayerDataURL: data.colorLayerCanvas
+                ? data.colorLayerCanvas.toDataURL()
+                : null,
+            colorLayerOpacity:   data.colorLayerFabricObj?.opacity   ?? 1,
+            colorLayerBlendMode: data.colorLayerFabricObj?.globalCompositeOperation ?? 'source-over'
         };
     });
 }
@@ -3918,11 +4131,37 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         addClipOverlay(data);
 
+        // Restore color layer if one was saved
+        if(saved.colorLayerDataURL){
+            const clImg = new Image();
+            clImg.onload = ()=>{
+                initColorLayer(data);
+                // Scale the saved bitmap to the current canvas size
+                data.colorLayerCtx.drawImage(
+                    clImg, 0, 0,
+                    data.fabricCanvas.getWidth(),
+                    data.fabricCanvas.getHeight()
+                );
+                if(data.colorLayerFabricObj){
+                    data.colorLayerFabricObj.set({
+                        opacity: saved.colorLayerOpacity ?? 1,
+                        globalCompositeOperation: saved.colorLayerBlendMode ?? 'source-over'
+                    });
+                }
+                data.fabricCanvas.requestRenderAll();
+            };
+            clImg.src = saved.colorLayerDataURL;
+        }
+
         fabricCanvas.requestRenderAll();
 
         wrapper.addEventListener('click', function(e){
 
             if(suppressNextWrapperClick){
+                return;
+            }
+
+            if((clipEditMode && !clipCopySelectMode) || colorLayerMode){
                 return;
             }
 
