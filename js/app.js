@@ -372,6 +372,48 @@ function applyNoiseToImage(source, noisePercent){
 }
 
 
+// Scan a canvas for the bounding box of non-transparent pixels and return a
+// new canvas cropped to that box (+ a small anti-alias margin). Returns the
+// original canvas unchanged when there is nothing to trim.
+function trimTransparentBorders(canvas){
+
+    const ctx = canvas.getContext('2d');
+    const { width, height } = canvas;
+    const px = ctx.getImageData(0, 0, width, height).data;
+
+    let top = height, bottom = -1, left = width, right = -1;
+
+    for(let y = 0; y < height; y++){
+        const rowBase = y * width * 4;
+        for(let x = 0; x < width; x++){
+            if(px[rowBase + x * 4 + 3] > 4){   // ignore near-invisible AA fringe
+                if(y < top)    top    = y;
+                if(y > bottom) bottom = y;
+                if(x < left)   left   = x;
+                if(x > right)  right  = x;
+            }
+        }
+    }
+
+    if(bottom < 0) return canvas;   // fully transparent – nothing to trim
+
+    const margin = 2;   // keep a couple of pixels for edge anti-aliasing
+    const x0 = Math.max(0,     left   - margin);
+    const y0 = Math.max(0,     top    - margin);
+    const x1 = Math.min(width, right  + margin + 1);
+    const y1 = Math.min(height, bottom + margin + 1);
+
+    if(x0 === 0 && y0 === 0 && x1 === width && y1 === height) return canvas;
+
+    const trimmed = document.createElement('canvas');
+    trimmed.width  = x1 - x0;
+    trimmed.height = y1 - y0;
+    trimmed.getContext('2d').drawImage(canvas, x0, y0, trimmed.width, trimmed.height,
+                                               0,  0,  trimmed.width, trimmed.height);
+    return trimmed;
+}
+
+
 function applyPerspectiveDistortion(sourceCanvas, data){
 
     const top  = data.perspectiveTop  || 0;
@@ -471,7 +513,7 @@ function applyPerspectiveDistortion(sourceCanvas, data){
         }
     }
 
-    return out;
+    return trimTransparentBorders(out);
 }
 
 
