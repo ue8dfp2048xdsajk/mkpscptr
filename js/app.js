@@ -23,6 +23,8 @@ let colorLayerBlendMode  = 'source-over';
 let isColorPainting = false;
 let lastPaintNorm   = null;   // last painted point in bg-image-pixel space
 let activeDesignObject = null;
+let activeLayerObject  = null;   // extra design object selected in window mode
+let activeLayerData    = null;   // data (window) that owns activeLayerObject
 let activeDesignWindow = null;
 let lastSelectedIndex = null;
 
@@ -1055,6 +1057,22 @@ function syncSliders() {
         return;
     }
 
+    // In window mode, if an extra layer is selected reflect its own effects.
+    if(activeLayerObject?._fx){
+
+        const fx = activeLayerObject._fx;
+        warpAmount.value    = fx.warpAmount    || 0;
+        arcAmount.value     = fx.arcAmount     || 0;
+        arcTilt.value       = fx.arcTilt       || 0;
+        opacityAmount.value = Math.round((fx.opacity ?? 1) * 100);
+        blurAmount.value    = fx.blurAmount    || 0;
+        noiseAmount.value   = fx.noiseAmount   || 0;
+        perspectiveTop.value  = fx.perspectiveTop  || 0;
+        perspectiveLeft.value = fx.perspectiveLeft || 0;
+        blendMode.value       = fx.blendMode       || "normal";
+        return;
+    }
+
     const obj = data.designObject;
 
     if(!obj) return;
@@ -1734,6 +1752,68 @@ function updateFromSliders(event){
 
         return;
     }
+    // ── Layer mode: an extra layer selected in window mode ────────────────────
+    if(activeLayerObject && activeLayerData && editMode !== "design"){
+
+        const data = activeLayerData;
+        const obj  = activeLayerObject;
+
+        opacityAmount.value = Math.max(0, Math.min(100, parseFloat(opacityAmount.value)||0));
+        blurAmount.value    = Math.max(0, Math.min(100, parseFloat(blurAmount.value)   ||0));
+        noiseAmount.value   = Math.max(0, Math.min(100, parseFloat(noiseAmount.value)  ||0));
+
+        obj._fx = {
+            warpAmount:      parseFloat(warpAmount.value),
+            arcAmount:       parseFloat(arcAmount.value),
+            arcTilt:         parseFloat(arcTilt.value),
+            perspectiveTop:  parseFloat(perspectiveTop.value),
+            perspectiveLeft: parseFloat(perspectiveLeft.value),
+            opacity:         parseFloat(opacityAmount.value) / 100,
+            blurAmount:      parseFloat(blurAmount.value),
+            noiseAmount:     parseFloat(noiseAmount.value),
+            blendMode:       blendMode.value
+        };
+
+        const requiresWarpObj =
+            activeSliderType === "warpAmount"     ||
+            activeSliderType === "arcAmount"      ||
+            activeSliderType === "arcTilt"        ||
+            activeSliderType === "blurAmount"     ||
+            activeSliderType === "noiseAmount"    ||
+            activeSliderType === "perspectiveTop" ||
+            activeSliderType === "perspectiveLeft";
+
+        if(!requiresWarpObj){
+            obj.set({
+                opacity: obj._fx.opacity,
+                globalCompositeOperation:
+                    obj._fx.blendMode === 'multiply' ? 'multiply'
+                    : obj._fx.blendMode === 'screen'  ? 'screen'
+                    : 'source-over'
+            });
+            data.fabricCanvas.requestRenderAll();
+            return;
+        }
+
+        const extraIdx    = (data.extraDesignObjects||[]).indexOf(obj);
+        const srcOriginal = (extraIdx !== -1 && data.extraDesignOriginals?.[extraIdx])
+            ? data.extraDesignOriginals[extraIdx]
+            : data.designOriginal;
+
+        if(!srcOriginal) return;
+
+        _applyWarpToOneObject(obj, data, srcOriginal, true);
+        data.fabricCanvas.requestRenderAll();
+
+        clearTimeout(globalHQTimer);
+        globalHQTimer = setTimeout(()=>{
+            _applyWarpToOneObject(obj, data, srcOriginal, false);
+            data.fabricCanvas.requestRenderAll();
+            autoSaveSession();
+        }, 220);
+
+        return;
+    }
     // ─────────────────────────────────────────────────────────────────────────
 
     const requiresWarp =
@@ -2300,6 +2380,13 @@ function createCanvasPreviews(){
                 return;
             }
 
+            // Clicking a window wrapper clears any active extra-layer selection
+            if(activeLayerObject && editMode !== "design"){
+                activeLayerObject = null;
+                activeLayerData   = null;
+                updateLayerButtons();
+            }
+
                 if(editMode === "design"){
 
                     if(index !== activeDesignWindow){
@@ -2410,53 +2497,115 @@ function attachFabricEvents(data, targetObject = null){
 
     if(!designTarget) return;
 
+    // Is this the main window design or an extra/overlay layer?
+    const isMainDesign = (designTarget === data.designObject);
+
+    // One-time canvas-level handler: clear layer selection when user clicks blank canvas
+    if(!data._selectionClearedAttached){
+        data._selectionClearedAttached = true;
+        data.fabricCanvas.on('selection:cleared', ()=>{
+            if(activeLayerData === data){
+                activeLayerObject = null;
+                activeLayerData   = null;
+                updateLayerButtons();
+                syncSliders();
+            }
+        });
+    }
+
     designTarget.on('selected', ()=>{
 
-        if(editMode === "design"){
-            activeDesignObject = designTarget;
-            // Ensure the object has its own _fx (may be missing on old sessions)
-            if(!designTarget._fx){
-                const d = data; // closure
-                designTarget._fx = _defaultFx(d);
+        if(isMainDesign){
+            // Clicking main design clears any extra-layer selection
+            if(activeLayerObject){
+                activeLayerObject = null;
+                activeLayerData   = null;
+                updateLayerButtons();
             }
+            if(editMode === "design"){
+                activeDesignObject = designTarget;
+                if(!designTarget._fx){
+                    const d = data;
+                    designTarget._fx = _defaultFx(d);
+                }
+                syncSliders();
+            }
+        } else {
+            // Extra layer: always selectable regardless of editMode
+            activeLayerObject = designTarget;
+            activeLayerData   = data;
+            if(!designTarget._fx){
+                designTarget._fx = _defaultFx(data);
+            }
+            syncSliders();
+            updateLayerButtons();
+        }
+    });
+
+    designTarget.on('deselected', ()=>{
+        if(!isMainDesign && activeLayerObject === designTarget){
+            activeLayerObject = null;
+            activeLayerData   = null;
+            updateLayerButtons();
             syncSliders();
         }
     });
 
     designTarget.on('moving', ()=>{
 
-        if(editMode === "design"){
-            return;
-        }
+        if(editMode === "design") return;
 
         const deltaX = designTarget.left - (designTarget.lastLeft || designTarget.left);
-        const deltaY = designTarget.top - (designTarget.lastTop || designTarget.top);
+        const deltaY = designTarget.top  - (designTarget.lastTop  || designTarget.top);
 
-        getAllDesignObjects(data).forEach(obj=>{
-            if(obj === designTarget) return;
-            obj.left += deltaX;
-            obj.top += deltaY;
-        });
+        if(isMainDesign){
 
-        activeIndices.forEach(index=>{
-
-            if(canvasData[index] === data) return;
-
-            const target = canvasData[index];
-
-            getAllDesignObjects(target).forEach(obj=>{
+            getAllDesignObjects(data).forEach(obj=>{
+                if(obj === designTarget) return;
                 obj.left += deltaX;
-                obj.top += deltaY;
+                obj.top  += deltaY;
             });
 
-            // only re-render canvases currently on screen; off-screen ones
-            // get the position update but skip the expensive paint call
-            const tw = target.fabricCanvas.lowerCanvasEl.parentElement;
-            if(isElementVisible(tw)) target.fabricCanvas.requestRenderAll();
-        });
+            activeIndices.forEach(index=>{
+
+                if(canvasData[index] === data) return;
+
+                const target = canvasData[index];
+
+                getAllDesignObjects(target).forEach(obj=>{
+                    obj.left += deltaX;
+                    obj.top  += deltaY;
+                });
+
+                // only re-render canvases currently on screen
+                const tw = target.fabricCanvas.lowerCanvasEl.parentElement;
+                if(isElementVisible(tw)) target.fabricCanvas.requestRenderAll();
+            });
+
+        } else {
+
+            // Extra layer: sync only the same-index peer in other selected windows
+            const layerIdx = (data.extraDesignObjects || []).indexOf(designTarget);
+
+            activeIndices.forEach(index=>{
+
+                if(canvasData[index] === data) return;
+
+                const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
+
+                if(peer){
+                    peer.left += deltaX;
+                    peer.top  += deltaY;
+                    peer.setCoords();
+                }
+
+                const tw = canvasData[index].fabricCanvas.lowerCanvasEl.parentElement;
+                if(isElementVisible(tw)) canvasData[index].fabricCanvas.requestRenderAll();
+            });
+        }
 
         designTarget.lastLeft = designTarget.left;
-        designTarget.lastTop = designTarget.top;
+        designTarget.lastTop  = designTarget.top;
 
         data.fabricCanvas.requestRenderAll();
     });
@@ -2465,82 +2614,118 @@ function attachFabricEvents(data, targetObject = null){
 
         suppressNextWrapperClick = true;
         designTarget.lastLeft = designTarget.left;
-        designTarget.lastTop = designTarget.top;
+        designTarget.lastTop  = designTarget.top;
         pushGlobalUndo();
     });
 
     designTarget.on('scaling', ()=>{
 
-        if(editMode === "design"){
-            return;
-        }
+        if(editMode === "design") return;
 
         const scaleX = designTarget.scaleX;
         const scaleY = designTarget.scaleY;
+        const left   = designTarget.left;
+        const top    = designTarget.top;
 
-        const left = designTarget.left;
-        const top = designTarget.top;
+        if(isMainDesign){
 
-        getAllDesignObjects(data).forEach(obj=>{
-
-            obj.scaleX = scaleX;
-            obj.scaleY = scaleY;
-
-            obj.left = left;
-            obj.top = top;
-
-            obj.setCoords();
-        });
-
-        activeIndices.forEach(index=>{
-
-            if(canvasData[index] === data) return;
-
-            const target = canvasData[index];
-
-            getAllDesignObjects(target).forEach(obj=>{
-
+            getAllDesignObjects(data).forEach(obj=>{
                 obj.scaleX = scaleX;
                 obj.scaleY = scaleY;
-
-                obj.left = left;
-                obj.top = top;
-
+                obj.left   = left;
+                obj.top    = top;
                 obj.setCoords();
             });
 
-            const sw = target.fabricCanvas.lowerCanvasEl.parentElement;
-            if(isElementVisible(sw)) target.fabricCanvas.requestRenderAll();
-        });
+            activeIndices.forEach(index=>{
+
+                if(canvasData[index] === data) return;
+
+                const target = canvasData[index];
+
+                getAllDesignObjects(target).forEach(obj=>{
+                    obj.scaleX = scaleX;
+                    obj.scaleY = scaleY;
+                    obj.left   = left;
+                    obj.top    = top;
+                    obj.setCoords();
+                });
+
+                const sw = target.fabricCanvas.lowerCanvasEl.parentElement;
+                if(isElementVisible(sw)) target.fabricCanvas.requestRenderAll();
+            });
+
+        } else {
+
+            const layerIdx = (data.extraDesignObjects || []).indexOf(designTarget);
+
+            activeIndices.forEach(index=>{
+
+                if(canvasData[index] === data) return;
+
+                const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
+
+                if(peer){
+                    peer.scaleX = scaleX;
+                    peer.scaleY = scaleY;
+                    peer.left   = left;
+                    peer.top    = top;
+                    peer.setCoords();
+                }
+
+                const sw = canvasData[index].fabricCanvas.lowerCanvasEl.parentElement;
+                if(isElementVisible(sw)) canvasData[index].fabricCanvas.requestRenderAll();
+            });
+        }
 
         data.fabricCanvas.requestRenderAll();
     });
 
     designTarget.on('rotating', ()=>{
 
-        if(editMode === "design"){
-            return;
-        }
+        if(editMode === "design") return;
 
         const angle = designTarget.angle;
 
-        getAllDesignObjects(data).forEach(obj=>{
-            obj.angle = angle;
-        });
+        if(isMainDesign){
 
-        activeIndices.forEach(index=>{
-
-            if(canvasData[index] === data) return;
-
-            const target = canvasData[index];
-
-            getAllDesignObjects(target).forEach(obj=>{
+            getAllDesignObjects(data).forEach(obj=>{
                 obj.angle = angle;
             });
 
-            const rw = target.fabricCanvas.lowerCanvasEl.parentElement;
-            if(isElementVisible(rw)) target.fabricCanvas.requestRenderAll();
-        });
+            activeIndices.forEach(index=>{
+
+                if(canvasData[index] === data) return;
+
+                const target = canvasData[index];
+
+                getAllDesignObjects(target).forEach(obj=>{
+                    obj.angle = angle;
+                });
+
+                const rw = target.fabricCanvas.lowerCanvasEl.parentElement;
+                if(isElementVisible(rw)) target.fabricCanvas.requestRenderAll();
+            });
+
+        } else {
+
+            const layerIdx = (data.extraDesignObjects || []).indexOf(designTarget);
+
+            activeIndices.forEach(index=>{
+
+                if(canvasData[index] === data) return;
+
+                const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
+
+                if(peer){
+                    peer.angle = angle;
+                    peer.setCoords();
+                }
+
+                const rw = canvasData[index].fabricCanvas.lowerCanvasEl.parentElement;
+                if(isElementVisible(rw)) canvasData[index].fabricCanvas.requestRenderAll();
+            });
+        }
 
         data.fabricCanvas.requestRenderAll();
     });
@@ -2564,6 +2749,25 @@ function updateSelectButtonState(){
     } else {
         btn.innerText = "Select All";
         allSelected = false;
+    }
+}
+
+function updateLayerButtons(){
+    const del = document.getElementById("deleteDesignBtn");
+    const dup = document.getElementById("duplicateDesignBtn");
+    const up  = document.getElementById("uploadDesignBtn");
+    if(editMode === "design"){
+        del.style.display = "inline-block";
+        dup.style.display = "inline-block";
+        up.style.display  = "inline-block";
+    } else if(activeLayerObject){
+        del.style.display = "inline-block";
+        dup.style.display = "inline-block";
+        up.style.display  = "none";
+    } else {
+        del.style.display = "none";
+        dup.style.display = "none";
+        up.style.display  = "none";
     }
 }
 
@@ -2626,14 +2830,15 @@ document.getElementById("designModeBtn").addEventListener("click", ()=>{
         editMode = "window";
         activeDesignObject = null;
         activeDesignWindow = null;
+        activeLayerObject  = null;
+        activeLayerData    = null;
 
         document.getElementById("designModeBtn").innerText = "Design Mode";
-        document.getElementById("uploadDesignBtn").style.display = "none";
-        document.getElementById("duplicateDesignBtn").style.display = "none";
-        document.getElementById("deleteDesignBtn").style.display = "none";
 
         // re-enable select all after exiting design mode
         document.getElementById("selectAllBtn").disabled = false;
+
+        updateLayerButtons();
 
         canvasData.forEach(data=>{
             data.fabricCanvas.discardActiveObject();
@@ -2651,11 +2856,12 @@ document.getElementById("duplicateDesignBtn").addEventListener("click", ()=>{
         return;
     }
 
-    if(editMode !== "design" || activeDesignWindow === null) return;
+    const inDesignMode = editMode === "design" && activeDesignWindow !== null;
+    const inLayerMode  = editMode !== "design" && activeLayerObject && activeLayerData;
+    if(!inDesignMode && !inLayerMode) return;
 
-    const data = canvasData[activeDesignWindow];
-
-    const sourceObj = activeDesignObject || data.designObject;
+    const data      = inDesignMode ? canvasData[activeDesignWindow] : activeLayerData;
+    const sourceObj = inDesignMode ? (activeDesignObject || data.designObject) : activeLayerObject;
 
     if(!sourceObj) return;
 
@@ -2692,7 +2898,13 @@ document.getElementById("duplicateDesignBtn").addEventListener("click", ()=>{
         attachFabricEvents(data, cloned);
 
         data.fabricCanvas.setActiveObject(cloned);
-        activeDesignObject = cloned;
+        if(inDesignMode){
+            activeDesignObject = cloned;
+        } else {
+            activeLayerObject = cloned;
+            activeLayerData   = data;
+            updateLayerButtons();
+        }
 
         data.fabricCanvas.requestRenderAll();
     });
@@ -2707,38 +2919,46 @@ document.getElementById("deleteDesignBtn").addEventListener("click", ()=>{
         return;
     }
 
-    if(editMode !== "design" || activeDesignWindow === null) return;
+    const inDesignMode = editMode === "design" && activeDesignWindow !== null;
+    const inLayerMode  = editMode !== "design" && activeLayerObject && activeLayerData;
+    if(!inDesignMode && !inLayerMode) return;
 
-    const data = canvasData[activeDesignWindow];
+    const data      = inDesignMode ? canvasData[activeDesignWindow] : activeLayerData;
+    const targetObj = inDesignMode ? activeDesignObject : activeLayerObject;
 
-    if(!activeDesignObject) return;
+    if(!targetObj) return;
 
     // prevent deleting original base design
-    if(activeDesignObject === data.designObject){
+    if(targetObj === data.designObject){
         alert("Cannot delete original design");
         return;
     }
 
     pushGlobalUndo();
 
-    const delIdx = (data.extraDesignObjects || []).indexOf(activeDesignObject);
+    const delIdx = (data.extraDesignObjects || []).indexOf(targetObj);
 
-    data.fabricCanvas.remove(activeDesignObject);
+    data.fabricCanvas.remove(targetObj);
 
     data.extraDesignObjects =
-        (data.extraDesignObjects || []).filter(
-            obj => obj !== activeDesignObject
-        );
+        (data.extraDesignObjects || []).filter(obj => obj !== targetObj);
 
     // keep extraDesignOriginals in sync with extraDesignObjects
     if(delIdx !== -1 && data.extraDesignOriginals){
         data.extraDesignOriginals.splice(delIdx, 1);
     }
 
-    activeDesignObject = null;
+    if(inDesignMode){
+        activeDesignObject = null;
+    } else {
+        activeLayerObject = null;
+        activeLayerData   = null;
+        updateLayerButtons();
+    }
 
     data.fabricCanvas.discardActiveObject();
     data.fabricCanvas.requestRenderAll();
+    autoSaveSession();
 });
 
 
@@ -4768,6 +4988,13 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                     alert("Exit Color Layer mode to interact with other windows.");
                 }
                 return;
+            }
+
+            // Clicking a window wrapper clears any active extra-layer selection
+            if(activeLayerObject && editMode !== "design"){
+                activeLayerObject = null;
+                activeLayerData   = null;
+                updateLayerButtons();
             }
 
                 if(editMode === "design"){
