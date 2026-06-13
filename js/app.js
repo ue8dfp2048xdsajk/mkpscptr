@@ -3736,6 +3736,36 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
 
         applyWarpToData(data);
 
+        // ── Clear clipping ────────────────────────────────────────────────────
+        data.maskEnabled        = false;
+        data.maskType           = null;
+        data.maskPath           = null;
+        data.maskPaths          = [];
+        data.clipCurvePoints    = [];
+        data.clipPolygonClosed  = false;
+
+        // Remove clip path from main design + any duplicates
+        getAllDesignObjects(data).forEach(obj=>{
+            applyClipMaskToObject(obj, data);
+        });
+        addClipOverlay(data);   // clears overlay visuals
+
+        // ── Clear color layer ─────────────────────────────────────────────────
+        if(data.colorLayerFabricObj){
+            data.fabricCanvas.remove(data.colorLayerFabricObj);
+            data.colorLayerFabricObj = null;
+        }
+        if(data.colorLayerCtx){
+            data.colorLayerCtx.clearRect(
+                0, 0,
+                data.colorLayerCanvas.width,
+                data.colorLayerCanvas.height
+            );
+        }
+        data.colorLayerCanvas  = null;
+        data.colorLayerCtx     = null;
+        data.colorLayerHistory = [];
+
         data.fabricCanvas.discardActiveObject();
         data.fabricCanvas.requestRenderAll();
     });
