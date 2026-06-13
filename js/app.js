@@ -434,8 +434,8 @@ function applyPerspectiveDistortion(sourceCanvas, data){
         ? Math.ceil(srcW * (-top) / 360)
         : 0;
     const leftDenom  = 360 - 2 * Math.abs(left);
-    const vPadNeeded = (left < 0 && leftDenom > 0)
-        ? Math.ceil(srcH * (-left) / leftDenom)
+    const vPadNeeded = (Math.abs(left) > 0 && leftDenom > 0)
+        ? Math.ceil(srcH * Math.abs(left) / leftDenom)
         : 0;
     const pad = Math.max(hPadNeeded, vPadNeeded, 20);
 
@@ -498,7 +498,11 @@ function applyPerspectiveDistortion(sourceCanvas, data){
             const srcX   = t * out.width;
             const sliceW = Math.max(2, out.width / verticalSlices);
 
-            const leftScale  = 1 - ((left / 180) * (1 - t));
+            // left > 0: right side stretches (t=1 gets max scale)
+            // left < 0: left side stretches (t=0 gets max scale)
+            const leftScale = left > 0
+                ? 1 + (left / 180) * t
+                : 1 - (left / 180) * (1 - t);
             const targetH    = out.height * leftScale;
             const extraSpace = targetH - out.height;
             const dy         = -(extraSpace / 2);
