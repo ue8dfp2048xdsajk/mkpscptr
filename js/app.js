@@ -2932,6 +2932,7 @@ function updateDropUI(){
 
     dropZone.addEventListener('drop', function(e){
         e.preventDefault();
+        e.stopPropagation();
         dropZone.classList.remove('dz-hover');
         if(clipEditMode){ showClipModeNotice(); return; }
         const files = Array.from(e.dataTransfer.files)
@@ -2967,6 +2968,7 @@ function updateDropUI(){
 
     prompt.addEventListener('drop', async function(e){
         e.preventDefault();
+        e.stopPropagation();
         prompt.classList.remove('dz-hover');
         if(clipEditMode){ showClipModeNotice(); return; }
         const files = Array.from(e.dataTransfer.files)
@@ -2977,6 +2979,49 @@ function updateDropUI(){
 
 // Show drop zone on startup (no backgrounds loaded yet)
 updateDropUI();
+
+
+// Document-level drag intercept — prevents the browser from navigating to/opening
+// dropped files, and routes design drops onto the canvas area when backgrounds exist.
+(function(){
+    let dragDepth = 0;
+    const container = document.getElementById('canvasContainer');
+
+    document.addEventListener('dragenter', function(e){
+        e.preventDefault();
+        dragDepth++;
+        if(backgrounds.length > 0){
+            container.classList.add('dz-designs-hover');
+        }
+    });
+
+    document.addEventListener('dragover', function(e){
+        e.preventDefault();
+    });
+
+    document.addEventListener('dragleave', function(e){
+        dragDepth--;
+        if(dragDepth <= 0){
+            dragDepth = 0;
+            container.classList.remove('dz-designs-hover');
+        }
+    });
+
+    document.addEventListener('drop', async function(e){
+        e.preventDefault();
+        dragDepth = 0;
+        container.classList.remove('dz-designs-hover');
+
+        if(backgrounds.length === 0) return;  // let the #dropZone handler take it
+
+        if(clipEditMode){ showClipModeNotice(); return; }
+
+        const files = Array.from(e.dataTransfer.files)
+            .filter(f => f.type === 'image/png' || f.type === 'image/jpeg');
+
+        if(files.length) await handleDesignFiles(files);
+    });
+})();
 
 
 function createCanvasData(bgObj, designObj){
