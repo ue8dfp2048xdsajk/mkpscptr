@@ -2751,14 +2751,7 @@ blendMode.addEventListener('mousedown', () => {
 blendMode.addEventListener('change', () => { _sliderUndoLocked = false; });
 
 
-document.getElementById('bgUpload').addEventListener('change', function(event){
-
-    if(clipEditMode){
-        showClipModeNotice();
-        return;
-    }
-
-    const files = Array.from(event.target.files);
+function handleBgFiles(files){
 
     if(!files.length) return;
 
@@ -2798,15 +2791,22 @@ document.getElementById('bgUpload').addEventListener('change', function(event){
 
         reader.readAsDataURL(file);
     });
-});
+}
 
-
-document.getElementById('designUpload').addEventListener('change', async function(event){
+document.getElementById('bgUpload').addEventListener('change', function(event){
 
     if(clipEditMode){
         showClipModeNotice();
         return;
     }
+
+    handleBgFiles(Array.from(event.target.files));
+});
+
+
+async function handleDesignFiles(files){
+
+    if(!files.length) return;
 
     designs = [];
 
@@ -2815,13 +2815,6 @@ document.getElementById('designUpload').addEventListener('change', async functio
 
     loadingIndicator.style.display = "block";
     loadingIndicator.innerText = "Preparing designs...";
-
-    const files = Array.from(event.target.files);
-
-    if(!files.length){
-        loadingIndicator.style.display = "none";
-        return;
-    }
 
     for(let i=0; i<files.length; i++){
 
@@ -2887,7 +2880,103 @@ document.getElementById('designUpload').addEventListener('change', async functio
     designs.sort((a, b) => a.name.localeCompare(b.name));
 
     createCanvasPreviews();
+}
+
+document.getElementById('designUpload').addEventListener('change', async function(event){
+
+    if(clipEditMode){
+        showClipModeNotice();
+        return;
+    }
+
+    await handleDesignFiles(Array.from(event.target.files));
 });
+
+
+function updateDropUI(){
+
+    const dropZone     = document.getElementById('dropZone');
+    const designPrompt = document.getElementById('designPrompt');
+
+    if(backgrounds.length === 0){
+        dropZone.style.display     = 'flex';
+        designPrompt.style.display = 'none';
+    } else if(designs.length === 0){
+        dropZone.style.display     = 'none';
+        designPrompt.style.display = 'flex';
+    } else {
+        dropZone.style.display     = 'none';
+        designPrompt.style.display = 'none';
+    }
+}
+
+// Drop zone — background drag-and-drop
+(function(){
+    const dropZone = document.getElementById('dropZone');
+
+    dropZone.addEventListener('dragenter', function(e){
+        e.preventDefault();
+        dropZone.classList.add('dz-hover');
+    });
+
+    dropZone.addEventListener('dragover', function(e){
+        e.preventDefault();
+        dropZone.classList.add('dz-hover');
+    });
+
+    dropZone.addEventListener('dragleave', function(e){
+        if(!dropZone.contains(e.relatedTarget)){
+            dropZone.classList.remove('dz-hover');
+        }
+    });
+
+    dropZone.addEventListener('drop', function(e){
+        e.preventDefault();
+        dropZone.classList.remove('dz-hover');
+        if(clipEditMode){ showClipModeNotice(); return; }
+        const files = Array.from(e.dataTransfer.files)
+            .filter(f => f.type === 'image/png' || f.type === 'image/jpeg');
+        handleBgFiles(files);
+    });
+})();
+
+// Design prompt — click or drag designs
+(function(){
+    const prompt = document.getElementById('designPrompt');
+    const btn    = document.getElementById('designPromptBtn');
+
+    btn.addEventListener('click', function(){
+        document.getElementById('designUpload').click();
+    });
+
+    prompt.addEventListener('dragenter', function(e){
+        e.preventDefault();
+        prompt.classList.add('dz-hover');
+    });
+
+    prompt.addEventListener('dragover', function(e){
+        e.preventDefault();
+        prompt.classList.add('dz-hover');
+    });
+
+    prompt.addEventListener('dragleave', function(e){
+        if(!prompt.contains(e.relatedTarget)){
+            prompt.classList.remove('dz-hover');
+        }
+    });
+
+    prompt.addEventListener('drop', async function(e){
+        e.preventDefault();
+        prompt.classList.remove('dz-hover');
+        if(clipEditMode){ showClipModeNotice(); return; }
+        const files = Array.from(e.dataTransfer.files)
+            .filter(f => f.type === 'image/png' || f.type === 'image/jpeg');
+        await handleDesignFiles(files);
+    });
+})();
+
+// Show drop zone on startup (no backgrounds loaded yet)
+updateDropUI();
 
 
 function createCanvasData(bgObj, designObj){
@@ -3003,7 +3092,7 @@ function createCanvasPreviews(){
     container.innerHTML = "";
     canvasData = [];
 
-    if(!backgrounds.length) return;
+    if(!backgrounds.length){ updateDropUI(); return; }
 
     if(!designs.length){
 
@@ -3282,6 +3371,7 @@ function createCanvasPreviews(){
 
             setTimeout(()=>{
                 loadingIndicator.style.display = "none";
+                updateDropUI();
             }, 800);
         }
     }

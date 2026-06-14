@@ -172,3 +172,77 @@ body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0
     box-sizing: border-box;
     display: none;
 }
+
+#dropZone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 200px);
+    margin: 20px;
+    border: 3px dashed #d0d0d0;
+    border-radius: 14px;
+    cursor: default;
+    transition: background 0.15s, border-color 0.15s;
+    box-sizing: border-box;
+}
+
+#dropZone.dz-hover {
+    background: #f0f6ff;
+    border-color: #1e5eff;
+}
+
+#dropZoneInner {
+    text-align: center;
+    pointer-events: none;
+    user-select: none;
+}
+
+.dz-icon {
+    font-size: 52px;
+    color: #d0d0d0;
+    line-height: 1;
+    margin-bottom: 14px;
+}
+
+.dz-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #bbb;
+    margin: 0 0 8px;
+}
+
+.dz-sub {
+    font-size: 13px;
+    color: #ccc;
+    margin: 0;
+}
+
+#designPrompt {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    background: #fffbee;
+    border-top: 1px solid #ffe99e;
+    border-bottom: 1px solid #ffe99e;
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+#designPrompt.dz-hover {
+    background: #fff8d0;
+    border-color: #f5c400;
+}
+
+#designPromptBtn {
+    background: none;
+    border: none;
+    color: #1e5eff;
+    cursor: pointer;
+    font-size: 14px;
+    text-decoration: underline;
+    padding: 0;
+    font-family: inherit;
+}
