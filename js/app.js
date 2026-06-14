@@ -4721,6 +4721,21 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
 
         colorLayerMode = true;
 
+        // Lock all design objects so they can't be accidentally moved/transformed
+        canvasData.forEach(data=>{
+            getAllDesignObjects(data).forEach(o=>{
+                if(!o) return;
+                o._prevSelectable = o.selectable;
+                o._prevEvented    = o.evented;
+                o.selectable      = false;
+                o.evented         = false;
+            });
+            data.fabricCanvas.discardActiveObject();
+            data.fabricCanvas.requestRenderAll();
+        });
+
+        selectedDesigns.clear();
+
         // Init color layer on every selected window
         activeIndices.forEach(i=>{
             initColorLayer(canvasData[i]);
@@ -4739,6 +4754,19 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
         isColorPainting = false;
         lastPaintNorm   = null;
         hideBrushCursor();
+
+        // Restore interactivity on all design objects
+        canvasData.forEach(data=>{
+            getAllDesignObjects(data).forEach(o=>{
+                if(!o) return;
+                o.selectable = (o._prevSelectable !== undefined) ? o._prevSelectable : true;
+                o.evented    = (o._prevEvented    !== undefined) ? o._prevEvented    : true;
+                delete o._prevSelectable;
+                delete o._prevEvented;
+            });
+        });
+
+        refreshFabricHandles();
 
         document.querySelectorAll('.canvas-wrapper')
             .forEach(w=> w.classList.remove('color-layer-mode'));
