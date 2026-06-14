@@ -715,13 +715,13 @@ function updateWindowBorders(){
 }
 
 function getAllDesignObjects(data){
+    const seen = new Set();
     const objs = [];
-    if(data.designObject) objs.push(data.designObject);
-    if(data.extraDesignObjects){
-        objs.push(...data.extraDesignObjects);
-    }
+    const add  = o => { if(o && !seen.has(o)){ seen.add(o); objs.push(o); } };
+    add(data.designObject);
+    (data.extraDesignObjects || []).forEach(add);
     // Color layer lives between bg and designs; include it so clipping updates apply to it too
-    if(data.colorLayerFabricObj) objs.push(data.colorLayerFabricObj);
+    add(data.colorLayerFabricObj);
     return objs;
 }
 
