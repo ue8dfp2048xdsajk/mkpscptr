@@ -542,6 +542,10 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false){
         }
     }
 
+    // Skip the expensive getImageData pixel-scan during live drag; the padding
+    // is sized to just contain the distortion so there's nothing meaningful to
+    // trim anyway. The HQ pass (after the debounce) still trims normally.
+    if(lowQuality) return out;
     return trimTransparentBorders(out);
 }
 
