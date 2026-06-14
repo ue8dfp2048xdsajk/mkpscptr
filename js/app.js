@@ -1461,6 +1461,7 @@ function exitDesignWarpMode(apply) {
         refreshFabricHandles();
         updateWindowBorders();
         updateLayerButtons();
+        syncSliders();
         pushGlobalUndo();
     } else {
         // Cancel — re-render every involved canvas with the restored originals.
