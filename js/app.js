@@ -424,7 +424,7 @@ function trimTransparentBorders(canvas){
 }
 
 
-function applyPerspectiveDistortion(sourceCanvas, data){
+function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false){
 
     const top  = data.perspectiveTop  || 0;
     const left = data.perspectiveLeft || 0;
@@ -458,15 +458,17 @@ function applyPerspectiveDistortion(sourceCanvas, data){
     const outH = out.height;
 
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'medium';
+    ctx.imageSmoothingQuality = lowQuality ? 'low' : 'medium';
+
+    // Live-drag uses fewer slices (3× faster per pass) with no visible quality
+    // difference because perspective distortion is a smooth linear transform.
+    const horizontalSlices = lowQuality ? 60 : 180;
 
     // ── Pass 1: top/bottom perspective (horizontal slices) ───────────────────
     // Width of each row is scaled by widthScale, which is 1 on the untouched
     // side and 1+|top|/90 on the stretched side — straight lines, no curves.
     // Source has no padding, so t is already content-normalised (t=0 = top edge,
     // t=1 = bottom edge). top > 0: top side stretches; top < 0: bottom side stretches.
-
-    const horizontalSlices = 180;
 
     for(let y = 0; y < horizontalSlices; y++){
 
@@ -507,7 +509,7 @@ function applyPerspectiveDistortion(sourceCanvas, data){
         tempCtx.drawImage(out, 0, 0);
         ctx.clearRect(0, 0, out.width, out.height);
 
-        const verticalSlices = 180;
+        const verticalSlices = lowQuality ? 60 : 180;
 
         for(let x = 0; x < verticalSlices; x++){
 
@@ -2319,7 +2321,7 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
         obj._warpCanvas,
         lowQuality
     );
-    const warped = applyPerspectiveDistortion(warpedBase, fx);
+    const warped = applyPerspectiveDistortion(warpedBase, fx, lowQuality);
 
     const prevLeft   = obj.left;
     const prevTop    = obj.top;
@@ -2373,7 +2375,8 @@ async function applyWarpToData(data, lowQuality = false){
 
     const warpedCanvas = applyPerspectiveDistortion(
         warpedBaseCanvas,
-        data
+        data,
+        lowQuality
     );
 
     if(data.designObject){
