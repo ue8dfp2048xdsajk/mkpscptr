@@ -2058,6 +2058,90 @@ function drawBezierHelpers(canvas, points){
 }
 
 
+// Draws dimmed anchor nodes + curvature handles for every finalized maskPath
+// that is NOT the one currently being edited (currentMaskIndex / active clipCurvePoints).
+// Called after drawBezierHelpers so their bring-to-front ordering is maintained.
+function drawInactivePaths(canvas, data){
+
+    const paths = data.maskPaths || [];
+
+    paths.forEach((path, pathIdx) => {
+
+        // skip the path currently loaded into the editor
+        if(
+            clipPolygonClosed &&
+            currentMaskIndex !== undefined &&
+            pathIdx === currentMaskIndex
+        ) return;
+
+        if(!path || !path.length) return;
+
+        path.forEach((point, ptIdx) => {
+
+            // anchor dot — blue-tinted to distinguish from active path (white)
+            const anchor = new fabric.Circle({
+                left:           point.x,
+                top:            point.y,
+                radius:         2.5,
+                fill:           'rgba(140,165,255,0.65)',
+                stroke:         'rgba(70,100,210,0.55)',
+                strokeWidth:    0.5,
+                originX:        'center',
+                originY:        'center',
+                selectable:     false,
+                evented:        false,
+                excludeFromExport: true,
+                isBezierHelper: true,
+                isInactiveClipHelper: true,
+                isInactiveAnchor:    true,
+                inactivePathIndex:   pathIdx,
+                inactivePointIndex:  ptIdx
+            });
+
+            canvas.add(anchor);
+            activeBezierHelpers.push(anchor);
+
+            // curvature handle + tether line (when curve control exists)
+            if(point.cx !== undefined && point.cy !== undefined){
+
+                const line = new fabric.Line(
+                    [point.x, point.y, point.cx, point.cy],
+                    {
+                        stroke:         'rgba(120,145,235,0.35)',
+                        strokeWidth:    0.5,
+                        selectable:     false,
+                        evented:        false,
+                        excludeFromExport: true,
+                        isBezierHelper: true,
+                        isInactiveClipHelper: true
+                    }
+                );
+                canvas.add(line);
+                activeBezierHelpers.push(line);
+
+                const handle = new fabric.Circle({
+                    left:           point.cx,
+                    top:            point.cy,
+                    radius:         1.6,
+                    fill:           'rgba(185,200,255,0.6)',
+                    stroke:         'rgba(90,115,215,0.5)',
+                    strokeWidth:    0.4,
+                    originX:        'center',
+                    originY:        'center',
+                    selectable:     false,
+                    evented:        false,
+                    excludeFromExport: true,
+                    isBezierHelper: true,
+                    isInactiveClipHelper: true
+                });
+                canvas.add(handle);
+                activeBezierHelpers.push(handle);
+            }
+        });
+    });
+}
+
+
 function buildCurvePathString(points, closed = true){
 
     if(!points.length){
@@ -4374,6 +4458,9 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
                 clipCurvePoints
             );
 
+            // Show nodes of all OTHER finalized paths alongside the active one
+            drawInactivePaths(data.fabricCanvas, data);
+
             activeCurvePreview.forEach(o=> o.bringToFront());
 
             activeBezierHelpers.forEach(obj=>{
@@ -4409,6 +4496,12 @@ document.getElementById("addClipAreaBtn").addEventListener("click", ()=>{
         // rebuild ALL finalized polygon overlays
         // while clearing only temporary editor helpers
         addClipOverlay(data);
+
+        // Show all existing finalized paths as inactive nodes so user
+        // can see them while drawing the new area
+        if(activeIndices.includes(canvasData.indexOf(data))){
+            drawInactivePaths(data.fabricCanvas, data);
+        }
 
         data.fabricCanvas.requestRenderAll();
     });
@@ -4731,6 +4824,8 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                 });
 
             if(!clipCurvePoints.length){
+                // No active path being drawn — show all finalized paths as inactive nodes
+                drawInactivePaths(targetCanvas, target);
                 targetCanvas.requestRenderAll();
                 return;
             }
@@ -4753,6 +4848,9 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                     targetCanvas,
                     clipCurvePoints
                 );
+
+                // Show nodes of all OTHER finalized paths alongside the active one
+                drawInactivePaths(targetCanvas, target);
 
                 overlays.forEach(o=> o.bringToFront());
 
@@ -4980,6 +5078,54 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                 pushGlobalUndo();   // capture before anchor point adjustment
 
                 return;
+            }
+        }
+
+        // Click on an inactive (other finalized) path's anchor node →
+        // switch the editor to that path. Works whether we just finished
+        // a path (clipPolygonClosed=true) or are about to start a new one
+        // (clipCurvePoints.length===0). Does NOT intercept mid-drawing clicks.
+        if(clipCurvePoints.length === 0 || clipPolygonClosed){
+
+            let hitInactive = null;
+
+            activeBezierHelpers.forEach(obj => {
+                if(
+                    obj.isInactiveAnchor &&
+                    Math.abs(obj.left - pointer.x) < 10 &&
+                    Math.abs(obj.top  - pointer.y) < 10
+                ){
+                    hitInactive = obj;
+                }
+            });
+
+            if(hitInactive !== null){
+
+                const targetPath =
+                    data.maskPaths &&
+                    data.maskPaths[hitInactive.inactivePathIndex];
+
+                if(targetPath){
+
+                    pushGlobalUndo();
+
+                    clipCurvePoints =
+                        targetPath.map(p => ({
+                            x:  p.x,
+                            y:  p.y,
+                            cx: p.cx,
+                            cy: p.cy
+                        }));
+
+                    clipPolygonClosed = true;
+                    currentMaskIndex  = hitInactive.inactivePathIndex;
+
+                    window.__activeClipCanvas = fabricCanvas;
+                    window.__activeClipRedraw = redrawEditor;
+
+                    redrawEditor();
+                    return;
+                }
             }
         }
 
