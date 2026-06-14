@@ -1002,13 +1002,34 @@ function _renderBicubicWarp() {
 
 // Draw the warp overlay (grid + handles) directly onto a Fabric canvas context.
 // Draw the live deformed preview of the warped design directly onto the Fabric canvas ctx.
-// Source pixels come from warpSourceCanvas (CSS-space); destination positions are Fabric CSS coords
-// from _evalWarpPatch. Uses N=20 subdivision (fast enough for real-time dragging).
-function _drawWarpPreview(ctx) {
-    if (!warpSourceCanvas || !warpPoints.length) return;
+// Compute warp control points for a secondary group, proportionally scaled
+// from the primary source bounds to that group's source bounds.
+function _scaledWarpPointsForGroup(group) {
+    const pb = warpSourceBounds;
+    const gb = group.sourceBounds;
+    const sx = pb.width  > 0 ? gb.width  / pb.width  : 1;
+    const sy = pb.height > 0 ? gb.height / pb.height : 1;
+    return warpPoints.map((row, r) =>
+        row.map((pt, c) => ({
+            x: gb.left + (c / 3) * gb.width  + (pt.x - (pb.left + (c / 3) * pb.width))  * sx,
+            y: gb.top  + (r / 3) * gb.height + (pt.y - (pb.top  + (r / 3) * pb.height)) * sy,
+        }))
+    );
+}
+
+// Draw live deformed preview of the warp target(s) onto ctx.
+// Accepts optional srcCanvas / pts overrides so it can be called for secondary
+// canvases; falls back to the globals (warpSourceCanvas / warpPoints) for the
+// primary canvas. Uses N=20 subdivision (fast enough for real-time dragging).
+function _drawWarpPreview(ctx, srcCanvas, pts) {
+    const src = srcCanvas || warpSourceCanvas;
+    if (!src || !warpPoints.length) return;
+    // Temporarily swap the warpPoints global so _evalWarpPatch uses the override.
+    const savedPts = warpPoints;
+    if (pts) warpPoints = pts;
     const N    = 20;
-    const srcW = warpSourceCanvas.width;
-    const srcH = warpSourceCanvas.height;
+    const srcW = src.width;
+    const srcH = src.height;
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
@@ -1022,17 +1043,18 @@ function _drawWarpPreview(ctx) {
             const D10 = _evalWarpPatch(u1, v0);
             const D01 = _evalWarpPatch(u0, v1);
             const D11 = _evalWarpPatch(u1, v1);
-            _drawTexturedTriangle(ctx, warpSourceCanvas,
+            _drawTexturedTriangle(ctx, src,
                 sx0, sy0, D00.x, D00.y,
                 sx1, sy0, D10.x, D10.y,
                 sx0, sy1, D01.x, D01.y);
-            _drawTexturedTriangle(ctx, warpSourceCanvas,
+            _drawTexturedTriangle(ctx, src,
                 sx1, sy1, D11.x, D11.y,
                 sx0, sy1, D01.x, D01.y,
                 sx1, sy0, D10.x, D10.y);
         }
     }
     ctx.restore();
+    if (pts) warpPoints = savedPts;
 }
 
 function _drawWarpOverlay(ctx) {
@@ -1239,20 +1261,11 @@ function exitDesignWarpMode(apply) {
     // group's source bounds, so every selected design deforms identically.
     const secondaryResults = [];
     if (apply && allGroups.length > 1) {
-        const primaryBounds = warpSourceBounds;
         for (let gi = 1; gi < allGroups.length; gi++) {
             const grp       = allGroups[gi];
-            const grpBounds = grp.sourceBounds;
-            const scaleX    = primaryBounds.width  > 0 ? grpBounds.width  / primaryBounds.width  : 1;
-            const scaleY    = primaryBounds.height > 0 ? grpBounds.height / primaryBounds.height : 1;
 
-            // Scale each control point's deformation delta to the secondary bounds.
-            const scaledPts = warpPoints.map((row, r) =>
-                row.map((pt, c) => ({
-                    x: grpBounds.left + (c / 3) * grpBounds.width  + (pt.x - (primaryBounds.left + (c / 3) * primaryBounds.width))  * scaleX,
-                    y: grpBounds.top  + (r / 3) * grpBounds.height + (pt.y - (primaryBounds.top  + (r / 3) * primaryBounds.height)) * scaleY,
-                }))
-            );
+            // Re-use the same helper that drives the live preview.
+            const scaledPts = _scaledWarpPointsForGroup(grp);
 
             // Temporarily swap globals so _renderBicubicWarp uses secondary data.
             const savedSrc  = warpSourceCanvas, savedPts  = warpPoints;
@@ -3379,9 +3392,16 @@ function attachFabricEvents(data, targetObject = null){
                 ctx.restore();
             });
 
-            // Warp overlay — only drawn on the canvas that owns the warp session
+            // Warp overlay — drawn on the primary canvas that owns the warp session.
             if (designWarpMode && data === warpActiveData) {
                 _drawWarpOverlay(ctx);
+            }
+            // Secondary canvases: draw a live deformed preview using scaled warp points.
+            if (designWarpMode && data !== warpActiveData) {
+                const secGroup = warpAllGroups.find((g, i) => i > 0 && g.ownerData === data);
+                if (secGroup) {
+                    _drawWarpPreview(ctx, secGroup.sourceCanvas, _scaledWarpPointsForGroup(secGroup));
+                }
             }
         });
 
@@ -3421,6 +3441,10 @@ function attachFabricEvents(data, targetObject = null){
             const pointer = data.fabricCanvas.getPointer(opt.e);
             warpPoints[warpDragRC.r][warpDragRC.c] = {x: pointer.x, y: pointer.y};
             data.fabricCanvas.requestRenderAll();
+            // Trigger live preview on all secondary canvases too.
+            warpAllGroups.forEach((g, i) => {
+                if (i > 0) g.ownerData.fabricCanvas.requestRenderAll();
+            });
         });
         data.fabricCanvas.on('mouse:up', () => {
             if (designWarpMode) warpDragRC = null;
