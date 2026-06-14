@@ -3175,6 +3175,7 @@ function createCanvasPreviews(){
 
             const wrapper = document.createElement("div");
             wrapper.className = "canvas-wrapper";
+            data.wrapperEl = wrapper;
 
             const canvasEl = document.createElement("canvas");
             canvasEl.width = data.bg.width;
@@ -3270,6 +3271,10 @@ function createCanvasPreviews(){
             }, { crossOrigin: 'anonymous' });
 
             wrapper.addEventListener('click', function(e){
+
+            // Recompute live index — closed-over `index` becomes stale after window deletions
+            const index = canvasData.indexOf(data);
+            if(index === -1) return;
 
             if(suppressNextWrapperClick){
                 return;
@@ -3836,8 +3841,9 @@ function updateSelectButtonState(){
 }
 
 function updateLayerButtons(){
-    const del = document.getElementById("deleteLayerBtn");
-    const dup = document.getElementById("duplicateLayerBtn");
+    const del    = document.getElementById("deleteLayerBtn");
+    const dup    = document.getElementById("duplicateLayerBtn");
+    const delWin = document.getElementById("deleteWindowsBtn");
     if(selectedDesigns.size > 0){
         del.style.display = "inline-block";
         dup.style.display = "inline-block";
@@ -3845,9 +3851,54 @@ function updateLayerButtons(){
         del.style.display = "none";
         dup.style.display = "none";
     }
+    delWin.style.display = activeIndices.length > 0 ? "inline-block" : "none";
 }
 
 
+
+function deleteSelectedWindows(){
+
+    if(!activeIndices.length) return;
+
+    const toDelete = new Set(activeIndices);
+
+    // Destroy each selected window's Fabric canvas and remove its DOM wrapper
+    toDelete.forEach(i => {
+        const d = canvasData[i];
+        if(!d) return;
+        try { d.fabricCanvas.dispose(); } catch(e){}
+        if(d.wrapperEl && d.wrapperEl.parentNode){
+            d.wrapperEl.parentNode.removeChild(d.wrapperEl);
+        }
+    });
+
+    // Splice deleted entries out, preserving order of remaining items
+    canvasData = canvasData.filter((_, i) => !toDelete.has(i));
+
+    // Reset selection state
+    activeIndices     = [];
+    lastSelectedIndex = null;
+    selectedDesigns.clear();
+
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
+    updateDropUI();
+}
+
+document.getElementById("deleteWindowsBtn").addEventListener("click", ()=>{
+
+    if(clipEditMode){
+        showClipModeNotice();
+        return;
+    }
+
+    if(!activeIndices.length) return;
+
+    deleteSelectedWindows();
+});
 
 document.getElementById("selectAllBtn").addEventListener("click", ()=>{
 
