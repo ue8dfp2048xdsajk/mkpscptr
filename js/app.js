@@ -25,6 +25,7 @@ let warpSourceCanvas = null;       // rasterised source image for the warp targe
 let warpSourceBounds = null;       // {left,top,width,height} of source in Fabric coords
 let warpDragRC       = null;       // {r,c} of control point being dragged, or null
 let warpDPR          = 1;          // device pixel ratio at capture time
+let warpAllGroups    = [];         // [{ownerData, targets, sourceCanvas, sourceBounds, dpr}] for every canvas involved
 
 let colorLayerMode  = false;
 let brushTool       = 'brush'; // 'brush' | 'eraser'
@@ -1105,91 +1106,82 @@ function enterDesignWarpMode() {
         return;
     }
 
-    // Find owning canvasData
-    let ownerData = null;
+    // Group targets by canvas entry so every selected design on every window
+    // gets the same warp map applied proportionally.
+    warpAllGroups = [];
     for (const d of canvasData) {
         const allObjs = [d.designObject, ...(d.extraDesignObjects || [])].filter(Boolean);
-        if (targets.some(t => allObjs.includes(t))) { ownerData = d; break; }
+        const grpTargets = targets.filter(t => allObjs.includes(t));
+        if (grpTargets.length > 0) warpAllGroups.push({ ownerData: d, targets: grpTargets });
     }
-    if (!ownerData) return;
+    // Fallback: nothing matched known design entries (shouldn't normally happen)
+    if (warpAllGroups.length === 0) {
+        const fb = canvasData.find(d => d.fabricCanvas.getObjects().some(o => targets.includes(o)));
+        if (fb) warpAllGroups.push({ ownerData: fb, targets });
+    }
+    if (warpAllGroups.length === 0) return;
 
-    warpTargetObjs = targets.filter(t => {
-        const all = [ownerData.designObject, ...(ownerData.extraDesignObjects || [])].filter(Boolean);
-        return all.includes(t);
-    });
-    if (warpTargetObjs.length === 0) warpTargetObjs = targets;
+    // Rasterise source for EVERY group.
+    // For each canvas: hide non-target objects, render, copy lower-canvas region
+    // at full DPR resolution, then restore — capturing exactly what the user sees.
+    for (const group of warpAllGroups) {
+        const { ownerData: grpData, targets: grpObjs } = group;
+        const grpFc       = grpData.fabricCanvas;
+        const grpAllFObjs = grpFc.getObjects();
 
-    // Compute combined bounding box in Fabric canvas coordinates
-    const rects = warpTargetObjs.map(o => o.getBoundingRect(true, true));
-    const minX  = Math.min(...rects.map(r => r.left));
-    const minY  = Math.min(...rects.map(r => r.top));
-    const maxX  = Math.max(...rects.map(r => r.left + r.width));
-    const maxY  = Math.max(...rects.map(r => r.top  + r.height));
-    warpSourceBounds = {left: minX, top: minY, width: maxX - minX, height: maxY - minY};
+        const rects  = grpObjs.map(o => o.getBoundingRect(true, true));
+        const bMinX  = Math.min(...rects.map(r => r.left));
+        const bMinY  = Math.min(...rects.map(r => r.top));
+        const bMaxX  = Math.max(...rects.map(r => r.left + r.width));
+        const bMaxY  = Math.max(...rects.map(r => r.top  + r.height));
+        const grpBounds = { left: bMinX, top: bMinY, width: bMaxX - bMinX, height: bMaxY - bMinY };
 
-    // Rasterise target objects using Fabric's own rendering pipeline:
-    //   1. Hide every non-target object (and the canvas background image)
-    //   2. Let Fabric render the isolated target objects
-    //   3. Copy the exact bounding-box region from the lower canvas element
-    //      (down-sampling from physical pixels → CSS pixels so the source canvas
-    //       lives in the same coordinate space as warpPoints / _evalWarpPatch)
-    //   4. Restore everything
-    // This guarantees we capture exactly what the user sees — effects, padding,
-    // perspective distortion and all — without any manual transform arithmetic.
-    const fc       = ownerData.fabricCanvas;
-    const allFObjs = fc.getObjects();
+        grpAllFObjs.forEach(o => {
+            if (!grpObjs.includes(o)) { o._warpHiddenVis = o.visible; o.visible = false; }
+        });
+        const savedBg  = grpFc.backgroundImage;
+        if (savedBg) grpFc.backgroundImage = null;
+        const savedSel = new Set(selectedDesigns);
+        selectedDesigns.clear();
+        grpFc.discardActiveObject();
+        grpFc.renderAll();
 
-    allFObjs.forEach(o => {
-        if (!warpTargetObjs.includes(o)) {
-            o._warpHiddenVis = o.visible;
-            o.visible = false;
-        }
-    });
-    const savedBg = fc.backgroundImage;
-    if (savedBg) fc.backgroundImage = null;
+        const lc  = grpFc.lowerCanvasEl;
+        const dpr = Math.max(1, lc.width / grpFc.getWidth());
+        const lcX = Math.round(bMinX * dpr);
+        const lcY = Math.round(bMinY * dpr);
+        const lcW = Math.max(1, Math.round(grpBounds.width  * dpr));
+        const lcH = Math.max(1, Math.round(grpBounds.height * dpr));
 
-    // Temporarily remove target objects from selectedDesigns so the app's
-    // after:render handler does NOT draw selection circles/borders onto the
-    // lower canvas right before we copy it (those handles would be baked in).
-    const savedSelected = new Set(selectedDesigns);
-    selectedDesigns.clear();
+        const srcCanvas        = document.createElement('canvas');
+        srcCanvas.width  = lcW;
+        srcCanvas.height = lcH;
+        const sCtx = srcCanvas.getContext('2d');
+        sCtx.imageSmoothingEnabled = true;
+        sCtx.imageSmoothingQuality = 'high';
+        sCtx.drawImage(lc, lcX, lcY, lcW, lcH, 0, 0, lcW, lcH);
 
-    fc.discardActiveObject();
-    fc.renderAll();
+        savedSel.forEach(o => selectedDesigns.add(o));
+        grpAllFObjs.forEach(o => {
+            if (o._warpHiddenVis !== undefined) { o.visible = o._warpHiddenVis; delete o._warpHiddenVis; }
+        });
+        if (savedBg) grpFc.backgroundImage = savedBg;
 
-    // Capture at FULL physical-pixel (DPR) resolution — no downscaling — so
-    // the source canvas is as sharp as the display can show.
-    const lc  = fc.lowerCanvasEl;
-    const dpr = Math.max(1, lc.width / fc.getWidth());
-    warpDPR   = dpr;
-    const lcX = Math.round(warpSourceBounds.left   * dpr);
-    const lcY = Math.round(warpSourceBounds.top    * dpr);
-    const lcW = Math.max(1, Math.round(warpSourceBounds.width  * dpr));
-    const lcH = Math.max(1, Math.round(warpSourceBounds.height * dpr));
+        group.sourceCanvas = srcCanvas;
+        group.sourceBounds = grpBounds;
+        group.dpr          = dpr;
+    }
 
-    warpSourceCanvas        = document.createElement('canvas');
-    warpSourceCanvas.width  = lcW;   // full physical pixels, no downscale
-    warpSourceCanvas.height = lcH;
-    const sCtx = warpSourceCanvas.getContext('2d');
-    sCtx.imageSmoothingEnabled = true;
-    sCtx.imageSmoothingQuality = 'high';
-    sCtx.drawImage(lc, lcX, lcY, lcW, lcH, 0, 0, lcW, lcH);
+    // Primary group (first) drives the visible warp grid and live preview.
+    const primary    = warpAllGroups[0];
+    warpActiveData   = primary.ownerData;
+    warpTargetObjs   = primary.targets;
+    warpSourceCanvas = primary.sourceCanvas;
+    warpSourceBounds = primary.sourceBounds;
+    warpDPR          = primary.dpr;
 
-    // Restore selection state and object visibility.
-    savedSelected.forEach(o => selectedDesigns.add(o));
-    allFObjs.forEach(o => {
-        if (o._warpHiddenVis !== undefined) {
-            o.visible = o._warpHiddenVis;
-            delete o._warpHiddenVis;
-        }
-    });
-    if (savedBg) fc.backgroundImage = savedBg;
-
-    // Hide the target objects so the after:render overlay can draw the live
-    // deformed preview in their place (see _drawWarpPreview / _drawWarpOverlay).
-    warpTargetObjs.forEach(o => { o._warpWasVisible = o.visible; o.visible = false; });
-
-    // Initialise 4×4 control point grid evenly over the bounding box
+    // Initialise 4×4 control point grid evenly over the PRIMARY bounding box.
+    const { left: minX, top: minY } = warpSourceBounds;
     warpPoints = [];
     for (let r = 0; r < 4; r++) {
         warpPoints.push([]);
@@ -1202,9 +1194,13 @@ function enterDesignWarpMode() {
     }
     warpDragRC     = null;
     designWarpMode = true;
-    warpActiveData = ownerData;
 
-    // Disable Fabric selection (same pattern as eraser)
+    // Hide ALL target objects across ALL groups for the live preview.
+    warpAllGroups.forEach(({ targets: grpObjs }) =>
+        grpObjs.forEach(o => { o._warpWasVisible = o.visible; o.visible = false; })
+    );
+
+    // Disable Fabric selection on all canvases (same pattern as eraser).
     canvasData.forEach(d => {
         d.fabricCanvas.selection = false;
         d.fabricCanvas.forEachObject(o => {
@@ -1227,21 +1223,61 @@ function enterDesignWarpMode() {
 }
 
 function exitDesignWarpMode(apply) {
-    const applyData = warpActiveData;
-    const applyObjs = [...warpTargetObjs];
+    const applyData  = warpActiveData;
+    const applyObjs  = [...warpTargetObjs];          // primary group targets only
+    const allGroups  = [...warpAllGroups];            // all groups (primary + secondaries)
 
-    // Render the final warped image while target objects are still hidden
-    // (warpSourceCanvas / warpPoints are still valid here).
+    // ── Render all warped results while source canvases / warpPoints are valid ──
+
+    // Primary group: render using the current globals as-is.
     let renderResult = null;
     if (apply && applyData && warpSourceCanvas) {
         renderResult = _renderBicubicWarp();
     }
 
-    // Restore target object visibility regardless of apply/cancel.
-    applyObjs.forEach(o => {
-        o.visible = (o._warpWasVisible !== undefined) ? o._warpWasVisible : true;
-        delete o._warpWasVisible;
-    });
+    // Secondary groups: apply the same warp proportionally scaled to each
+    // group's source bounds, so every selected design deforms identically.
+    const secondaryResults = [];
+    if (apply && allGroups.length > 1) {
+        const primaryBounds = warpSourceBounds;
+        for (let gi = 1; gi < allGroups.length; gi++) {
+            const grp       = allGroups[gi];
+            const grpBounds = grp.sourceBounds;
+            const scaleX    = primaryBounds.width  > 0 ? grpBounds.width  / primaryBounds.width  : 1;
+            const scaleY    = primaryBounds.height > 0 ? grpBounds.height / primaryBounds.height : 1;
+
+            // Scale each control point's deformation delta to the secondary bounds.
+            const scaledPts = warpPoints.map((row, r) =>
+                row.map((pt, c) => ({
+                    x: grpBounds.left + (c / 3) * grpBounds.width  + (pt.x - (primaryBounds.left + (c / 3) * primaryBounds.width))  * scaleX,
+                    y: grpBounds.top  + (r / 3) * grpBounds.height + (pt.y - (primaryBounds.top  + (r / 3) * primaryBounds.height)) * scaleY,
+                }))
+            );
+
+            // Temporarily swap globals so _renderBicubicWarp uses secondary data.
+            const savedSrc  = warpSourceCanvas, savedPts  = warpPoints;
+            const savedBnds = warpSourceBounds,  savedDpr  = warpDPR;
+            warpSourceCanvas = grp.sourceCanvas;
+            warpPoints       = scaledPts;
+            warpSourceBounds = grpBounds;
+            warpDPR          = grp.dpr;
+            const grpResult  = _renderBicubicWarp();
+            warpSourceCanvas = savedSrc;
+            warpPoints       = savedPts;
+            warpSourceBounds = savedBnds;
+            warpDPR          = savedDpr;
+
+            secondaryResults.push({ ownerData: grp.ownerData, targets: grp.targets, result: grpResult });
+        }
+    }
+
+    // Restore target object visibility for ALL groups regardless of apply/cancel.
+    allGroups.forEach(({ targets: grpObjs }) =>
+        grpObjs.forEach(o => {
+            o.visible = (o._warpWasVisible !== undefined) ? o._warpWasVisible : true;
+            delete o._warpWasVisible;
+        })
+    );
 
     // Clear warp state so after:render no longer draws the overlay.
     designWarpMode   = false;
@@ -1252,6 +1288,7 @@ function exitDesignWarpMode(apply) {
     warpSourceBounds = null;
     warpDragRC       = null;
     warpDPR          = 1;
+    warpAllGroups    = [];
 
     // Restore Fabric interactivity across all canvases.
     canvasData.forEach(d => {
@@ -1342,14 +1379,74 @@ function exitDesignWarpMode(apply) {
         fc.setActiveObject(newImg);
         selectedDesigns.add(newImg);
         fc.requestRenderAll();
+
+        // Apply secondary group results with the same pattern.
+        for (const { ownerData: grpData, targets: grpObjs, result: grpResult } of secondaryResults) {
+            const { canvas: outCanvas2, left: left2, top: top2, dpr: dpr2 = 1 } = grpResult;
+            const grpFc  = grpData.fabricCanvas;
+            const grpPs  = grpData.previewScale || 1;
+            const cssW2  = outCanvas2.width  / dpr2;
+            const cssH2  = outCanvas2.height / dpr2;
+            const cx2    = left2 + cssW2 / 2;
+            const cy2    = top2  + cssH2 / 2;
+
+            const newImg2 = new fabric.Image(outCanvas2, {
+                left: cx2, top: cy2,
+                scaleX: 1 / dpr2, scaleY: 1 / dpr2,
+                originX: 'center', originY: 'center',
+                selectable: true, evented: true,
+                transparentCorners: false,
+                cornerColor: 'blue', cornerStyle: 'circle',
+            });
+
+            const grpIsMain    = grpObjs.includes(grpData.designObject);
+            const grpNewExtras = (grpData.extraDesignObjects || []).filter(o => !grpObjs.includes(o));
+
+            if (grpIsMain) {
+                grpData.designOriginal  = outCanvas2;
+                grpData.warpCanvas      = null;
+                grpData.x               = cx2;
+                grpData.y               = cy2;
+                grpData.scaleX          = (1 / dpr2) / grpPs;
+                grpData.scaleY          = (1 / dpr2) / grpPs;
+                grpData.rotation        = 0;
+                grpData.warpAmount      = 0;
+                grpData.arcAmount       = 0;
+                grpData.arcTilt         = 0;
+                grpData.perspectiveTop  = 0;
+                grpData.perspectiveLeft = 0;
+            } else {
+                grpObjs.forEach(obj => {
+                    const idx = (grpData.extraDesignObjects || []).indexOf(obj);
+                    if (idx !== -1) {
+                        if (!grpData.extraDesignOriginals) grpData.extraDesignOriginals = [];
+                        grpData.extraDesignOriginals[idx] = outCanvas2;
+                    }
+                });
+            }
+
+            newImg2._ownerData = grpData;
+            newImg2._fx        = _defaultFx(grpData);
+
+            grpObjs.forEach(obj => grpFc.remove(obj));
+            grpFc.add(newImg2);
+
+            if (grpIsMain) grpData.designObject = newImg2;
+            grpNewExtras.push(newImg2);
+            grpData.extraDesignObjects = grpNewExtras;
+
+            grpFc.setActiveObject(newImg2);
+            selectedDesigns.add(newImg2);
+            grpFc.requestRenderAll();
+        }
+
         refreshFabricHandles();
         updateWindowBorders();
         updateLayerButtons();
         pushGlobalUndo();
     } else {
-        // Cancel — just re-render with the restored originals.
-        if (applyData) applyData.fabricCanvas.requestRenderAll();
-        else canvasData.forEach(d => d.fabricCanvas.requestRenderAll());
+        // Cancel — re-render every involved canvas with the restored originals.
+        allGroups.forEach(({ ownerData: d }) => d.fabricCanvas.requestRenderAll());
         refreshFabricHandles();
         updateWindowBorders();
         updateLayerButtons();
