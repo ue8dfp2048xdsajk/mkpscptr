@@ -1390,6 +1390,8 @@ function exitDesignWarpMode(apply) {
         newExtras.push(newImg);
         applyData.extraDesignObjects = newExtras;
 
+        attachFabricEvents(applyData, newImg);
+
         fc.setActiveObject(newImg);
         selectedDesigns.add(newImg);
         fc.requestRenderAll();
@@ -1448,6 +1450,8 @@ function exitDesignWarpMode(apply) {
             if (grpIsMain) grpData.designObject = newImg2;
             grpNewExtras.push(newImg2);
             grpData.extraDesignObjects = grpNewExtras;
+
+            attachFabricEvents(grpData, newImg2);
 
             grpFc.setActiveObject(newImg2);
             selectedDesigns.add(newImg2);
