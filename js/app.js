@@ -1213,22 +1213,23 @@ function enterDesignWarpMode() {
 }
 
 function exitDesignWarpMode(apply) {
-    // Restore target object visibility first — they were hidden so the overlay
-    // could draw the live deformed preview in their place.
-    warpTargetObjs.forEach(o => {
-        o.visible = (o._warpWasVisible !== undefined) ? o._warpWasVisible : true;
-        delete o._warpWasVisible;
-    });
-
-    // Capture everything needed for async image creation before we clear state
     const applyData = warpActiveData;
     const applyObjs = [...warpTargetObjs];
+
+    // Render the final warped image while target objects are still hidden
+    // (warpSourceCanvas / warpPoints are still valid here).
     let renderResult = null;
     if (apply && applyData && warpSourceCanvas) {
         renderResult = _renderBicubicWarp();
     }
 
-    // Clear warp state immediately
+    // Restore target object visibility regardless of apply/cancel.
+    applyObjs.forEach(o => {
+        o.visible = (o._warpWasVisible !== undefined) ? o._warpWasVisible : true;
+        delete o._warpWasVisible;
+    });
+
+    // Clear warp state so after:render no longer draws the overlay.
     designWarpMode   = false;
     warpActiveData   = null;
     warpTargetObjs   = [];
@@ -1237,7 +1238,7 @@ function exitDesignWarpMode(apply) {
     warpSourceBounds = null;
     warpDragRC       = null;
 
-    // Restore Fabric selection
+    // Restore Fabric interactivity across all canvases.
     canvasData.forEach(d => {
         d.fabricCanvas.selection = true;
         d.fabricCanvas.forEachObject(o => {
@@ -1246,46 +1247,91 @@ function exitDesignWarpMode(apply) {
             delete o._prevSelectable;
             delete o._prevEvented;
         });
-        d.fabricCanvas.requestRenderAll();
     });
     document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = '');
     document.getElementById('designWarpBtn').textContent      = 'Warp';
     document.getElementById('warpModeControls').style.display = 'none';
 
-    // Apply warped result as a new Fabric image (async due to fromURL)
     if (renderResult && applyData) {
         const { canvas: outCanvas, left, top } = renderResult;
-        const fc = applyData.fabricCanvas;
+        const fc  = applyData.fabricCanvas;
+        const cx  = left + outCanvas.width  / 2;
+        const cy  = top  + outCanvas.height / 2;
+        const ps  = applyData.previewScale || 1;
 
-        applyObjs.forEach(obj => fc.remove(obj));
-        const isMain   = applyObjs.includes(applyData.designObject);
+        // Build the new Fabric image synchronously from the canvas element —
+        // no async fromURL, so there is zero gap between removing the originals
+        // and displaying the warped result.
+        const newImg = new fabric.Image(outCanvas, {
+            left:            cx,
+            top:             cy,
+            originX:         'center',
+            originY:         'center',
+            selectable:      true,
+            evented:         true,
+            transparentCorners: false,
+            cornerColor:     'blue',
+            cornerStyle:     'circle',
+        });
+
+        // Bake the warp into the effects-pipeline source so that moving sliders
+        // later starts from the warped result instead of the original image.
+        // Reset the position/scale/effects fields so applyWarpToData reproduces
+        // the same result (identity transform on the new source).
+        const isMain    = applyObjs.includes(applyData.designObject);
         const newExtras = (applyData.extraDesignObjects || []).filter(o => !applyObjs.includes(o));
 
-        fabric.Image.fromURL(outCanvas.toDataURL(), (newImg) => {
-            newImg.set({
-                left:    left + outCanvas.width  / 2,
-                top:     top  + outCanvas.height / 2,
-                originX: 'center',
-                originY: 'center',
-                selectable: true,
-                evented:    true,
+        if (isMain) {
+            applyData.designOriginal  = outCanvas;   // warped canvas is the new source
+            applyData.warpCanvas      = null;         // force recreation
+            applyData.x               = cx;
+            applyData.y               = cy;
+            applyData.scaleX          = 1 / ps;
+            applyData.scaleY          = 1 / ps;
+            applyData.rotation        = 0;
+            applyData.warpAmount      = 0;
+            applyData.arcAmount       = 0;
+            applyData.arcTilt         = 0;
+            applyData.perspectiveTop  = 0;
+            applyData.perspectiveLeft = 0;
+        } else {
+            // Extra design object — update its original in extraDesignOriginals
+            applyObjs.forEach(obj => {
+                const idx = (applyData.extraDesignObjects || []).indexOf(obj);
+                if (idx !== -1) {
+                    if (!applyData.extraDesignOriginals) applyData.extraDesignOriginals = [];
+                    applyData.extraDesignOriginals[idx] = outCanvas;
+                }
             });
-            newImg._ownerData = applyData;
-            newImg._fx        = _defaultFx(applyData);
+        }
 
-            fc.add(newImg);
-            if (isMain) applyData.designObject = newImg;
-            newExtras.push(newImg);
-            applyData.extraDesignObjects = newExtras;
+        // _defaultFx reads from applyData — now returns all-zero warp/perspective
+        newImg._ownerData = applyData;
+        newImg._fx        = _defaultFx(applyData);
 
-            fc.setActiveObject(newImg);
-            selectedDesigns.add(newImg);
-            fc.requestRenderAll();
-            refreshFabricHandles();
-            updateWindowBorders();
-            updateLayerButtons();
-            pushGlobalUndo();
-        });
+        // Swap old objects for new in one synchronous block so the canvas never
+        // shows a frame with no design.
+        applyObjs.forEach(obj => fc.remove(obj));
+        fc.add(newImg);
+
+        if (isMain) applyData.designObject = newImg;
+        newExtras.push(newImg);
+        applyData.extraDesignObjects = newExtras;
+
+        fc.setActiveObject(newImg);
+        selectedDesigns.add(newImg);
+        fc.requestRenderAll();
+        refreshFabricHandles();
+        updateWindowBorders();
+        updateLayerButtons();
+        pushGlobalUndo();
+    } else {
+        // Cancel — just re-render with the restored originals.
+        if (applyData) applyData.fabricCanvas.requestRenderAll();
+        else canvasData.forEach(d => d.fabricCanvas.requestRenderAll());
+        refreshFabricHandles();
+        updateWindowBorders();
+        updateLayerButtons();
     }
 }
 
