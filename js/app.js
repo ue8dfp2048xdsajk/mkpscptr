@@ -24,6 +24,7 @@ let warpPoints       = [];         // 4×4 array of {x,y} in Fabric canvas coord
 let warpSourceCanvas = null;       // rasterised source image for the warp target(s)
 let warpSourceBounds = null;       // {left,top,width,height} of source in Fabric coords
 let warpDragRC       = null;       // {r,c} of control point being dragged, or null
+let warpDPR          = 1;          // device pixel ratio at capture time
 
 let colorLayerMode  = false;
 let brushTool       = 'brush'; // 'brush' | 'eraser'
@@ -940,10 +941,12 @@ function _drawTexturedTriangle(ctx, img,
 // top-left corner in Fabric canvas coordinates.
 function _renderBicubicWarp() {
     const N    = 40;
-    const srcW = warpSourceCanvas.width;
+    const dpr  = warpDPR || 1;
+    const srcW = warpSourceCanvas.width;   // physical pixels (DPR-scaled)
     const srcH = warpSourceCanvas.height;
 
-    // Compute output bounding box by densely sampling the patch boundary + interior
+    // Compute output bounding box by densely sampling the patch.
+    // warpPoints are in CSS/Fabric coords; multiply by dpr for physical pixels.
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const steps = 24;
     for (let i = 0; i <= steps; i++) {
@@ -956,8 +959,9 @@ function _renderBicubicWarp() {
             if (p.y > maxY) maxY = p.y;
         }
     }
-    const outW = Math.max(1, Math.ceil(maxX - minX) + 2);
-    const outH = Math.max(1, Math.ceil(maxY - minY) + 2);
+    // Output canvas at full physical-pixel resolution
+    const outW = Math.max(1, Math.ceil((maxX - minX) * dpr) + 2);
+    const outH = Math.max(1, Math.ceil((maxY - minY) * dpr) + 2);
 
     const outCanvas = document.createElement('canvas');
     outCanvas.width  = outW;
@@ -979,19 +983,20 @@ function _renderBicubicWarp() {
             const D01 = _evalWarpPatch(u0, v1);
             const D11 = _evalWarpPatch(u1, v1);
 
+            // Destination in physical pixels: (CSS offset) × dpr
             _drawTexturedTriangle(outCtx, warpSourceCanvas,
-                sx0, sy0, D00.x - minX, D00.y - minY,
-                sx1, sy0, D10.x - minX, D10.y - minY,
-                sx0, sy1, D01.x - minX, D01.y - minY
+                sx0, sy0, (D00.x - minX) * dpr, (D00.y - minY) * dpr,
+                sx1, sy0, (D10.x - minX) * dpr, (D10.y - minY) * dpr,
+                sx0, sy1, (D01.x - minX) * dpr, (D01.y - minY) * dpr
             );
             _drawTexturedTriangle(outCtx, warpSourceCanvas,
-                sx1, sy1, D11.x - minX, D11.y - minY,
-                sx0, sy1, D01.x - minX, D01.y - minY,
-                sx1, sy0, D10.x - minX, D10.y - minY
+                sx1, sy1, (D11.x - minX) * dpr, (D11.y - minY) * dpr,
+                sx0, sy1, (D01.x - minX) * dpr, (D01.y - minY) * dpr,
+                sx1, sy0, (D10.x - minX) * dpr, (D10.y - minY) * dpr
             );
         }
     }
-    return { canvas: outCanvas, left: minX, top: minY };
+    return { canvas: outCanvas, left: minX, top: minY, dpr };
 }
 
 // Draw the warp overlay (grid + handles) directly onto a Fabric canvas context.
@@ -1143,26 +1148,35 @@ function enterDesignWarpMode() {
     const savedBg = fc.backgroundImage;
     if (savedBg) fc.backgroundImage = null;
 
+    // Temporarily remove target objects from selectedDesigns so the app's
+    // after:render handler does NOT draw selection circles/borders onto the
+    // lower canvas right before we copy it (those handles would be baked in).
+    const savedSelected = new Set(selectedDesigns);
+    selectedDesigns.clear();
+
     fc.discardActiveObject();
     fc.renderAll();
 
+    // Capture at FULL physical-pixel (DPR) resolution — no downscaling — so
+    // the source canvas is as sharp as the display can show.
     const lc  = fc.lowerCanvasEl;
-    const dpr = lc.width / fc.getWidth();                       // device pixel ratio
+    const dpr = Math.max(1, lc.width / fc.getWidth());
+    warpDPR   = dpr;
     const lcX = Math.round(warpSourceBounds.left   * dpr);
     const lcY = Math.round(warpSourceBounds.top    * dpr);
     const lcW = Math.max(1, Math.round(warpSourceBounds.width  * dpr));
     const lcH = Math.max(1, Math.round(warpSourceBounds.height * dpr));
-    const cssW = Math.max(1, Math.ceil(warpSourceBounds.width));
-    const cssH = Math.max(1, Math.ceil(warpSourceBounds.height));
 
     warpSourceCanvas        = document.createElement('canvas');
-    warpSourceCanvas.width  = cssW;
-    warpSourceCanvas.height = cssH;
+    warpSourceCanvas.width  = lcW;   // full physical pixels, no downscale
+    warpSourceCanvas.height = lcH;
     const sCtx = warpSourceCanvas.getContext('2d');
     sCtx.imageSmoothingEnabled = true;
     sCtx.imageSmoothingQuality = 'high';
-    sCtx.drawImage(lc, lcX, lcY, lcW, lcH, 0, 0, cssW, cssH);
+    sCtx.drawImage(lc, lcX, lcY, lcW, lcH, 0, 0, lcW, lcH);
 
+    // Restore selection state and object visibility.
+    savedSelected.forEach(o => selectedDesigns.add(o));
     allFObjs.forEach(o => {
         if (o._warpHiddenVis !== undefined) {
             o.visible = o._warpHiddenVis;
@@ -1237,6 +1251,7 @@ function exitDesignWarpMode(apply) {
     warpSourceCanvas = null;
     warpSourceBounds = null;
     warpDragRC       = null;
+    warpDPR          = 1;
 
     // Restore Fabric interactivity across all canvases.
     canvasData.forEach(d => {
@@ -1253,18 +1268,24 @@ function exitDesignWarpMode(apply) {
     document.getElementById('warpModeControls').style.display = 'none';
 
     if (renderResult && applyData) {
-        const { canvas: outCanvas, left, top } = renderResult;
-        const fc  = applyData.fabricCanvas;
-        const cx  = left + outCanvas.width  / 2;
-        const cy  = top  + outCanvas.height / 2;
-        const ps  = applyData.previewScale || 1;
+        const { canvas: outCanvas, left, top, dpr = 1 } = renderResult;
+        const fc   = applyData.fabricCanvas;
+        const ps   = applyData.previewScale || 1;
+        // outCanvas is at physical-pixel resolution; convert back to CSS space for placement
+        const cssW = outCanvas.width  / dpr;
+        const cssH = outCanvas.height / dpr;
+        const cx   = left + cssW / 2;
+        const cy   = top  + cssH / 2;
 
         // Build the new Fabric image synchronously from the canvas element —
         // no async fromURL, so there is zero gap between removing the originals
         // and displaying the warped result.
+        // scaleX/scaleY = 1/dpr so the DPR-resolution image displays at CSS size.
         const newImg = new fabric.Image(outCanvas, {
             left:            cx,
             top:             cy,
+            scaleX:          1 / dpr,
+            scaleY:          1 / dpr,
             originX:         'center',
             originY:         'center',
             selectable:      true,
@@ -1276,8 +1297,7 @@ function exitDesignWarpMode(apply) {
 
         // Bake the warp into the effects-pipeline source so that moving sliders
         // later starts from the warped result instead of the original image.
-        // Reset the position/scale/effects fields so applyWarpToData reproduces
-        // the same result (identity transform on the new source).
+        // Reset position/scale/effects so applyWarpToData is an identity pass.
         const isMain    = applyObjs.includes(applyData.designObject);
         const newExtras = (applyData.extraDesignObjects || []).filter(o => !applyObjs.includes(o));
 
@@ -1286,8 +1306,9 @@ function exitDesignWarpMode(apply) {
             applyData.warpCanvas      = null;         // force recreation
             applyData.x               = cx;
             applyData.y               = cy;
-            applyData.scaleX          = 1 / ps;
-            applyData.scaleY          = 1 / ps;
+            // Effective Fabric scale = data.scaleX * previewScale = (1/dpr)/ps * ps = 1/dpr ✓
+            applyData.scaleX          = (1 / dpr) / ps;
+            applyData.scaleY          = (1 / dpr) / ps;
             applyData.rotation        = 0;
             applyData.warpAmount      = 0;
             applyData.arcAmount       = 0;
