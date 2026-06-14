@@ -2601,7 +2601,7 @@ function updateFromSliders(event){
 
         selectedDesigns.forEach(obj => {
             const d = obj._ownerData;
-            if(!d) return;
+            if(!d || d.locked) return;
 
             obj._fx = { ...newFx };
 
@@ -2646,7 +2646,7 @@ function updateFromSliders(event){
             globalHQTimer = setTimeout(()=>{
                 selectedDesigns.forEach(obj => {
                     const d = obj._ownerData;
-                    if(!d) return;
+                    if(!d || d.locked) return;
                     const isMain      = obj === d.designObject;
                     const extraIdx    = isMain ? -1 : (d.extraDesignObjects||[]).indexOf(obj);
                     const srcOriginal = isMain
@@ -2676,6 +2676,7 @@ function updateFromSliders(event){
     activeIndices.forEach(index=>{
 
         const data = canvasData[index];
+        if(data.locked) return;
 
         // preserve current live object transforms
         if(data.designObject){
@@ -3723,6 +3724,7 @@ function attachFabricEvents(data, targetObject = null){
             activeIndices.forEach(index=>{
 
                 if(canvasData[index] === data) return;
+                if(canvasData[index].locked) return;
 
                 const target = canvasData[index];
 
@@ -3753,6 +3755,7 @@ function attachFabricEvents(data, targetObject = null){
             activeIndices.forEach(index=>{
 
                 if(canvasData[index] === data) return;
+                if(canvasData[index].locked) return;
 
                 const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
 
@@ -3809,6 +3812,7 @@ function attachFabricEvents(data, targetObject = null){
             activeIndices.forEach(index=>{
 
                 if(canvasData[index] === data) return;
+                if(canvasData[index].locked) return;
 
                 const target = canvasData[index];
 
@@ -3842,6 +3846,7 @@ function attachFabricEvents(data, targetObject = null){
             activeIndices.forEach(index=>{
 
                 if(canvasData[index] === data) return;
+                if(canvasData[index].locked) return;
 
                 const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
 
@@ -3877,6 +3882,7 @@ function attachFabricEvents(data, targetObject = null){
             activeIndices.forEach(index=>{
 
                 if(canvasData[index] === data) return;
+                if(canvasData[index].locked) return;
 
                 const target = canvasData[index];
 
@@ -3903,6 +3909,7 @@ function attachFabricEvents(data, targetObject = null){
             activeIndices.forEach(index=>{
 
                 if(canvasData[index] === data) return;
+                if(canvasData[index].locked) return;
 
                 const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
 
@@ -3942,9 +3949,11 @@ function updateSelectButtonState(){
 }
 
 function updateLayerButtons(){
-    const del    = document.getElementById("deleteLayerBtn");
-    const dup    = document.getElementById("duplicateLayerBtn");
-    const delWin = document.getElementById("deleteWindowsBtn");
+    const del       = document.getElementById("deleteLayerBtn");
+    const dup       = document.getElementById("duplicateLayerBtn");
+    const delWin    = document.getElementById("deleteWindowsBtn");
+    const lockBtn   = document.getElementById("lockWindowsBtn");
+    const unlockBtn = document.getElementById("unlockWindowsBtn");
     if(selectedDesigns.size > 0){
         del.style.display = "inline-block";
         dup.style.display = "inline-block";
@@ -3952,7 +3961,10 @@ function updateLayerButtons(){
         del.style.display = "none";
         dup.style.display = "none";
     }
-    delWin.style.display = activeIndices.length > 0 ? "inline-block" : "none";
+    const hasActive = activeIndices.length > 0;
+    delWin.style.display    = hasActive ? "inline-block" : "none";
+    lockBtn.style.display   = hasActive ? "inline-block" : "none";
+    unlockBtn.style.display = hasActive ? "inline-block" : "none";
 }
 
 
@@ -3999,6 +4011,55 @@ document.getElementById("deleteWindowsBtn").addEventListener("click", ()=>{
     if(!activeIndices.length) return;
 
     deleteSelectedWindows();
+});
+
+function lockSelectedWindows(){
+    activeIndices.forEach(i=>{
+        const data = canvasData[i];
+        if(!data || data.locked) return;
+        data.locked = true;
+        // Lock all Fabric objects so nothing can be dragged/transformed
+        getAllDesignObjects(data).forEach(o=>{
+            if(!o) return;
+            o._lockSelectable = o.selectable;
+            o._lockEvented    = o.evented;
+            o.selectable      = false;
+            o.evented         = false;
+        });
+        data.fabricCanvas.discardActiveObject();
+        data.fabricCanvas.requestRenderAll();
+        if(data.wrapperEl) data.wrapperEl.classList.add('window-locked');
+    });
+    selectedDesigns.clear();
+    updateLayerButtons();
+}
+
+function unlockSelectedWindows(){
+    activeIndices.forEach(i=>{
+        const data = canvasData[i];
+        if(!data || !data.locked) return;
+        data.locked = false;
+        getAllDesignObjects(data).forEach(o=>{
+            if(!o) return;
+            o.selectable = (o._lockSelectable !== undefined) ? o._lockSelectable : true;
+            o.evented    = (o._lockEvented    !== undefined) ? o._lockEvented    : true;
+            delete o._lockSelectable;
+            delete o._lockEvented;
+        });
+        data.fabricCanvas.requestRenderAll();
+        if(data.wrapperEl) data.wrapperEl.classList.remove('window-locked');
+    });
+    updateLayerButtons();
+}
+
+document.getElementById("lockWindowsBtn").addEventListener("click", ()=>{
+    if(!activeIndices.length) return;
+    lockSelectedWindows();
+});
+
+document.getElementById("unlockWindowsBtn").addEventListener("click", ()=>{
+    if(!activeIndices.length) return;
+    unlockSelectedWindows();
 });
 
 document.getElementById("selectAllBtn").addEventListener("click", ()=>{
