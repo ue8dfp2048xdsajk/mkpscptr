@@ -1195,10 +1195,10 @@ function enterDesignWarpMode() {
     warpDragRC     = null;
     designWarpMode = true;
 
-    // Hide ALL target objects across ALL groups for the live preview.
-    warpAllGroups.forEach(({ targets: grpObjs }) =>
-        grpObjs.forEach(o => { o._warpWasVisible = o.visible; o.visible = false; })
-    );
+    // Hide PRIMARY group targets only. The after:render live preview replaces
+    // them on the primary canvas. Secondary canvas designs stay visible as-is
+    // while the user adjusts the grid — they get the warped result on Apply.
+    warpTargetObjs.forEach(o => { o._warpWasVisible = o.visible; o.visible = false; });
 
     // Disable Fabric selection on all canvases (same pattern as eraser).
     canvasData.forEach(d => {
