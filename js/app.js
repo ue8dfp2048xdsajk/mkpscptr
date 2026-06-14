@@ -2897,6 +2897,8 @@ function updateDropUI(){
 
     const dropZone     = document.getElementById('dropZone');
     const designPrompt = document.getElementById('designPrompt');
+    const bgCount      = document.getElementById('bgCount');
+    const designCount  = document.getElementById('designCount');
 
     if(backgrounds.length === 0){
         dropZone.style.display     = 'flex';
@@ -2908,7 +2910,22 @@ function updateDropUI(){
         dropZone.style.display     = 'none';
         designPrompt.style.display = 'none';
     }
+
+    bgCount.textContent     = backgrounds.length > 0
+        ? `${backgrounds.length} background${backgrounds.length !== 1 ? 's' : ''}`
+        : '';
+    designCount.textContent = designs.length > 0
+        ? `${designs.length} design${designs.length !== 1 ? 's' : ''}`
+        : '';
 }
+
+document.getElementById('bgUploadBtn').addEventListener('click', () => {
+    document.getElementById('bgUpload').click();
+});
+
+document.getElementById('designUploadBtn').addEventListener('click', () => {
+    document.getElementById('designUpload').click();
+});
 
 // Drop zone — background drag-and-drop
 (function(){
@@ -6130,6 +6147,7 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
 
     updateSelectButtonState();
     syncSliders();
+    updateDropUI();
 });
 
 
