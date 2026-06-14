@@ -1217,10 +1217,11 @@ function enterDesignWarpMode() {
     warpDragRC     = null;
     designWarpMode = true;
 
-    // Hide PRIMARY group targets only. The after:render live preview replaces
-    // them on the primary canvas. Secondary canvas designs stay visible as-is
-    // while the user adjusts the grid — they get the warped result on Apply.
-    warpTargetObjs.forEach(o => { o._warpWasVisible = o.visible; o.visible = false; });
+    // Hide ALL group targets. Each canvas now has a live warp preview drawn in
+    // after:render that replaces the hidden originals, so none will go blank.
+    warpAllGroups.forEach(({ targets: grpObjs }) =>
+        grpObjs.forEach(o => { o._warpWasVisible = o.visible; o.visible = false; })
+    );
 
     // Disable Fabric selection on all canvases (same pattern as eraser).
     canvasData.forEach(d => {
@@ -1272,7 +1273,7 @@ function exitDesignWarpMode(apply) {
             const savedBnds = warpSourceBounds,  savedDpr  = warpDPR;
             warpSourceCanvas = grp.sourceCanvas;
             warpPoints       = scaledPts;
-            warpSourceBounds = grpBounds;
+            warpSourceBounds = grp.sourceBounds;
             warpDPR          = grp.dpr;
             const grpResult  = _renderBicubicWarp();
             warpSourceCanvas = savedSrc;
