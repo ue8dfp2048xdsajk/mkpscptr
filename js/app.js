@@ -683,6 +683,14 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
 function refreshFabricHandles(){
     canvasData.forEach(d => {
         if(!d.fabricCanvas) return;
+        // Locked windows never show transform handles
+        if(d.locked){
+            if(d.fabricCanvas.getActiveObject()){
+                d.fabricCanvas.discardActiveObject();
+                d.fabricCanvas.requestRenderAll();
+            }
+            return;
+        }
         const ownSelected = [...selectedDesigns].filter(obj =>
             obj === d.designObject ||
             (d.extraDesignObjects||[]).includes(obj)
@@ -3421,10 +3429,10 @@ function createCanvasPreviews(){
                         ])];
                     }
 
-                    // Add original designs of newly-included windows
+                    // Add original designs of newly-included windows (skip locked)
                     activeIndices.forEach(i => {
                         const d = canvasData[i];
-                        if(d?.designObject && !selectedDesigns.has(d.designObject)){
+                        if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
@@ -3458,7 +3466,7 @@ function createCanvasPreviews(){
                         activeIndices.push(index);
 
                         const d = canvasData[index];
-                        if(d?.designObject){
+                        if(d?.designObject && !d.locked){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
@@ -3476,15 +3484,15 @@ function createCanvasPreviews(){
                         activeIndices = [index];
                         selectedDesigns.clear();
                         const d = canvasData[index];
-                        if(d?.designObject){
+                        if(d?.designObject && !d.locked){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
                     } else {
                         // Window already in selection — keep everything, just ensure
-                        // its design is represented in selectedDesigns
+                        // its design is represented in selectedDesigns (skip locked)
                         const d = canvasData[index];
-                        if(d?.designObject && !selectedDesigns.has(d.designObject)){
+                        if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
@@ -6270,10 +6278,10 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                         ])];
                     }
 
-                    // Add original designs of newly-included windows
+                    // Add original designs of newly-included windows (skip locked)
                     activeIndices.forEach(i => {
                         const d = canvasData[i];
-                        if(d?.designObject && !selectedDesigns.has(d.designObject)){
+                        if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
@@ -6307,7 +6315,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                         activeIndices.push(index);
 
                         const d = canvasData[index];
-                        if(d?.designObject){
+                        if(d?.designObject && !d.locked){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
@@ -6325,15 +6333,15 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                         activeIndices = [index];
                         selectedDesigns.clear();
                         const d = canvasData[index];
-                        if(d?.designObject){
+                        if(d?.designObject && !d.locked){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
                     } else {
                         // Window already in selection — keep everything, just ensure
-                        // its design is represented in selectedDesigns
+                        // its design is represented in selectedDesigns (skip locked)
                         const d = canvasData[index];
-                        if(d?.designObject && !selectedDesigns.has(d.designObject)){
+                        if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
