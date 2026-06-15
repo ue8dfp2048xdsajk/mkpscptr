@@ -4111,7 +4111,7 @@ document.getElementById("selectAllBtn").addEventListener("click", ()=>{
         activeIndices = canvasData.map((_,i)=>i);
         selectedDesigns.clear();
         canvasData.forEach(d => {
-            if(d?.designObject){
+            if(d?.designObject && !d.locked){
                 if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                 selectedDesigns.add(d.designObject);
             }
@@ -4829,8 +4829,9 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
 
         selectedDesigns.clear();
 
-        // Init color layer on every selected window
+        // Init color layer on every selected unlocked window
         activeIndices.forEach(i=>{
+            if(canvasData[i]?.locked) return;
             initColorLayer(canvasData[i]);
             const el = canvasData[i].fabricCanvas.lowerCanvasEl;
             const wr = el && el.closest('.canvas-wrapper');
@@ -5641,6 +5642,7 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
     activeIndices.forEach(index=>{
 
         const data = canvasData[index];
+        if(data.locked) return;
 
         // remove all duplicated designs
         if(data.extraDesignObjects){
@@ -5830,7 +5832,9 @@ function buildSnapshot(){
                 ? data.colorLayerCanvas.toDataURL()
                 : null,
             colorLayerOpacity:   data.colorLayerFabricObj?.opacity   ?? 1,
-            colorLayerBlendMode: data.colorLayerFabricObj?.globalCompositeOperation ?? 'source-over'
+            colorLayerBlendMode: data.colorLayerFabricObj?.globalCompositeOperation ?? 'source-over',
+
+            locked: !!data.locked
         };
     });
 }
@@ -6256,6 +6260,20 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         }
 
         fabricCanvas.requestRenderAll();
+
+        // Restore locked state — re-apply Fabric locks and CSS class
+        if(saved.locked){
+            data.locked = true;
+            getAllDesignObjects(data).forEach(o=>{
+                if(!o) return;
+                o._lockSelectable = o.selectable;
+                o._lockEvented    = o.evented;
+                o.selectable      = false;
+                o.evented         = false;
+            });
+            fabricCanvas.discardActiveObject();
+            wrapper.classList.add('window-locked');
+        }
 
         wrapper.addEventListener('click', function(e){
 
