@@ -113,6 +113,30 @@ document.addEventListener('click', function(e){
 
 }, true);
 
+// Clicking empty space in the canvas container deselects everything
+document.getElementById('canvasContainer').addEventListener('click', function(e){
+
+    // Let Fabric drag interactions suppress this
+    if(suppressNextWrapperClick) return;
+
+    // Don't interfere with clip or color layer modes
+    if(clipEditMode || colorLayerMode) return;
+
+    // Only act when the click landed outside every canvas-wrapper
+    if(e.target.closest('.canvas-wrapper')) return;
+
+    if(!activeIndices.length && !selectedDesigns.size) return; // nothing to clear
+
+    activeIndices = [];
+    selectedDesigns.clear();
+    lastSelectedIndex = null;
+
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
+});
 
 document.addEventListener('mouseup', ()=>{
     setTimeout(()=>{
