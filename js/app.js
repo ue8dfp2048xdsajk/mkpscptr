@@ -113,6 +113,54 @@ document.addEventListener('click', function(e){
 
 }, true);
 
+// ── Filter-by-filename selection ──────────────────────────────────────────────
+(function(){
+    const input = document.getElementById('filterByNameInput');
+    let timer = null;
+
+    input.addEventListener('input', function(){
+        clearTimeout(timer);
+        timer = setTimeout(applyNameFilter, 200);
+    });
+
+    // Clear filter & selection on Escape
+    input.addEventListener('keydown', function(e){
+        if(e.key === 'Escape'){
+            input.value = '';
+            _deselectAll();
+        }
+    });
+
+    function applyNameFilter(){
+        const keyword = input.value.trim().toLowerCase();
+
+        // Empty input → clear selection
+        if(!keyword){ _deselectAll(); return; }
+
+        activeIndices = [];
+        selectedDesigns.clear();
+        lastSelectedIndex = null;
+
+        canvasData.forEach((d, i) => {
+            if(!d) return;
+            const name = (d.bgName || '').toLowerCase();
+            if(name.includes(keyword)){
+                activeIndices.push(i);
+                if(d.designObject){
+                    if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                    if(!d.locked) selectedDesigns.add(d.designObject);
+                }
+            }
+        });
+
+        refreshFabricHandles();
+        updateWindowBorders();
+        updateLayerButtons();
+        syncSliders();
+        updateSelectButtonState();
+    }
+})();
+
 // Shared deselect logic — called by both click handlers below
 function _deselectAll(){
     if(!activeIndices.length && !selectedDesigns.size) return;
