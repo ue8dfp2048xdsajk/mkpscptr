@@ -113,29 +113,37 @@ document.addEventListener('click', function(e){
 
 }, true);
 
-// Clicking empty space in the canvas container deselects everything
-document.getElementById('canvasContainer').addEventListener('click', function(e){
-
-    // Let Fabric drag interactions suppress this
-    if(suppressNextWrapperClick) return;
-
-    // Don't interfere with clip or color layer modes
-    if(clipEditMode || colorLayerMode) return;
-
-    // Only act when the click landed outside every canvas-wrapper
-    if(e.target.closest('.canvas-wrapper')) return;
-
-    if(!activeIndices.length && !selectedDesigns.size) return; // nothing to clear
-
+// Shared deselect logic — called by both click handlers below
+function _deselectAll(){
+    if(!activeIndices.length && !selectedDesigns.size) return;
     activeIndices = [];
     selectedDesigns.clear();
     lastSelectedIndex = null;
-
     refreshFabricHandles();
     updateWindowBorders();
     updateLayerButtons();
     syncSliders();
     updateSelectButtonState();
+}
+
+// Clicking empty space in the canvas container deselects everything
+document.getElementById('canvasContainer').addEventListener('click', function(e){
+    if(suppressNextWrapperClick) return;
+    if(clipEditMode || colorLayerMode) return;
+    // Only act when the click landed outside every canvas-wrapper
+    if(e.target.closest('.canvas-wrapper')) return;
+    _deselectAll();
+});
+
+// Clicking the white surrounding area (outside #canvasContainer) also deselects
+document.addEventListener('click', function(e){
+    if(suppressNextWrapperClick) return;
+    if(clipEditMode || colorLayerMode) return;
+    // Ignore clicks that are inside the canvas container (handled above)
+    if(e.target.closest('#canvasContainer')) return;
+    // Ignore clicks on the sticky toolbar (buttons, sliders, inputs, etc.)
+    if(e.target.closest('.sticky-header')) return;
+    _deselectAll();
 });
 
 document.addEventListener('mouseup', ()=>{
