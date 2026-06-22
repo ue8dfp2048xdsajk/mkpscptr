@@ -4209,10 +4209,24 @@ function invertSelectedDesigns(){
         // the result for designs that have already been warped or processed.
         const el = ensureErasableCanvas(obj);
         invertCanvasInPlace(el);
+
+        // Step 2 — if a non-normal blend mode is active, reset it to Normal.
+        // Multiply/Screen distort what "inverted" means visually (e.g. white bg
+        // stays invisible but black design goes transparent with Multiply).
+        // Switching to Normal after inverting gives the correct visual result.
+        if(!obj._fx) obj._fx = _defaultFx(d);
+        if(obj._fx.blendMode && obj._fx.blendMode !== 'normal'){
+            obj._fx.blendMode = 'normal';
+            obj.set({ globalCompositeOperation: 'source-over' });
+            // Keep the window-level copy in sync so buildSnapshot and syncSliders agree
+            const isMainForMode = obj === d.designObject;
+            if(isMainForMode) d.blendMode = 'normal';
+        }
+
         obj.dirty = true;
         d.fabricCanvas.requestRenderAll();
 
-        // Step 2 — also invert designOriginal (the pipeline source) so that any
+        // Step 3 — also invert designOriginal (the pipeline source) so that any
         // future slider change (blur, warp, etc.) re-renders from the inverted source.
         const isMain   = obj === d.designObject;
         const extraIdx = isMain ? -1 : (d.extraDesignObjects || []).indexOf(obj);
@@ -4230,6 +4244,9 @@ function invertSelectedDesigns(){
             }
         }
     });
+
+    // Refresh the blend mode dropdown to reflect any mode resets above
+    syncSliders();
 }
 
 document.getElementById("invertColorsBtn").addEventListener("click", ()=>{
