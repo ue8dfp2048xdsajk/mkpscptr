@@ -623,10 +623,12 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false){
         }
     }
 
-    // Skip the expensive getImageData pixel-scan during live drag; the padding
-    // is sized to just contain the distortion so there's nothing meaningful to
-    // trim anyway. The HQ pass (after the debounce) still trims normally.
-    if(lowQuality) return out;
+    // Always trim transparent borders so the bounding box / handles reflect the
+    // actual distorted content size in both LQ (live drag) and HQ (debounce)
+    // passes. Without this, handles oscillate between the oversized padded canvas
+    // and the trimmed canvas every 220 ms, which looks like the design jumping.
+    // trimTransparentBorders is a fast pixel scan (< 1 ms for typical canvas sizes)
+    // so it is safe to run on every drag frame.
     return trimTransparentBorders(out);
 }
 
