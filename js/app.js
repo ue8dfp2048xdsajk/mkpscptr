@@ -3255,6 +3255,7 @@ function createCanvasData(bgObj, designObj){
         bg: bgObj.img,
         bgName: bgObj.name,
         designOriginal: designObj ? designObj.img : null,
+        initialDesignOriginal: designObj ? designObj.img : null,
         designName: designObj ? designObj.name : null,
 
         x: 50,
@@ -5847,6 +5848,12 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
                 opacity: data.initialOpacity,
                 globalCompositeOperation: 'source-over'
             });
+        }
+
+        // Restore designOriginal to the initially-uploaded source so that any
+        // pixel-level operations (invert, eraser baking) are fully undone.
+        if(data.initialDesignOriginal){
+            data.designOriginal = data.initialDesignOriginal;
         }
 
         applyWarpToData(data);
