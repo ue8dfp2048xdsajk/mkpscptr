@@ -720,7 +720,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
         // tiltK > 0 (camera from above): bottom curves more, top curves less.
         // tiltK < 0 (camera from below): top curves more, bottom curves less.
         // Scales with img.height so the effect is consistent across design sizes.
-        const tiltK = (arcTiltAmount / 100) * img.height * 0.18 * (1 - nx * nx);
+        const tiltK = (-arcTiltAmount / 100) * img.height * 0.18 * (1 - nx * nx);
 
         // When cylinderAmount=0, projectedX=0 so all slices collapse to centerX.
         // Otherwise normalize: divide by sinMax so edges always land at ±img.width/2
