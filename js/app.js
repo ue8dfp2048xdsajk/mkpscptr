@@ -510,12 +510,22 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false){
     const top  = data.perspectiveTop  || 0;
     const left = data.perspectiveLeft || 0;
 
-    if(top === 0 && left === 0){
-        return sourceCanvas;
-    }
+    // Trim transparent borders from the source (e.g. warp/arc padding) BEFORE
+    // computing perspective. Two problems arise if we skip this:
+    //   1. Jump at 0: the early-return path returns a padded warpedBase canvas
+    //      while the non-zero path returns a trimmed canvas → size differs → jump.
+    //   2. Squashing: srcW/srcH include warp padding, so perspective maths are
+    //      computed over a larger area than the actual content — the effect is
+    //      over-amplified proportionally to the warp padding.
+    // Trimming here is fast (< 1 ms for typical sizes) and idempotent for sources
+    // that already have no transparent border (e.g. a plain uploaded image).
+    const src  = trimTransparentBorders(sourceCanvas);
+    const srcW = src.width;
+    const srcH = src.height;
 
-    const srcW = sourceCanvas.width;
-    const srcH = sourceCanvas.height;
+    if(top === 0 && left === 0){
+        return src;
+    }
 
     const out = document.createElement('canvas');
     const ctx = out.getContext('2d');
@@ -568,7 +578,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false){
         const dy = pad + srcY;
 
         ctx.drawImage(
-            sourceCanvas,
+            src,
             0,              Math.round(srcY),
             srcW,           Math.ceil(sliceH),
             Math.round(dx), Math.round(dy),
