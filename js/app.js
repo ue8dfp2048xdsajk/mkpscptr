@@ -3269,6 +3269,7 @@ function createCanvasData(bgObj, designObj){
         designOriginal: designObj ? designObj.img : null,
         initialDesignOriginal: designObj ? designObj.img : null,
         designName: designObj ? designObj.name : null,
+        notes: '',
 
         x: 50,
         y: 50,
@@ -4084,6 +4085,74 @@ function updateSelectButtonState(){
     }
 }
 
+function refreshNotesPanel(){
+    const body  = document.getElementById('notesDrawerBody');
+    const title = document.getElementById('notesDrawerTitle');
+    if(!body || !title) return;
+
+    const count = activeIndices.length;
+
+    if(count === 1){
+        _notesShowSingle(activeIndices[0]);
+    } else if(count > 1){
+        title.textContent = `${count} selected`;
+        _notesSummaryRows(body, activeIndices);
+    } else {
+        title.textContent = 'All Mockups';
+        _notesSummaryRows(body, canvasData.map((_,i)=>i));
+    }
+}
+
+function _notesShowSingle(index){
+    const data  = canvasData[index];
+    if(!data) return;
+    const body  = document.getElementById('notesDrawerBody');
+    const title = document.getElementById('notesDrawerTitle');
+    if(!body || !title) return;
+    title.textContent = 'Notes';
+    body.innerHTML = `
+        <div class="notes-single-header">${_notesEsc(data.bgName || `Mockup ${index+1}`)}</div>
+        <textarea class="notes-textarea" placeholder="Add notes, keywords, SEO ideas…">${_notesEsc(data.notes || '')}</textarea>
+    `;
+    const ta = body.querySelector('.notes-textarea');
+    ta.addEventListener('input', ()=>{ canvasData[index].notes = ta.value; });
+}
+
+function _notesSummaryRows(body, indices){
+    if(!indices.length){
+        body.innerHTML = '<div class="notes-empty">No mockups yet.</div>';
+        return;
+    }
+    body.innerHTML = indices.map(i=>{
+        const d = canvasData[i];
+        if(!d) return '';
+        const name    = d.bgName || `Mockup ${i+1}`;
+        const preview = (d.notes||'').split('\n')[0].trim() || 'No notes yet';
+        return `<div class="notes-summary-row" data-index="${i}">
+            <div class="notes-summary-name">${_notesEsc(name)}</div>
+            <div class="notes-summary-preview">${_notesEsc(preview)}</div>
+        </div>`;
+    }).join('');
+    body.querySelectorAll('.notes-summary-row').forEach(row=>{
+        row.addEventListener('click', ()=>{
+            const idx = parseInt(row.dataset.index, 10);
+            const d   = canvasData[idx];
+            if(d && d.wrapperEl){
+                d.wrapperEl.scrollIntoView({ behavior:'smooth', block:'center' });
+            }
+            _notesShowSingle(idx);
+        });
+    });
+}
+
+function _notesEsc(str){
+    return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+}
+
 function updateLayerButtons(){
     const del        = document.getElementById("deleteLayerBtn");
     const dup        = document.getElementById("duplicateLayerBtn");
@@ -4104,6 +4173,8 @@ function updateLayerButtons(){
     delWin.style.display    = hasActive ? "inline-block" : "none";
     lockBtn.style.display   = hasActive ? "inline-block" : "none";
     unlockBtn.style.display = hasActive ? "inline-block" : "none";
+
+    refreshNotesPanel();
 }
 
 
@@ -6012,6 +6083,8 @@ function buildSnapshot(){
             colorLayerOpacity:   data.colorLayerFabricObj?.opacity   ?? 1,
             colorLayerBlendMode: data.colorLayerFabricObj?.globalCompositeOperation ?? 'source-over',
 
+            notes: data.notes || '',
+
             locked: !!data.locked
         };
     });
@@ -6183,6 +6256,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                 ),
 
             filename: saved.filename,
+            notes: saved.notes || '',
 
             extraDesignObjects: [],
 
@@ -6675,6 +6749,48 @@ window.addEventListener('resize', ()=>{
 
     }, 150);
 });
+
+
+// ── Notes drawer wiring ──────────────────────────────────────────────────
+(()=>{
+    const tab    = document.getElementById('notesTab');
+    const drawer = document.getElementById('notesDrawer');
+    const closeBtn  = document.getElementById('notesCloseBtn');
+    const exportBtn = document.getElementById('exportNotesBtn');
+
+    function openDrawer(){
+        drawer.classList.add('open');
+        refreshNotesPanel();
+    }
+    function closeDrawer(){
+        drawer.classList.remove('open');
+    }
+
+    tab.addEventListener('click', ()=>{
+        drawer.classList.contains('open') ? closeDrawer() : openDrawer();
+    });
+    closeBtn.addEventListener('click', closeDrawer);
+
+    exportBtn.addEventListener('click', ()=>{
+        if(!canvasData.length){
+            alert('No mockups to export.');
+            return;
+        }
+        const lines = canvasData.map((d, i)=>{
+            const name  = d.bgName || `Mockup ${i+1}`;
+            const notes = (d.notes || '').trim() || '(no notes)';
+            return `${name}\n${'─'.repeat(name.length)}\n${notes}`;
+        });
+        const text = lines.join('\n\n') + '\n';
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'mockup-notes.txt';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+})();
 
 
 window.addEventListener('DOMContentLoaded', async ()=>{

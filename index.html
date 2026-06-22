@@ -151,6 +151,20 @@ Preparing designs...
 </div>
 
 <div class="canvas-container" id="canvasContainer"></div>
+
+<button id="notesTab" title="Mockup Notes">&#9998;<span>Notes</span></button>
+
+<div id="notesDrawer">
+    <div id="notesDrawerHeader">
+        <span id="notesDrawerTitle">Notes</span>
+        <div style="display:flex;gap:6px;align-items:center;">
+            <button id="exportNotesBtn" title="Export all notes as .txt">Export .txt</button>
+            <button id="notesCloseBtn" title="Close notes">&#10005;</button>
+        </div>
+    </div>
+    <div id="notesDrawerBody"></div>
+</div>
+
 <div id="brushCursorRing"></div>
 <div id="designEraserCursor" style="display:none;">
     <div id="designEraserInner"></div>
