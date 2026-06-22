@@ -824,6 +824,20 @@ function getAllDesignObjects(data){
 
 // Ensure a fabric.Image's underlying element is a writable canvas so we can
 // draw destination-out circles directly onto the pixel data.
+// Invert RGB pixels of a canvas in-place, preserving alpha.
+function invertCanvasInPlace(canvas) {
+    const ctx  = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const px   = imageData.data;
+    for (let i = 0; i < px.length; i += 4) {
+        px[i]     = 255 - px[i];
+        px[i + 1] = 255 - px[i + 1];
+        px[i + 2] = 255 - px[i + 2];
+        // px[i + 3] = alpha — left unchanged
+    }
+    ctx.putImageData(imageData, 0, 0);
+}
+
 // Draw src (HTMLImageElement or canvas) to a new canvas with RGB inverted,
 // alpha channel preserved.
 function invertImageSource(src) {
@@ -832,17 +846,8 @@ function invertImageSource(src) {
     const c = document.createElement('canvas');
     c.width  = w;
     c.height = h;
-    const ctx = c.getContext('2d');
-    ctx.drawImage(src, 0, 0, w, h);
-    const imageData = ctx.getImageData(0, 0, w, h);
-    const px = imageData.data;
-    for (let i = 0; i < px.length; i += 4) {
-        px[i]     = 255 - px[i];     // R
-        px[i + 1] = 255 - px[i + 1]; // G
-        px[i + 2] = 255 - px[i + 2]; // B
-        // px[i + 3] = alpha — left unchanged
-    }
-    ctx.putImageData(imageData, 0, 0);
+    c.getContext('2d').drawImage(src, 0, 0, w, h);
+    invertCanvasInPlace(c);
     return c;
 }
 
@@ -4197,25 +4202,33 @@ function invertSelectedDesigns(){
         );
         if(!d || d.locked) return;
 
+        // Step 1 — invert the currently-rendered element directly (what the user sees).
+        // This is the same pattern the eraser uses: ensureErasableCanvas converts the
+        // Fabric object's element to a writable canvas, then we pixel-flip it in-place.
+        // This avoids re-running the warp/blur/perspective pipeline which would corrupt
+        // the result for designs that have already been warped or processed.
+        const el = ensureErasableCanvas(obj);
+        invertCanvasInPlace(el);
+        obj.dirty = true;
+        d.fabricCanvas.requestRenderAll();
+
+        // Step 2 — also invert designOriginal (the pipeline source) so that any
+        // future slider change (blur, warp, etc.) re-renders from the inverted source.
         const isMain   = obj === d.designObject;
         const extraIdx = isMain ? -1 : (d.extraDesignObjects || []).indexOf(obj);
         const src      = isMain
             ? d.designOriginal
             : (d.extraDesignOriginals?.[extraIdx] || null);
 
-        if(!src) return;
-
-        const inverted = invertImageSource(src);
-
-        if(isMain){
-            d.designOriginal = inverted;
-        } else if(extraIdx >= 0){
-            if(!d.extraDesignOriginals) d.extraDesignOriginals = [];
-            d.extraDesignOriginals[extraIdx] = inverted;
+        if(src){
+            const inverted = invertImageSource(src);
+            if(isMain){
+                d.designOriginal = inverted;
+            } else if(extraIdx >= 0){
+                if(!d.extraDesignOriginals) d.extraDesignOriginals = [];
+                d.extraDesignOriginals[extraIdx] = inverted;
+            }
         }
-
-        _applyWarpToOneObject(obj, d, inverted, false);
-        d.fabricCanvas.requestRenderAll();
     });
 }
 
