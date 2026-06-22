@@ -767,6 +767,28 @@ function getAllDesignObjects(data){
 
 // Ensure a fabric.Image's underlying element is a writable canvas so we can
 // draw destination-out circles directly onto the pixel data.
+// Draw src (HTMLImageElement or canvas) to a new canvas with RGB inverted,
+// alpha channel preserved.
+function invertImageSource(src) {
+    const w = src.naturalWidth  || src.width;
+    const h = src.naturalHeight || src.height;
+    const c = document.createElement('canvas');
+    c.width  = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(src, 0, 0, w, h);
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const px = imageData.data;
+    for (let i = 0; i < px.length; i += 4) {
+        px[i]     = 255 - px[i];     // R
+        px[i + 1] = 255 - px[i + 1]; // G
+        px[i + 2] = 255 - px[i + 2]; // B
+        // px[i + 3] = alpha — left unchanged
+    }
+    ctx.putImageData(imageData, 0, 0);
+    return c;
+}
+
 function ensureErasableCanvas(obj) {
     const el = obj.getElement();
     if (el && el.tagName === 'CANVAS') return el;
@@ -3981,17 +4003,20 @@ function updateSelectButtonState(){
 }
 
 function updateLayerButtons(){
-    const del       = document.getElementById("deleteLayerBtn");
-    const dup       = document.getElementById("duplicateLayerBtn");
-    const delWin    = document.getElementById("deleteWindowsBtn");
-    const lockBtn   = document.getElementById("lockWindowsBtn");
-    const unlockBtn = document.getElementById("unlockWindowsBtn");
+    const del        = document.getElementById("deleteLayerBtn");
+    const dup        = document.getElementById("duplicateLayerBtn");
+    const invertBtn  = document.getElementById("invertColorsBtn");
+    const delWin     = document.getElementById("deleteWindowsBtn");
+    const lockBtn    = document.getElementById("lockWindowsBtn");
+    const unlockBtn  = document.getElementById("unlockWindowsBtn");
     if(selectedDesigns.size > 0){
-        del.style.display = "inline-block";
-        dup.style.display = "inline-block";
+        del.style.display       = "inline-block";
+        dup.style.display       = "inline-block";
+        invertBtn.style.display = "inline-block";
     } else {
-        del.style.display = "none";
-        dup.style.display = "none";
+        del.style.display       = "none";
+        dup.style.display       = "none";
+        invertBtn.style.display = "none";
     }
     const hasActive = activeIndices.length > 0;
     delWin.style.display    = hasActive ? "inline-block" : "none";
@@ -4092,6 +4117,46 @@ document.getElementById("lockWindowsBtn").addEventListener("click", ()=>{
 document.getElementById("unlockWindowsBtn").addEventListener("click", ()=>{
     if(!activeIndices.length) return;
     unlockSelectedWindows();
+});
+
+// ── Invert Colors ─────────────────────────────────────────────────────────────
+function invertSelectedDesigns(){
+    if(!selectedDesigns.size) return;
+
+    pushGlobalUndo();
+
+    selectedDesigns.forEach(obj => {
+        // Find the owning canvasData entry
+        const d = canvasData.find(cd =>
+            cd && (cd.designObject === obj ||
+                   (cd.extraDesignObjects && cd.extraDesignObjects.includes(obj)))
+        );
+        if(!d || d.locked) return;
+
+        const isMain   = obj === d.designObject;
+        const extraIdx = isMain ? -1 : (d.extraDesignObjects || []).indexOf(obj);
+        const src      = isMain
+            ? d.designOriginal
+            : (d.extraDesignOriginals?.[extraIdx] || null);
+
+        if(!src) return;
+
+        const inverted = invertImageSource(src);
+
+        if(isMain){
+            d.designOriginal = inverted;
+        } else if(extraIdx >= 0){
+            if(!d.extraDesignOriginals) d.extraDesignOriginals = [];
+            d.extraDesignOriginals[extraIdx] = inverted;
+        }
+
+        _applyWarpToOneObject(obj, d, inverted, false);
+        d.fabricCanvas.requestRenderAll();
+    });
+}
+
+document.getElementById("invertColorsBtn").addEventListener("click", ()=>{
+    invertSelectedDesigns();
 });
 
 document.getElementById("selectAllBtn").addEventListener("click", ()=>{
