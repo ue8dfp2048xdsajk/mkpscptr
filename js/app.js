@@ -16,6 +16,7 @@ let designEraserMode     = false;  // true while design-layer eraser is active
 let designEraserDown     = false;  // true while mouse button held in eraser mode
 let designEraserSize     = 30;     // eraser radius in CSS pixels (visual size on screen)
 let designEraserSoftness = 60;     // 0 = hard edge, 100 = fully soft
+let eraserTargetObjects  = new Set(); // design objects selected at eraser-entry time
 
 let designWarpMode   = false;      // true while free-form mesh warp is active
 let warpActiveData   = null;       // canvasData entry that owns the warp session
@@ -906,11 +907,16 @@ function eraseFromObject(obj, data, pointer) {
     ctx.restore();
 }
 
-// Apply the eraser at a canvas-space point to all design objects in one window.
+// Apply the eraser at a canvas-space point to design objects in one window.
+// Only touches objects that were selected when eraser mode was entered;
+// falls back to all objects if nothing was selected at that time.
 function applyDesignEraserAt(data, pointer) {
-    const targets = [];
+    let targets = [];
     if (data.designObject)       targets.push(data.designObject);
     if (data.extraDesignObjects) targets.push(...data.extraDesignObjects);
+    if (eraserTargetObjects.size > 0) {
+        targets = targets.filter(obj => eraserTargetObjects.has(obj));
+    }
     targets.forEach(obj => eraseFromObject(obj, data, pointer));
     if (targets.length) data.fabricCanvas.requestRenderAll();
 }
@@ -939,6 +945,8 @@ document.addEventListener('mousemove', updateEraserCursor);
 
 function enterDesignEraserMode() {
     designEraserMode = true;
+    // Snapshot which designs are selected so the eraser only touches those layers
+    eraserTargetObjects = new Set(selectedDesigns);
     document.getElementById('designEraserBtn').textContent = 'Exit Eraser Mode';
     document.getElementById('designEraserControls').style.display = 'inline-flex';
     // Disable object selection on every canvas so mouse events reach the eraser handler
