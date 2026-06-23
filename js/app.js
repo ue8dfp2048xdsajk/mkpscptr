@@ -2107,6 +2107,13 @@ async function performGlobalUndo(){
         return;
     }
 
+    if(entry.type === 'textboxes'){
+        globalRedoStack.push({ type: 'textboxes', state: captureTextBoxState() });
+        if(window._applyTextBoxState) window._applyTextBoxState(entry.state);
+        updateUndoRedoButtons();
+        return;
+    }
+
     globalRedoStack.push({
         affected: entry.affected,
         states: entry.affected
@@ -2152,6 +2159,13 @@ async function performGlobalRedo(){
         globalUndoStack.push({ type: 'pan', prevX: _vpX, prevY: _vpY });
         _vpX = entry.prevX; _vpY = entry.prevY;
         _applyVP();
+        updateUndoRedoButtons();
+        return;
+    }
+
+    if(entry.type === 'textboxes'){
+        globalUndoStack.push({ type: 'textboxes', state: captureTextBoxState() });
+        if(window._applyTextBoxState) window._applyTextBoxState(entry.state);
         updateUndoRedoButtons();
         return;
     }
@@ -7203,6 +7217,21 @@ function deleteTextBox(box) {
     autoSaveSession();
 }
 
+// ── Text-box undo helpers (used by createTextBox IIFE and undo engine) ────────
+function captureTextBoxState() {
+    return _textBoxes.map(b => ({
+        x: b.x, y: b.y, w: b.w, h: b.h,
+        content: b.textEl ? b.textEl.innerHTML : b.content
+    }));
+}
+
+function pushTextBoxUndo() {
+    globalUndoStack.push({ type: 'textboxes', state: captureTextBoxState() });
+    if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+    globalRedoStack = [];
+    updateUndoRedoButtons();
+}
+
 // Global viewport apply — mirrors the IIFE-local applyVP; used by undo/redo.
 function _applyVP() {
     const t  = `translate(${_vpX}px,${_vpY}px) scale(${_vpScale})`;
@@ -7670,6 +7699,10 @@ function _applyVP() {
         textEl.addEventListener('focus', () => {
             el.classList.add('tb-focused');
             _activeTbText = textEl;
+            // Push undo snapshot before editing begins (once per focus session).
+            // Skip if this is a brand-new box (creation already pushed an entry).
+            if (!box._skipFocusUndo) pushTextBoxUndo();
+            box._skipFocusUndo = false;
         });
         textEl.addEventListener('blur', () => {
             el.classList.remove('tb-focused');
@@ -7692,7 +7725,7 @@ function _applyVP() {
 
         // ── Delete button ─────────────────────────────────────────────────────
         del.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
-        del.addEventListener('click',     e => { e.stopPropagation(); deleteTextBox(box); });
+        del.addEventListener('click',     e => { e.stopPropagation(); pushTextBoxUndo(); deleteTextBox(box); });
 
         // ── Drag: grab bar OR border drag (click target is the outer el) ──────
         function startDrag(e) {
@@ -7701,6 +7734,7 @@ function _applyVP() {
             el.style.cursor = 'grabbing';
             const startCX = e.clientX, startCY = e.clientY;
             const startBX = box.x,     startBY = box.y;
+            const preDragState = captureTextBoxState(); // snapshot BEFORE move
             let moved = false;
             function onMove(ev) {
                 const dx = (ev.clientX - startCX) / _vpScale;
@@ -7716,7 +7750,13 @@ function _applyVP() {
                 el.style.cursor = '';
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup',   onUp);
-                if (moved) autoSaveSession();
+                if (moved) {
+                    globalUndoStack.push({ type: 'textboxes', state: preDragState });
+                    if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+                    globalRedoStack = [];
+                    updateUndoRedoButtons();
+                    autoSaveSession();
+                }
             }
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup',   onUp);
@@ -7734,19 +7774,27 @@ function _applyVP() {
         resizeR.addEventListener('mousedown', e => {
             e.stopPropagation();
             e.preventDefault();
-            const startCX = e.clientX;
-            const startW  = el.getBoundingClientRect().width / _vpScale;
+            const startCX      = e.clientX;
+            const startW       = el.getBoundingClientRect().width / _vpScale;
+            const preResStateR = captureTextBoxState();
+            let resizedR = false;
             function onMove(ev) {
                 const newW = Math.max(80, startW + (ev.clientX - startCX) / _vpScale);
                 el.style.width = newW + 'px';
                 box.w = newW;
-                // Switch from auto-width to fixed-width (enable wrapping)
                 el.classList.remove('tb-auto-width');
+                resizedR = true;
             }
             function onUp() {
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup',   onUp);
-                autoSaveSession();
+                if (resizedR) {
+                    globalUndoStack.push({ type: 'textboxes', state: preResStateR });
+                    if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+                    globalRedoStack = [];
+                    updateUndoRedoButtons();
+                    autoSaveSession();
+                }
             }
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup',   onUp);
@@ -7756,17 +7804,26 @@ function _applyVP() {
         resizeB.addEventListener('mousedown', e => {
             e.stopPropagation();
             e.preventDefault();
-            const startCY  = e.clientY;
-            const startH   = el.getBoundingClientRect().height / _vpScale;
+            const startCY      = e.clientY;
+            const startH       = el.getBoundingClientRect().height / _vpScale;
+            const preResStateB = captureTextBoxState();
+            let resizedB = false;
             function onMove(ev) {
                 const newH = Math.max(40, startH + (ev.clientY - startCY) / _vpScale);
-                textEl.style.minHeight = (newH - 13) + 'px'; // subtract drag-bar height
+                textEl.style.minHeight = (newH - 13) + 'px';
                 box.h = newH;
+                resizedB = true;
             }
             function onUp() {
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup',   onUp);
-                autoSaveSession();
+                if (resizedB) {
+                    globalUndoStack.push({ type: 'textboxes', state: preResStateB });
+                    if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+                    globalRedoStack = [];
+                    updateUndoRedoButtons();
+                    autoSaveSession();
+                }
             }
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup',   onUp);
@@ -7775,12 +7832,20 @@ function _applyVP() {
         return box;
     }
 
-    // Expose restore helper for load/autorestore paths
+    // Expose restore helpers for load/autorestore and undo/redo paths
     window._restoreTextBoxes = function(boxes) {
         _textBoxes.forEach(b => { if (b.el.parentNode) b.el.parentNode.removeChild(b.el); });
         _textBoxes = [];
         _tbNextId  = 1;
         (boxes || []).forEach(b => createTextBox(b.x, b.y, b.w || 0, b.h || 0, b.content || ''));
+    };
+
+    // Used by the undo/redo engine to apply a textboxes snapshot
+    window._applyTextBoxState = function(state) {
+        _textBoxes.forEach(b => { if (b.el && b.el.parentNode) b.el.parentNode.removeChild(b.el); });
+        _textBoxes = [];
+        (state || []).forEach(b => createTextBox(b.x, b.y, b.w || 0, b.h || 0, b.content || ''));
+        autoSaveSession();
     };
 
     // ── Drag-to-create state ──────────────────────────────────────────────────
@@ -7837,11 +7902,15 @@ function _applyVP() {
             const y = Math.min(_tbStart.y, cur.y);
             const w = Math.max(80,  Math.abs(cur.x - _tbStart.x));
             const h = Math.max(28, Math.abs(cur.y - _tbStart.y));
+            pushTextBoxUndo(); // snapshot BEFORE creating the box
             const box = createTextBox(x, y, w, h, '');
-            setTimeout(() => box.el.focus(), 0);
+            box._skipFocusUndo = true; // creation already pushed an entry
+            setTimeout(() => box.textEl.focus(), 0);
         } else {
+            pushTextBoxUndo(); // snapshot BEFORE creating the box
             const box = createTextBox(_tbStart.x, _tbStart.y, 0, 0, '');
-            setTimeout(() => box.el.focus(), 0);
+            box._skipFocusUndo = true; // creation already pushed an entry
+            setTimeout(() => box.textEl.focus(), 0);
         }
 
         _tbStart    = null;
