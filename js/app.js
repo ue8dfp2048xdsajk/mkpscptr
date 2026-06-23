@@ -8474,7 +8474,7 @@ function updateMinimap(){
     const vw = document.getElementById('viewportWrapper');
     if(!mm || !cv || !cc || !vw) return;
 
-    if(!canvasData.length){ mm.hidden = true; return; }
+    if(!canvasData.some(d => d?.designOriginal)){ mm.hidden = true; return; }
     mm.hidden = false;
 
     const natW = cc.offsetWidth;
