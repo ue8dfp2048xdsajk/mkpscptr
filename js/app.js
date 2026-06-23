@@ -4743,6 +4743,9 @@ function updateLayerButtons(){
     const pasteBtn = document.getElementById('pasteTransformsBtn');
     if(pasteBtn) pasteBtn.disabled = !(_copiedTransforms && activeIndices.length > 0);
 
+    const centerBtn = document.getElementById('centerViewBtn');
+    if(centerBtn) centerBtn.textContent = activeIndices.length > 0 ? 'Fit Selection' : 'Center';
+
     // Activate / idle the always-present left panel
     const hasActive = activeIndices.length > 0;
     const panel = document.getElementById("contextPanel");
@@ -8556,58 +8559,73 @@ function _applyVP() {
 })();
 
 
-// ── Center / fit-all button ───────────────────────────────────────────────────
-document.getElementById('centerViewBtn').addEventListener('click', () => {
-
-    const vw = document.getElementById('viewportWrapper');
-    const cc = document.getElementById('canvasContainer');
-    if(!vw || !cc) return;
-
-    // Target: show all windows fitting inside the viewport with a small margin
-    let targetScale = 1;
-    let targetX     = 0;
-    let targetY     = 0;
-
-    if(canvasData.length > 0){
-        // Get the bounding box of the canvasContainer (at current transform)
-        // then compute scale + translate to fit it inside the viewport
-        const vwRect = vw.getBoundingClientRect();
-        const ccRect = cc.getBoundingClientRect();
-
-        // Natural (un-transformed) size of the container
-        const natW = ccRect.width  / _vpScale;
-        const natH = ccRect.height / _vpScale;
-
-        const MARGIN = 40;
-        const fitScaleX = (vwRect.width  - MARGIN * 2) / natW;
-        const fitScaleY = (vwRect.height - MARGIN * 2) / natH;
-        targetScale = Math.min(1, Math.max(0.08, Math.min(fitScaleX, fitScaleY)));
-
-        // Center the container in the viewport
-        targetX = (vwRect.width  - natW * targetScale) / 2;
-        targetY = (vwRect.height - natH * targetScale) / 2;
-    }
-
-    // Smooth lerp animation (~300 ms)
-    const startScale = _vpScale;
-    const startX     = _vpX;
-    const startY     = _vpY;
-    const duration   = 300;
+// ── Center / fit-all + zoom-to-selected ───────────────────────────────────────
+function _animateVP(targetScale, targetX, targetY, duration = 300){
+    const startScale = _vpScale, startX = _vpX, startY = _vpY;
     const startTime  = performance.now();
-
-    function animStep(now){
+    function step(now){
         const t    = Math.min(1, (now - startTime) / duration);
-        const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // ease-in-out quad
-
+        const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
         _vpScale = startScale + (targetScale - startScale) * ease;
         _vpX     = startX     + (targetX     - startX)     * ease;
         _vpY     = startY     + (targetY     - startY)     * ease;
         _applyVP();
+        if(t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
 
-        if(t < 1) requestAnimationFrame(animStep);
+document.getElementById('centerViewBtn').addEventListener('click', () => {
+    const vw = document.getElementById('viewportWrapper');
+    const cc = document.getElementById('canvasContainer');
+    if(!vw || !cc) return;
+
+    const vwRect = vw.getBoundingClientRect();
+    const MARGIN = 40;
+    let targetScale = 1, targetX = 0, targetY = 0;
+
+    // ── Zoom to selected ──────────────────────────────────────────────────────
+    if(activeIndices.length > 0){
+        // Union bounding rect of selected wrappers (in screen space)
+        let minLeft = Infinity, minTop = Infinity, maxRight = -Infinity, maxBottom = -Infinity;
+        activeIndices.forEach(i => {
+            const w = canvasData[i]?.wrapperEl;
+            if(!w) return;
+            const r = w.getBoundingClientRect();
+            if(r.left   < minLeft)   minLeft   = r.left;
+            if(r.top    < minTop)    minTop    = r.top;
+            if(r.right  > maxRight)  maxRight  = r.right;
+            if(r.bottom > maxBottom) maxBottom = r.bottom;
+        });
+
+        // Convert union rect from screen space → natural container coords
+        // (inverse of: screenX = vwRect.left + _vpX + natX * _vpScale)
+        const natLeft = (minLeft   - vwRect.left - _vpX) / _vpScale;
+        const natTop  = (minTop    - vwRect.top  - _vpY) / _vpScale;
+        const natW    = (maxRight  - minLeft) / _vpScale;
+        const natH    = (maxBottom - minTop)  / _vpScale;
+
+        const fitScaleX = (vwRect.width  - MARGIN * 2) / natW;
+        const fitScaleY = (vwRect.height - MARGIN * 2) / natH;
+        targetScale = Math.max(0.08, Math.min(2, Math.min(fitScaleX, fitScaleY)));
+
+        // Translate so the union center sits at the viewport center
+        targetX = vwRect.width  / 2 - (natLeft + natW / 2) * targetScale;
+        targetY = vwRect.height / 2 - (natTop  + natH / 2) * targetScale;
+
+    // ── Fit all ───────────────────────────────────────────────────────────────
+    } else if(canvasData.length > 0){
+        const ccRect = cc.getBoundingClientRect();
+        const natW = ccRect.width  / _vpScale;
+        const natH = ccRect.height / _vpScale;
+        const fitScaleX = (vwRect.width  - MARGIN * 2) / natW;
+        const fitScaleY = (vwRect.height - MARGIN * 2) / natH;
+        targetScale = Math.min(1, Math.max(0.08, Math.min(fitScaleX, fitScaleY)));
+        targetX = (vwRect.width  - natW * targetScale) / 2;
+        targetY = (vwRect.height - natH * targetScale) / 2;
     }
 
-    requestAnimationFrame(animStep);
+    _animateVP(targetScale, targetX, targetY);
 });
 
 
