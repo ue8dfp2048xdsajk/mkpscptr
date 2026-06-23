@@ -1943,9 +1943,76 @@ function pushGlobalUndo(){
     updateUndoRedoButtons();
 }
 
+// Re-inserts previously-deleted windows back into canvasData and the DOM.
+// `saved` is [{originalIdx, data}] sorted ascending by originalIdx.
+function _restoreDeletedWindows(saved){
+    const container = document.getElementById('canvasContainer');
+    for(const { originalIdx, data } of saved){
+        // Splice back into canvasData at the original position; because we
+        // process in ascending index order each splice shifts later entries
+        // right exactly as needed.
+        canvasData.splice(originalIdx, 0, data);
+
+        // Re-insert the wrapper DOM node at the correct position.
+        const refChild = container.children[originalIdx] || null;
+        container.insertBefore(data.wrapperEl, refChild);
+
+        // Re-start visibility tracking.
+        _visibilityObserver.observe(data.wrapperEl);
+    }
+
+    // Restore selection to the re-inserted windows.
+    activeIndices = saved.map(s => s.originalIdx);
+    lastSelectedIndex = activeIndices[activeIndices.length - 1] ?? null;
+    selectedDesigns.clear();
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if(d?.designObject && !d.locked) selectedDesigns.add(d.designObject);
+    });
+
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
+    updateDropUI();
+}
+
+// Re-removes windows that were restored by a deletion-undo, without disposing
+// Fabric (so a subsequent undo can restore them again).
+function _reDeleteWindows(saved){
+    const toDelete = new Set(saved.map(s => s.originalIdx));
+    saved.forEach(({ data }) => {
+        if(data.wrapperEl){
+            _visibilityObserver.unobserve(data.wrapperEl);
+            _visibleWrappers.delete(data.wrapperEl);
+            if(data.wrapperEl.parentNode) data.wrapperEl.parentNode.removeChild(data.wrapperEl);
+        }
+    });
+    canvasData = canvasData.filter((_, i) => !toDelete.has(i));
+    activeIndices = [];
+    lastSelectedIndex = null;
+    selectedDesigns.clear();
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
+    updateDropUI();
+}
+
 async function performGlobalUndo(){
     if(!globalUndoStack.length) return;
     const entry = globalUndoStack.pop();
+
+    if(entry.type === 'deletion'){
+        // Push a matching redo entry so Ctrl+Y can re-delete.
+        globalRedoStack.push({ type: 'deletion', saved: entry.saved });
+        updateUndoRedoButtons();
+        _restoreDeletedWindows(entry.saved);
+        return;
+    }
+
     globalRedoStack.push({
         affected: entry.affected,
         states: entry.affected
@@ -1965,6 +2032,15 @@ async function performGlobalUndo(){
 async function performGlobalRedo(){
     if(!globalRedoStack.length) return;
     const entry = globalRedoStack.pop();
+
+    if(entry.type === 'deletion'){
+        // Push a matching undo entry so Ctrl+Z can restore again.
+        globalUndoStack.push({ type: 'deletion', saved: entry.saved });
+        updateUndoRedoButtons();
+        _reDeleteWindows(entry.saved);
+        return;
+    }
+
     globalUndoStack.push({
         affected: entry.affected,
         states: entry.affected
@@ -4361,13 +4437,23 @@ function deleteSelectedWindows(){
 
     if(!activeIndices.length) return;
 
-    const toDelete = new Set(activeIndices);
+    // Sort ascending so restoration can splice back in order
+    const sortedIndices = [...activeIndices].sort((a, b) => a - b);
 
-    // Destroy each selected window's Fabric canvas and remove its DOM wrapper
-    toDelete.forEach(i => {
+    // Save data objects (with live Fabric canvases still intact) for undo.
+    // We do NOT dispose the Fabric canvas — undo will need to re-attach it.
+    const savedItems = sortedIndices.map(i => ({ originalIdx: i, data: canvasData[i] }));
+
+    globalUndoStack.push({ type: 'deletion', saved: savedItems });
+    if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+    globalRedoStack = [];
+    updateUndoRedoButtons();
+
+    // Remove wrappers from DOM without destroying Fabric canvas
+    const toDelete = new Set(sortedIndices);
+    sortedIndices.forEach(i => {
         const d = canvasData[i];
         if(!d) return;
-        try { d.fabricCanvas.dispose(); } catch(e){}
         if(d.wrapperEl){
             _visibilityObserver.unobserve(d.wrapperEl);
             _visibleWrappers.delete(d.wrapperEl);
@@ -4375,7 +4461,6 @@ function deleteSelectedWindows(){
         }
     });
 
-    // Splice deleted entries out, preserving order of remaining items
     canvasData = canvasData.filter((_, i) => !toDelete.has(i));
 
     // Reset selection state
