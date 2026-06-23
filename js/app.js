@@ -5664,6 +5664,94 @@ function flipSelectedDesigns(axis){
 document.getElementById('flipHBtn').addEventListener('click', () => flipSelectedDesigns('H'));
 document.getElementById('flipVBtn').addEventListener('click', () => flipSelectedDesigns('V'));
 
+// ── Remove Background ──────────────────────────────────────────────────────────
+// Uses @imgly/background-removal — runs a neural net entirely in the browser via
+// WebAssembly. Model files (~50 MB) are fetched from jsDelivr on first use and
+// cached by the browser, so subsequent uses are instant.
+// NOTE: this replaces designOriginal in-place and cannot be undone.
+(function(){
+    const CDN   = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/';
+    const ENTRY = CDN + 'browser.js';
+    let _removeBg = null; // cached function after first load
+
+    document.getElementById('removeBgBtn').addEventListener('click', async () => {
+        if(!activeIndices.length) return;
+
+        // Only act on windows that have a design loaded
+        const targets = activeIndices.filter(i => canvasData[i]?.designOriginal && !canvasData[i]?.locked);
+        if(!targets.length) return;
+
+        if(!confirm(
+            'Remove background from ' +
+            (targets.length === 1 ? 'this design' : targets.length + ' designs') +
+            '?\n\nThis replaces the design source and cannot be undone. ' +
+            'On first use the model (~50 MB) downloads automatically.'
+        )) return;
+
+        const btn = document.getElementById('removeBgBtn');
+        btn.disabled = true;
+
+        try {
+            // ── 1. Lazy-load the library ────────────────────────────────────
+            if(!_removeBg){
+                btn.textContent = 'Downloading model…';
+                const mod = await import(/* @vite-ignore */ ENTRY);
+                _removeBg = (blob, onProgress) => mod.removeBackground(blob, {
+                    publicPath: CDN,
+                    progress: (key, current, total) => {
+                        if(total > 0 && onProgress) onProgress(Math.round(current / total * 100));
+                    }
+                });
+            }
+
+            // ── 2. Process each target window ──────────────────────────────
+            for(let t = 0; t < targets.length; t++){
+                const i    = targets[t];
+                const data = canvasData[i];
+
+                btn.textContent = targets.length > 1
+                    ? `Processing ${t + 1}/${targets.length}…`
+                    : 'Processing…';
+
+                // Convert designOriginal → PNG blob
+                const src = data.designOriginal;
+                const w   = src.naturalWidth  || src.width;
+                const h   = src.naturalHeight || src.height;
+                const tmp = document.createElement('canvas');
+                tmp.width  = w;  tmp.height = h;
+                tmp.getContext('2d').drawImage(src, 0, 0);
+                const inputBlob = await new Promise(r => tmp.toBlob(r, 'image/png'));
+
+                const resultBlob = await _removeBg(inputBlob, pct => {
+                    btn.textContent = targets.length > 1
+                        ? `Processing ${t + 1}/${targets.length}… ${pct}%`
+                        : `Processing… ${pct}%`;
+                });
+
+                // Replace designOriginal with the transparent-background result
+                await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        data.designOriginal = img;
+                        data._flipMap = null;
+                        applyWarpToData(data, false);
+                        resolve();
+                    };
+                    img.onerror = reject;
+                    img.src = URL.createObjectURL(resultBlob);
+                });
+            }
+
+        } catch(err){
+            console.error('Remove BG failed:', err);
+            alert('Background removal failed: ' + (err?.message || String(err)));
+        }
+
+        btn.disabled    = false;
+        btn.textContent = 'Remove BG';
+    });
+})();
+
 document.getElementById("selectAllBtn").addEventListener("click", ()=>{
 
     if(clipEditMode){
