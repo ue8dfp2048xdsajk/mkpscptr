@@ -13,7 +13,8 @@ app.post('/api/remove-bg', upload.single('image'), async (req, res) => {
     if(!req.file) return res.status(400).json({ error: 'No image provided' });
     try {
         const { removeBackground } = await import('@imgly/background-removal-node');
-        const resultBlob  = await removeBackground(req.file.buffer);
+        const inputBlob   = new Blob([req.file.buffer], { type: req.file.mimetype || 'image/png' });
+        const resultBlob  = await removeBackground(inputBlob);
         const arrayBuffer = await resultBlob.arrayBuffer();
         res.set('Content-Type', 'image/png');
         res.send(Buffer.from(arrayBuffer));
