@@ -6276,7 +6276,7 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
 
 function buildSnapshot(){
 
-    return canvasData.map(data=>{
+    return canvasData.map((data, index)=>{
 
         const mainObj = data.designObject;
 
