@@ -4990,6 +4990,182 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
 });
 
 
+// ── Add Window (insert a fresh window at position 0) ─────────────────────────
+(()=>{
+    const addWindowBgInput     = document.getElementById('addWindowBgInput');
+    const addWindowDesignInput = document.getElementById('addWindowDesignInput');
+    const container            = document.getElementById('canvasContainer');
+    const loadingIndicator     = document.getElementById('loadingIndicator');
+
+    document.getElementById('addWindowBtn').addEventListener('click', () => {
+        if(clipEditMode){ showClipModeNotice(); return; }
+        addWindowBgInput.value = '';
+        addWindowBgInput.click();
+    });
+
+    addWindowBgInput.addEventListener('change', async e => {
+        const file = e.target.files[0];
+        addWindowBgInput.value = '';
+        if(!file) return;
+
+        loadingIndicator.style.display = 'block';
+        loadingIndicator.innerText = 'Loading new window…';
+
+        // 1. Load background image
+        const bgImg = await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        pushGlobalUndo();
+
+        // 2. Build data object (no design yet)
+        const newData = {
+            bg:                    bgImg,
+            bgName:                file.name,
+            designOriginal:        null,
+            initialDesignOriginal: null,
+            designName:            null,
+            notes:                 '',
+            x:                     0,
+            y:                     0,
+            scale:                 1,
+            rotation:              0,
+            scaleX:                null,
+            scaleY:                null,
+            warpAmount:            0,
+            arcAmount:             0,
+            arcTilt:               0,
+            opacity:               1,
+            blurAmount:            0,
+            noiseAmount:           0,
+            blendMode:             'normal',
+            blendIntensity:        100,
+            perspectiveTop:        0,
+            perspectiveLeft:       0,
+            maskPaths:             backgroundMaskTemplates[file.name]?.maskPaths || [],
+            maskPath:              backgroundMaskTemplates[file.name]?.maskPath  || null,
+            maskEnabled:           backgroundMaskTemplates[file.name]?.maskEnabled || false,
+            maskType:              backgroundMaskTemplates[file.name]?.maskType   || null,
+            extraDesignObjects:    [],
+            locked:                false,
+            filename:              file.name.replace(/\.[^/.]+$/, ''),
+            fabricCanvas:          null,
+            backgroundObject:      null,
+            designObject:          null,
+            wrapperEl:             null,
+            previewScale:          1,
+            initialX:              0,
+            initialY:              0,
+        };
+
+        // 3. Build DOM
+        const wrapper = document.createElement('div');
+        wrapper.className = 'canvas-wrapper';
+        newData.wrapperEl = wrapper;
+        _visibilityObserver.observe(wrapper);
+
+        const canvasEl = document.createElement('canvas');
+        wrapper.appendChild(canvasEl);
+
+        const filenameInput = document.createElement('input');
+        filenameInput.type = 'text';
+        filenameInput.value = newData.filename;
+        filenameInput.className = 'filename-input';
+        filenameInput.addEventListener('input', ev => { newData.filename = ev.target.value; });
+        wrapper.appendChild(filenameInput);
+
+        // Insert at beginning of the grid
+        container.insertBefore(wrapper, container.firstChild);
+
+        // 4. Create Fabric canvas + size it
+        const fabricCanvas = new fabric.Canvas(canvasEl, {
+            preserveObjectStacking: true,
+            selection: false,
+            renderOnAddRemove: false
+        });
+        newData.fabricCanvas = fabricCanvas;
+
+        const realWidth  = bgImg.width;
+        const realHeight = bgImg.height;
+        const containerWidth    = container.clientWidth;
+        const gapSpace          = _colGap * (_numColumns - 1);
+        const availableWidth    = containerWidth - gapSpace - 40;
+        const targetColumnWidth = Math.max(100, Math.min(420, availableWidth / _numColumns));
+        const scaleRatio        = Math.min(1, (targetColumnWidth * 1.5) / realWidth);
+        const previewWidth      = Math.round(realWidth  * scaleRatio);
+        const previewHeight     = Math.round(realHeight * scaleRatio);
+        const displayW          = Math.round(targetColumnWidth);
+        const displayH          = Math.round(previewHeight * targetColumnWidth / previewWidth);
+
+        fabricCanvas.setWidth(previewWidth);
+        fabricCanvas.setHeight(previewHeight);
+        fabricCanvas.wrapperEl.style.width  = displayW + 'px';
+        fabricCanvas.wrapperEl.style.height = displayH + 'px';
+        wrapper.style.width = displayW + 'px';
+
+        newData.previewScale = scaleRatio;
+        newData.x            = previewWidth  / 2;
+        newData.y            = previewHeight / 2;
+        newData.initialX     = newData.x;
+        newData.initialY     = newData.y;
+
+        // 5. Load background into Fabric
+        await new Promise(resolve => {
+            fabric.Image.fromURL(bgImg.src, bgFabricImg => {
+                bgFabricImg.set({
+                    left: 0, top: 0,
+                    selectable: false, evented: false,
+                    originX: 'left', originY: 'top',
+                    scaleX: scaleRatio, scaleY: scaleRatio
+                });
+                newData.backgroundObject = bgFabricImg;
+                fabricCanvas.add(bgFabricImg);
+                fabricCanvas.sendToBack(bgFabricImg);
+                addClipOverlay(newData);
+                fabricCanvas.requestRenderAll();
+                resolve();
+            }, { crossOrigin: 'anonymous' });
+        });
+
+        // 6. Insert at front of canvasData
+        canvasData.unshift(newData);
+
+        // 7. Wire up interactions
+        _attachWrapperClickListener(wrapper, newData);
+        attachClipDrawing(wrapper, fabricCanvas, newData, 0);
+
+        // 8. Select the new window
+        activeIndices      = [0];
+        lastSelectedIndex  = 0;
+        selectedDesigns.clear();
+        updateWindowBorders();
+        syncSliders();
+        updateContextPanel();
+
+        loadingIndicator.style.display = 'none';
+
+        autoSaveSession();
+
+        // 9. Immediately prompt for a design (user can cancel to keep bg-only)
+        addWindowDesignInput.value = '';
+        addWindowDesignInput.click();
+    });
+
+    addWindowDesignInput.addEventListener('change', async e => {
+        const file = e.target.files[0];
+        addWindowDesignInput.value = '';
+        if(!file) return;           // cancelled — window stays background-only
+        await changeDesignForSelected(file);
+    });
+})();
+
+
 // ── Change Background for selected windows ────────────────────────────────────
 async function changeBackgroundForSelected(file){
     if(!activeIndices.length) return;
