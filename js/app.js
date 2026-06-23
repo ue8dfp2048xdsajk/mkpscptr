@@ -5149,8 +5149,11 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
         activeIndices     = [0];
         lastSelectedIndex = 0;
         selectedDesigns.clear();
+        refreshFabricHandles();
         updateWindowBorders();
+        updateLayerButtons();
         syncSliders();
+        updateSelectButtonState();
 
         // 9. Load background into Fabric (fire-and-forget — matches renderBatch)
         fabric.Image.fromURL(bgImg.src, bgFabricImg => {
