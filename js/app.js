@@ -4480,6 +4480,8 @@ document.getElementById("selectAllBtn").addEventListener("click", ()=>{
 
     refreshFabricHandles();
     updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
     updateSelectButtonState();
 });
 
