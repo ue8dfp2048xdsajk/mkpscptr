@@ -1859,6 +1859,9 @@ function captureWindowState(data){
             : null,
         colorLayerOpacity:   data.colorLayerFabricObj?.opacity ?? 1,
         colorLayerBlendMode: data.colorLayerFabricObj?.globalCompositeOperation ?? 'source-over',
+        filename: data.filename || '',
+        notes:    data.notes    || '',
+        locked:   !!data.locked,
         designFx: data.designObject?._fx
             ? JSON.parse(JSON.stringify(data.designObject._fx))
             : null,
@@ -1993,13 +1996,55 @@ async function restoreWindowState(data, state){
 
     await restoreDuplicatesFromState(data, state.duplicates || []);
 
+    // Restore filename
+    if(state.filename !== undefined){
+        data.filename = state.filename;
+        const inp = data.wrapperEl?.querySelector('.filename-input');
+        if(inp) inp.value = state.filename;
+    }
+
+    // Restore notes
+    if(state.notes !== undefined) data.notes = state.notes;
+
+    // Restore locked state (apply or remove lock without clobbering Fabric events)
+    if(state.locked !== undefined){
+        const shouldLock = !!state.locked;
+        if(shouldLock !== !!data.locked){
+            data.locked = shouldLock;
+            getAllDesignObjects(data).forEach(o => {
+                if(!o) return;
+                if(shouldLock){
+                    o._lockSelectable = o.selectable;
+                    o._lockEvented    = o.evented;
+                    o.selectable      = false;
+                    o.evented         = false;
+                } else {
+                    o.selectable = (o._lockSelectable !== undefined) ? o._lockSelectable : true;
+                    o.evented    = (o._lockEvented    !== undefined) ? o._lockEvented    : true;
+                    delete o._lockSelectable;
+                    delete o._lockEvented;
+                }
+            });
+            if(data.wrapperEl){
+                data.wrapperEl.classList.toggle('window-locked', shouldLock);
+            }
+        }
+    }
+
     data.fabricCanvas.discardActiveObject();
     data.fabricCanvas.requestRenderAll();
 }
 
-function pushGlobalUndo(){
-    if(!canvasData.length || !activeIndices.length) return;
+// extraIdx: optional index to always include (e.g. filename/notes edit on a
+// window that may not be in activeIndices)
+function pushGlobalUndo(extraIdx = null){
+    if(!canvasData.length) return;
     const affected = [...activeIndices];
+    if(extraIdx !== null && !affected.includes(extraIdx) &&
+       extraIdx >= 0 && extraIdx < canvasData.length){
+        affected.push(extraIdx);
+    }
+    if(!affected.length) return;
     globalUndoStack.push({
         affected,
         states: affected.map(i => captureWindowState(canvasData[i]))
@@ -2161,6 +2206,20 @@ async function performGlobalUndo(){
         return;
     }
 
+    if(entry.type === 'reorder'){
+        globalRedoStack.push({ type: 'reorder', order: [...canvasData] });
+        const selDatas = activeIndices.map(i => canvasData[i]).filter(Boolean);
+        const lastSel  = lastSelectedIndex !== null ? canvasData[lastSelectedIndex] : null;
+        const cont = document.getElementById('canvasContainer');
+        entry.order.forEach(d => { if(d.wrapperEl) cont.appendChild(d.wrapperEl); });
+        canvasData = [...entry.order];
+        activeIndices     = selDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
+        lastSelectedIndex = lastSel ? canvasData.indexOf(lastSel) : null;
+        updateWindowBorders();
+        updateUndoRedoButtons();
+        return;
+    }
+
     globalRedoStack.push({
         affected: entry.affected,
         states: entry.affected
@@ -2213,6 +2272,20 @@ async function performGlobalRedo(){
     if(entry.type === 'textboxes'){
         globalUndoStack.push({ type: 'textboxes', state: captureTextBoxState() });
         if(window._applyTextBoxState) window._applyTextBoxState(entry.state);
+        updateUndoRedoButtons();
+        return;
+    }
+
+    if(entry.type === 'reorder'){
+        globalUndoStack.push({ type: 'reorder', order: [...canvasData] });
+        const selDatas = activeIndices.map(i => canvasData[i]).filter(Boolean);
+        const lastSel  = lastSelectedIndex !== null ? canvasData[lastSelectedIndex] : null;
+        const cont = document.getElementById('canvasContainer');
+        entry.order.forEach(d => { if(d.wrapperEl) cont.appendChild(d.wrapperEl); });
+        canvasData = [...entry.order];
+        activeIndices     = selDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
+        lastSelectedIndex = lastSel ? canvasData.indexOf(lastSel) : null;
+        updateWindowBorders();
         updateUndoRedoButtons();
         return;
     }
@@ -4562,6 +4635,17 @@ function _notesShowSingle(index){
         <textarea class="notes-textarea" placeholder="Add notes, keywords, SEO ideas…">${_notesEsc(data.notes || '')}</textarea>
     `;
     const ta = body.querySelector('.notes-textarea');
+    ta.addEventListener('focus', ()=>{
+        const d = canvasData[index];
+        if(d && !d._notesUndoPushed){
+            d._notesUndoPushed = true;
+            pushGlobalUndo(index);
+        }
+    }, { once: false });
+    ta.addEventListener('blur',  ()=>{
+        const d = canvasData[index];
+        if(d) d._notesUndoPushed = false;
+    });
     ta.addEventListener('input', ()=>{ canvasData[index].notes = ta.value; });
 }
 
@@ -5407,6 +5491,8 @@ document.getElementById('changeDesignInput').addEventListener('change', async fu
 
 
 function lockSelectedWindows(){
+    if(!activeIndices.length) return;
+    pushGlobalUndo();
     activeIndices.forEach(i=>{
         const data = canvasData[i];
         if(!data || data.locked) return;
@@ -5428,6 +5514,8 @@ function lockSelectedWindows(){
 }
 
 function unlockSelectedWindows(){
+    if(!activeIndices.length) return;
+    pushGlobalUndo();
     activeIndices.forEach(i=>{
         const data = canvasData[i];
         if(!data || !data.locked) return;
@@ -9092,6 +9180,12 @@ window.addEventListener('DOMContentLoaded', async ()=>{
             return;
         }
 
+        // ── 0. Push undo for the reorder ─────────────────────────────────────
+        globalUndoStack.push({ type: 'reorder', order: [...canvasData] });
+        if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+        globalRedoStack = [];
+        updateUndoRedoButtons();
+
         // ── 1. Reorder DOM ────────────────────────────────────────────────────
         _dragSrcWrapper.classList.remove('drag-source');
         if(_dropBefore) _dropTarget.before(_dragSrcWrapper);
@@ -9119,6 +9213,30 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     });
 })();
 
+
+// ── Filename undo ──────────────────────────────────────────────────────────────
+// Push one undo entry the first time a filename input is focused in each
+// editing session (reset on blur so a second edit session pushes again).
+// This captures the state of ALL selected windows plus the edited window,
+// covering both single and batch renames.
+document.getElementById('canvasContainer').addEventListener('focus', e => {
+    if(!e.target.classList.contains('filename-input')) return;
+    const wrapper = e.target.closest('.canvas-wrapper');
+    if(!wrapper) return;
+    const srcData = canvasData.find(d => d.wrapperEl === wrapper);
+    if(!srcData || srcData._filenameUndoPushed) return;
+    srcData._filenameUndoPushed = true;
+    const srcIdx = canvasData.indexOf(srcData);
+    pushGlobalUndo(srcIdx >= 0 ? srcIdx : null);
+}, true); // capture phase so `focus` fires (it doesn't bubble)
+
+document.getElementById('canvasContainer').addEventListener('blur', e => {
+    if(!e.target.classList.contains('filename-input')) return;
+    const wrapper = e.target.closest('.canvas-wrapper');
+    if(!wrapper) return;
+    const srcData = canvasData.find(d => d.wrapperEl === wrapper);
+    if(srcData) srcData._filenameUndoPushed = false;
+}, true);
 
 // ── Batch rename ──────────────────────────────────────────────────────────────
 // When multiple windows are selected and the user edits any one of their
