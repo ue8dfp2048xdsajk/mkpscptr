@@ -4619,6 +4619,106 @@ function updateLayerButtons(){
 
 
 
+// Reusable wrapper click handler — used by both renderBatch (inline) and duplicated windows.
+function _attachWrapperClickListener(wrapper, data){
+    wrapper.addEventListener('click', function(e){
+        const index = canvasData.indexOf(data);
+        if(index === -1) return;
+
+        if(suppressNextWrapperClick) return;
+
+        if(clipEditMode && !clipCopySelectMode) return;
+
+        if(colorLayerMode && !colorCopySelectMode){
+            if(!activeIndices.includes(index)){
+                alert("Exit Color Layer mode to interact with other windows.");
+            }
+            return;
+        }
+
+        if(colorCopySelectMode){
+            const pos = activeIndices.indexOf(index);
+            if(pos === -1) activeIndices.push(index);
+            else           activeIndices.splice(pos, 1);
+            updateWindowBorders();
+            return;
+        }
+
+        const isModifierMultiSelect = e.metaKey || e.ctrlKey;
+
+        if(e.shiftKey){
+            const prevIndices = [...activeIndices];
+            if(lastSelectedIndex === null){
+                activeIndices = [index];
+            } else {
+                const start = Math.min(lastSelectedIndex, index);
+                const end   = Math.max(lastSelectedIndex, index);
+                const range = [];
+                for(let i = start; i <= end; i++) range.push(i);
+                activeIndices = [...new Set([...activeIndices, ...range])];
+            }
+            activeIndices.forEach(i => {
+                const d = canvasData[i];
+                if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
+                    if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                    selectedDesigns.add(d.designObject);
+                }
+            });
+            prevIndices.filter(i => !activeIndices.includes(i)).forEach(i => {
+                const d = canvasData[i];
+                if(d){
+                    selectedDesigns.delete(d.designObject);
+                    (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
+                }
+            });
+            lastSelectedIndex = index;
+        } else if(isModifierMultiSelect){
+            if(activeIndices.includes(index)){
+                activeIndices = activeIndices.filter(i => i !== index);
+                const d = canvasData[index];
+                if(d){
+                    selectedDesigns.delete(d.designObject);
+                    (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
+                }
+            } else {
+                activeIndices.push(index);
+                const d = canvasData[index];
+                if(d?.designObject && !d.locked){
+                    if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                    selectedDesigns.add(d.designObject);
+                }
+            }
+            lastSelectedIndex = index;
+        } else {
+            lastSelectedIndex = index;
+            if(!activeIndices.includes(index)){
+                activeIndices = [index];
+                selectedDesigns.clear();
+                const d = canvasData[index];
+                if(d?.designObject && !d.locked){
+                    if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                    selectedDesigns.add(d.designObject);
+                }
+            } else {
+                const d = canvasData[index];
+                if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
+                    if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                    selectedDesigns.add(d.designObject);
+                }
+            }
+        }
+
+        if(e.shiftKey) lastSelectedIndex = index;
+
+        refreshFabricHandles();
+        updateWindowBorders();
+        updateLayerButtons();
+        syncSliders();
+        updateSelectButtonState();
+    });
+}
+
+
 function deleteSelectedWindows(){
 
     if(!activeIndices.length) return;
@@ -4662,6 +4762,205 @@ function deleteSelectedWindows(){
     updateDropUI();
 }
 
+async function duplicateSelectedWindows(){
+    if(!activeIndices.length) return;
+
+    pushGlobalUndo();
+
+    const container    = document.getElementById('canvasContainer');
+    const sortedOrig   = [...activeIndices].sort((a, b) => a - b);
+    const newIndices   = [];
+    let   offset       = 0;   // grows by 1 for each window inserted before the next source
+
+    for(const origIdx of sortedOrig){
+
+        const srcIdx  = origIdx + offset;     // true position after prior insertions
+        const srcData = canvasData[srcIdx];
+        if(!srcData) continue;
+
+        const insertAt = srcIdx + 1;
+
+        // ── 1. Build cloned data object ───────────────────────────────────────
+        // Read live transform from the Fabric object so we get the latest position
+        const srcObj = srcData.designObject;
+        const newData = {
+            bg:                     srcData.bg,
+            bgName:                 srcData.bgName,
+            designOriginal:         srcData.designOriginal,
+            initialDesignOriginal:  srcData.designOriginal,
+            designName:             srcData.designName,
+            notes:                  srcData.notes || '',
+
+            x:        srcObj ? srcObj.left                       : srcData.x,
+            y:        srcObj ? srcObj.top                        : srcData.y,
+            scale:    srcData.scale,
+            scaleX:   srcObj ? srcObj.scaleX / srcData.previewScale : srcData.scaleX,
+            scaleY:   srcObj ? srcObj.scaleY / srcData.previewScale : srcData.scaleY,
+            rotation: srcObj ? srcObj.angle                      : (srcData.rotation ?? 0),
+
+            warpAmount:    srcData.warpAmount    ?? 0,
+            arcAmount:     srcData.arcAmount     ?? 0,
+            arcTilt:       srcData.arcTilt       ?? 0,
+            opacity:       srcData.opacity       ?? 1,
+            blurAmount:    srcData.blurAmount    ?? 0,
+            noiseAmount:   srcData.noiseAmount   ?? 0,
+            blendMode:     srcData.blendMode     ?? 'normal',
+            blendIntensity:srcData.blendIntensity ?? 100,
+            perspectiveTop:  srcData.perspectiveTop  ?? 0,
+            perspectiveLeft: srcData.perspectiveLeft ?? 0,
+
+            maskPaths:   srcData.maskPaths
+                           ? srcData.maskPaths.map(path => path.map(p => ({...p})))
+                           : [],
+            maskPath:    srcData.maskPath
+                           ? (Array.isArray(srcData.maskPath)
+                               ? srcData.maskPath.map(p => ({...p}))
+                               : srcData.maskPath)
+                           : null,
+            maskEnabled: srcData.maskEnabled || false,
+            maskType:    srcData.maskType    || null,
+
+            extraDesignObjects: [],
+            locked: false,
+
+            filename: srcData.filename + '_copy',
+
+            initialScale:         srcData.scale,
+            initialRotation:      srcData.rotation      ?? 0,
+            initialWarpAmount:    srcData.warpAmount     ?? 0,
+            initialArcAmount:     srcData.arcAmount      ?? 0,
+            initialArcTilt:       srcData.arcTilt        ?? 0,
+            initialOpacity:       srcData.opacity        ?? 1,
+            initialBlurAmount:    srcData.blurAmount     ?? 0,
+            initialBlendMode:     srcData.blendMode      ?? 'normal',
+            initialBlendIntensity: 100,
+            initialPerspectiveTop:  srcData.perspectiveTop  ?? 0,
+            initialPerspectiveLeft: srcData.perspectiveLeft ?? 0,
+        };
+
+        // Capture color layer state before async work
+        const srcColorCanvas   = srcData.colorLayerCanvas  || null;
+        const srcColorBlend    = srcData.colorLayerFabricObj?.globalCompositeOperation ?? 'source-over';
+        const srcColorOpacity  = srcData.colorLayerFabricObj?.opacity ?? 1;
+
+        // ── 2. Splice into canvasData now so indexOf works inside callbacks ──
+        canvasData.splice(insertAt, 0, newData);
+        offset++;
+        newIndices.push(insertAt);
+
+        // ── 3. Build DOM elements ─────────────────────────────────────────────
+        const wrapper = document.createElement('div');
+        wrapper.className = 'canvas-wrapper';
+        if(srcData.wrapperEl) wrapper.style.width = srcData.wrapperEl.style.width;
+        newData.wrapperEl = wrapper;
+
+        const canvasEl = document.createElement('canvas');
+        canvasEl.width  = srcData.bg.width;
+        canvasEl.height = srcData.bg.height;
+        wrapper.appendChild(canvasEl);
+
+        const filenameInput = document.createElement('input');
+        filenameInput.type      = 'text';
+        filenameInput.value     = newData.filename;
+        filenameInput.className = 'filename-input';
+        filenameInput.addEventListener('input', ev => { newData.filename = ev.target.value; });
+        wrapper.appendChild(filenameInput);
+
+        // Insert right after the source wrapper
+        const refChild = container.children[insertAt] || null;
+        container.insertBefore(wrapper, refChild);
+        _visibilityObserver.observe(wrapper);
+
+        // ── 4. Create Fabric canvas with same dimensions as source ────────────
+        const fabricCanvas = new fabric.Canvas(canvasEl, {
+            preserveObjectStacking: true,
+            selection: false,
+            renderOnAddRemove: false,
+        });
+        newData.fabricCanvas = fabricCanvas;
+
+        const srcFC = srcData.fabricCanvas;
+        fabricCanvas.setWidth(srcFC.getWidth());
+        fabricCanvas.setHeight(srcFC.getHeight());
+        fabricCanvas.wrapperEl.style.width  = srcFC.wrapperEl.style.width;
+        fabricCanvas.wrapperEl.style.height = srcFC.wrapperEl.style.height;
+        newData.previewScale = srcData.previewScale;
+        newData.x  = newData.x  || (fabricCanvas.getWidth()  / 2);
+        newData.y  = newData.y  || (fabricCanvas.getHeight() / 2);
+        newData.initialX = newData.x;
+        newData.initialY = newData.y;
+
+        // ── 5. Attach wrapper click listener ──────────────────────────────────
+        _attachWrapperClickListener(wrapper, newData);
+
+        // ── 6. Load background, then set up design + color layer (async) ─────
+        await new Promise(resolve => {
+            fabric.Image.fromURL(newData.bg.src, function(bgImg){
+                bgImg.set({
+                    left: 0, top: 0,
+                    selectable: false, evented: false,
+                    originX: 'left', originY: 'top',
+                    scaleX: newData.previewScale,
+                    scaleY: newData.previewScale,
+                });
+                newData.backgroundObject = bgImg;
+                fabricCanvas.add(bgImg);
+                fabricCanvas.sendToBack(bgImg);
+
+                // Restore clip overlay if this window had a mask
+                addClipOverlay(newData);
+
+                // Re-apply design with same transforms
+                if(newData.designOriginal){
+                    applyWarpToData(newData, true);
+                    setTimeout(() => applyWarpToData(newData, false), 50);
+                }
+
+                // Copy color layer content from source
+                if(srcColorCanvas){
+                    initColorLayer(newData);
+                    // Draw source at the same scale (both are the same Fabric canvas size)
+                    newData.colorLayerCtx.drawImage(srcColorCanvas, 0, 0);
+                    if(newData.colorLayerFabricObj){
+                        newData.colorLayerFabricObj.set({
+                            globalCompositeOperation: srcColorBlend,
+                            opacity: srcColorOpacity,
+                        });
+                        newData.colorLayerFabricObj.dirty = true;
+                    }
+                }
+
+                fabricCanvas.requestRenderAll();
+                resolve();
+            }, { crossOrigin: 'anonymous' });
+        });
+
+        // ── 7. Attach clip-drawing + color-painting events ────────────────────
+        const currentIdx = canvasData.indexOf(newData);
+        attachClipDrawing(wrapper, fabricCanvas, newData, currentIdx);
+    }
+
+    // Select the newly duplicated windows
+    activeIndices     = newIndices;
+    lastSelectedIndex = newIndices[newIndices.length - 1] ?? null;
+    selectedDesigns.clear();
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if(d?.designObject && !d.locked){
+            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+            selectedDesigns.add(d.designObject);
+        }
+    });
+
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
+    updateDropUI();
+}
+
+
 document.getElementById("contextPanelClose").addEventListener("click", ()=>{
     _deselectAll();
 });
@@ -4676,6 +4975,18 @@ document.getElementById("deleteWindowsBtn").addEventListener("click", ()=>{
     if(!activeIndices.length) return;
 
     deleteSelectedWindows();
+});
+
+document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
+
+    if(clipEditMode){
+        showClipModeNotice();
+        return;
+    }
+
+    if(!activeIndices.length) return;
+
+    duplicateSelectedWindows();
 });
 
 function lockSelectedWindows(){
