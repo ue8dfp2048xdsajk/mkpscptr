@@ -8584,6 +8584,7 @@ function updateMinimap(){
         if (tl) tl.style.transform = t;
         const pct = Math.round(_vpScale * 100);
         document.getElementById('zoomLevelDisplay').textContent = pct + '%';
+        _scheduleMinimapUpdate();
     }
 
     function zoomAt(cx, cy, factor) {
