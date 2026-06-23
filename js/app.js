@@ -7614,8 +7614,13 @@ function _applyVP() {
         el.className  = 'canvas-text-box';
         el.style.left = x + 'px';
         el.style.top  = y + 'px';
-        if (w > 0) el.style.width = Math.max(120, w) + 'px';
-        // NO height — auto-expands with content
+        if (w > 0) {
+            el.style.width = Math.max(120, w) + 'px';
+        } else {
+            // Click-created: grow horizontally until user resizes
+            el.classList.add('tb-auto-width');
+        }
+        // NO height set — auto-expands with content
 
         // Thin grab bar at the top
         const bar = document.createElement('div');
@@ -7630,12 +7635,25 @@ function _applyVP() {
         if (content) textEl.innerHTML = content;
         el.appendChild(textEl);
 
+        // Right-edge resize handle (sets fixed width, enables wrapping)
+        const resizeR = document.createElement('div');
+        resizeR.className = 'tb-resize-r';
+        el.appendChild(resizeR);
+
+        // Bottom-edge resize handle (sets min-height)
+        const resizeB = document.createElement('div');
+        resizeB.className = 'tb-resize-b';
+        el.appendChild(resizeB);
+
         // Delete button
         const del = document.createElement('button');
         del.className   = 'tb-delete';
         del.textContent = '×';
         del.title       = 'Delete text box';
         el.appendChild(del);
+
+        // Restore bottom-resize min-height if previously set
+        if (h > 0) textEl.style.minHeight = (h - 13) + 'px';
 
         tl.appendChild(el);
 
@@ -7710,6 +7728,48 @@ function _applyVP() {
         // Drag from the outer wrapper (border zone) moves only if target is el itself
         el.addEventListener('mousedown', e => {
             if (e.target === el) startDrag(e);
+        });
+
+        // ── Right-edge resize (width) ─────────────────────────────────────────
+        resizeR.addEventListener('mousedown', e => {
+            e.stopPropagation();
+            e.preventDefault();
+            const startCX = e.clientX;
+            const startW  = el.getBoundingClientRect().width / _vpScale;
+            function onMove(ev) {
+                const newW = Math.max(80, startW + (ev.clientX - startCX) / _vpScale);
+                el.style.width = newW + 'px';
+                box.w = newW;
+                // Switch from auto-width to fixed-width (enable wrapping)
+                el.classList.remove('tb-auto-width');
+            }
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup',   onUp);
+                autoSaveSession();
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup',   onUp);
+        });
+
+        // ── Bottom-edge resize (min-height) ───────────────────────────────────
+        resizeB.addEventListener('mousedown', e => {
+            e.stopPropagation();
+            e.preventDefault();
+            const startCY  = e.clientY;
+            const startH   = el.getBoundingClientRect().height / _vpScale;
+            function onMove(ev) {
+                const newH = Math.max(40, startH + (ev.clientY - startCY) / _vpScale);
+                textEl.style.minHeight = (newH - 13) + 'px'; // subtract drag-bar height
+                box.h = newH;
+            }
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup',   onUp);
+                autoSaveSession();
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup',   onUp);
         });
 
         return box;

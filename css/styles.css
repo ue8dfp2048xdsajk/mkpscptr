@@ -556,6 +556,57 @@ body {
     color: #bbb;
     pointer-events: none;
 }
+/* Click-created (no drag): grow horizontally, no wrapping */
+.canvas-text-box.tb-auto-width .tb-text {
+    white-space: nowrap;
+    word-break: normal;
+}
+
+/* Resize handles */
+.tb-resize-r {
+    position: absolute;
+    top: 6px; right: -6px; bottom: 6px;
+    width: 12px;
+    cursor: ew-resize;
+    z-index: 3;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.tb-resize-r::after {
+    content: '';
+    width: 3px; height: 20px;
+    background: #1e5eff;
+    border-radius: 2px;
+    opacity: 0.7;
+}
+.tb-resize-b {
+    position: absolute;
+    left: 6px; right: 6px; bottom: -6px;
+    height: 12px;
+    cursor: ns-resize;
+    z-index: 3;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.tb-resize-b::after {
+    content: '';
+    height: 3px; width: 20px;
+    background: #1e5eff;
+    border-radius: 2px;
+    opacity: 0.7;
+}
+.canvas-text-box:hover .tb-resize-r,
+.canvas-text-box:hover .tb-resize-b,
+.canvas-text-box.tb-focused .tb-resize-r,
+.canvas-text-box.tb-focused .tb-resize-b { opacity: 1; }
 
 /* Delete button */
 .tb-delete {
