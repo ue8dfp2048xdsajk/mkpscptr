@@ -283,6 +283,15 @@ body {
     pointer-events: none;
     z-index: 5;
 }
+.window-locked .drag-handle { display: none; }
+.window-locked .filename-input { opacity: 0.5; cursor: not-allowed; }
+
+/* Gray out lock-sensitive panel controls when every selected window is locked */
+#contextPanelBody.all-locked .lock-sensitive {
+    opacity: 0.38;
+    pointer-events: none;
+    user-select: none;
+}
 
 .color-tool-btn {
     padding: 2px 7px;

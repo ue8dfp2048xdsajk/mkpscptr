@@ -122,7 +122,7 @@ Preparing designs...
     </div>
     <div id="contextPanelBody">
 
-        <div class="cp-section">
+        <div class="cp-section lock-sensitive">
             <div class="cp-section-title">Warp &amp; Perspective</div>
             <label>Cylinder Warp
                 <input type="range" id="warpAmount" min="0" max="100" value="0">
@@ -147,7 +147,7 @@ Preparing designs...
             </span>
         </div>
 
-        <div class="cp-section">
+        <div class="cp-section lock-sensitive">
             <div class="cp-section-title">Appearance</div>
             <label>Opacity %
                 <input type="number" id="opacityAmount" min="0" max="100" step="1" value="100">
@@ -167,7 +167,7 @@ Preparing designs...
             </label>
         </div>
 
-        <div class="cp-section">
+        <div class="cp-section lock-sensitive">
             <div class="cp-section-title">Tools</div>
             <button id="designEraserBtn">Eraser</button>
             <span id="designEraserControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
@@ -213,7 +213,7 @@ Preparing designs...
             </span>
         </div>
 
-        <div class="cp-section">
+        <div class="cp-section lock-sensitive">
             <div class="cp-section-title">Layer</div>
             <button id="duplicateLayerBtn" style="display:none;">Duplicate Layer</button>
             <button id="deleteLayerBtn" style="display:none;">Delete Layer</button>
@@ -238,12 +238,12 @@ Preparing designs...
                 <button id="lockWindowsBtn">Lock</button>
                 <button id="unlockWindowsBtn">Unlock</button>
             </div>
-            <button id="changeBgBtn">Change Background</button>
+            <button id="changeBgBtn" class="lock-sensitive">Change Background</button>
             <input type="file" id="changeBgInput" accept="image/*" style="display:none;">
-            <button id="changeDesignBtn">Change Design</button>
+            <button id="changeDesignBtn" class="lock-sensitive">Change Design</button>
             <input type="file" id="changeDesignInput" accept="image/*" style="display:none;">
-            <button id="duplicateWindowsBtn">Duplicate Selected Windows</button>
-            <button id="deleteWindowsBtn">Delete Selected Windows</button>
+            <button id="duplicateWindowsBtn" class="lock-sensitive">Duplicate Selected Windows</button>
+            <button id="deleteWindowsBtn" class="lock-sensitive">Delete Selected Windows</button>
         </div>
 
         <a href="https://forms.gle/aE82E8z7ZjWQt6Hm7" target="_blank" rel="noopener" class="cp-feedback">Report Bugs &amp; Give Feedback</a>

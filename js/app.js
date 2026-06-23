@@ -2069,6 +2069,10 @@ async function restoreWindowState(data, state){
         }
     }
 
+    // Sync filename input disabled state with lock
+    const filenameInp = data.wrapperEl?.querySelector('.filename-input');
+    if(filenameInp) filenameInp.disabled = !!data.locked;
+
     data.fabricCanvas.discardActiveObject();
     data.fabricCanvas.requestRenderAll();
 }
@@ -4766,6 +4770,14 @@ function updateLayerButtons(){
             : "Controls";
     }
 
+    // Gray out lock-sensitive controls when all selected windows are locked
+    const body = document.getElementById('contextPanelBody');
+    if(body){
+        const allLocked = activeIndices.length > 0 &&
+                          activeIndices.every(i => canvasData[i]?.locked);
+        body.classList.toggle('all-locked', allLocked);
+    }
+
     refreshNotesPanel();
 }
 
@@ -5564,7 +5576,11 @@ function lockSelectedWindows(){
         });
         data.fabricCanvas.discardActiveObject();
         data.fabricCanvas.requestRenderAll();
-        if(data.wrapperEl) data.wrapperEl.classList.add('window-locked');
+        if(data.wrapperEl){
+            data.wrapperEl.classList.add('window-locked');
+            const inp = data.wrapperEl.querySelector('.filename-input');
+            if(inp) inp.disabled = true;
+        }
     });
     selectedDesigns.clear();
     updateLayerButtons();
@@ -5585,7 +5601,11 @@ function unlockSelectedWindows(){
             delete o._lockEvented;
         });
         data.fabricCanvas.requestRenderAll();
-        if(data.wrapperEl) data.wrapperEl.classList.remove('window-locked');
+        if(data.wrapperEl){
+            data.wrapperEl.classList.remove('window-locked');
+            const inp = data.wrapperEl.querySelector('.filename-input');
+            if(inp) inp.disabled = false;
+        }
     });
     updateLayerButtons();
 }
