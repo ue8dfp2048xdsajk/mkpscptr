@@ -5143,40 +5143,10 @@ async function changeDesignForSelected(file){
         const data = canvasData[i];
         if(!data || data.locked) continue;
 
-        // Update design source
+        // Swap the image source — keep all transforms, effects, and layer settings as-is
         data.designOriginal        = newImg;
         data.initialDesignOriginal = newImg;
         data.designName            = file.name;
-
-        // Reset transforms exactly as createCanvasData + renderBatch would
-        const previewW = data.fabricCanvas.getWidth();
-        const previewH = data.fabricCanvas.getHeight();
-
-        data.scale = Math.min(
-            (data.bg.width  * 0.5) / newImg.width,
-            (data.bg.height * 0.5) / newImg.height
-        );
-        data.scaleX       = null;
-        data.scaleY       = null;
-        data.x            = previewW / 2;
-        data.y            = previewH / 2;
-        data.rotation     = 0;
-        data.warpAmount   = 0;
-        data.arcAmount    = 0;
-        data.arcTilt      = 0;
-        data.perspectiveTop  = 0;
-        data.perspectiveLeft = 0;
-        data.warpPoints   = null;
-
-        data.initialScale         = data.scale;
-        data.initialX             = data.x;
-        data.initialY             = data.y;
-        data.initialRotation      = 0;
-        data.initialWarpAmount    = 0;
-        data.initialArcAmount     = 0;
-        data.initialArcTilt       = 0;
-        data.initialPerspectiveTop  = 0;
-        data.initialPerspectiveLeft = 0;
 
         applyWarpToData(data, true);
         setTimeout(() => applyWarpToData(data, false), 50);
