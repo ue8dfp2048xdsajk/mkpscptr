@@ -2511,6 +2511,7 @@ async function restoreWindowState(data, state){
     data.maskPaths   = JSON.parse(JSON.stringify(state.maskPaths || []));
     getAllDesignObjects(data).forEach(obj => applyClipMaskToObject(obj, data));
     addClipOverlay(data);
+    if(data.patternMode) _renderPattern(data, false);
 
     if(state.colorLayerImageData){
         initColorLayer(data);
@@ -7108,6 +7109,7 @@ document.getElementById("deleteClipBtn").addEventListener("click", ()=>{
                 canvas.remove(obj);
             });
 
+        if(data.patternMode) _renderPattern(data, false);
         canvas.requestRenderAll();
     });
 
@@ -7211,6 +7213,7 @@ document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
             applyClipMaskToObject(obj, data);
         });
 
+        if(data.patternMode) _renderPattern(data, false);
         data.fabricCanvas.requestRenderAll();
 
         copied++;
@@ -7664,6 +7667,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                 applyClipMaskToObject(obj, target);
             });
 
+            if(target.patternMode) _renderPattern(target, false);
             target.fabricCanvas.requestRenderAll();
         });
     }
