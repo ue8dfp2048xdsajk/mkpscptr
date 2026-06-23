@@ -242,6 +242,18 @@ body {
 .pattern-num-input::-webkit-inner-spin-button,
 .pattern-num-input::-webkit-outer-spin-button { opacity: 1; }
 
+.pattern-reset-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #f5f5f5;
+    color: #555;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.pattern-reset-btn:hover { background: #e8e8e8; border-color: #aaa; color: #333; }
+
 /* ── Window count badge ─────────────────────────────────────────────────────── */
 .window-count-badge {
     display: inline-block;

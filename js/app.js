@@ -4105,6 +4105,25 @@ document.querySelectorAll('.pattern-type-btn').forEach(btn => {
 });
 
 // ── Pattern sliders ────────────────────────────────────────────────────────────
+document.getElementById('resetPatternBtn').addEventListener('click', () => {
+    if(!activeIndices.length) return;
+    pushGlobalUndo();
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if(!d || d.locked) return;
+        d.patternSettings = _defaultPattern();
+        if(d.patternMode) _renderPattern(d, false);
+    });
+    // Sync UI
+    document.querySelectorAll('.pattern-type-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.type === 'grid'));
+    _patternSliderDefs.forEach(([id]) => {
+        document.getElementById(id).valueAsNumber = 0;
+        document.getElementById(id + 'Val').value = 0;
+    });
+    _markDirty();
+});
+
 const _patternSliderDefs = [
     ['patternHSpacing','hSpacing'],
     ['patternVSpacing','vSpacing'],
