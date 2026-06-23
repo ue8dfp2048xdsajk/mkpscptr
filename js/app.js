@@ -528,8 +528,50 @@ function _renderPattern(data, lowQuality = false){
         finalCanvas = applyPerspectiveDistortion(finalCanvas, data, lowQuality);
     }
 
-    // ── Apply clip mask, opacity and blend mode to the pattern object ─────────
-    applyClipMaskToObject(data.patternFabricObj, data);
+    // ── Burn clip mask into the pixel canvas ─────────────────────────────────
+    // Fabric.js clipPath on a full-canvas image at (0,0) is unreliable in v5;
+    // we clip directly with the Canvas 2D API so the mask is pixel-perfect.
+    if(data.maskEnabled && data.maskType === 'bezier' && (data.maskPath || data.maskPaths?.length)){
+        const allPaths = data.maskPaths?.length
+            ? data.maskPaths
+            : (data.maskPath ? [data.maskPath] : []);
+        const cw = finalCanvas.width, ch = finalCanvas.height;
+        const masked = document.createElement('canvas');
+        masked.width = cw; masked.height = ch;
+        const mCtx = masked.getContext('2d');
+        mCtx.beginPath();
+        allPaths.forEach(points => {
+            if(!points?.length) return;
+            mCtx.moveTo(points[0].x, points[0].y);
+            for(let i = 1; i < points.length; i++){
+                const prev = points[i - 1];
+                const cur  = points[i];
+                if(prev.cx !== undefined && prev.cy !== undefined){
+                    mCtx.quadraticCurveTo(prev.cx, prev.cy, cur.x, cur.y);
+                } else {
+                    mCtx.lineTo(cur.x, cur.y);
+                }
+            }
+            // close back to first point
+            if(points.length >= 3){
+                const last  = points[points.length - 1];
+                const first = points[0];
+                if(last.cx !== undefined && last.cy !== undefined){
+                    mCtx.quadraticCurveTo(last.cx, last.cy, first.x, first.y);
+                } else {
+                    mCtx.lineTo(first.x, first.y);
+                }
+            }
+            mCtx.closePath();
+        });
+        mCtx.clip();
+        mCtx.drawImage(finalCanvas, 0, 0);
+        finalCanvas = masked;
+    }
+
+    // ── Apply opacity and blend mode to the pattern object ───────────────────
+    // (clipPath on patternFabricObj is now handled pixel-level above)
+    data.patternFabricObj.clipPath = null;
     data.patternFabricObj.set({
         opacity: data.opacity ?? 1,
         globalCompositeOperation: _blendToGCO(data.blendMode ?? 'normal'),
