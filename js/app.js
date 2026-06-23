@@ -3727,22 +3727,47 @@ function _lqRenderSliders(){
             // Skip render work for off-screen objects — state is already updated above.
             if(!_visibleWrappers.has(d.wrapperEl || d.fabricCanvas.lowerCanvasEl.parentElement)) return;
 
+            const isMain   = obj === d.designObject;
+            const inPattern = isMain && d.patternMode && d.patternFabricObj;
+
             if(!requiresWarp){
-                obj.set({
-                    opacity: newFx.opacity,
-                    globalCompositeOperation: _blendToGCO(newFx.blendMode)
-                });
+                if(inPattern){
+                    // Effects target the whole tiled canvas, not the invisible master tile
+                    d.patternFabricObj.set({
+                        opacity: newFx.opacity,
+                        globalCompositeOperation: _blendToGCO(newFx.blendMode)
+                    });
+                    obj.set({opacity: 0});
+                } else {
+                    obj.set({
+                        opacity: newFx.opacity,
+                        globalCompositeOperation: _blendToGCO(newFx.blendMode)
+                    });
+                }
                 d.fabricCanvas.requestRenderAll();
                 return;
             }
 
-            const isMain      = obj === d.designObject;
             const extraIdx    = isMain ? -1 : (d.extraDesignObjects||[]).indexOf(obj);
             const srcOriginal = isMain
                 ? d.designOriginal
                 : (d.extraDesignOriginals?.[extraIdx] || d.designOriginal);
 
             if(!srcOriginal) return;
+
+            if(inPattern){
+                // Warp/blur/noise apply to the whole tiled canvas
+                const _pSrc   = _cachedFlip(d, srcOriginal);
+                const _pBlur  = applyGaussianBlurToImage(_pSrc, (newFx.blurAmount || 0) / 5);
+                const _pNoise = applyNoiseToImage(_pBlur, newFx.noiseAmount || 0);
+                d._patternTileSource = _pNoise;
+                obj.setElement(_pNoise);
+                obj.set({opacity: 0});
+                _renderPattern(d, true);
+                d.fabricCanvas.requestRenderAll();
+                return;
+            }
+
             _applyWarpToOneObject(obj, d, srcOriginal, true);
             d.fabricCanvas.requestRenderAll();
         });
@@ -3880,6 +3905,11 @@ async function _hqRenderSliders(){
                 ? d.designOriginal
                 : (d.extraDesignOriginals?.[extraIdx] || d.designOriginal);
             if(!srcOriginal) return;
+            // Pattern mode: route through applyWarpToData so warp hits the whole canvas
+            if(isMain && d.patternMode && d.patternFabricObj){
+                applyWarpToData(d, false);
+                return;
+            }
             _applyWarpToOneObject(obj, d, srcOriginal, false);
             d.fabricCanvas.requestRenderAll();
         });
