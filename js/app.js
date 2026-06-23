@@ -4989,6 +4989,217 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
     duplicateSelectedWindows();
 });
 
+
+// ── Change Background for selected windows ────────────────────────────────────
+async function changeBackgroundForSelected(file){
+    if(!activeIndices.length) return;
+
+    // Load the new background image from the picked file
+    const newImg = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    pushGlobalUndo();
+
+    for(const i of [...activeIndices]){
+        const data = canvasData[i];
+        if(!data || data.locked) continue;
+
+        const fabricCanvas  = data.fabricCanvas;
+        const oldPreviewW   = fabricCanvas.getWidth();
+        const oldPreviewH   = fabricCanvas.getHeight();
+
+        // Recalculate previewScale to keep the same CSS column width
+        const displayW     = parseInt(fabricCanvas.wrapperEl.style.width) || oldPreviewW;
+        const newScale     = Math.min(1, (displayW * 1.5) / newImg.width);
+        const newPreviewW  = Math.round(newImg.width  * newScale);
+        const newPreviewH  = Math.round(newImg.height * newScale);
+        const newDisplayH  = Math.round(newPreviewH * displayW / newPreviewW);
+
+        // Preserve design's normalized position across the resize
+        const xNorm = oldPreviewW > 0 ? data.x / oldPreviewW : 0.5;
+        const yNorm = oldPreviewH > 0 ? data.y / oldPreviewH : 0.5;
+
+        // Update data fields
+        data.bg         = newImg;
+        data.bgName     = file.name;
+        data.previewScale = newScale;
+        data.x = xNorm * newPreviewW;
+        data.y = yNorm * newPreviewH;
+
+        // Resize Fabric canvas
+        fabricCanvas.setWidth(newPreviewW);
+        fabricCanvas.setHeight(newPreviewH);
+        fabricCanvas.wrapperEl.style.width  = displayW + 'px';
+        fabricCanvas.wrapperEl.style.height = newDisplayH + 'px';
+        if(data.wrapperEl) data.wrapperEl.style.width = displayW + 'px';
+
+        // Resize color layer offscreen canvas proportionally if it exists
+        if(data.colorLayerCanvas && data.colorLayerFabricObj){
+            const tmp     = document.createElement('canvas');
+            tmp.width     = newPreviewW;
+            tmp.height    = newPreviewH;
+            tmp.getContext('2d').drawImage(data.colorLayerCanvas, 0, 0, newPreviewW, newPreviewH);
+            data.colorLayerCanvas = tmp;
+            data.colorLayerCtx    = tmp.getContext('2d');
+            data.colorLayerFabricObj.setElement(tmp);
+            data.colorLayerFabricObj.width  = newPreviewW;
+            data.colorLayerFabricObj.height = newPreviewH;
+            data.colorLayerFabricObj.dirty  = true;
+        }
+
+        // Remove old background object from canvas
+        if(data.backgroundObject) fabricCanvas.remove(data.backgroundObject);
+
+        // Load new background image into Fabric
+        await new Promise(resolve => {
+            fabric.Image.fromURL(newImg.src, function(bgImg){
+                bgImg.set({
+                    left: 0, top: 0,
+                    selectable: false, evented: false,
+                    originX: 'left', originY: 'top',
+                    scaleX: newScale,
+                    scaleY: newScale,
+                });
+                data.backgroundObject = bgImg;
+                fabricCanvas.add(bgImg);
+                fabricCanvas.sendToBack(bgImg);
+
+                // Maintain stacking: bg → color layer → designs
+                if(data.colorLayerFabricObj){
+                    fabricCanvas.sendToBack(data.colorLayerFabricObj);
+                    fabricCanvas.sendToBack(bgImg);
+                }
+
+                addClipOverlay(data);
+
+                if(data.designOriginal){
+                    applyWarpToData(data, true);
+                    setTimeout(() => applyWarpToData(data, false), 50);
+                }
+
+                fabricCanvas.requestRenderAll();
+                resolve();
+            }, { crossOrigin: 'anonymous' });
+        });
+    }
+
+    refreshFabricHandles();
+    syncSliders();
+    updateWindowBorders();
+}
+
+document.getElementById('changeBgBtn').addEventListener('click', ()=>{
+    if(!activeIndices.length) return;
+    document.getElementById('changeBgInput').value = '';
+    document.getElementById('changeBgInput').click();
+});
+document.getElementById('changeBgInput').addEventListener('change', async function(){
+    if(!this.files.length) return;
+    await changeBackgroundForSelected(this.files[0]);
+    this.value = '';
+});
+
+
+// ── Change Design for selected windows ────────────────────────────────────────
+async function changeDesignForSelected(file){
+    if(!activeIndices.length) return;
+
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    loadingIndicator.style.display = 'block';
+    loadingIndicator.innerText = 'Processing design...';
+
+    // Load and (for PNG) trim transparent pixels — exactly as in handleDesignFiles
+    const newImg = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = async e => {
+            const img = new Image();
+            img.onload = async () => {
+                const isJpg = file.type === 'image/jpeg' || file.type === 'image/jpg';
+                let finalImg = img;
+                if(!isJpg){
+                    await new Promise(r => requestAnimationFrame(r));
+                    finalImg = trimTransparentPixels(img);
+                }
+                if(finalImg.complete) resolve(finalImg);
+                else finalImg.onload = () => resolve(finalImg);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    loadingIndicator.style.display = 'none';
+
+    pushGlobalUndo();
+
+    for(const i of [...activeIndices]){
+        const data = canvasData[i];
+        if(!data || data.locked) continue;
+
+        // Update design source
+        data.designOriginal        = newImg;
+        data.initialDesignOriginal = newImg;
+        data.designName            = file.name;
+
+        // Reset transforms exactly as createCanvasData + renderBatch would
+        const previewW = data.fabricCanvas.getWidth();
+        const previewH = data.fabricCanvas.getHeight();
+
+        data.scale = Math.min(
+            (data.bg.width  * 0.5) / newImg.width,
+            (data.bg.height * 0.5) / newImg.height
+        );
+        data.scaleX       = null;
+        data.scaleY       = null;
+        data.x            = previewW / 2;
+        data.y            = previewH / 2;
+        data.rotation     = 0;
+        data.warpAmount   = 0;
+        data.arcAmount    = 0;
+        data.arcTilt      = 0;
+        data.perspectiveTop  = 0;
+        data.perspectiveLeft = 0;
+        data.warpPoints   = null;
+
+        data.initialScale         = data.scale;
+        data.initialX             = data.x;
+        data.initialY             = data.y;
+        data.initialRotation      = 0;
+        data.initialWarpAmount    = 0;
+        data.initialArcAmount     = 0;
+        data.initialArcTilt       = 0;
+        data.initialPerspectiveTop  = 0;
+        data.initialPerspectiveLeft = 0;
+
+        applyWarpToData(data, true);
+        setTimeout(() => applyWarpToData(data, false), 50);
+    }
+
+    refreshFabricHandles();
+    syncSliders();
+    updateWindowBorders();
+    updateLayerButtons();
+}
+
+document.getElementById('changeDesignBtn').addEventListener('click', ()=>{
+    if(!activeIndices.length) return;
+    document.getElementById('changeDesignInput').value = '';
+    document.getElementById('changeDesignInput').click();
+});
+document.getElementById('changeDesignInput').addEventListener('change', async function(){
+    if(!this.files.length) return;
+    await changeDesignForSelected(this.files[0]);
+    this.value = '';
+});
+
+
 function lockSelectedWindows(){
     activeIndices.forEach(i=>{
         const data = canvasData[i];
