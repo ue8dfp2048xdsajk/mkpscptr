@@ -870,6 +870,7 @@ function updateWindowBorders(){
     } else if(changeDesignBtn){
         changeDesignBtn.textContent = 'Change Design';
     }
+    _scheduleMinimapUpdate();
 }
 
 function getAllDesignObjects(data){
@@ -8451,7 +8452,125 @@ function _applyVP() {
     if (tl) tl.style.transform = t;
     const el = document.getElementById('zoomLevelDisplay');
     if (el) el.textContent = Math.round(_vpScale * 100) + '%';
+    _scheduleMinimapUpdate();
 }
+
+// ── Minimap ───────────────────────────────────────────────────────────────────
+const _MM_W   = 180;   // minimap canvas width  (px)
+const _MM_HMAX = 150;  // minimap canvas max height (px)
+const _MM_PAD  = 6;    // inner padding
+
+let _minimapRaf = false;
+function _scheduleMinimapUpdate(){
+    if(_minimapRaf) return;
+    _minimapRaf = true;
+    requestAnimationFrame(() => { _minimapRaf = false; updateMinimap(); });
+}
+
+function updateMinimap(){
+    const mm = document.getElementById('minimap');
+    const cv = document.getElementById('minimapCanvas');
+    const cc = document.getElementById('canvasContainer');
+    const vw = document.getElementById('viewportWrapper');
+    if(!mm || !cv || !cc || !vw) return;
+
+    if(!canvasData.length){ mm.hidden = true; return; }
+    mm.hidden = false;
+
+    const natW = cc.offsetWidth;
+    const natH = cc.offsetHeight;
+    if(!natW || !natH) return;
+
+    // Scale that fits the whole container into the minimap bounds
+    const ms = Math.min(
+        (_MM_W    - _MM_PAD * 2) / natW,
+        (_MM_HMAX - _MM_PAD * 2) / natH
+    );
+    const cvW = Math.round(natW * ms + _MM_PAD * 2);
+    const cvH = Math.round(natH * ms + _MM_PAD * 2);
+
+    if(cv.width !== cvW || cv.height !== cvH){ cv.width = cvW; cv.height = cvH; }
+
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cvW, cvH);
+
+    // Window cells
+    const activeSet = new Set(activeIndices);
+    canvasData.forEach((data, i) => {
+        const el = data?.wrapperEl;
+        if(!el) return;
+        const x = _MM_PAD + el.offsetLeft  * ms;
+        const y = _MM_PAD + el.offsetTop   * ms;
+        const w = Math.max(1, el.offsetWidth  * ms);
+        const h = Math.max(1, el.offsetHeight * ms);
+
+        ctx.fillStyle   = activeSet.has(i) ? 'rgba(30,94,255,0.55)' : 'rgba(255,255,255,0.18)';
+        ctx.strokeStyle = activeSet.has(i) ? 'rgba(102,153,255,0.9)' : 'rgba(255,255,255,0.3)';
+        ctx.lineWidth   = 0.5;
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeRect(x + 0.25, y + 0.25, w - 0.5, h - 0.5);
+    });
+
+    // Viewport indicator
+    const vwRect  = vw.getBoundingClientRect();
+    const visLeft = -_vpX / _vpScale;
+    const visTop  = -_vpY / _vpScale;
+    const visW    = vwRect.width  / _vpScale;
+    const visH    = vwRect.height / _vpScale;
+
+    const rx = _MM_PAD + visLeft * ms;
+    const ry = _MM_PAD + visTop  * ms;
+    const rw = visW * ms;
+    const rh = visH * ms;
+
+    ctx.fillStyle   = 'rgba(255,255,255,0.07)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.88)';
+    ctx.lineWidth   = 1.5;
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeRect(rx + 0.75, ry + 0.75, rw - 1.5, rh - 1.5);
+}
+
+// Click / drag to pan via minimap
+(function(){
+    const cv = document.getElementById('minimapCanvas');
+    const vw = document.getElementById('viewportWrapper');
+    const cc = document.getElementById('canvasContainer');
+    let _mmDown = false;
+
+    function panTo(e){
+        if(!cv || !vw || !cc) return;
+        const cvRect = cv.getBoundingClientRect();
+        const natW   = cc.offsetWidth;
+        const natH   = cc.offsetHeight;
+        if(!natW || !natH) return;
+        const ms = Math.min(
+            (_MM_W    - _MM_PAD * 2) / natW,
+            (_MM_HMAX - _MM_PAD * 2) / natH
+        );
+        // Click in canvas px (accounting for CSS scaling of the element)
+        const scaleX = cv.width  / cvRect.width;
+        const scaleY = cv.height / cvRect.height;
+        const mx = (e.clientX - cvRect.left) * scaleX;
+        const my = (e.clientY - cvRect.top)  * scaleY;
+        // Natural container coords of the clicked point
+        const natX = (mx - _MM_PAD) / ms;
+        const natY = (my - _MM_PAD) / ms;
+        // Pan so that point sits at the viewport centre
+        const vwRect = vw.getBoundingClientRect();
+        _vpX = vwRect.width  / 2 - natX * _vpScale;
+        _vpY = vwRect.height / 2 - natY * _vpScale;
+        _applyVP();
+    }
+
+    cv.addEventListener('mousedown', e => {
+        _mmDown = true;
+        panTo(e);
+        e.stopPropagation();
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => { if(_mmDown) panTo(e); });
+    document.addEventListener('mouseup',   () => { _mmDown = false; });
+})();
 
 (()=>{
     const vw = document.getElementById('viewportWrapper');
