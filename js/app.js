@@ -3488,7 +3488,11 @@ function updateDropUI(){
     const bgCount      = document.getElementById('bgCount');
     const designCount  = document.getElementById('designCount');
 
-    if(backgrounds.length === 0){
+    // If windows already exist (e.g. added via Add Window) never show overlays
+    if(canvasData.length > 0){
+        dropZone.style.display     = 'none';
+        designPrompt.style.display = 'none';
+    } else if(backgrounds.length === 0){
         dropZone.style.display     = 'flex';
         designPrompt.style.display = 'none';
     } else if(designs.length === 0){
@@ -5121,22 +5125,22 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
         _attachWrapperClickListener(wrapper, newData);
         attachClipDrawing(wrapper, fabricCanvas, newData, 0);
 
-        // 6. Select the new window
-        activeIndices     = [0];
-        lastSelectedIndex = 0;
-        selectedDesigns.clear();
-        updateWindowBorders();
-        syncSliders();
-        updateContextPanel();
-
-        // 7. Hide the empty-state overlay so the new window is visible
+        // 6. Hide the empty-state overlay first (before any call that might
+        //    invoke updateDropUI and re-show it)
         const dropZoneEl     = document.getElementById('dropZone');
         const designPromptEl = document.getElementById('designPrompt');
         if(dropZoneEl)     dropZoneEl.style.display     = 'none';
         if(designPromptEl) designPromptEl.style.display = 'none';
 
-        // 8. Hide loading indicator now — Fabric bg load is fire-and-forget
+        // 7. Hide loading indicator
         loadingIndicator.style.display = 'none';
+
+        // 8. Select the new window
+        activeIndices     = [0];
+        lastSelectedIndex = 0;
+        selectedDesigns.clear();
+        updateWindowBorders();
+        syncSliders();
 
         // 9. Load background into Fabric (fire-and-forget — matches renderBatch)
         fabric.Image.fromURL(bgImg.src, bgFabricImg => {
