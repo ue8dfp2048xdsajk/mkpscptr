@@ -26,11 +26,13 @@
         <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">↩ Undo</button>
         <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">↪ Redo</button>
         <button id="exportBtn">Export Selected</button>
+        <button id="exportTextBtn" title="Export canvas text boxes as .txt">Export Text</button>
         <button id="saveProgressBtn">Save Progress</button>
         <button id="loadProgressBtn">Load Progress</button>
         <button id="clearSessionBtn" title="Remove the autosaved session so the canvas starts blank on next load">Clear Session</button>
         <input type="file" id="loadProgressInput" accept=".json" style="display:none;">
         <span class="vp-tool-controls">
+            <button id="toolTextBtn" title="Text tool — click or drag to add text to the canvas">T</button>
             <button id="toolSelectBtn" title="Marquee select — drag to select windows">⬚</button>
             <button id="toolPanBtn" title="Pan tool — drag to pan the canvas">✋</button>
         </span>
@@ -81,6 +83,7 @@ Preparing designs...
 </div>
 
     <div class="canvas-container" id="canvasContainer"></div>
+    <div id="textLayer"></div>
 </div><!-- /#viewportWrapper -->
 
 <!-- ── Context Panel ─────────────────────────────────────────────────── -->
@@ -199,18 +202,6 @@ Preparing designs...
     </div>
 </div>
 
-<button id="notesTab" title="Mockup Notes">&#9998;<span>Notes</span></button>
-
-<div id="notesDrawer">
-    <div id="notesDrawerHeader">
-        <span id="notesDrawerTitle">Notes</span>
-        <div style="display:flex;gap:6px;align-items:center;">
-            <button id="exportNotesBtn" title="Export all notes as .txt">Export .txt</button>
-            <button id="notesCloseBtn" title="Close notes">&#10005;</button>
-        </div>
-    </div>
-    <div id="notesDrawerBody"></div>
-</div>
 
 <div id="brushCursorRing"></div>
 <div id="designEraserCursor" style="display:none;">

@@ -6525,7 +6525,7 @@ function autoSaveSession(){
         try {
             localStorage.setItem(
                 'mockup_autosave',
-                JSON.stringify(buildSnapshot())
+                JSON.stringify(buildFullSnapshot())
             );
         } catch(e){
             // quota exceeded or private browsing — silently skip
@@ -6537,7 +6537,7 @@ function autoSaveSession(){
 
 document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
 
-    const snapshot = buildSnapshot();
+    const snapshot = buildFullSnapshot();
 
     const blob = new Blob(
         [JSON.stringify(snapshot, null, 2)],
@@ -7133,9 +7133,12 @@ document.getElementById("loadProgressInput").addEventListener("change", function
 
     reader.onload = async function(e){
 
-        const snapshot = JSON.parse(e.target.result);
+        const data     = JSON.parse(e.target.result);
+        const snapshot = Array.isArray(data) ? data : (data.windows || []);
+        const tboxes   = Array.isArray(data) ? [] : (data.textBoxes || []);
 
         await createCanvasPreviewsFromSnapshot(snapshot);
+        if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
 
         syncSliders();
         updateWindowBorders();
@@ -7184,12 +7187,25 @@ let _vpPanning    = false;
 let _vpPanStart   = null;
 let _vpPanMoved   = false;
 let _vpSpaceDown  = false;
-let _activeTool   = null;  // null | 'select' | 'pan'
+let _activeTool   = null;  // null | 'select' | 'pan' | 'text'
+
+let _textBoxes = [];  // { id, x, y, w, h, content, el }
+let _tbNextId  = 1;
+
+function deleteTextBox(box) {
+    if (box.el && box.el.parentNode) box.el.parentNode.removeChild(box.el);
+    const idx = _textBoxes.indexOf(box);
+    if (idx !== -1) _textBoxes.splice(idx, 1);
+    autoSaveSession();
+}
 
 // Global viewport apply — mirrors the IIFE-local applyVP; used by undo/redo.
 function _applyVP() {
+    const t  = `translate(${_vpX}px,${_vpY}px) scale(${_vpScale})`;
     const cc = document.getElementById('canvasContainer');
-    if (cc) cc.style.transform = `translate(${_vpX}px,${_vpY}px) scale(${_vpScale})`;
+    const tl = document.getElementById('textLayer');
+    if (cc) cc.style.transform = t;
+    if (tl) tl.style.transform = t;
     const el = document.getElementById('zoomLevelDisplay');
     if (el) el.textContent = Math.round(_vpScale * 100) + '%';
 }
@@ -7199,7 +7215,10 @@ function _applyVP() {
     const cc = document.getElementById('canvasContainer');
 
     function applyVP() {
-        cc.style.transform = `translate(${_vpX}px,${_vpY}px) scale(${_vpScale})`;
+        const t = `translate(${_vpX}px,${_vpY}px) scale(${_vpScale})`;
+        cc.style.transform = t;
+        const tl = document.getElementById('textLayer');
+        if (tl) tl.style.transform = t;
         const pct = Math.round(_vpScale * 100);
         document.getElementById('zoomLevelDisplay').textContent = pct + '%';
     }
@@ -7372,10 +7391,11 @@ function _applyVP() {
 })();
 
 
-// ── Toolbar tools: marquee-select + hand-pan ──────────────────────────────────
+// ── Toolbar tools: text + marquee-select + hand-pan ──────────────────────────
 (()=>{
     const vw        = document.getElementById('viewportWrapper');
     const cc        = document.getElementById('canvasContainer');
+    const textBtn   = document.getElementById('toolTextBtn');
     const selectBtn = document.getElementById('toolSelectBtn');
     const panBtn    = document.getElementById('toolPanBtn');
 
@@ -7399,6 +7419,7 @@ function _applyVP() {
     // ── Tool toggle ──────────────────────────────────────────────────────────
     function setTool(tool) {
         _activeTool = (_activeTool === tool) ? null : tool;
+        textBtn.classList.toggle('tool-active',   _activeTool === 'text');
         selectBtn.classList.toggle('tool-active', _activeTool === 'select');
         panBtn.classList.toggle('tool-active',    _activeTool === 'pan');
         // Disable Fabric pointer events while a tool is active so drags don't
@@ -7406,9 +7427,12 @@ function _applyVP() {
         cc.style.pointerEvents = (_activeTool !== null) ? 'none' : '';
         vw.style.cursor = _activeTool === 'pan'    ? 'grab'
                         : _activeTool === 'select' ? 'crosshair'
+                        : _activeTool === 'text'   ? 'text'
                         : '';
     }
+    window._setActiveTool = setTool;
 
+    textBtn.addEventListener('click',   () => setTool('text'));
     selectBtn.addEventListener('click', () => setTool('select'));
     panBtn.addEventListener('click',    () => setTool('pan'));
 
@@ -7507,46 +7531,204 @@ function _applyVP() {
 })();
 
 
-// ── Notes drawer wiring ──────────────────────────────────────────────────
+// ── Canvas text tool ─────────────────────────────────────────────────────────
 (()=>{
-    const tab    = document.getElementById('notesTab');
-    const drawer = document.getElementById('notesDrawer');
-    const closeBtn  = document.getElementById('notesCloseBtn');
-    const exportBtn = document.getElementById('exportNotesBtn');
+    const vw = document.getElementById('viewportWrapper');
+    const tl = document.getElementById('textLayer');
 
-    function openDrawer(){
-        drawer.classList.add('open');
-        refreshNotesPanel();
+    // ── screen → canvas-space coords ─────────────────────────────────────────
+    function toCanvas(clientX, clientY) {
+        const r = vw.getBoundingClientRect();
+        return {
+            x: (clientX - r.left - _vpX) / _vpScale,
+            y: (clientY - r.top  - _vpY) / _vpScale
+        };
     }
-    function closeDrawer(){
-        drawer.classList.remove('open');
-    }
 
-    tab.addEventListener('click', ()=>{
-        drawer.classList.contains('open') ? closeDrawer() : openDrawer();
-    });
-    closeBtn.addEventListener('click', closeDrawer);
+    // ── Build one text-box element ────────────────────────────────────────────
+    function createTextBox(x, y, w, h, content) {
+        const el = document.createElement('div');
+        el.className     = 'canvas-text-box';
+        el.contentEditable = 'true';
+        el.spellcheck    = false;
+        el.style.left    = x + 'px';
+        el.style.top     = y + 'px';
+        if (w > 0) el.style.width  = Math.max(80, w)  + 'px';
+        if (h > 0) el.style.height = Math.max(28, h) + 'px';
+        if (content) el.textContent = content;
 
-    exportBtn.addEventListener('click', ()=>{
-        if(!canvasData.length){
-            alert('No mockups to export.');
-            return;
-        }
-        const lines = canvasData.map((d, i)=>{
-            const name  = d.filename || d.bgName || `Mockup ${i+1}`;
-            const notes = (d.notes || '').trim() || '(no notes)';
-            return `${name}\n${'─'.repeat(name.length)}\n${notes}`;
+        // Drag handle (top-centre bar)
+        const handle = document.createElement('div');
+        handle.className = 'tb-handle';
+        handle.title = 'Drag to move';
+        el.appendChild(handle);
+
+        // Delete button (top-right ×)
+        const del = document.createElement('button');
+        del.className = 'tb-delete';
+        del.textContent = '×';
+        del.title = 'Delete text box';
+        el.appendChild(del);
+
+        tl.appendChild(el);
+
+        const box = { id: _tbNextId++, x, y, w: w || 0, h: h || 0, content: content || '', el };
+        _textBoxes.push(box);
+
+        // ── Sync content ──────────────────────────────────────────────────────
+        el.addEventListener('input', () => {
+            box.content = el.innerText;
+            autoSaveSession();
         });
-        const text = lines.join('\n\n') + '\n';
-        const blob = new Blob([text], { type: 'text/plain' });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href     = url;
-        a.download = 'mockup-notes.txt';
-        a.click();
-        URL.revokeObjectURL(url);
+
+        // ── Blur: auto-delete if empty ────────────────────────────────────────
+        el.addEventListener('blur', () => {
+            setTimeout(() => {
+                if (document.activeElement !== el && !el.innerText.trim()) {
+                    deleteTextBox(box);
+                }
+            }, 200);
+        });
+
+        // ── ESC: blur ────────────────────────────────────────────────────────
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Escape') { e.preventDefault(); el.blur(); }
+        });
+
+        // ── Prevent vw mousedown from creating a new box ──────────────────────
+        el.addEventListener('mousedown', e => e.stopPropagation());
+
+        // ── Delete button ─────────────────────────────────────────────────────
+        del.addEventListener('mousedown', e => e.stopPropagation());
+        del.addEventListener('click', e => { e.stopPropagation(); deleteTextBox(box); });
+
+        // ── Drag handle: move the box ─────────────────────────────────────────
+        handle.addEventListener('mousedown', e => {
+            e.stopPropagation();
+            e.preventDefault();
+            const startCX = e.clientX, startCY = e.clientY;
+            const startBX = box.x,     startBY = box.y;
+            function onMove(ev) {
+                box.x = startBX + (ev.clientX - startCX) / _vpScale;
+                box.y = startBY + (ev.clientY - startCY) / _vpScale;
+                el.style.left = box.x + 'px';
+                el.style.top  = box.y + 'px';
+            }
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup',  onUp);
+                autoSaveSession();
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup',   onUp);
+        });
+
+        return box;
+    }
+
+    // Expose restore helper for load/autorestore paths
+    window._restoreTextBoxes = function(boxes) {
+        _textBoxes.forEach(b => { if (b.el.parentNode) b.el.parentNode.removeChild(b.el); });
+        _textBoxes = [];
+        _tbNextId  = 1;
+        (boxes || []).forEach(b => createTextBox(b.x, b.y, b.w || 0, b.h || 0, b.content || ''));
+    };
+
+    // ── Drag-to-create state ──────────────────────────────────────────────────
+    let _tbStart    = null;   // { clientX, clientY, canvasX, canvasY }
+    let _tbPreview  = null;   // temporary preview div
+    let _tbDragging = false;
+
+    vw.addEventListener('mousedown', e => {
+        if (_activeTool !== 'text' || e.button !== 0) return;
+        if (e.target.closest('.canvas-text-box')) return;
+        e.preventDefault();
+        const pos = toCanvas(e.clientX, e.clientY);
+        _tbStart    = { clientX: e.clientX, clientY: e.clientY, ...pos };
+        _tbDragging = false;
+
+        // Placeholder preview div
+        _tbPreview = document.createElement('div');
+        _tbPreview.className = 'canvas-text-box';
+        _tbPreview.style.pointerEvents = 'none';
+        _tbPreview.style.opacity = '0.45';
+        _tbPreview.style.left = pos.x + 'px';
+        _tbPreview.style.top  = pos.y + 'px';
+        _tbPreview.style.width  = '2px';
+        _tbPreview.style.height = '2px';
+        tl.appendChild(_tbPreview);
+    });
+
+    document.addEventListener('mousemove', e => {
+        if (!_tbStart || _activeTool !== 'text') return;
+        const dx = e.clientX - _tbStart.clientX;
+        const dy = e.clientY - _tbStart.clientY;
+        if (!_tbDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) _tbDragging = true;
+        if (_tbDragging && _tbPreview) {
+            const cur = toCanvas(e.clientX, e.clientY);
+            const x = Math.min(_tbStart.x, cur.x);
+            const y = Math.min(_tbStart.y, cur.y);
+            const w = Math.max(80,  Math.abs(cur.x - _tbStart.x));
+            const h = Math.max(28, Math.abs(cur.y - _tbStart.y));
+            _tbPreview.style.left   = x + 'px';
+            _tbPreview.style.top    = y + 'px';
+            _tbPreview.style.width  = w + 'px';
+            _tbPreview.style.height = h + 'px';
+        }
+    });
+
+    document.addEventListener('mouseup', e => {
+        if (!_tbStart || _activeTool !== 'text') return;
+        if (_tbPreview && _tbPreview.parentNode) _tbPreview.parentNode.removeChild(_tbPreview);
+        _tbPreview = null;
+
+        if (_tbDragging) {
+            const cur = toCanvas(e.clientX, e.clientY);
+            const x = Math.min(_tbStart.x, cur.x);
+            const y = Math.min(_tbStart.y, cur.y);
+            const w = Math.max(80,  Math.abs(cur.x - _tbStart.x));
+            const h = Math.max(28, Math.abs(cur.y - _tbStart.y));
+            const box = createTextBox(x, y, w, h, '');
+            setTimeout(() => box.el.focus(), 0);
+        } else {
+            const box = createTextBox(_tbStart.x, _tbStart.y, 0, 0, '');
+            setTimeout(() => box.el.focus(), 0);
+        }
+
+        _tbStart    = null;
+        _tbDragging = false;
+        suppressNextWrapperClick = true;
     });
 })();
+
+
+// ── Export canvas text ────────────────────────────────────────────────────────
+document.getElementById('exportTextBtn').addEventListener('click', () => {
+    const sorted = [..._textBoxes]
+        .filter(b => b.content.trim())
+        .sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+    if (!sorted.length) {
+        alert('No text on the canvas to export yet.');
+        return;
+    }
+    const text = sorted.map(b => b.content.trim()).join('\n\n') + '\n';
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'canvas-text.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+});
+
+
+// ── Full snapshot (windows + text boxes) ─────────────────────────────────────
+function buildFullSnapshot() {
+    return {
+        windows:   buildSnapshot(),
+        textBoxes: _textBoxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, content: b.content }))
+    };
+}
 
 
 window.addEventListener('DOMContentLoaded', async ()=>{
@@ -7564,9 +7746,13 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         return;
     }
 
-    if(!Array.isArray(snapshot) || !snapshot.length) return;
+    const windows = Array.isArray(snapshot) ? snapshot : (snapshot.windows || []);
+    const tboxes  = Array.isArray(snapshot) ? []       : (snapshot.textBoxes || []);
 
-    await createCanvasPreviewsFromSnapshot(snapshot);
+    if (!windows.length) return;
+
+    await createCanvasPreviewsFromSnapshot(windows);
+    if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
 
     syncSliders();
     updateWindowBorders();
