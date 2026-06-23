@@ -1962,6 +1962,45 @@ function pushGlobalUndo(){
     updateUndoRedoButtons();
 }
 
+// ── Layout undo/redo (cols, row gap, col gap) ─────────────────────────────────
+function captureLayoutState() {
+    return { cols: _numColumns, rowGap: _rowGap, colGap: _colGap };
+}
+
+function pushLayoutUndo() {
+    globalUndoStack.push({ type: 'layout', state: captureLayoutState() });
+    if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+    globalRedoStack = [];
+    updateUndoRedoButtons();
+}
+
+async function applyLayoutState(state) {
+    const prevCols = _numColumns;
+    _numColumns = state.cols;
+    _rowGap     = state.rowGap;
+    _colGap     = state.colGap;
+
+    const colsInput = document.getElementById('numColsInput');
+    const rowInput  = document.getElementById('rowGapInput');
+    const colInput  = document.getElementById('colGapInput');
+    if (colsInput) colsInput.value = _numColumns;
+    if (rowInput)  rowInput.value  = _rowGap;
+    if (colInput)  colInput.value  = _colGap;
+
+    const container = document.getElementById('canvasContainer');
+    container.style.gridTemplateColumns = `repeat(${_numColumns}, minmax(0, 1fr))`;
+    container.style.rowGap    = _rowGap + 'px';
+    container.style.columnGap = _colGap + 'px';
+
+    if (state.cols !== prevCols && canvasData.length) {
+        const snapshot = buildSnapshot();
+        await createCanvasPreviewsFromSnapshot(snapshot);
+        syncSliders();
+        updateWindowBorders();
+    }
+    updateUndoRedoButtons();
+}
+
 // Re-inserts previously-deleted windows back into canvasData and the DOM.
 // `saved` is [{originalIdx, data}] sorted ascending by originalIdx.
 function _restoreDeletedWindows(saved){
@@ -2032,6 +2071,12 @@ async function performGlobalUndo(){
         return;
     }
 
+    if(entry.type === 'layout'){
+        globalRedoStack.push({ type: 'layout', state: captureLayoutState() });
+        await applyLayoutState(entry.state);
+        return;
+    }
+
     globalRedoStack.push({
         affected: entry.affected,
         states: entry.affected
@@ -2057,6 +2102,12 @@ async function performGlobalRedo(){
         globalUndoStack.push({ type: 'deletion', saved: entry.saved });
         updateUndoRedoButtons();
         _reDeleteWindows(entry.saved);
+        return;
+    }
+
+    if(entry.type === 'layout'){
+        globalUndoStack.push({ type: 'layout', state: captureLayoutState() });
+        await applyLayoutState(entry.state);
         return;
     }
 
@@ -7221,6 +7272,7 @@ let _vpSpaceDown  = false;
         const clamped = Math.max(1, Math.min(20, isNaN(raw) ? _numColumns : raw));
         input.value = clamped;
         if (clamped === _numColumns) return;
+        pushLayoutUndo();
         _numColumns = clamped;
         clearTimeout(_colsRebuildTimer);
         _colsRebuildTimer = setTimeout(rebuildForColumns, 0);
@@ -7245,6 +7297,8 @@ let _vpSpaceDown  = false;
     rowInput.addEventListener('change', () => {
         const v = Math.max(0, Math.min(120, parseInt(rowInput.value, 10) || 0));
         rowInput.value = v;
+        if (v === _rowGap) return;
+        pushLayoutUndo();
         _rowGap = v;
         applyGaps();
     });
@@ -7252,6 +7306,8 @@ let _vpSpaceDown  = false;
     colInput.addEventListener('change', () => {
         const v = Math.max(0, Math.min(120, parseInt(colInput.value, 10) || 0));
         colInput.value = v;
+        if (v === _colGap) return;
+        pushLayoutUndo();
         _colGap = v;
         applyGaps();
     });
