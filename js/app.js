@@ -5703,10 +5703,21 @@ document.getElementById('flipVBtn').addEventListener('click', () => flipSelected
                 tmp.getContext('2d').drawImage(src, 0, 0);
                 const inputBlob = await new Promise(r => tmp.toBlob(r, 'image/png'));
 
-                // POST to local server endpoint
-                const form = new FormData();
-                form.append('image', inputBlob, 'design.png');
-                const response = await fetch('/api/remove-bg', { method: 'POST', body: form });
+                // POST to local server endpoint — retry up to 10× if server is busy (503)
+                let response;
+                for(let attempt = 0; attempt < 10; attempt++){
+                    const form = new FormData();
+                    form.append('image', inputBlob, 'design.png');
+                    response = await fetch('/api/remove-bg', { method: 'POST', body: form });
+                    if(response.status !== 503) break;
+                    btn.textContent = targets.length > 1
+                        ? `Waiting… ${t + 1}/${targets.length}`
+                        : 'Waiting…';
+                    await new Promise(r => setTimeout(r, 2000));
+                    btn.textContent = targets.length > 1
+                        ? `Processing ${t + 1}/${targets.length}…`
+                        : 'Processing…';
+                }
                 if(!response.ok){
                     const err = await response.json().catch(() => ({ error: response.statusText }));
                     throw new Error(err.error || response.statusText);
