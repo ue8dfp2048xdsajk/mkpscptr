@@ -574,7 +574,7 @@ function _syncPatternDisplay(){
         const el = document.getElementById(id);
         if(el) el.valueAsNumber = v;
         const vEl = document.getElementById(id + 'Val');
-        if(vEl) vEl.textContent = v;
+        if(vEl) vEl.value = v;
     });
 }
 
@@ -4012,7 +4012,7 @@ _patternSliderDefs.forEach(([id, key]) => {
     el.addEventListener('mouseup', () => { _patternUndoLocked = false; });
     el.addEventListener('input', () => {
         const v = parseFloat(el.value);
-        if(valEl) valEl.textContent = v;
+        if(valEl) valEl.value = v;
         activeIndices.forEach(i => {
             const d = canvasData[i];
             if(d.locked) return;
@@ -4022,6 +4022,23 @@ _patternSliderDefs.forEach(([id, key]) => {
         });
         _markDirty();
     });
+    if(valEl){
+        valEl.addEventListener('change', () => {
+            const minV = parseFloat(el.min), maxV = parseFloat(el.max);
+            const v = Math.max(minV, Math.min(maxV, parseFloat(valEl.value) || 0));
+            valEl.value = v;
+            el.value = v;
+            pushGlobalUndo();
+            activeIndices.forEach(i => {
+                const d = canvasData[i];
+                if(d.locked) return;
+                if(!d.patternSettings) d.patternSettings = _defaultPattern();
+                d.patternSettings[key] = v;
+                if(d.patternMode) _renderPattern(d);
+            });
+            _markDirty();
+        });
+    }
 });
 
 
@@ -8257,7 +8274,7 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
     document.querySelectorAll('.pattern-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === 'grid'));
     _patternSliderDefs.forEach(([id]) => {
         document.getElementById(id).valueAsNumber = 0;
-        document.getElementById(id + 'Val').textContent = 0;
+        document.getElementById(id + 'Val').value = 0;
     });
 
     refreshFabricHandles();

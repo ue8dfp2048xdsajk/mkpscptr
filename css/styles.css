@@ -225,6 +225,22 @@ body {
 #contextPanel .pattern-type-btn:hover { background:#e0f2f1; border-color:#00bfa5; color:#00695c; }
 #contextPanel .pattern-type-btn.active { background:#e0f2f1; border-color:#00897b; color:#00695c; }
 
+/* ── Pattern number inputs ────────────────────────────────────────────────────── */
+.pattern-num-input {
+    width: 46px;
+    font-size: 11px;
+    text-align: right;
+    flex-shrink: 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 1px 3px;
+    color: #333;
+    background: #fff;
+    -moz-appearance: textfield;
+}
+.pattern-num-input::-webkit-inner-spin-button,
+.pattern-num-input::-webkit-outer-spin-button { opacity: 1; }
+
 /* ── Window count badge ─────────────────────────────────────────────────────── */
 .window-count-badge {
     display: inline-block;
