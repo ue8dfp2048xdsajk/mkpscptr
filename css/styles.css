@@ -462,6 +462,25 @@ body {
 }
 #contextPanel button:hover { background: #f0f0f0; }
 
+/* Clipping sub-buttons — indented secondary actions */
+#contextPanel .clip-sub-btn {
+    margin-left: 12px;
+    width: calc(100% - 12px);
+    font-size: 11px;
+    color: #555;
+    background: #f8f8f8;
+    border-color: #e0e0e0;
+    padding: 4px 8px;
+}
+#contextPanel .clip-sub-btn::before {
+    content: '↳ ';
+    opacity: 0.4;
+    font-size: 10px;
+}
+#contextPanel .clip-sub-btn:hover { background: #efefef; color: #222; }
+#contextPanel .clip-sub-btn--danger { color: #c0392b; }
+#contextPanel .clip-sub-btn--danger:hover { background: #fdf0ef; }
+
 .cp-btn-row {
     display: flex;
     gap: 6px;
