@@ -5162,10 +5162,6 @@ async function duplicateSelectedWindows(){
 }
 
 
-document.getElementById("contextPanelClose").addEventListener("click", ()=>{
-    _deselectAll();
-});
-
 document.getElementById("deleteWindowsBtn").addEventListener("click", ()=>{
 
     if(clipEditMode){

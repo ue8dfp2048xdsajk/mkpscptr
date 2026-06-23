@@ -515,23 +515,6 @@ body {
     font-size: 12px;
 }
 
-#contextPanelClose {
-    background: rgba(255,255,255,0.15) !important;
-    color: #fff !important;
-    border: none !important;
-    border-radius: 4px !important;
-    padding: 3px 8px !important;
-    font-size: 11px !important;
-    cursor: pointer !important;
-    transition: background 0.15s !important;
-    width: auto !important;
-    flex-shrink: 0;
-    text-align: center !important;
-}
-#contextPanelClose:hover { background: rgba(255,255,255,0.3) !important; }
-
-/* Hide deselect button when nothing is selected */
-#contextPanel:not(.active) #contextPanelClose { display: none !important; }
 
 #contextPanelBody {
     flex: 1;
