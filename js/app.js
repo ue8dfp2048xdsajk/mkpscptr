@@ -5665,19 +5665,13 @@ document.getElementById('flipHBtn').addEventListener('click', () => flipSelected
 document.getElementById('flipVBtn').addEventListener('click', () => flipSelectedDesigns('V'));
 
 // ── Remove Background ──────────────────────────────────────────────────────────
-// Uses @imgly/background-removal — runs a neural net entirely in the browser via
-// WebAssembly. Model files (~50 MB) are fetched from jsDelivr on first use and
-// cached by the browser, so subsequent uses are instant.
+// POSTs the design image to /api/remove-bg on the local Express server, which
+// runs @imgly/background-removal-node (ONNX, server-side).
 // NOTE: this replaces designOriginal in-place and cannot be undone.
 (function(){
-    const CDN   = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/';
-    const ENTRY = CDN + 'browser.js';
-    let _removeBg = null; // cached function after first load
-
     document.getElementById('removeBgBtn').addEventListener('click', async () => {
         if(!activeIndices.length) return;
 
-        // Only act on windows that have a design loaded
         const targets = activeIndices.filter(i => canvasData[i]?.designOriginal && !canvasData[i]?.locked);
         if(!targets.length) return;
 
@@ -5685,26 +5679,13 @@ document.getElementById('flipVBtn').addEventListener('click', () => flipSelected
             'Remove background from ' +
             (targets.length === 1 ? 'this design' : targets.length + ' designs') +
             '?\n\nThis replaces the design source and cannot be undone. ' +
-            'On first use the model (~50 MB) downloads automatically.'
+            'The first run may take a moment while the model warms up.'
         )) return;
 
         const btn = document.getElementById('removeBgBtn');
         btn.disabled = true;
 
         try {
-            // ── 1. Lazy-load the library ────────────────────────────────────
-            if(!_removeBg){
-                btn.textContent = 'Downloading model…';
-                const mod = await import(/* @vite-ignore */ ENTRY);
-                _removeBg = (blob, onProgress) => mod.removeBackground(blob, {
-                    publicPath: CDN,
-                    progress: (key, current, total) => {
-                        if(total > 0 && onProgress) onProgress(Math.round(current / total * 100));
-                    }
-                });
-            }
-
-            // ── 2. Process each target window ──────────────────────────────
             for(let t = 0; t < targets.length; t++){
                 const i    = targets[t];
                 const data = canvasData[i];
@@ -5718,17 +5699,21 @@ document.getElementById('flipVBtn').addEventListener('click', () => flipSelected
                 const w   = src.naturalWidth  || src.width;
                 const h   = src.naturalHeight || src.height;
                 const tmp = document.createElement('canvas');
-                tmp.width  = w;  tmp.height = h;
+                tmp.width = w; tmp.height = h;
                 tmp.getContext('2d').drawImage(src, 0, 0);
                 const inputBlob = await new Promise(r => tmp.toBlob(r, 'image/png'));
 
-                const resultBlob = await _removeBg(inputBlob, pct => {
-                    btn.textContent = targets.length > 1
-                        ? `Processing ${t + 1}/${targets.length}… ${pct}%`
-                        : `Processing… ${pct}%`;
-                });
+                // POST to local server endpoint
+                const form = new FormData();
+                form.append('image', inputBlob, 'design.png');
+                const response = await fetch('/api/remove-bg', { method: 'POST', body: form });
+                if(!response.ok){
+                    const err = await response.json().catch(() => ({ error: response.statusText }));
+                    throw new Error(err.error || response.statusText);
+                }
+                const resultBlob = await response.blob();
 
-                // Replace designOriginal with the transparent-background result
+                // Replace designOriginal with the transparent result
                 await new Promise((resolve, reject) => {
                     const img = new Image();
                     img.onload = () => {
@@ -5741,7 +5726,6 @@ document.getElementById('flipVBtn').addEventListener('click', () => flipSelected
                     img.src = URL.createObjectURL(resultBlob);
                 });
             }
-
         } catch(err){
             console.error('Remove BG failed:', err);
             alert('Background removal failed: ' + (err?.message || String(err)));
