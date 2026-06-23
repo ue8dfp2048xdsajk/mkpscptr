@@ -5651,9 +5651,14 @@ document.getElementById("copyColorBtn").addEventListener("click", ()=>{
     colorCopySourceIndex = srcIndex;
     colorCopySelectMode  = true;
 
-    // Clear selection so user starts fresh picking targets
-    activeIndices = [];
+    // Keep source selected and highlighted so the user knows which window they're copying from
+    activeIndices = [srcIndex];
     updateWindowBorders();
+
+    // Restore normal cursor — stop the brush ring and remove cursor:none from wrappers
+    _stopColorLayerCursorTracking();
+    document.querySelectorAll('.canvas-wrapper.color-layer-mode')
+        .forEach(w => w.style.cursor = '');
 
     // Swap buttons
     document.getElementById("copyColorBtn").style.display           = "none";
@@ -5721,6 +5726,11 @@ document.getElementById("copyColorToSelectedBtn").addEventListener("click", ()=>
 
     updateWindowBorders();
     updateSelectButtonState?.();
+
+    // Re-enable brush cursor — restore cursor:none and restart ring tracking
+    document.querySelectorAll('.canvas-wrapper.color-layer-mode')
+        .forEach(w => w.style.cursor = 'none');
+    _startColorLayerCursorTracking();
 
     // Restore buttons
     document.getElementById("copyColorToSelectedBtn").style.display = "none";
