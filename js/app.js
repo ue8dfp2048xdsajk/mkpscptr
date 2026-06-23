@@ -372,22 +372,7 @@ function _applyBgAdjust(data){
     off.height = imgH;
     const ctx  = off.getContext('2d');
 
-    // Base zoom so the chosen aspect-ratio crop region fills the full frame
-    let zoomFactor = 1;
-    if(cropAspect){
-        const imgAR = imgW / imgH;
-        let cropBoxW, cropBoxH;
-        if(imgAR > cropAspect){
-            cropBoxH = imgH;
-            cropBoxW = imgH * cropAspect;
-        } else {
-            cropBoxW = imgW;
-            cropBoxH = imgW / cropAspect;
-        }
-        zoomFactor = Math.max(imgW / cropBoxW, imgH / cropBoxH);
-    }
-
-    const totalScale = zoomFactor * cropScale;
+    const totalScale = cropScale;
     const panX = cropX * imgW;
     const panY = cropY * imgH;
 
@@ -405,6 +390,49 @@ function _applyBgAdjust(data){
     obj.setElement(off);
     obj.filters = [];
     obj.applyFilters();
+    data.fabricCanvas.requestRenderAll();
+}
+
+function _updateCropOverlay(data){
+    if(data.cropOverlayRects && data.cropOverlayRects.length){
+        data.cropOverlayRects.forEach(r => data.fabricCanvas.remove(r));
+    }
+    data.cropOverlayRects = [];
+
+    const aspect = data.bgCrop?.aspect || 0;
+    if(!aspect){
+        data.fabricCanvas.requestRenderAll();
+        return;
+    }
+
+    const W = data.fabricCanvas.width;
+    const H = data.fabricCanvas.height;
+    let cropX = 0, cropY = 0, cropW = W, cropH = H;
+    const canvasAR = W / H;
+    if(canvasAR > aspect){
+        cropW = H * aspect;
+        cropX = (W - cropW) / 2;
+    } else if(canvasAR < aspect){
+        cropH = W / aspect;
+        cropY = (H - cropH) / 2;
+    }
+
+    const FILL = 'rgba(0,0,0,0.45)';
+    const base = { selectable:false, evented:false, excludeFromExport:true, originX:'left', originY:'top' };
+    const rects = [];
+    if(cropY > 0.5){
+        rects.push(new fabric.Rect({ ...base, left:0, top:0,           width:W, height:cropY,         fill:FILL }));
+        rects.push(new fabric.Rect({ ...base, left:0, top:cropY+cropH, width:W, height:cropY,         fill:FILL }));
+    }
+    if(cropX > 0.5){
+        rects.push(new fabric.Rect({ ...base, left:0,         top:0, width:cropX, height:H, fill:FILL }));
+        rects.push(new fabric.Rect({ ...base, left:cropX+cropW, top:0, width:cropX, height:H, fill:FILL }));
+    }
+
+    rects.forEach(r => data.fabricCanvas.add(r));
+    data.cropOverlayRects = rects;
+
+    if(data.backgroundObject) data.fabricCanvas.sendToBack(data.backgroundObject);
     data.fabricCanvas.requestRenderAll();
 }
 
@@ -2169,6 +2197,7 @@ async function restoreWindowState(data, state){
     data.bgAdjust   = state.bgAdjust   ? { ...state.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 };
     data.bgCrop     = state.bgCrop     ? { ...state.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 };
     _applyBgAdjust(data);
+    _updateCropOverlay(data);
 
     if(data.designObject){
         data.designObject._fx = state.designFx
@@ -3671,6 +3700,7 @@ document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
             if(!d.bgCrop) d.bgCrop = { x:0, y:0, scale:1, rotation:0, aspect:0 };
             d.bgCrop.aspect = aspect;
             _applyBgAdjust(d);
+            _updateCropOverlay(d);
         });
         document.querySelectorAll('.bg-aspect-btn').forEach(b => {
             b.classList.toggle('active', b === btn);
@@ -3692,6 +3722,7 @@ document.getElementById('bgCropResetBtn').addEventListener('click', () => {
         if(d.locked) return;
         d.bgCrop = { x:0, y:0, scale:1, rotation:0, aspect:0 };
         _applyBgAdjust(d);
+        _updateCropOverlay(d);
     });
     document.querySelectorAll('.bg-aspect-btn').forEach(b => {
         b.classList.toggle('active', parseFloat(b.dataset.aspect) === 0);
@@ -4241,6 +4272,7 @@ function createCanvasPreviews(){
 
                 data.backgroundObject = bgImg;
                 _applyBgAdjust(data);
+                _updateCropOverlay(data);
 
                 fabricCanvas.add(bgImg);
                 fabricCanvas.sendToBack(bgImg);
@@ -7632,11 +7664,27 @@ async function exportDataToBlob(data, fmt, quality){
     data.fabricCanvas.requestRenderAll();
 
     const exportMultiplier = 1 / data.previewScale;
+    const cropAspect = data.bgCrop?.aspect || 0;
+    let cropLeft = 0, cropTop = 0, cropWidth = data.fabricCanvas.width, cropHeight = data.fabricCanvas.height;
+    if(cropAspect){
+        const W = data.fabricCanvas.width, H = data.fabricCanvas.height;
+        if(W / H > cropAspect){
+            cropWidth  = H * cropAspect;
+            cropLeft   = (W - cropWidth) / 2;
+        } else if(W / H < cropAspect){
+            cropHeight = W / cropAspect;
+            cropTop    = (H - cropHeight) / 2;
+        }
+    }
     const dataURL = data.fabricCanvas.toDataURL({
         format:    fmt,
         quality:   quality,
         multiplier: exportMultiplier,
-        enableRetinaScaling: true
+        enableRetinaScaling: true,
+        left:   cropLeft,
+        top:    cropTop,
+        width:  cropWidth,
+        height: cropHeight
     });
 
     hiddenOverlayObjects.forEach(obj=>{ obj.visible = true; });
@@ -8318,6 +8366,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         fabricCanvas.add(bgFabric);
         data.backgroundObject = bgFabric;
         _applyBgAdjust(data);
+        _updateCropOverlay(data);
 
         // restore polygon overlay before rendering designs
         addClipOverlay(data);
