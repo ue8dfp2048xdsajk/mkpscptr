@@ -1748,10 +1748,18 @@ function hideBrushCursor(){
 // ── Undo / redo engine ────────────────────────────────────────────────────────
 
 function captureWindowState(data){
+    // Read live transforms directly from the Fabric object so the snapshot is
+    // accurate even when data.x/y/scaleX/scaleY/rotation haven't been flushed
+    // back yet (they only sync inside updateFromSliders, not on drag/scale/rotate).
+    const _obj = data.designObject;
+    const _ps  = data.previewScale || 1;
     return {
-        x: data.x, y: data.y,
-        scale: data.scale, scaleX: data.scaleX, scaleY: data.scaleY,
-        rotation: data.rotation,
+        x: _obj ? _obj.left  : data.x,
+        y: _obj ? _obj.top   : data.y,
+        scale: data.scale,
+        scaleX: _obj ? (_obj.scaleX / _ps) : (data.scaleX ?? data.scale),
+        scaleY: _obj ? (_obj.scaleY / _ps) : (data.scaleY ?? data.scale),
+        rotation: _obj ? _obj.angle : data.rotation,
         warpAmount:    data.warpAmount    ?? 0,
         arcAmount:     data.arcAmount     ?? 0,
         arcTilt:       data.arcTilt       ?? 0,
@@ -3944,6 +3952,7 @@ function attachFabricEvents(data, targetObject = null){
     // mouse:down handler manages selectedDesigns and syncSliders; selected event is unused.
 
     designTarget.on('moving', ()=>{
+        designTarget._hadDragMovement = true;
 
         const deltaX = designTarget.left - (designTarget.lastLeft || designTarget.left);
         const deltaY = designTarget.top  - (designTarget.lastTop  || designTarget.top);
@@ -4027,10 +4036,30 @@ function attachFabricEvents(data, targetObject = null){
         suppressNextWrapperClick = true;
         designTarget.lastLeft = designTarget.left;
         designTarget.lastTop  = designTarget.top;
-        pushGlobalUndo();
+        designTarget._hadDragMovement = false;
+        // Capture pre-gesture state for all active windows.
+        // We don't push to the undo stack yet — we wait to see if the user
+        // actually moves/scales/rotates.  If they just click without moving,
+        // no undo slot is consumed (mouseup discards _preDragUndoEntry).
+        designTarget._preDragUndoEntry = {
+            affected: [...activeIndices],
+            states:   activeIndices.map(i => captureWindowState(canvasData[i]))
+        };
+    });
+
+    designTarget.on('mouseup', ()=>{
+        if(designTarget._hadDragMovement && designTarget._preDragUndoEntry){
+            globalUndoStack.push(designTarget._preDragUndoEntry);
+            if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+            globalRedoStack = [];
+            updateUndoRedoButtons();
+        }
+        designTarget._preDragUndoEntry  = null;
+        designTarget._hadDragMovement   = false;
     });
 
     designTarget.on('scaling', ()=>{
+        designTarget._hadDragMovement = true;
 
         const scaleX = designTarget.scaleX;
         const scaleY = designTarget.scaleY;
@@ -4121,6 +4150,7 @@ function attachFabricEvents(data, targetObject = null){
     });
 
     designTarget.on('rotating', ()=>{
+        designTarget._hadDragMovement = true;
 
         const angle = designTarget.angle;
 
