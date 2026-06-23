@@ -446,18 +446,24 @@ function _defaultPattern(){
     return { type:'grid', hSpacing:0, vSpacing:0, angle:0, hOffset:0, rotH:0, rotV:0 };
 }
 
-function _renderPattern(data){
+function _renderPattern(data, lowQuality = false){
     if(!data.patternMode || !data.patternFabricObj || !data.designObject) return;
     const fc = data.fabricCanvas;
     const W = fc.width, H = fc.height;
     const obj = data.designObject;
     const s = data.patternSettings || _defaultPattern();
 
-    const tileEl = obj.getElement();
+    // Use pre-warp tile source if stored by applyWarpToData — warp is applied
+    // to the whole tiled canvas below, so individual tiles must be undistorted.
+    const tileEl = data._patternTileSource || obj.getElement();
     if(!tileEl) return;
     const srcW = tileEl.width  || tileEl.naturalWidth  || obj.width;
     const srcH = tileEl.height || tileEl.naturalHeight || obj.height;
     if(srcW < 1 || srcH < 1) return;
+
+    // The master tile is invisible — the pattern canvas renders all tiles
+    // including its position, so it shows through the evented-false overlay.
+    obj.set({opacity: 0});
 
     const tileW  = srcW * Math.abs(obj.scaleX);
     const tileH  = srcH * Math.abs(obj.scaleY);
@@ -498,15 +504,40 @@ function _renderPattern(data){
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(rot);
-            ctx.globalAlpha = obj.opacity ?? 1;
+            // opacity is handled by patternFabricObj, not per-tile
             ctx.scale(sx, sy);
             ctx.drawImage(tileEl, -srcW / 2, -srcH / 2, srcW, srcH);
             ctx.restore();
         }
     }
 
-    data.patternFabricObj.setElement(off);
-    data.patternFabricObj.set({ width: W, height: H, scaleX: 1, scaleY: 1 });
+    // ── Apply warp / perspective to the entire tiled canvas ──────────────────
+    let finalCanvas = off;
+    const hasWarp = (data.warpAmount || 0) !== 0 || (data.arcAmount || 0) !== 0;
+    const hasPerspective = (data.perspectiveTop || 0) !== 0 || (data.perspectiveLeft || 0) !== 0;
+
+    if(hasWarp){
+        if(!data._patternWarpCanvas) data._patternWarpCanvas = document.createElement('canvas');
+        finalCanvas = createWarpedImage(
+            finalCanvas,
+            data.warpAmount, data.arcAmount, data.arcTilt ?? 0,
+            data._patternWarpCanvas, lowQuality
+        );
+    }
+    if(hasPerspective){
+        finalCanvas = applyPerspectiveDistortion(finalCanvas, data, lowQuality);
+    }
+
+    // ── Apply clip mask, opacity and blend mode to the pattern object ─────────
+    applyClipMaskToObject(data.patternFabricObj, data);
+    data.patternFabricObj.set({
+        opacity: data.opacity ?? 1,
+        globalCompositeOperation: _blendToGCO(data.blendMode ?? 'normal'),
+        width: finalCanvas.width || W,
+        height: finalCanvas.height || H,
+        scaleX: 1, scaleY: 1, left: 0, top: 0,
+    });
+    data.patternFabricObj.setElement(finalCanvas);
     data.patternFabricObj.applyFilters();
     fc.requestRenderAll();
 }
@@ -522,7 +553,17 @@ function _togglePatternMode(data, on){
         data._patternListener = null;
     }
     data.patternMode = !!on;
-    if(!on){ data.fabricCanvas.requestRenderAll(); return; }
+    if(!on){
+        // Restore design object visibility with correct opacity
+        if(data.designObject) data.designObject.set({
+            opacity: data.opacity ?? 1,
+            globalCompositeOperation: _blendToGCO(data.blendMode ?? 'normal'),
+        });
+        data._patternTileSource = null;
+        data._patternWarpCanvas = null;
+        data.fabricCanvas.requestRenderAll();
+        return;
+    }
     if(!data.designObject) return;
 
     const fc = data.fabricCanvas;
@@ -545,13 +586,18 @@ function _togglePatternMode(data, on){
         if(data._patternRAF) return;
         data._patternRAF = requestAnimationFrame(() => {
             data._patternRAF = null;
-            _renderPattern(data);
+            _renderPattern(data, false);
         });
     };
     ['object:moving','object:scaling','object:rotating','object:modified'].forEach(ev =>
         fc.on(ev, data._patternListener));
 
-    _renderPattern(data);
+    // Trigger full pipeline: populate _patternTileSource and render with effects
+    if(data.warpAmount || data.arcAmount || data.perspectiveTop || data.perspectiveLeft || data.blurAmount || data.noiseAmount){
+        applyWarpToData(data, true); // async; intercept inside will call _renderPattern
+    } else {
+        _renderPattern(data, false);
+    }
 }
 
 function _syncPatternDisplay(){
@@ -3475,6 +3521,18 @@ async function applyWarpToData(data, lowQuality = false){
     // (so it rides along with the texture distortion, matching PS behaviour).
     const noisySource = applyNoiseToImage(blurredSource, data.noiseAmount || 0);
 
+    // ── Pattern mode: warp/perspective apply to the whole tiled canvas, not tiles ──
+    if(data.patternMode && data.patternFabricObj){
+        data._patternTileSource = noisySource;
+        if(data.designObject){
+            data.designObject.setElement(noisySource);
+            data.designObject.set({opacity: 0});
+        }
+        _renderPattern(data, lowQuality);
+        data.fabricCanvas.requestRenderAll();
+        return;
+    }
+
     const warpedBaseCanvas = createWarpedImage(
         noisySource,
         data.warpAmount,
@@ -3754,7 +3812,13 @@ function _lqRenderSliders(){
 
         // Fast path: opacity/blend only — no warp recomputation needed
         if(!requiresWarp){
-            if(data.designObject){
+            if(data.patternMode && data.patternFabricObj){
+                data.patternFabricObj.set({
+                    opacity: _opacV,
+                    globalCompositeOperation: _blendToGCO(_blendV)
+                });
+                if(data.designObject) data.designObject.set({opacity: 0});
+            } else if(data.designObject){
                 data.designObject.set({
                     opacity: _opacV,
                     globalCompositeOperation: _blendToGCO(_blendV)
@@ -3767,6 +3831,21 @@ function _lqRenderSliders(){
         // Warp path: use _applyWarpToOneObject (with stage cache) for both main
         // design and extra layers, so unchanged pipeline stages are skipped.
         if(!data.designObject) return;
+
+        // Pattern mode: recompute pre-warp tile source and re-render full canvas
+        if(data.patternMode && data.patternFabricObj){
+            const _pSrc   = _cachedFlip(data, data.designOriginal);
+            const _pBlur  = applyGaussianBlurToImage(_pSrc, (_blurV || 0) / 5);
+            const _pNoise = applyNoiseToImage(_pBlur, _noiseV || 0);
+            data._patternTileSource = _pNoise;
+            if(data.designObject){
+                data.designObject.setElement(_pNoise);
+                data.designObject.set({opacity: 0});
+            }
+            _renderPattern(data, true);
+            data.fabricCanvas.requestRenderAll();
+            return;
+        }
 
         // Ensure _fx exists on the main design object so caching can compare params
         if(!data.designObject._fx) data.designObject._fx = _defaultFx(data);
@@ -3825,8 +3904,9 @@ async function _hqRenderSliders(){
             await applyWarpToData(data, false);
 
             if(data.designObject){
+                // In pattern mode, designObject stays invisible; patternFabricObj carries opacity/blend
                 data.designObject.set({
-                    opacity: data.opacity ?? 1,
+                    opacity: data.patternMode ? 0 : (data.opacity ?? 1),
                     globalCompositeOperation: _blendToGCO(data.blendMode)
                 });
             }
