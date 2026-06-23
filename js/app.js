@@ -873,6 +873,19 @@ function updateWindowBorders(){
         changeDesignBtn.textContent = 'Change Design';
     }
     _scheduleMinimapUpdate();
+    _updateWindowCountBadge();
+}
+
+function _updateWindowCountBadge(){
+    const badge = document.getElementById('windowCountBadge');
+    if(!badge) return;
+    const total = canvasData.length;
+    if(!total){ badge.hidden = true; return; }
+    badge.hidden = false;
+    const sel = activeIndices.length;
+    badge.textContent = sel > 0
+        ? `${total} window${total !== 1 ? 's' : ''} · ${sel} selected`
+        : `${total} window${total !== 1 ? 's' : ''}`;
 }
 
 function getAllDesignObjects(data){
