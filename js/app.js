@@ -4285,10 +4285,10 @@ function updateLayerButtons(){
         invertBtn.style.display = "none";
     }
 
-    // Open / close the context panel
+    // Activate / idle the always-present left panel
     const hasActive = activeIndices.length > 0;
     const panel = document.getElementById("contextPanel");
-    if(panel) panel.classList.toggle("open", hasActive);
+    if(panel) panel.classList.toggle("active", hasActive);
 
     // Update panel title
     const title = document.getElementById("contextPanelTitle");
@@ -4296,12 +4296,8 @@ function updateLayerButtons(){
         const n = activeIndices.length;
         title.textContent = hasActive
             ? (n === 1 ? "1 window selected" : `${n} windows selected`)
-            : "";
+            : "Controls";
     }
-
-    // Shift Notes tab so it sits beside the panel, not behind it
-    const notesTab = document.getElementById("notesTab");
-    if(notesTab) notesTab.classList.toggle("cp-open", hasActive);
 
     refreshNotesPanel();
 }
