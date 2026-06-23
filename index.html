@@ -25,7 +25,31 @@
         <input type="file" id="designUpload" accept="image/png, image/jpeg" multiple style="display:none;">
         <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">↩ Undo</button>
         <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">↪ Redo</button>
-        <button id="exportBtn">Export Selected</button>
+        <span class="export-wrap">
+            <button id="exportBtn">Export ▾</button>
+            <div id="exportPopover" class="export-popover" hidden>
+                <div class="export-row">
+                    <span class="export-label">Scope</span>
+                    <span class="export-seg" id="exportScopeToggle">
+                        <button class="seg-btn seg-active" data-val="selected">Selected</button>
+                        <button class="seg-btn" data-val="all">All</button>
+                    </span>
+                </div>
+                <div class="export-row">
+                    <span class="export-label">Format</span>
+                    <span class="export-seg" id="exportFormatToggle">
+                        <button class="seg-btn seg-active" data-val="png">PNG</button>
+                        <button class="seg-btn" data-val="jpeg">JPEG</button>
+                    </span>
+                </div>
+                <div class="export-row" id="exportQualityRow">
+                    <span class="export-label">Quality</span>
+                    <input type="range" id="exportQualitySlider" min="1" max="100" value="92">
+                    <span id="exportQualityVal">92%</span>
+                </div>
+                <button id="exportGoBtn">Export</button>
+            </div>
+        </span>
         <button id="exportTextBtn" title="Export canvas text boxes as .txt">Export Text</button>
         <button id="saveProgressBtn">Save Progress</button>
         <button id="loadProgressBtn">Load Progress</button>

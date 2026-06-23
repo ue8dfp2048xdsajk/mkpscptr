@@ -7199,26 +7199,29 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
 
 // Render one canvas item to a full-resolution PNG blob
-async function exportDataToBlob(data){
+// ── Export: format + quality ───────────────────────────────────────────────────
+let _exportFormat  = 'png';   // 'png' | 'jpeg'
+let _exportQuality = 0.92;    // 0–1, only used for jpeg
+
+async function exportDataToBlob(data, fmt, quality){
+    fmt     = fmt     ?? _exportFormat;
+    quality = quality ?? _exportQuality;
 
     data.fabricCanvas.discardActiveObject();
 
     const hiddenOverlayObjects = [];
-
     data.fabricCanvas.getObjects().forEach(obj=>{
         if(obj.excludeFromExport){
             hiddenOverlayObjects.push(obj);
             obj.visible = false;
         }
     });
-
     data.fabricCanvas.requestRenderAll();
 
     const exportMultiplier = 1 / data.previewScale;
-
     const dataURL = data.fabricCanvas.toDataURL({
-        format: 'png',
-        quality: 1,
+        format:    fmt,
+        quality:   quality,
         multiplier: exportMultiplier,
         enableRetinaScaling: true
     });
@@ -7229,73 +7232,115 @@ async function exportDataToBlob(data){
     return await (await fetch(dataURL)).blob();
 }
 
+// ── Export popover wiring ──────────────────────────────────────────────────────
+(function(){
+    const popover     = document.getElementById('exportPopover');
+    const triggerBtn  = document.getElementById('exportBtn');
+    const qualityRow  = document.getElementById('exportQualityRow');
+    const qualSlider  = document.getElementById('exportQualitySlider');
+    const qualVal     = document.getElementById('exportQualityVal');
+    const goBtn       = document.getElementById('exportGoBtn');
+
+    // Quality row starts hidden (PNG is default)
+    qualityRow.hidden = true;
+
+    // Toggle popover
+    triggerBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        popover.hidden = !popover.hidden;
+    });
+
+    // Close on outside click
+    document.addEventListener('click', e => {
+        if(!popover.hidden && !popover.contains(e.target) && e.target !== triggerBtn){
+            popover.hidden = true;
+        }
+    });
+
+    // Segmented toggles
+    function wireSegToggle(id, onChange){
+        const seg = document.getElementById(id);
+        seg.querySelectorAll('.seg-btn').forEach(btn => {
+            btn.addEventListener('click', ()=>{
+                seg.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('seg-active'));
+                btn.classList.add('seg-active');
+                onChange(btn.dataset.val);
+            });
+        });
+    }
+
+    wireSegToggle('exportScopeToggle', val => { /* stored via active class */ });
+    wireSegToggle('exportFormatToggle', val => {
+        _exportFormat = val;
+        qualityRow.hidden = (val !== 'jpeg');
+    });
+
+    // Quality slider
+    qualSlider.addEventListener('input', () => {
+        _exportQuality = qualSlider.value / 100;
+        qualVal.textContent = qualSlider.value + '%';
+    });
+
+    // Run export
+    goBtn.addEventListener('click', async () => {
+        if(clipEditMode){ showClipModeNotice(); return; }
+
+        const scopeBtn = document.querySelector('#exportScopeToggle .seg-active');
+        const scope    = scopeBtn ? scopeBtn.dataset.val : 'selected';
+        const ext      = _exportFormat === 'jpeg' ? 'jpg' : 'png';
+
+        let indices;
+        if(scope === 'all'){
+            indices = canvasData.map((_, i) => i);
+        } else {
+            if(!activeIndices.length){
+                alert('Select at least one window before exporting.');
+                return;
+            }
+            indices = [...activeIndices];
+        }
+
+        popover.hidden = true;
+        goBtn.textContent = 'Exporting…';
+        goBtn.disabled = true;
+
+        // --- Path A: File System Access API (Chrome/Edge) ---
+        if(typeof window.showDirectoryPicker === 'function'){
+            let dirHandle;
+            try{ dirHandle = await window.showDirectoryPicker(); }
+            catch(err){ goBtn.textContent = 'Export'; goBtn.disabled = false; return; }
+
+            for(const index of indices){
+                const data = canvasData[index];
+                const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
+                const fh   = await dirHandle.getFileHandle(data.filename + '.' + ext, { create: true });
+                const wr   = await fh.createWritable();
+                await wr.write(blob);
+                await wr.close();
+            }
+            alert('Exported ' + indices.length + ' file(s)!');
+        } else {
+            // --- Path B: fallback <a download> ---
+            for(const index of indices){
+                const data = canvasData[index];
+                const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href     = url;
+                a.download = data.filename + '.' + ext;
+                a.click();
+                await new Promise(r => setTimeout(r, 150));
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        goBtn.textContent = 'Export';
+        goBtn.disabled = false;
+    });
+})();
 
 document.getElementById("undoBtn").addEventListener("click", () => performGlobalUndo());
 document.getElementById("redoBtn").addEventListener("click", () => performGlobalRedo());
-
-document.getElementById("exportBtn").addEventListener("click", async ()=>{
-
-    if(clipEditMode){
-        showClipModeNotice();
-        return;
-    }
-
-    if(!activeIndices.length){
-        alert("Select at least one canvas window before exporting.");
-        return;
-    }
-
-    // --- Path A: File System Access API (Chrome/Edge, HTTPS) ---
-    if(typeof window.showDirectoryPicker === "function"){
-
-        let dirHandle;
-
-        try{
-            dirHandle = await window.showDirectoryPicker();
-        } catch(err){
-            // User cancelled the picker — do nothing
-            return;
-        }
-
-        for(let index of activeIndices){
-
-            const data = canvasData[index];
-            const blob = await exportDataToBlob(data);
-
-            const fileHandle = await dirHandle.getFileHandle(
-                data.filename + ".png",
-                { create: true }
-            );
-
-            const writable = await fileHandle.createWritable();
-            await writable.write(blob);
-            await writable.close();
-        }
-
-        alert("Exported " + activeIndices.length + " file(s)!");
-        return;
-    }
-
-    // --- Path B: fallback download for Firefox / Safari / HTTP ---
-    // Trigger individual <a download> for each selected canvas.
-    for(let index of activeIndices){
-
-        const data = canvasData[index];
-        const blob = await exportDataToBlob(data);
-
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement("a");
-
-        a.href     = url;
-        a.download = data.filename + ".png";
-        a.click();
-
-        // Small delay so the browser registers each download separately
-        await new Promise(r => setTimeout(r, 150));
-
-        URL.revokeObjectURL(url);
-    }
-});
 
 
 
