@@ -6986,6 +6986,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
     updateLayerButtons();
     syncSliders();
     updateSelectButtonState();
+    updateDropUI();
 
     loadingIndicator.innerText =
         "Session restored";
@@ -7017,6 +7018,7 @@ document.getElementById("loadProgressInput").addEventListener("change", function
 
         syncSliders();
         updateWindowBorders();
+        updateDropUI();
     };
 
     reader.readAsText(file);
