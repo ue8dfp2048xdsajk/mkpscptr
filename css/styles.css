@@ -198,7 +198,11 @@ body {
     border-radius: 3px;
     cursor: pointer;
 }
-.color-tool-btn.active { background: #4a90e2; color: #fff; border-color: #2c6fba; }
+/* Needs higher specificity than #contextPanel button to override background */
+#contextPanel .color-tool-btn         { background: #f0f0f0; color: #222; border: 1px solid #aaa; width: auto; display: inline-block; padding: 2px 7px; font-size: 11px; }
+#contextPanel .color-tool-btn.active  { background: #4a90e2; color: #fff; border-color: #2c6fba; }
+#contextPanel .color-tool-btn:hover   { background: #e0e0e0; }
+#contextPanel .color-tool-btn.active:hover { background: #3a7fd4; }
 
 .canvas-wrapper.color-layer-mode .upper-canvas { cursor: none !important; }
 
