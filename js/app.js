@@ -507,7 +507,9 @@ function trimTransparentBorders(canvas){
 }
 
 
-function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false){
+// preTrimmed: pass an already-trimmed canvas to skip the getImageData pixel scan.
+// Used by _applyWarpToOneObject when the warp canvas hasn't changed (trim cache hit).
+function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preTrimmed = null){
 
     const top  = data.perspectiveTop  || 0;
     const left = data.perspectiveLeft || 0;
@@ -521,7 +523,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false){
     //      over-amplified proportionally to the warp padding.
     // Trimming here is fast (< 1 ms for typical sizes) and idempotent for sources
     // that already have no transparent border (e.g. a plain uploaded image).
-    const src  = trimTransparentBorders(sourceCanvas);
+    const src  = preTrimmed || trimTransparentBorders(sourceCanvas);
     const srcW = src.width;
     const srcH = src.height;
 
@@ -2536,17 +2538,89 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
 
     if(!obj._warpCanvas) obj._warpCanvas = document.createElement('canvas');
 
-    const blurred    = applyGaussianBlurToImage(srcOriginal, (fx.blurAmount||0)/5);
-    const noisy      = applyNoiseToImage(blurred, fx.noiseAmount||0);
-    const warpedBase = createWarpedImage(
-        noisy,
-        fx.warpAmount    ||0,
-        fx.arcAmount     ||0,
-        fx.arcTilt       ??0,
-        obj._warpCanvas,
-        lowQuality
-    );
-    const warped = applyPerspectiveDistortion(warpedBase, fx, lowQuality);
+    const blurR  = (fx.blurAmount  || 0) / 5;
+    const noiseP =  fx.noiseAmount || 0;
+    const warpA  =  fx.warpAmount  || 0;
+    const arcA   =  fx.arcAmount   || 0;
+    const arcT   =  fx.arcTilt     ?? 0;
+    const perspT =  fx.perspectiveTop  || 0;
+    const perspL =  fx.perspectiveLeft || 0;
+
+    // ── Stage 1: blur ────────────────────────────────────────────────────────
+    // Skip re-blurring when src and radius are unchanged (common during warp/persp drag).
+    let blurred;
+    if(obj._c_src === srcOriginal && obj._c_blurR === blurR && obj._c_blurred){
+        blurred = obj._c_blurred;
+    } else {
+        blurred = applyGaussianBlurToImage(srcOriginal, blurR);
+        obj._c_src     = srcOriginal;
+        obj._c_blurR   = blurR;
+        obj._c_blurred = blurred;
+        obj._c_noisy   = null; // invalidate downstream
+    }
+
+    // ── Stage 2: noise ───────────────────────────────────────────────────────
+    // Skip re-noising when noise% and blurred source are unchanged.
+    let noisy;
+    if(obj._c_noisyIn === blurred && obj._c_noiseP === noiseP && obj._c_noisy){
+        noisy = obj._c_noisy;
+    } else {
+        noisy = applyNoiseToImage(blurred, noiseP);
+        obj._c_noisyIn = blurred;
+        obj._c_noiseP  = noiseP;
+        obj._c_noisy   = noisy;
+        obj._c_warpOk  = false; // invalidate warp
+    }
+
+    // ── Stage 3: warp ─────────────────────────────────────────────────────────
+    // createWarpedImage writes to obj._warpCanvas in-place; skip when all params unchanged.
+    let warpDirty;
+    if( obj._c_warpOk       &&
+        obj._c_warpSrc === noisy  &&
+        obj._c_warpA   === warpA  &&
+        obj._c_arcA    === arcA   &&
+        obj._c_arcT    === arcT   &&
+        obj._c_warpLQ  === lowQuality){
+        warpDirty = false;
+    } else {
+        createWarpedImage(noisy, warpA, arcA, arcT, obj._warpCanvas, lowQuality);
+        obj._c_warpOk  = true;
+        obj._c_warpSrc = noisy;
+        obj._c_warpA   = warpA;
+        obj._c_arcA    = arcA;
+        obj._c_arcT    = arcT;
+        obj._c_warpLQ  = lowQuality;
+        warpDirty = true;
+    }
+
+    // ── Stage 4: trim ─────────────────────────────────────────────────────────
+    // trimTransparentBorders calls getImageData (GPU readback) — cache when warp unchanged.
+    let trimmed;
+    if(!warpDirty && obj._c_trimmed){
+        trimmed = obj._c_trimmed;
+    } else {
+        trimmed = trimTransparentBorders(obj._warpCanvas);
+        obj._c_trimmed = trimmed;
+    }
+
+    // ── Stage 5: perspective ──────────────────────────────────────────────────
+    // Pass the cached trimmed canvas so applyPerspectiveDistortion skips its own
+    // trimTransparentBorders call. Also skip the full perspective pass when both
+    // the warp canvas and perspective params are unchanged.
+    let warped;
+    if( !warpDirty          &&
+        obj._c_perspT  === perspT   &&
+        obj._c_perspL  === perspL   &&
+        obj._c_perspLQ === lowQuality &&
+        obj._c_persp){
+        warped = obj._c_persp;
+    } else {
+        warped = applyPerspectiveDistortion(obj._warpCanvas, fx, lowQuality, trimmed);
+        obj._c_perspT  = perspT;
+        obj._c_perspL  = perspL;
+        obj._c_perspLQ = lowQuality;
+        obj._c_persp   = warped;
+    }
 
     const prevLeft   = obj.left;
     const prevTop    = obj.top;
@@ -2696,19 +2770,61 @@ function isElementVisible(el){
 }
 
 
+// ── Slider rAF throttle ───────────────────────────────────────────────────────
+// Input events can fire 200+/sec during fast drags. We gate the expensive LQ
+// render to at most one per animation frame (~60/sec) while still resetting the
+// HQ debounce timer on every event so HQ fires exactly 220 ms after the user
+// stops.  _lqRenderSliders reads slider DOM values when it runs (rAF tick), so
+// it always sees the most recent position — no staleness risk.
+let _sliderRAFId = null;
+
 function updateFromSliders(event){
 
-    if(clipEditMode){
-        showClipModeNotice();
-        return;
+    if(clipEditMode){ showClipModeNotice(); return; }
+    if(!activeIndices.length) return;
+
+    if(event?.target?.id) activeSliderType = event.target.id;
+
+    // Determine whether this slider type needs a warp re-render.
+    const _needsWarp =
+        activeSliderType === "warpAmount"     ||
+        activeSliderType === "arcAmount"      ||
+        activeSliderType === "arcTilt"        ||
+        activeSliderType === "blurAmount"     ||
+        activeSliderType === "noiseAmount"    ||
+        activeSliderType === "perspectiveTop" ||
+        activeSliderType === "perspectiveLeft";
+
+    // Always reset HQ debounce on every input event so HQ fires 220 ms after
+    // the user stops — even when the LQ frame is throttled away.
+    if(selectedDesigns.size === 0 || _needsWarp){
+        clearTimeout(globalHQTimer);
+        globalHQTimer = setTimeout(_hqRenderSliders, 220);
     }
+
+    // Gate LQ computation to one per animation frame.
+    if(_sliderRAFId !== null) return;
+    _sliderRAFId = requestAnimationFrame(()=>{
+        _sliderRAFId = null;
+        _lqRenderSliders();
+    });
+}
+
+// ── LQ render (runs inside rAF, at most 60×/sec) ─────────────────────────────
+function _lqRenderSliders(){
 
     if(!activeIndices.length) return;
 
-    activeSliderType =
-        event?.target?.id || activeSliderType;
+    const requiresWarp =
+        activeSliderType === "warpAmount"     ||
+        activeSliderType === "arcAmount"      ||
+        activeSliderType === "arcTilt"        ||
+        activeSliderType === "blurAmount"     ||
+        activeSliderType === "noiseAmount"    ||
+        activeSliderType === "perspectiveTop" ||
+        activeSliderType === "perspectiveLeft";
 
-    // ── Apply _fx to ALL selected design objects at once ──────────────────────
+    // ── Design-mode: apply _fx to all selected objects ────────────────────────
     if(selectedDesigns.size > 0){
 
         opacityAmount.value = Math.max(0, Math.min(100, parseFloat(opacityAmount.value)||0));
@@ -2727,35 +2843,26 @@ function updateFromSliders(event){
             blendMode:       blendMode.value
         };
 
-        const requiresWarpObjs =
-            activeSliderType === "warpAmount"     ||
-            activeSliderType === "arcAmount"      ||
-            activeSliderType === "arcTilt"        ||
-            activeSliderType === "blurAmount"     ||
-            activeSliderType === "noiseAmount"    ||
-            activeSliderType === "perspectiveTop" ||
-            activeSliderType === "perspectiveLeft";
-
         selectedDesigns.forEach(obj => {
             const d = obj._ownerData;
             if(!d || d.locked) return;
 
             obj._fx = { ...newFx };
 
-            // Also mirror into data.* for main design so applyWarpToData stays in sync
+            // Mirror into data.* for main design so applyWarpToData stays in sync
             if(obj === d.designObject){
-                d.warpAmount    = newFx.warpAmount;
-                d.arcAmount     = newFx.arcAmount;
-                d.arcTilt       = newFx.arcTilt;
+                d.warpAmount      = newFx.warpAmount;
+                d.arcAmount       = newFx.arcAmount;
+                d.arcTilt         = newFx.arcTilt;
                 d.perspectiveTop  = newFx.perspectiveTop;
                 d.perspectiveLeft = newFx.perspectiveLeft;
-                d.opacity       = newFx.opacity;
-                d.blurAmount    = newFx.blurAmount;
-                d.noiseAmount   = newFx.noiseAmount;
-                d.blendMode     = newFx.blendMode;
+                d.opacity         = newFx.opacity;
+                d.blurAmount      = newFx.blurAmount;
+                d.noiseAmount     = newFx.noiseAmount;
+                d.blendMode       = newFx.blendMode;
             }
 
-            if(!requiresWarpObjs){
+            if(!requiresWarp){
                 obj.set({
                     opacity: newFx.opacity,
                     globalCompositeOperation:
@@ -2778,107 +2885,140 @@ function updateFromSliders(event){
             d.fabricCanvas.requestRenderAll();
         });
 
-        if(requiresWarpObjs){
-            clearTimeout(globalHQTimer);
-            globalHQTimer = setTimeout(()=>{
-                selectedDesigns.forEach(obj => {
-                    const d = obj._ownerData;
-                    if(!d || d.locked) return;
-                    const isMain      = obj === d.designObject;
-                    const extraIdx    = isMain ? -1 : (d.extraDesignObjects||[]).indexOf(obj);
-                    const srcOriginal = isMain
-                        ? d.designOriginal
-                        : (d.extraDesignOriginals?.[extraIdx] || d.designOriginal);
-                    if(!srcOriginal) return;
-                    _applyWarpToOneObject(obj, d, srcOriginal, false);
-                    d.fabricCanvas.requestRenderAll();
-                });
-                autoSaveSession();
-            }, 220);
-        }
-
         return;
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
-    const requiresWarp =
-        activeSliderType === "warpAmount" ||
-        activeSliderType === "arcAmount" ||
-        activeSliderType === "arcTilt" ||
-        activeSliderType === "blurAmount" ||
-        activeSliderType === "noiseAmount" ||
-        activeSliderType === "perspectiveTop"  ||
-        activeSliderType === "perspectiveLeft" ;
+    // ── Window-mode: update visible windows ───────────────────────────────────
+    // Read slider values once (shared across all windows in this frame).
+    opacityAmount.value = Math.max(0, Math.min(100, parseFloat(opacityAmount.value) || 0));
+    blurAmount.value    = Math.max(0, Math.min(100, parseFloat(blurAmount.value)    || 0));
+    noiseAmount.value   = Math.max(0, Math.min(100, parseFloat(noiseAmount.value)   || 0));
+
+    const _warpV  = parseFloat(warpAmount.value);
+    const _arcV   = parseFloat(arcAmount.value);
+    const _arcTV  = parseFloat(arcTilt.value);
+    const _perspT = parseFloat(perspectiveTop.value);
+    const _perspL = parseFloat(perspectiveLeft.value);
+    const _opacV  = parseFloat(opacityAmount.value) / 100;
+    const _blurV  = parseFloat(blurAmount.value);
+    const _noiseV = parseFloat(noiseAmount.value);
+    const _blendV = blendMode.value;
 
     activeIndices.forEach(index=>{
 
         const data = canvasData[index];
         if(data.locked) return;
 
-        // preserve current live object transforms
+        // Preserve current live object transforms
         if(data.designObject){
-
-            data.x = data.designObject.left;
-            data.y = data.designObject.top;
-
+            data.x        = data.designObject.left;
+            data.y        = data.designObject.top;
             data.rotation = data.designObject.angle;
-
-            data.scaleX =
-                data.designObject.scaleX / data.previewScale;
-
-            data.scaleY =
-                data.designObject.scaleY / data.previewScale;
+            data.scaleX   = data.designObject.scaleX / data.previewScale;
+            data.scaleY   = data.designObject.scaleY / data.previewScale;
         }
 
-        data.warpAmount = parseFloat(warpAmount.value);
-        data.arcAmount = parseFloat(arcAmount.value);
-        data.arcTilt = parseFloat(arcTilt.value);
-        data.perspectiveTop = parseFloat(perspectiveTop.value);
-        data.perspectiveLeft = parseFloat(perspectiveLeft.value);
-
-        opacityAmount.value = Math.max(
-            0,
-            Math.min(100, parseFloat(opacityAmount.value) || 0)
-        );
-
-        blurAmount.value = Math.max(
-            0,
-            Math.min(100, parseFloat(blurAmount.value) || 0)
-        );
-
-        noiseAmount.value = Math.max(
-            0,
-            Math.min(100, parseFloat(noiseAmount.value) || 0)
-        );
-
-        data.opacity    = parseFloat(opacityAmount.value) / 100;
-        data.blurAmount = parseFloat(blurAmount.value);
-        data.noiseAmount = parseFloat(noiseAmount.value);
-        data.blendMode  = blendMode.value;
+        data.warpAmount      = _warpV;
+        data.arcAmount       = _arcV;
+        data.arcTilt         = _arcTV;
+        data.perspectiveTop  = _perspT;
+        data.perspectiveLeft = _perspL;
+        data.opacity         = _opacV;
+        data.blurAmount      = _blurV;
+        data.noiseAmount     = _noiseV;
+        data.blendMode       = _blendV;
 
         // Keep main design's _fx in sync with window-level properties
         if(data.designObject?._fx){
-            data.designObject._fx.warpAmount    = data.warpAmount;
-            data.designObject._fx.arcAmount     = data.arcAmount;
-            data.designObject._fx.arcTilt       = data.arcTilt;
-            data.designObject._fx.perspectiveTop  = data.perspectiveTop;
-            data.designObject._fx.perspectiveLeft = data.perspectiveLeft;
-            data.designObject._fx.opacity       = data.opacity;
-            data.designObject._fx.blurAmount    = data.blurAmount;
-            data.designObject._fx.noiseAmount   = data.noiseAmount;
-            data.designObject._fx.blendMode     = data.blendMode;
+            data.designObject._fx.warpAmount     = _warpV;
+            data.designObject._fx.arcAmount      = _arcV;
+            data.designObject._fx.arcTilt        = _arcTV;
+            data.designObject._fx.perspectiveTop  = _perspT;
+            data.designObject._fx.perspectiveLeft = _perspL;
+            data.designObject._fx.opacity         = _opacV;
+            data.designObject._fx.blurAmount      = _blurV;
+            data.designObject._fx.noiseAmount     = _noiseV;
+            data.designObject._fx.blendMode       = _blendV;
         }
 
-        const wrapper =
-            data.fabricCanvas.lowerCanvasEl.parentElement;
+        // Skip expensive updates for off-screen windows
+        const wrapper = data.fabricCanvas.lowerCanvasEl.parentElement;
+        if(!isElementVisible(wrapper)) return;
 
-        // skip expensive updates for offscreen windows
-        if(!isElementVisible(wrapper)){
+        // Fast path: opacity/blend only — no warp recomputation needed
+        if(!requiresWarp){
+            if(data.designObject){
+                data.designObject.set({
+                    opacity: _opacV,
+                    globalCompositeOperation:
+                        _blendV === 'multiply' ? 'multiply'
+                        : _blendV === 'screen'  ? 'screen'
+                        : 'source-over'
+                });
+            }
+            data.fabricCanvas.requestRenderAll();
             return;
         }
 
-        // fast live updates for opacity/blend only (window mode: main design only)
-        if(!requiresWarp){
+        // Warp path: use _applyWarpToOneObject (with stage cache) for both main
+        // design and extra layers, so unchanged pipeline stages are skipped.
+        if(!data.designObject) return;
+
+        // Ensure _fx exists on the main design object so caching can compare params
+        if(!data.designObject._fx) data.designObject._fx = _defaultFx(data);
+
+        _applyWarpToOneObject(data.designObject, data, data.designOriginal, true);
+
+        if(data.extraDesignObjects?.length){
+            data.extraDesignObjects.forEach((obj, i) => {
+                const src = data.extraDesignOriginals?.[i] || data.designOriginal;
+                _applyWarpToOneObject(obj, data, src, true);
+            });
+        }
+
+        data.fabricCanvas.requestRenderAll();
+    });
+}
+
+// ── HQ render (runs 220 ms after the last slider event) ──────────────────────
+async function _hqRenderSliders(){
+
+    if(!activeIndices.length) return;
+
+    // Design-mode HQ: re-render every selected object at full quality
+    if(selectedDesigns.size > 0){
+        selectedDesigns.forEach(obj => {
+            const d = obj._ownerData;
+            if(!d || d.locked) return;
+            const isMain      = obj === d.designObject;
+            const extraIdx    = isMain ? -1 : (d.extraDesignObjects||[]).indexOf(obj);
+            const srcOriginal = isMain
+                ? d.designOriginal
+                : (d.extraDesignOriginals?.[extraIdx] || d.designOriginal);
+            if(!srcOriginal) return;
+            _applyWarpToOneObject(obj, d, srcOriginal, false);
+            d.fabricCanvas.requestRenderAll();
+        });
+        autoSaveSession();
+        return;
+    }
+
+    // Window-mode HQ: render visible windows first, then yield between each
+    // off-screen item so the browser stays responsive.
+    const wrapperEl = i => canvasData[i]?.fabricCanvas?.lowerCanvasEl?.parentElement;
+    const sorted = [...activeIndices].sort((a, b)=>{
+        const av = isElementVisible(wrapperEl(a)) ? 0 : 1;
+        const bv = isElementVisible(wrapperEl(b)) ? 0 : 1;
+        return av - bv;
+    });
+
+    for(const index of sorted){
+
+        const data = canvasData[index];
+
+        if(data.designObject){
+
+            await applyWarpToData(data, false);
 
             if(data.designObject){
                 data.designObject.set({
@@ -2893,59 +3033,11 @@ function updateFromSliders(event){
             }
 
             data.fabricCanvas.requestRenderAll();
-            return;
+
+            // Yield between windows so the browser can paint and handle events
+            await new Promise(r => setTimeout(r, 0));
         }
-
-        // ultra-fast live warp preview
-        if(data.designObject){
-
-            applyWarpToData(data, true);
-        }
-    });
-
-    // only do HQ render AFTER user stops dragging
-    clearTimeout(globalHQTimer);
-
-    globalHQTimer = setTimeout(async ()=>{
-
-        // Render visible canvases first so the user sees results immediately,
-        // then yield between each off-screen item so the UI stays responsive.
-        const wrapper = i => canvasData[i]?.fabricCanvas?.lowerCanvasEl?.parentElement;
-        const sorted = [...activeIndices].sort((a, b)=>{
-            const av = isElementVisible(wrapper(a)) ? 0 : 1;
-            const bv = isElementVisible(wrapper(b)) ? 0 : 1;
-            return av - bv;
-        });
-
-        for(const index of sorted){
-
-            const data = canvasData[index];
-
-            if(data.designObject){
-
-                await applyWarpToData(data, false);
-
-                // Window mode HQ: apply opacity only to main design
-                if(data.designObject){
-                    data.designObject.set({
-                        opacity: data.opacity ?? 1,
-                        globalCompositeOperation:
-                            data.blendMode === 'multiply'
-                                ? 'multiply'
-                                : data.blendMode === 'screen'
-                                    ? 'screen'
-                                    : 'source-over'
-                    });
-                }
-
-                data.fabricCanvas.requestRenderAll();
-
-                // yield after each item so the browser can paint and handle events
-                await new Promise(r => setTimeout(r, 0));
-            }
-        }
-
-    }, 220);
+    }
 }
 
 
