@@ -326,6 +326,10 @@ function trimTransparentPixels(img){
 
 
 
+function _blendToGCO(mode){
+    return (mode && mode !== 'normal') ? mode : 'source-over';
+}
+
 function applyBlendModeToImage(sourceImg, data, mode, intensity){
 
     if(!mode || mode === "normal"){
@@ -407,6 +411,22 @@ function applyBlendModeToImage(sourceImg, data, mode, intensity){
                 blended = 255 - (
                     ((255 - base) * (255 - blend)) / 255
                 );
+
+            } else if(mode === "overlay"){
+
+                blended = base < 128
+                    ? (2 * base * blend) / 255
+                    : 255 - (2 * (255 - base) * (255 - blend)) / 255;
+
+            } else if(mode === "soft-light"){
+
+                const b = base / 255, s = blend / 255;
+                let d;
+                if(b <= 0.25) d = ((16 * b - 12) * b + 4) * b;
+                else          d = Math.sqrt(b);
+                blended = s <= 0.5
+                    ? Math.round((b - (1 - 2*s) * b * (1 - b)) * 255)
+                    : Math.round((b + (2*s - 1) * (d - b)) * 255);
 
             } else {
 
@@ -2005,10 +2025,7 @@ async function restoreWindowState(data, state){
             scaleX: (state.scaleX ?? state.scale) * data.previewScale,
             scaleY: (state.scaleY ?? state.scale) * data.previewScale,
             opacity: state.opacity ?? 1,
-            globalCompositeOperation:
-                state.blendMode === 'multiply' ? 'multiply'
-                : state.blendMode === 'screen'  ? 'screen'
-                : 'source-over'
+            globalCompositeOperation: _blendToGCO(state.blendMode)
         });
     }
 
@@ -3045,10 +3062,7 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
         scaleY: prevScaleY,
         angle:  prevAngle,
         opacity: fx.opacity ?? 1,
-        globalCompositeOperation:
-            fx.blendMode === 'multiply' ? 'multiply'
-            : fx.blendMode === 'screen'  ? 'screen'
-            : 'source-over'
+        globalCompositeOperation: _blendToGCO(fx.blendMode)
     });
 }
 
@@ -3102,12 +3116,7 @@ async function applyWarpToData(data, lowQuality = false){
             scaleX: (data.scaleX || data.scale) * data.previewScale,
             scaleY: (data.scaleY || data.scale) * data.previewScale,
             opacity: data.opacity ?? 1,
-            globalCompositeOperation:
-                data.blendMode === 'multiply'
-                    ? 'multiply'
-                    : data.blendMode === 'screen'
-                        ? 'screen'
-                        : 'source-over'
+            globalCompositeOperation: _blendToGCO(data.blendMode)
         });
 
         if(data.extraDesignObjects?.length){
@@ -3139,12 +3148,7 @@ async function applyWarpToData(data, lowQuality = false){
         scaleX: (data.scaleX || data.scale) * data.previewScale,
         scaleY: (data.scaleY || data.scale) * data.previewScale,
         opacity: data.opacity ?? 1,
-        globalCompositeOperation:
-            data.blendMode === 'multiply'
-                ? 'multiply'
-                : data.blendMode === 'screen'
-                    ? 'screen'
-                    : 'source-over',
+        globalCompositeOperation: _blendToGCO(data.blendMode),
         originX: 'center',
         originY: 'center',
         transparentCorners: false,
@@ -3280,10 +3284,7 @@ function _lqRenderSliders(){
             if(!requiresWarp){
                 obj.set({
                     opacity: newFx.opacity,
-                    globalCompositeOperation:
-                        newFx.blendMode === 'multiply' ? 'multiply'
-                        : newFx.blendMode === 'screen'  ? 'screen'
-                        : 'source-over'
+                    globalCompositeOperation: _blendToGCO(newFx.blendMode)
                 });
                 d.fabricCanvas.requestRenderAll();
                 return;
@@ -3369,10 +3370,7 @@ function _lqRenderSliders(){
             if(data.designObject){
                 data.designObject.set({
                     opacity: _opacV,
-                    globalCompositeOperation:
-                        _blendV === 'multiply' ? 'multiply'
-                        : _blendV === 'screen'  ? 'screen'
-                        : 'source-over'
+                    globalCompositeOperation: _blendToGCO(_blendV)
                 });
             }
             data.fabricCanvas.requestRenderAll();
@@ -3442,12 +3440,7 @@ async function _hqRenderSliders(){
             if(data.designObject){
                 data.designObject.set({
                     opacity: data.opacity ?? 1,
-                    globalCompositeOperation:
-                        data.blendMode === 'multiply'
-                            ? 'multiply'
-                            : data.blendMode === 'screen'
-                                ? 'screen'
-                                : 'source-over'
+                    globalCompositeOperation: _blendToGCO(data.blendMode)
                 });
             }
 
@@ -5852,10 +5845,7 @@ document.getElementById("duplicateLayerBtn").addEventListener("click", ()=>{
                 left: sourceObj.left + 40,
                 top:  sourceObj.top  + 20,
                 opacity: fx.opacity ?? 1,
-                globalCompositeOperation:
-                    fx.blendMode === 'multiply' ? 'multiply'
-                    : fx.blendMode === 'screen'  ? 'screen'
-                    : 'source-over'
+                globalCompositeOperation: _blendToGCO(fx.blendMode)
             });
 
             data.extraDesignObjects   = data.extraDesignObjects   || [];
@@ -8113,12 +8103,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                                 scaleY: dup.scaleY * previewScale,
                                 angle: dup.angle,
                                 opacity: dup.opacity ?? data.opacity,
-                                globalCompositeOperation:
-                                    dup.blendMode === 'multiply'
-                                        ? 'multiply'
-                                        : dup.blendMode === 'screen'
-                                            ? 'screen'
-                                            : 'source-over',
+                                globalCompositeOperation: _blendToGCO(dup.blendMode),
                                 originX: 'center',
                                 originY: 'center',
                                 transparentCorners: false,
@@ -8167,12 +8152,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                                 opacity:
                                     dup.opacity ?? data.opacity,
 
-                                globalCompositeOperation:
-                                    dup.blendMode === 'multiply'
-                                        ? 'multiply'
-                                        : dup.blendMode === 'screen'
-                                            ? 'screen'
-                                            : 'source-over'
+                                globalCompositeOperation: _blendToGCO(dup.blendMode)
                             });
 
                             cloned._fx = dup.fx || _defaultFx(data);
