@@ -59,6 +59,28 @@ body {
 }
 #zoomLevelDisplay:hover { color: #1e5eff; }
 
+.vp-cols-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+.vp-cols-control label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    user-select: none;
+}
+#numColsInput {
+    width: 44px;
+    font-size: 13px;
+    padding: 2px 4px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    text-align: center;
+}
+
 #undoBtn, #redoBtn {
     background: #f0f0f0;
     border: 1px solid #bbb;

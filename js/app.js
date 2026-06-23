@@ -2,6 +2,7 @@ let backgrounds = [];
 let designs = [];
 let canvasData = [];
 let activeIndices = [];
+let _numColumns = 4;
 
 // ── Visibility cache (IntersectionObserver) ───────────────────────────────────
 // Tracks which canvas wrapper divs are currently scrolled into the viewport
@@ -3667,11 +3668,11 @@ function createCanvasPreviews(){
             const realHeight = data.bg.height;
 
             const containerWidth = container.clientWidth;
-            const gapSpace = 20 * 3;
+            const gapSpace = 20 * (_numColumns - 1);
             const availableWidth = containerWidth - gapSpace - 40;
 
             const targetColumnWidth =
-                Math.min(420, availableWidth / 4);
+                Math.max(100, Math.min(420, availableWidth / _numColumns));
 
             const scaleRatio =
                 Math.min(1, targetColumnWidth / realWidth);
@@ -6623,8 +6624,10 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         const containerWidth = container.clientWidth;
 
+        const gapSpace = 20 * (_numColumns - 1);
+        const availableWidth = containerWidth - gapSpace - 40;
         const targetColumnWidth =
-            Math.min(420, (containerWidth - 100) / 4);
+            Math.max(100, Math.min(420, availableWidth / _numColumns));
 
         const previewScale =
             Math.min(1, targetColumnWidth / realWidth);
@@ -7168,6 +7171,44 @@ let _vpSpaceDown  = false;
             zoomAt(r.width / 2, r.height / 2, 1 / 1.25); e.preventDefault();
         }
     });
+})();
+
+
+// ── Column count control ──────────────────────────────────────────────────────
+(()=>{
+    const container   = document.getElementById('canvasContainer');
+    const input       = document.getElementById('numColsInput');
+    let _colsRebuildTimer = null;
+
+    function applyGridColumns() {
+        container.style.gridTemplateColumns =
+            `repeat(${_numColumns}, minmax(0, 1fr))`;
+    }
+
+    async function rebuildForColumns() {
+        if (!canvasData.length) {
+            applyGridColumns();
+            return;
+        }
+        const snapshot = buildSnapshot();
+        applyGridColumns();
+        await createCanvasPreviewsFromSnapshot(snapshot);
+        syncSliders();
+        updateWindowBorders();
+    }
+
+    input.addEventListener('change', () => {
+        const raw = parseInt(input.value, 10);
+        const clamped = Math.max(1, Math.min(20, isNaN(raw) ? _numColumns : raw));
+        input.value = clamped;
+        if (clamped === _numColumns) return;
+        _numColumns = clamped;
+        clearTimeout(_colsRebuildTimer);
+        _colsRebuildTimer = setTimeout(rebuildForColumns, 0);
+    });
+
+    // Also apply the grid immediately on page load so CSS matches _numColumns
+    applyGridColumns();
 })();
 
 
