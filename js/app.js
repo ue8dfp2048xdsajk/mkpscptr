@@ -2,6 +2,18 @@ let backgrounds = [];
 let designs = [];
 let canvasData = [];
 let activeIndices = [];
+
+// ── Visibility cache (IntersectionObserver) ───────────────────────────────────
+// Tracks which canvas wrapper divs are currently scrolled into the viewport
+// (+ 300 px buffer). Replaces per-frame getBoundingClientRect() calls with an
+// O(1) Set.has() lookup so iterating hundreds of windows costs nothing.
+const _visibleWrappers = new Set();
+const _visibilityObserver = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+        if(e.isIntersecting) _visibleWrappers.add(e.target);
+        else                 _visibleWrappers.delete(e.target);
+    });
+}, { rootMargin: '300px 0px' });
 let clipCopySelectMode = false;   // true while user is picking copy targets
 let clipCopySourceIndex = null;   // which window the clipping will be copied FROM
 
@@ -2772,13 +2784,12 @@ async function applyWarpToData(data, lowQuality = false){
 
 
 function isElementVisible(el){
-
+    // O(1) lookup into the IntersectionObserver-maintained Set.
+    // Falls back to getBoundingClientRect for elements not yet observed
+    // (e.g. queried before the observer fires its first callback).
+    if(_visibleWrappers.has(el)) return true;
     const rect = el.getBoundingClientRect();
-
-    return (
-        rect.bottom >= 0 &&
-        rect.top <= window.innerHeight + 300
-    );
+    return rect.bottom >= 0 && rect.top <= window.innerHeight + 300;
 }
 
 
@@ -2859,6 +2870,8 @@ function _lqRenderSliders(){
             const d = obj._ownerData;
             if(!d || d.locked) return;
 
+            // Always update _fx so off-screen objects have correct state when
+            // they scroll back into view.
             obj._fx = { ...newFx };
 
             // Mirror into data.* for main design so applyWarpToData stays in sync
@@ -2873,6 +2886,9 @@ function _lqRenderSliders(){
                 d.noiseAmount     = newFx.noiseAmount;
                 d.blendMode       = newFx.blendMode;
             }
+
+            // Skip render work for off-screen objects — state is already updated above.
+            if(!_visibleWrappers.has(d.wrapperEl || d.fabricCanvas.lowerCanvasEl.parentElement)) return;
 
             if(!requiresWarp){
                 obj.set({
@@ -2921,15 +2937,8 @@ function _lqRenderSliders(){
         const data = canvasData[index];
         if(data.locked) return;
 
-        // Preserve current live object transforms
-        if(data.designObject){
-            data.x        = data.designObject.left;
-            data.y        = data.designObject.top;
-            data.rotation = data.designObject.angle;
-            data.scaleX   = data.designObject.scaleX / data.previewScale;
-            data.scaleY   = data.designObject.scaleY / data.previewScale;
-        }
-
+        // Always update the scalar slider values so off-screen windows have
+        // correct state when they scroll back into view.
         data.warpAmount      = _warpV;
         data.arcAmount       = _arcV;
         data.arcTilt         = _arcTV;
@@ -2939,6 +2948,21 @@ function _lqRenderSliders(){
         data.blurAmount      = _blurV;
         data.noiseAmount     = _noiseV;
         data.blendMode       = _blendV;
+
+        // Skip all expensive render work for off-screen windows (O(1) Set lookup).
+        const wrapper = data.wrapperEl || data.fabricCanvas.lowerCanvasEl.parentElement;
+        if(!_visibleWrappers.has(wrapper)) return;
+
+        // Sync live Fabric object transforms into data.* only for visible windows
+        // (captureWindowState now reads from Fabric directly, so this is only
+        // needed to keep applyWarpToData's left/top positioning correct).
+        if(data.designObject){
+            data.x        = data.designObject.left;
+            data.y        = data.designObject.top;
+            data.rotation = data.designObject.angle;
+            data.scaleX   = data.designObject.scaleX / data.previewScale;
+            data.scaleY   = data.designObject.scaleY / data.previewScale;
+        }
 
         // Keep main design's _fx in sync with window-level properties
         if(data.designObject?._fx){
@@ -2952,10 +2976,6 @@ function _lqRenderSliders(){
             data.designObject._fx.noiseAmount     = _noiseV;
             data.designObject._fx.blendMode       = _blendV;
         }
-
-        // Skip expensive updates for off-screen windows
-        const wrapper = data.fabricCanvas.lowerCanvasEl.parentElement;
-        if(!isElementVisible(wrapper)) return;
 
         // Fast path: opacity/blend only — no warp recomputation needed
         if(!requiresWarp){
@@ -3521,6 +3541,7 @@ function createCanvasPreviews(){
             const wrapper = document.createElement("div");
             wrapper.className = "canvas-wrapper";
             data.wrapperEl = wrapper;
+            _visibilityObserver.observe(wrapper);
 
             const canvasEl = document.createElement("canvas");
             canvasEl.width = data.bg.width;
@@ -4347,8 +4368,10 @@ function deleteSelectedWindows(){
         const d = canvasData[i];
         if(!d) return;
         try { d.fabricCanvas.dispose(); } catch(e){}
-        if(d.wrapperEl && d.wrapperEl.parentNode){
-            d.wrapperEl.parentNode.removeChild(d.wrapperEl);
+        if(d.wrapperEl){
+            _visibilityObserver.unobserve(d.wrapperEl);
+            _visibleWrappers.delete(d.wrapperEl);
+            if(d.wrapperEl.parentNode) d.wrapperEl.parentNode.removeChild(d.wrapperEl);
         }
     });
 
