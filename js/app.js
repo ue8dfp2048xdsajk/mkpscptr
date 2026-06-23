@@ -3,6 +3,8 @@ let designs = [];
 let canvasData = [];
 let activeIndices = [];
 let _numColumns = 4;
+let _rowGap = 20;
+let _colGap = 20;
 
 // ── Visibility cache (IntersectionObserver) ───────────────────────────────────
 // Tracks which canvas wrapper divs are currently scrolled into the viewport
@@ -3668,7 +3670,7 @@ function createCanvasPreviews(){
             const realHeight = data.bg.height;
 
             const containerWidth = container.clientWidth;
-            const gapSpace = 20 * (_numColumns - 1);
+            const gapSpace = _colGap * (_numColumns - 1);
             const availableWidth = containerWidth - gapSpace - 40;
 
             const targetColumnWidth =
@@ -6634,7 +6636,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         const containerWidth = container.clientWidth;
 
-        const gapSpace = 20 * (_numColumns - 1);
+        const gapSpace = _colGap * (_numColumns - 1);
         const availableWidth = containerWidth - gapSpace - 40;
         const targetColumnWidth =
             Math.max(100, Math.min(420, availableWidth / _numColumns));
@@ -7226,6 +7228,36 @@ let _vpSpaceDown  = false;
 
     // Also apply the grid immediately on page load so CSS matches _numColumns
     applyGridColumns();
+})();
+
+
+// ── Row / Column gap controls ─────────────────────────────────────────────────
+(()=>{
+    const container  = document.getElementById('canvasContainer');
+    const rowInput   = document.getElementById('rowGapInput');
+    const colInput   = document.getElementById('colGapInput');
+
+    function applyGaps() {
+        container.style.rowGap    = _rowGap + 'px';
+        container.style.columnGap = _colGap + 'px';
+    }
+
+    rowInput.addEventListener('change', () => {
+        const v = Math.max(0, Math.min(120, parseInt(rowInput.value, 10) || 0));
+        rowInput.value = v;
+        _rowGap = v;
+        applyGaps();
+    });
+
+    colInput.addEventListener('change', () => {
+        const v = Math.max(0, Math.min(120, parseInt(colInput.value, 10) || 0));
+        colInput.value = v;
+        _colGap = v;
+        applyGaps();
+    });
+
+    // Initialise on load
+    applyGaps();
 })();
 
 
