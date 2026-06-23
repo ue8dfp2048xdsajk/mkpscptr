@@ -122,6 +122,31 @@ Preparing designs...
     </div>
     <div id="contextPanelBody">
 
+        <div class="cp-section lock-sensitive" id="bgAdjustSection">
+            <div class="cp-section-title">Background Adjustments</div>
+            <div class="bg-adj-row">
+                <label>Hue</label>
+                <input type="range" id="bgHue" min="-180" max="180" value="0">
+                <span id="bgHueVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Saturation</label>
+                <input type="range" id="bgSaturation" min="-100" max="100" value="0">
+                <span id="bgSaturationVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Brightness</label>
+                <input type="range" id="bgBrightness" min="-100" max="100" value="0">
+                <span id="bgBrightnessVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Contrast</label>
+                <input type="range" id="bgContrast" min="-100" max="100" value="0">
+                <span id="bgContrastVal">0</span>
+            </div>
+            <button id="bgAdjustResetBtn" style="margin-top:4px;">Reset Adjustments</button>
+        </div>
+
         <div class="cp-section lock-sensitive">
             <div class="cp-section-title">Warp &amp; Perspective</div>
             <label>Cylinder Warp

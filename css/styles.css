@@ -128,6 +128,30 @@ body {
     border-color: #1e5eff;
 }
 
+/* ── Background Adjustments ─────────────────────────────────────────────────── */
+.bg-adj-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.bg-adj-row label {
+    width: 70px;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+.bg-adj-row input[type=range] {
+    flex: 1;
+    min-width: 0;
+}
+.bg-adj-row span {
+    width: 30px;
+    font-size: 11px;
+    text-align: right;
+    flex-shrink: 0;
+    color: #555;
+}
+
 /* ── Window count badge ─────────────────────────────────────────────────────── */
 .window-count-badge {
     display: inline-block;

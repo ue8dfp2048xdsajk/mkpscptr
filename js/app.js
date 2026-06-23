@@ -251,6 +251,10 @@ const opacityAmount = document.getElementById("opacityAmount");
 const blurAmount = document.getElementById("blurAmount");
 const noiseAmount = document.getElementById("noiseAmount");
 const blendMode = document.getElementById("blendMode");
+const bgHue        = document.getElementById('bgHue');
+const bgSaturation = document.getElementById('bgSaturation');
+const bgBrightness = document.getElementById('bgBrightness');
+const bgContrast   = document.getElementById('bgContrast');
 
 
 // performance throttling
@@ -328,6 +332,58 @@ function trimTransparentPixels(img){
 
 function _blendToGCO(mode){
     return (mode && mode !== 'normal') ? mode : 'source-over';
+}
+
+function _applyBgAdjust(data){
+    const obj = data.backgroundObject;
+    if(!obj) return;
+    const a = data.bgAdjust || {};
+    const hue = (a.hue        || 0) / 360;
+    const sat = (a.saturation || 0) / 100;
+    const bri = (a.brightness || 0) / 100;
+    const con = (a.contrast   || 0) / 100;
+    obj.filters = [
+        new fabric.Image.filters.HueRotation({ rotation: hue }),
+        new fabric.Image.filters.Saturation({ saturation: sat }),
+        new fabric.Image.filters.Brightness({ brightness: bri }),
+        new fabric.Image.filters.Contrast({ contrast: con })
+    ];
+    obj.applyFilters();
+    data.fabricCanvas.requestRenderAll();
+}
+
+function _syncBgAdjustDisplay(){
+    const data = activeIndices.length ? canvasData[activeIndices[0]] : null;
+    const a = (data && data.bgAdjust) || {};
+    bgHue.value        = a.hue        ?? 0;
+    bgSaturation.value = a.saturation ?? 0;
+    bgBrightness.value = a.brightness ?? 0;
+    bgContrast.value   = a.contrast   ?? 0;
+    document.getElementById('bgHueVal').textContent        = bgHue.value;
+    document.getElementById('bgSaturationVal').textContent = bgSaturation.value;
+    document.getElementById('bgBrightnessVal').textContent = bgBrightness.value;
+    document.getElementById('bgContrastVal').textContent   = bgContrast.value;
+}
+
+function _updateBgAdjust(){
+    if(!activeIndices.length) return;
+    const adj = {
+        hue:        parseFloat(bgHue.value),
+        saturation: parseFloat(bgSaturation.value),
+        brightness: parseFloat(bgBrightness.value),
+        contrast:   parseFloat(bgContrast.value)
+    };
+    document.getElementById('bgHueVal').textContent        = adj.hue;
+    document.getElementById('bgSaturationVal').textContent = adj.saturation;
+    document.getElementById('bgBrightnessVal').textContent = adj.brightness;
+    document.getElementById('bgContrastVal').textContent   = adj.contrast;
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if(d.locked) return;
+        d.bgAdjust = { ...adj };
+        _applyBgAdjust(d);
+    });
+    _markDirty();
 }
 
 function applyBlendModeToImage(sourceImg, data, mode, intensity){
@@ -1925,6 +1981,7 @@ function captureWindowState(data){
         colorLayerBlendMode: data.colorLayerFabricObj?.globalCompositeOperation ?? 'source-over',
         filename: data.filename || '',
         notes:    data.notes    || '',
+        bgAdjust: data.bgAdjust ? { ...data.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
         locked:   !!data.locked,
         flipX:    !!data.flipX,
         flipY:    !!data.flipY,
@@ -2015,6 +2072,8 @@ async function restoreWindowState(data, state){
     data.blurAmount = state.blurAmount ?? 0;
     data.noiseAmount = state.noiseAmount ?? 0;
     data.blendMode  = state.blendMode  ?? 'normal';
+    data.bgAdjust   = state.bgAdjust   ? { ...state.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 };
+    _applyBgAdjust(data);
 
     if(data.designObject){
         data.designObject._fx = state.designFx
@@ -2450,6 +2509,7 @@ function syncSliders() {
     perspectiveLeft.value = data.perspectiveLeft || 0;
     blendMode.value = data.blendMode || "normal";
 
+    _syncBgAdjustDisplay();
 }
 
 
@@ -3476,6 +3536,24 @@ blendMode.addEventListener('mousedown', () => {
 });
 blendMode.addEventListener('change', () => { _sliderUndoLocked = false; });
 
+// BG adjustment sliders — own undo lock so they don't collide with design sliders
+let _bgAdjUndoLocked = false;
+[bgHue, bgSaturation, bgBrightness, bgContrast].forEach(el => {
+    el.addEventListener('mousedown', () => {
+        if(!_bgAdjUndoLocked){ _bgAdjUndoLocked = true; pushGlobalUndo(); }
+    });
+    el.addEventListener('mouseup', () => { _bgAdjUndoLocked = false; });
+    el.addEventListener('input', _updateBgAdjust);
+});
+document.getElementById('bgAdjustResetBtn').addEventListener('click', () => {
+    if(!activeIndices.length) return;
+    if(activeIndices.every(i => canvasData[i].locked)) return;
+    pushGlobalUndo();
+    bgHue.value = 0; bgSaturation.value = 0;
+    bgBrightness.value = 0; bgContrast.value = 0;
+    _updateBgAdjust();
+});
+
 
 function handleBgFiles(files){
 
@@ -3805,6 +3883,8 @@ function createCanvasData(bgObj, designObj){
         perspectiveTop: 0,
         perspectiveLeft: 0,
 
+        bgAdjust: { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
+
         // future masking support
         maskPaths:
             backgroundMaskTemplates[bgObj.name]?.maskPaths || [],
@@ -4010,6 +4090,7 @@ function createCanvasPreviews(){
                 });
 
                 data.backgroundObject = bgImg;
+                _applyBgAdjust(data);
 
                 fabricCanvas.add(bgImg);
                 fabricCanvas.sendToBack(bgImg);
@@ -7686,6 +7767,7 @@ function buildSnapshot(){
             blurAmount: data.blurAmount ?? 0,
             noiseAmount: data.noiseAmount ?? 0,
             blendMode: data.blendMode ?? "normal",
+            bgAdjust:  data.bgAdjust  ? { ...data.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
 
             // Normalise mask-path coordinates by dividing by previewScale so
             // they are stored in background-image-pixel space — the same
@@ -7920,6 +8002,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             blurAmount: saved.blurAmount ?? 0,
             noiseAmount: saved.noiseAmount ?? 0,
             blendMode: saved.blendMode ?? "normal",
+            bgAdjust:  saved.bgAdjust  ? { ...saved.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
 
             maskPaths:
                 saved.maskPaths ||
@@ -8070,6 +8153,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         });
 
         fabricCanvas.add(bgFabric);
+        data.backgroundObject = bgFabric;
+        _applyBgAdjust(data);
 
         // restore polygon overlay before rendering designs
         addClipOverlay(data);
