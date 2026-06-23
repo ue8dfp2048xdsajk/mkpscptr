@@ -6836,6 +6836,15 @@ document.addEventListener('keydown', function(e){
     }
 });
 
+document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 'a') return;
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    document.getElementById('selectAllBtn').click();
+});
+
 document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{
     if(!_sliderUndoLocked){ _sliderUndoLocked = true; pushGlobalUndo(); }
 });
