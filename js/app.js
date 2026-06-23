@@ -337,26 +337,72 @@ function _blendToGCO(mode){
 function _applyBgAdjust(data){
     const obj = data.backgroundObject;
     if(!obj) return;
+
     const a = data.bgAdjust || {};
+    const c = data.bgCrop   || {};
+
     const hue = a.hue        || 0;
     const sat = (a.saturation || 0) + 100;
     const bri = (a.brightness || 0) + 100;
     const con = (a.contrast   || 0) + 100;
 
-    const isNeutral = hue === 0 && sat === 100 && bri === 100 && con === 100;
+    const cropScale  = c.scale    || 1;
+    const cropX      = c.x        || 0;
+    const cropY      = c.y        || 0;
+    const cropRot    = c.rotation || 0;
+    const cropAspect = c.aspect   || 0;
+
+    const colorNeutral = hue === 0 && sat === 100 && bri === 100 && con === 100;
+    const cropNeutral  = cropScale === 1 && cropX === 0 && cropY === 0 && cropRot === 0 && !cropAspect;
     const src = data.bg;
 
-    if(isNeutral){
+    if(colorNeutral && cropNeutral){
         obj.setElement(src);
-    } else {
-        const off = document.createElement('canvas');
-        off.width  = src.naturalWidth  || src.width;
-        off.height = src.naturalHeight || src.height;
-        const ctx = off.getContext('2d');
-        ctx.filter = `hue-rotate(${hue}deg) saturate(${sat}%) brightness(${bri}%) contrast(${con}%)`;
-        ctx.drawImage(src, 0, 0);
-        obj.setElement(off);
+        obj.filters = [];
+        obj.applyFilters();
+        data.fabricCanvas.requestRenderAll();
+        return;
     }
+
+    const imgW = src.naturalWidth  || src.width;
+    const imgH = src.naturalHeight || src.height;
+
+    const off = document.createElement('canvas');
+    off.width  = imgW;
+    off.height = imgH;
+    const ctx  = off.getContext('2d');
+
+    // Base zoom so the chosen aspect-ratio crop region fills the full frame
+    let zoomFactor = 1;
+    if(cropAspect){
+        const imgAR = imgW / imgH;
+        let cropBoxW, cropBoxH;
+        if(imgAR > cropAspect){
+            cropBoxH = imgH;
+            cropBoxW = imgH * cropAspect;
+        } else {
+            cropBoxW = imgW;
+            cropBoxH = imgW / cropAspect;
+        }
+        zoomFactor = Math.max(imgW / cropBoxW, imgH / cropBoxH);
+    }
+
+    const totalScale = zoomFactor * cropScale;
+    const panX = cropX * imgW;
+    const panY = cropY * imgH;
+
+    if(!colorNeutral){
+        ctx.filter = `hue-rotate(${hue}deg) saturate(${sat}%) brightness(${bri}%) contrast(${con}%)`;
+    }
+
+    ctx.save();
+    ctx.translate(imgW / 2 + panX, imgH / 2 + panY);
+    ctx.rotate(cropRot * Math.PI / 180);
+    ctx.scale(totalScale, totalScale);
+    ctx.drawImage(src, -imgW / 2, -imgH / 2, imgW, imgH);
+    ctx.restore();
+
+    obj.setElement(off);
     obj.filters = [];
     obj.applyFilters();
     data.fabricCanvas.requestRenderAll();
@@ -373,6 +419,24 @@ function _syncBgAdjustDisplay(){
     document.getElementById('bgSaturationVal').textContent = bgSaturation.value;
     document.getElementById('bgBrightnessVal').textContent = bgBrightness.value;
     document.getElementById('bgContrastVal').textContent   = bgContrast.value;
+    _syncBgCropDisplay();
+}
+
+function _syncBgCropDisplay(){
+    const data = activeIndices.length ? canvasData[activeIndices[0]] : null;
+    const c = (data && data.bgCrop) || {};
+    bgCropRotation.valueAsNumber = c.rotation ?? 0;
+    bgCropScale.valueAsNumber    = Math.round((c.scale ?? 1) * 100);
+    bgCropX.valueAsNumber        = Math.round((c.x     ?? 0) * 100);
+    bgCropY.valueAsNumber        = Math.round((c.y     ?? 0) * 100);
+    document.getElementById('bgCropRotationVal').textContent = bgCropRotation.value;
+    document.getElementById('bgCropScaleVal').textContent    = bgCropScale.value;
+    document.getElementById('bgCropXVal').textContent        = bgCropX.value;
+    document.getElementById('bgCropYVal').textContent        = bgCropY.value;
+    const aspect = c.aspect ?? 0;
+    document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
+        btn.classList.toggle('active', parseFloat(btn.dataset.aspect) === aspect);
+    });
 }
 
 function _updateBgAdjust(){
@@ -391,6 +455,25 @@ function _updateBgAdjust(){
         const d = canvasData[i];
         if(d.locked) return;
         d.bgAdjust = { ...adj };
+        _applyBgAdjust(d);
+    });
+    _markDirty();
+}
+
+function _updateBgCrop(){
+    if(!activeIndices.length) return;
+    document.getElementById('bgCropRotationVal').textContent = bgCropRotation.value;
+    document.getElementById('bgCropScaleVal').textContent    = bgCropScale.value;
+    document.getElementById('bgCropXVal').textContent        = bgCropX.value;
+    document.getElementById('bgCropYVal').textContent        = bgCropY.value;
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if(d.locked) return;
+        if(!d.bgCrop) d.bgCrop = { x:0, y:0, scale:1, rotation:0, aspect:0 };
+        d.bgCrop.rotation = parseFloat(bgCropRotation.value);
+        d.bgCrop.scale    = parseFloat(bgCropScale.value)    / 100;
+        d.bgCrop.x        = parseFloat(bgCropX.value)        / 100;
+        d.bgCrop.y        = parseFloat(bgCropY.value)        / 100;
         _applyBgAdjust(d);
     });
     _markDirty();
@@ -1992,6 +2075,7 @@ function captureWindowState(data){
         filename: data.filename || '',
         notes:    data.notes    || '',
         bgAdjust: data.bgAdjust ? { ...data.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
+        bgCrop:   data.bgCrop   ? { ...data.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
         locked:   !!data.locked,
         flipX:    !!data.flipX,
         flipY:    !!data.flipY,
@@ -2083,6 +2167,7 @@ async function restoreWindowState(data, state){
     data.noiseAmount = state.noiseAmount ?? 0;
     data.blendMode  = state.blendMode  ?? 'normal';
     data.bgAdjust   = state.bgAdjust   ? { ...state.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 };
+    data.bgCrop     = state.bgCrop     ? { ...state.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 };
     _applyBgAdjust(data);
 
     if(data.designObject){
@@ -3564,6 +3649,60 @@ document.getElementById('bgAdjustResetBtn').addEventListener('click', () => {
     _updateBgAdjust();
 });
 
+// BG crop sliders
+let _bgCropUndoLocked = false;
+[bgCropRotation, bgCropScale, bgCropX, bgCropY].forEach(el => {
+    el.addEventListener('mousedown', () => {
+        if(!_bgCropUndoLocked){ _bgCropUndoLocked = true; pushGlobalUndo(); }
+    });
+    el.addEventListener('mouseup', () => { _bgCropUndoLocked = false; });
+    el.addEventListener('input', _updateBgCrop);
+});
+
+document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if(!activeIndices.length) return;
+        if(activeIndices.every(i => canvasData[i].locked)) return;
+        pushGlobalUndo();
+        const aspect = parseFloat(btn.dataset.aspect);
+        activeIndices.forEach(i => {
+            const d = canvasData[i];
+            if(d.locked) return;
+            if(!d.bgCrop) d.bgCrop = { x:0, y:0, scale:1, rotation:0, aspect:0 };
+            d.bgCrop.aspect = aspect;
+            _applyBgAdjust(d);
+        });
+        document.querySelectorAll('.bg-aspect-btn').forEach(b => {
+            b.classList.toggle('active', b === btn);
+        });
+        _markDirty();
+    });
+});
+
+document.getElementById('bgCropResetBtn').addEventListener('click', () => {
+    if(!activeIndices.length) return;
+    if(activeIndices.every(i => canvasData[i].locked)) return;
+    pushGlobalUndo();
+    bgCropRotation.valueAsNumber = 0;
+    bgCropScale.valueAsNumber    = 100;
+    bgCropX.valueAsNumber        = 0;
+    bgCropY.valueAsNumber        = 0;
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if(d.locked) return;
+        d.bgCrop = { x:0, y:0, scale:1, rotation:0, aspect:0 };
+        _applyBgAdjust(d);
+    });
+    document.querySelectorAll('.bg-aspect-btn').forEach(b => {
+        b.classList.toggle('active', parseFloat(b.dataset.aspect) === 0);
+    });
+    document.getElementById('bgCropRotationVal').textContent = '0';
+    document.getElementById('bgCropScaleVal').textContent    = '100';
+    document.getElementById('bgCropXVal').textContent        = '0';
+    document.getElementById('bgCropYVal').textContent        = '0';
+    _markDirty();
+});
+
 
 function handleBgFiles(files){
 
@@ -3894,6 +4033,7 @@ function createCanvasData(bgObj, designObj){
         perspectiveLeft: 0,
 
         bgAdjust: { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
+        bgCrop:   { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
 
         // future masking support
         maskPaths:
@@ -5329,6 +5469,8 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
             blendIntensity:        100,
             perspectiveTop:        0,
             perspectiveLeft:       0,
+            bgAdjust:              { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
+            bgCrop:                { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
             maskPaths:             backgroundMaskTemplates[file.name]?.maskPaths || [],
             maskPath:              backgroundMaskTemplates[file.name]?.maskPath  || null,
             maskEnabled:           backgroundMaskTemplates[file.name]?.maskEnabled || false,
@@ -7787,6 +7929,7 @@ function buildSnapshot(){
             noiseAmount: data.noiseAmount ?? 0,
             blendMode: data.blendMode ?? "normal",
             bgAdjust:  data.bgAdjust  ? { ...data.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
+            bgCrop:    data.bgCrop    ? { ...data.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
 
             // Normalise mask-path coordinates by dividing by previewScale so
             // they are stored in background-image-pixel space — the same
@@ -8022,6 +8165,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             noiseAmount: saved.noiseAmount ?? 0,
             blendMode: saved.blendMode ?? "normal",
             bgAdjust:  saved.bgAdjust  ? { ...saved.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
+            bgCrop:    saved.bgCrop    ? { ...saved.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
 
             maskPaths:
                 saved.maskPaths ||

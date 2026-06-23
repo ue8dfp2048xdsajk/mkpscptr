@@ -152,6 +152,36 @@ body {
     color: #555;
 }
 
+/* ── Background Crop aspect buttons ─────────────────────────────────────────── */
+.bg-crop-aspect-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+.bg-aspect-btn {
+    flex: 1 1 auto;
+    padding: 3px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #444;
+    white-space: nowrap;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.bg-aspect-btn:hover {
+    background: #e0e8f0;
+    border-color: #99b;
+}
+.bg-aspect-btn.active {
+    background: #3a7bd5;
+    color: #fff;
+    border-color: #2a5fad;
+}
+
 /* ── Window count badge ─────────────────────────────────────────────────────── */
 .window-count-badge {
     display: inline-block;

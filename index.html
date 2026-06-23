@@ -147,6 +147,40 @@ Preparing designs...
             <button id="bgAdjustResetBtn" style="margin-top:4px;">Reset Adjustments</button>
         </div>
 
+        <div class="cp-section lock-sensitive" id="bgCropSection">
+            <div class="cp-section-title">Background Crop</div>
+            <div class="bg-crop-aspect-row">
+                <button class="bg-aspect-btn active" data-aspect="0">Free</button>
+                <button class="bg-aspect-btn" data-aspect="1">1:1</button>
+                <button class="bg-aspect-btn" data-aspect="0.8">4:5</button>
+                <button class="bg-aspect-btn" data-aspect="1.25">5:4</button>
+                <button class="bg-aspect-btn" data-aspect="0.6667">2:3</button>
+                <button class="bg-aspect-btn" data-aspect="1.5">3:2</button>
+                <button class="bg-aspect-btn" data-aspect="1.7778">16:9</button>
+            </div>
+            <div class="bg-adj-row">
+                <label>Rotation</label>
+                <input type="range" id="bgCropRotation" min="-180" max="180" step="1" value="0">
+                <span id="bgCropRotationVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Zoom %</label>
+                <input type="range" id="bgCropScale" min="50" max="300" step="1" value="100">
+                <span id="bgCropScaleVal">100</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Pan X</label>
+                <input type="range" id="bgCropX" min="-50" max="50" step="1" value="0">
+                <span id="bgCropXVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Pan Y</label>
+                <input type="range" id="bgCropY" min="-50" max="50" step="1" value="0">
+                <span id="bgCropYVal">0</span>
+            </div>
+            <button id="bgCropResetBtn" style="margin-top:4px;">Reset Crop</button>
+        </div>
+
         <div class="cp-section lock-sensitive">
             <div class="cp-section-title">Warp &amp; Perspective</div>
             <label>Cylinder Warp
