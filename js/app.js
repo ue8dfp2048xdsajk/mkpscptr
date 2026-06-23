@@ -2492,15 +2492,15 @@ function syncSliders() {
         const firstObj = [...selectedDesigns][0];
         const fx = firstObj?._fx;
         if(fx){
-            warpAmount.value    = fx.warpAmount    || 0;
-            arcAmount.value     = fx.arcAmount     || 0;
-            arcTilt.value       = fx.arcTilt       || 0;
-            opacityAmount.value = Math.round((fx.opacity ?? 1) * 100);
-            blurAmount.value    = fx.blurAmount    || 0;
-            noiseAmount.value   = fx.noiseAmount   || 0;
-            perspectiveTop.value  = fx.perspectiveTop  || 0;
-            perspectiveLeft.value = fx.perspectiveLeft || 0;
-            blendMode.value       = fx.blendMode       || "normal";
+            warpAmount.valueAsNumber    = fx.warpAmount    || 0;
+            arcAmount.valueAsNumber     = fx.arcAmount     || 0;
+            arcTilt.valueAsNumber       = fx.arcTilt       || 0;
+            opacityAmount.valueAsNumber = Math.round((fx.opacity ?? 1) * 100);
+            blurAmount.valueAsNumber    = fx.blurAmount    || 0;
+            noiseAmount.valueAsNumber   = fx.noiseAmount   || 0;
+            perspectiveTop.valueAsNumber  = fx.perspectiveTop  || 0;
+            perspectiveLeft.valueAsNumber = fx.perspectiveLeft || 0;
+            blendMode.value               = fx.blendMode       || "normal";
             return;
         }
     }
@@ -2509,15 +2509,15 @@ function syncSliders() {
 
     if(!obj) return;
 
-    warpAmount.value = data.warpAmount || 0;
-    arcAmount.value = data.arcAmount || 0;
-    arcTilt.value = data.arcTilt || 0;
-    opacityAmount.value = Math.round((data.opacity ?? 1) * 100);
-    blurAmount.value  = data.blurAmount  || 0;
-    noiseAmount.value = data.noiseAmount || 0;
-    perspectiveTop.value = data.perspectiveTop || 0;
-    perspectiveLeft.value = data.perspectiveLeft || 0;
-    blendMode.value = data.blendMode || "normal";
+    warpAmount.valueAsNumber    = data.warpAmount    || 0;
+    arcAmount.valueAsNumber     = data.arcAmount     || 0;
+    arcTilt.valueAsNumber       = data.arcTilt       || 0;
+    opacityAmount.valueAsNumber = Math.round((data.opacity ?? 1) * 100);
+    blurAmount.valueAsNumber    = data.blurAmount    || 0;
+    noiseAmount.valueAsNumber   = data.noiseAmount   || 0;
+    perspectiveTop.valueAsNumber  = data.perspectiveTop  || 0;
+    perspectiveLeft.valueAsNumber = data.perspectiveLeft || 0;
+    blendMode.value               = data.blendMode        || "normal";
 
     _syncBgAdjustDisplay();
 }
