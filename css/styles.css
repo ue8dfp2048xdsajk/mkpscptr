@@ -159,7 +159,9 @@ body {
     gap: 4px;
     margin-bottom: 8px;
 }
-.bg-aspect-btn {
+#contextPanel .bg-aspect-btn {
+    display: inline-block;
+    width: auto;
     flex: 1 1 auto;
     padding: 3px 4px;
     font-size: 11px;
@@ -170,13 +172,15 @@ body {
     cursor: pointer;
     color: #444;
     white-space: nowrap;
+    text-align: center;
     transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
-.bg-aspect-btn:hover {
+#contextPanel .bg-aspect-btn:hover {
     background: #e0e8f0;
     border-color: #99b;
+    color: #222;
 }
-.bg-aspect-btn.active {
+#contextPanel .bg-aspect-btn.active {
     background: #3a7bd5;
     color: #fff;
     border-color: #2a5fad;
