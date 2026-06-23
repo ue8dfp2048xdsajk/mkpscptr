@@ -4738,6 +4738,8 @@ function updateLayerButtons(){
         invertBtn.style.display = "none";
     }
 
+    const copyBtn  = document.getElementById('copyTransformsBtn');
+    if(copyBtn)  copyBtn.disabled  = (activeIndices.length !== 1);
     const pasteBtn = document.getElementById('pasteTransformsBtn');
     if(pasteBtn) pasteBtn.disabled = !(_copiedTransforms && activeIndices.length > 0);
 
