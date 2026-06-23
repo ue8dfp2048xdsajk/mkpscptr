@@ -285,6 +285,17 @@ body {
 }
 .window-locked .drag-handle { display: none; }
 .window-locked .filename-input { opacity: 0.5; cursor: not-allowed; }
+.window-locked::before {
+    content: '🔒';
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    font-size: 11px;
+    line-height: 1;
+    z-index: 10;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35));
+}
 
 /* Gray out lock-sensitive panel controls when every selected window is locked */
 #contextPanelBody.all-locked .lock-sensitive {
