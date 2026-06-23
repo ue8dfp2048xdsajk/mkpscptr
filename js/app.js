@@ -3854,8 +3854,12 @@ function attachFabricEvents(data, targetObject = null){
 
         if(isMainDesign){
 
+            // Same-window: only move extra design layers that are also selected.
+            // The color layer always travels with the main design (it's an overlay,
+            // not an independently-selectable layer the user picks separately).
             getAllDesignObjects(data).forEach(obj=>{
                 if(obj === designTarget) return;
+                if((data.extraDesignObjects||[]).includes(obj) && !selectedDesigns.has(obj)) return;
                 obj.left += deltaX;
                 obj.top  += deltaY;
             });
@@ -3868,13 +3872,18 @@ function attachFabricEvents(data, targetObject = null){
                 const target = canvasData[index];
 
                 getAllDesignObjects(target).forEach(obj=>{
+                    // Mirror same-window selection filter: only move an extra layer in
+                    // the peer window if its same-index counterpart is selected in the source.
+                    if((target.extraDesignObjects||[]).includes(obj)){
+                        const idx     = (target.extraDesignObjects||[]).indexOf(obj);
+                        const srcPeer = (data.extraDesignObjects||[])[idx];
+                        if(srcPeer && !selectedDesigns.has(srcPeer)) return;
+                    }
                     obj.left += deltaX;
                     obj.top  += deltaY;
                 });
 
-                // only re-render canvases currently on screen
-                const tw = target.fabricCanvas.lowerCanvasEl.parentElement;
-                if(isElementVisible(tw)) target.fabricCanvas.requestRenderAll();
+                target.fabricCanvas.requestRenderAll();
             });
 
         } else {
@@ -3904,8 +3913,10 @@ function attachFabricEvents(data, targetObject = null){
                     peer.setCoords();
                 }
 
-                const tw = canvasData[index].fabricCanvas.lowerCanvasEl.parentElement;
-                if(isElementVisible(tw)) canvasData[index].fabricCanvas.requestRenderAll();
+                // Always render — no visibility gate. The peer positions accumulate
+                // correctly in memory but won't show until re-rendered; gating on
+                // isElementVisible caused the "jumps on click" symptom.
+                canvasData[index].fabricCanvas.requestRenderAll();
             });
         }
 
@@ -3937,9 +3948,11 @@ function attachFabricEvents(data, targetObject = null){
 
         if(isMainDesign){
 
-            // Same-window: set absolute — all layers here share one coordinate space.
+            // Same-window: set absolute — all layers share one coordinate space.
+            // Extra design layers only scale/move if they're also selected.
             getAllDesignObjects(data).forEach(obj=>{
                 if(obj === designTarget) return;
+                if((data.extraDesignObjects||[]).includes(obj) && !selectedDesigns.has(obj)) return;
                 obj.scaleX = scaleX;
                 obj.scaleY = scaleY;
                 obj.left   = left;
@@ -3956,6 +3969,11 @@ function attachFabricEvents(data, targetObject = null){
                 const target = canvasData[index];
 
                 getAllDesignObjects(target).forEach(obj=>{
+                    if((target.extraDesignObjects||[]).includes(obj)){
+                        const idx     = (target.extraDesignObjects||[]).indexOf(obj);
+                        const srcPeer = (data.extraDesignObjects||[])[idx];
+                        if(srcPeer && !selectedDesigns.has(srcPeer)) return;
+                    }
                     obj.scaleX  = scaleX;
                     obj.scaleY  = scaleY;
                     obj.left   += deltaX;
@@ -3963,8 +3981,7 @@ function attachFabricEvents(data, targetObject = null){
                     obj.setCoords();
                 });
 
-                const sw = target.fabricCanvas.lowerCanvasEl.parentElement;
-                if(isElementVisible(sw)) target.fabricCanvas.requestRenderAll();
+                target.fabricCanvas.requestRenderAll();
             });
 
         } else {
@@ -3997,8 +4014,7 @@ function attachFabricEvents(data, targetObject = null){
                     peer.setCoords();
                 }
 
-                const sw = canvasData[index].fabricCanvas.lowerCanvasEl.parentElement;
-                if(isElementVisible(sw)) canvasData[index].fabricCanvas.requestRenderAll();
+                canvasData[index].fabricCanvas.requestRenderAll();
             });
         }
 
@@ -4014,7 +4030,9 @@ function attachFabricEvents(data, targetObject = null){
 
         if(isMainDesign){
 
+            // Same-window: extra layers only rotate if they're also selected.
             getAllDesignObjects(data).forEach(obj=>{
+                if((data.extraDesignObjects||[]).includes(obj) && !selectedDesigns.has(obj)) return;
                 obj.angle = angle;
             });
 
@@ -4026,11 +4044,15 @@ function attachFabricEvents(data, targetObject = null){
                 const target = canvasData[index];
 
                 getAllDesignObjects(target).forEach(obj=>{
+                    if((target.extraDesignObjects||[]).includes(obj)){
+                        const idx     = (target.extraDesignObjects||[]).indexOf(obj);
+                        const srcPeer = (data.extraDesignObjects||[])[idx];
+                        if(srcPeer && !selectedDesigns.has(srcPeer)) return;
+                    }
                     obj.angle = angle;
                 });
 
-                const rw = target.fabricCanvas.lowerCanvasEl.parentElement;
-                if(isElementVisible(rw)) target.fabricCanvas.requestRenderAll();
+                target.fabricCanvas.requestRenderAll();
             });
 
         } else {
@@ -4057,8 +4079,7 @@ function attachFabricEvents(data, targetObject = null){
                     peer.setCoords();
                 }
 
-                const rw = canvasData[index].fabricCanvas.lowerCanvasEl.parentElement;
-                if(isElementVisible(rw)) canvasData[index].fabricCanvas.requestRenderAll();
+                canvasData[index].fabricCanvas.requestRenderAll();
             });
         }
 
