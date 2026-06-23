@@ -31,96 +31,6 @@
         <button id="clearSessionBtn" title="Remove the autosaved session so the canvas starts blank on next load">Clear Session</button>
         <input type="file" id="loadProgressInput" accept=".json" style="display:none;">
     </div>
-
-    <div class="controls">
-
-        <label>Cylinder Warp
-            <input type="range" id="warpAmount" min="0" max="100" value="0">
-        </label>
-
-        <label>Vertical Arc
-            <input type="range" id="arcAmount" min="-100" max="100" value="0">
-        </label>
-
-        <label>Arc Tilt
-            <input type="range" id="arcTilt" min="-100" max="100" value="0">
-        </label>
-
-        <label>Horizontal Perspective
-            <input type="range" id="perspectiveTop" min="-100" max="100" value="0">
-        </label>
-
-        <label>Vertical Perspective
-            <input type="range" id="perspectiveLeft" min="-100" max="100" value="0">
-        </label>
-
-        <label>Opacity %
-            <input type="number" id="opacityAmount" min="0" max="100" step="1" value="100">
-        </label>
-
-        <label>Gaussian Blur %
-            <input type="number" id="blurAmount" min="0" max="100" step="1" value="0">
-        </label>
-
-        <label>Noise %
-            <input type="number" id="noiseAmount" min="0" max="100" step="1" value="0">
-        </label>
-
-        <label>Layer Mode
-            <select id="blendMode">
-                <option value="normal">Normal</option>
-                <option value="multiply">Multiply</option>
-                <option value="screen">Screen</option>
-            </select>
-        </label>
-
-        <button id="duplicateLayerBtn" style="display:none;">Duplicate Layer</button>
-        <button id="deleteLayerBtn" style="display:none;">Delete Layer</button>
-        <button id="invertColorsBtn" style="display:none;">Invert Colors</button>
-        <button id="designWarpBtn">Warp</button>
-        <span id="warpModeControls" style="display:none;align-items:center;gap:6px;margin-left:4px;">
-            <button id="warpApplyBtn" style="background:#2ecc71;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;">Apply</button>
-            <button id="warpCancelBtn" style="background:#e74c3c;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;">Cancel</button>
-            <span style="font-size:11px;color:#666;">Drag grid points to warp</span>
-        </span>
-        <button id="designEraserBtn">Eraser</button>
-        <span id="designEraserControls" style="display:none;align-items:center;gap:6px;margin-left:4px;">
-            <span style="font-size:11px;">Size</span>
-            <input type="range" id="designEraserSizeSlider" min="5" max="200" value="30" style="width:80px;vertical-align:middle;">
-            <span id="designEraserSizeVal" style="font-size:11px;min-width:24px;">30</span>
-            <span style="font-size:11px;">Soft</span>
-            <input type="range" id="designEraserSoftnessSlider" min="0" max="100" value="60" style="width:80px;vertical-align:middle;">
-            <span id="designEraserSoftnessVal" style="font-size:11px;min-width:24px;">60</span>
-        </span>
-        <button id="addLayerBtn" title="Upload images as overlay layers onto selected windows">Add Layer</button>
-        <input type="file" id="layerUpload" accept="image/*" multiple style="display:none;">
-        <button id="editClipBtn">Edit Clipping</button>
-        <button id="addColorLayerBtn">Add Color Layer</button>
-        <span id="colorLayerControls" style="display:none;align-items:center;gap:4px;">
-            <button id="brushToolBtn" class="color-tool-btn active" title="Paintbrush">Paint</button>
-            <button id="eraserToolBtn" class="color-tool-btn" title="Eraser">Erase</button>
-            <input type="color" id="brushColorPicker" value="#ff0000" title="Paint color" style="cursor:pointer;width:28px;height:22px;padding:1px;border:1px solid #ccc;vertical-align:middle;">
-            <span style="font-size:11px;">Size</span>
-            <input type="range" id="brushSizeSlider" min="1" max="150" value="20" style="width:70px;vertical-align:middle;">
-            <span style="font-size:11px;">Soft</span>
-            <input type="range" id="brushSoftnessSlider" min="0" max="100" value="30" style="width:70px;vertical-align:middle;">
-            <input type="number" id="colorLayerOpacityInput" min="0" max="100" value="100" style="width:55px;" title="Color Opacity %">
-            <select id="colorLayerModeSelect" title="Color Layer Mode">
-                <option value="source-over">Normal</option>
-                <option value="multiply">Multiply</option>
-                <option value="screen">Screen</option>
-            </select>
-        </span>
-<button id="addClipAreaBtn" style="display:none;">Add Clipping Area</button>
-<button id="copyClipBtn" style="display:none;">Copy Clipping</button>
-<button id="copyClipToSelectedBtn" style="display:none;">Copy Clipping to Selected</button>
-<button id="deleteClipBtn" style="display:none;">Delete Clipping</button>
-        <button id="deleteWindowsBtn" style="display:none;">Delete Selected Windows</button>
-        <button id="lockWindowsBtn" style="display:none;">Lock Selected</button>
-        <button id="unlockWindowsBtn" style="display:none;">Unlock Selected</button>
-        <button id="resetBtn">Reset Selected</button>
-        <a href="https://forms.gle/aE82E8z7ZjWQt6Hm7" target="_blank" rel="noopener" style="font-size:11px; color:#888; text-decoration:underline; margin-left:8px;">Report Bugs &amp; Give Feedback</a>
-    </div>
 </div>
 
 <div id="dropZone">
@@ -151,6 +61,116 @@ Preparing designs...
 </div>
 
 <div class="canvas-container" id="canvasContainer"></div>
+
+<!-- ── Context Panel ─────────────────────────────────────────────────── -->
+<div id="contextPanel">
+    <div id="contextPanelHeader">
+        <span id="contextPanelTitle"></span>
+        <button id="contextPanelClose">✕ Deselect</button>
+    </div>
+    <div id="contextPanelBody">
+
+        <div class="cp-section">
+            <div class="cp-section-title">Warp &amp; Perspective</div>
+            <label>Cylinder Warp
+                <input type="range" id="warpAmount" min="0" max="100" value="0">
+            </label>
+            <label>Vertical Arc
+                <input type="range" id="arcAmount" min="-100" max="100" value="0">
+            </label>
+            <label>Arc Tilt
+                <input type="range" id="arcTilt" min="-100" max="100" value="0">
+            </label>
+            <label>Horizontal Perspective
+                <input type="range" id="perspectiveTop" min="-100" max="100" value="0">
+            </label>
+            <label>Vertical Perspective
+                <input type="range" id="perspectiveLeft" min="-100" max="100" value="0">
+            </label>
+            <button id="designWarpBtn">Warp Mesh</button>
+            <span id="warpModeControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
+                <button id="warpApplyBtn" style="background:#2ecc71;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;width:auto;">Apply</button>
+                <button id="warpCancelBtn" style="background:#e74c3c;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;width:auto;">Cancel</button>
+                <span style="font-size:11px;color:#666;">Drag grid points to warp</span>
+            </span>
+        </div>
+
+        <div class="cp-section">
+            <div class="cp-section-title">Appearance</div>
+            <label>Opacity %
+                <input type="number" id="opacityAmount" min="0" max="100" step="1" value="100">
+            </label>
+            <label>Gaussian Blur %
+                <input type="number" id="blurAmount" min="0" max="100" step="1" value="0">
+            </label>
+            <label>Noise %
+                <input type="number" id="noiseAmount" min="0" max="100" step="1" value="0">
+            </label>
+            <label>Layer Mode
+                <select id="blendMode">
+                    <option value="normal">Normal</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="cp-section">
+            <div class="cp-section-title">Tools</div>
+            <button id="designEraserBtn">Eraser</button>
+            <span id="designEraserControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
+                <span style="font-size:11px;">Size</span>
+                <input type="range" id="designEraserSizeSlider" min="5" max="200" value="30" style="width:80px;vertical-align:middle;">
+                <span id="designEraserSizeVal" style="font-size:11px;min-width:24px;">30</span>
+                <span style="font-size:11px;">Soft</span>
+                <input type="range" id="designEraserSoftnessSlider" min="0" max="100" value="60" style="width:80px;vertical-align:middle;">
+                <span id="designEraserSoftnessVal" style="font-size:11px;min-width:24px;">60</span>
+            </span>
+            <button id="addLayerBtn" title="Upload images as overlay layers onto selected windows">Add Layer</button>
+            <input type="file" id="layerUpload" accept="image/*" multiple style="display:none;">
+            <button id="editClipBtn">Edit Clipping</button>
+            <button id="addClipAreaBtn" style="display:none;">Add Clipping Area</button>
+            <button id="copyClipBtn" style="display:none;">Copy Clipping</button>
+            <button id="copyClipToSelectedBtn" style="display:none;">Copy Clipping to Selected</button>
+            <button id="deleteClipBtn" style="display:none;">Delete Clipping</button>
+            <button id="addColorLayerBtn">Add Color Layer</button>
+            <span id="colorLayerControls" style="display:none;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px;">
+                <button id="brushToolBtn" class="color-tool-btn active" title="Paintbrush" style="width:auto;">Paint</button>
+                <button id="eraserToolBtn" class="color-tool-btn" title="Eraser" style="width:auto;">Erase</button>
+                <input type="color" id="brushColorPicker" value="#ff0000" title="Paint color" style="cursor:pointer;width:28px;height:22px;padding:1px;border:1px solid #ccc;vertical-align:middle;">
+                <span style="font-size:11px;">Size</span>
+                <input type="range" id="brushSizeSlider" min="1" max="150" value="20" style="width:70px;vertical-align:middle;">
+                <span style="font-size:11px;">Soft</span>
+                <input type="range" id="brushSoftnessSlider" min="0" max="100" value="30" style="width:70px;vertical-align:middle;">
+                <input type="number" id="colorLayerOpacityInput" min="0" max="100" value="100" style="width:55px;" title="Color Opacity %">
+                <select id="colorLayerModeSelect" title="Color Layer Mode">
+                    <option value="source-over">Normal</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                </select>
+            </span>
+        </div>
+
+        <div class="cp-section">
+            <div class="cp-section-title">Layer</div>
+            <button id="duplicateLayerBtn" style="display:none;">Duplicate Layer</button>
+            <button id="deleteLayerBtn" style="display:none;">Delete Layer</button>
+            <button id="invertColorsBtn" style="display:none;">Invert Colors</button>
+            <button id="resetBtn">Reset Selected</button>
+        </div>
+
+        <div class="cp-section">
+            <div class="cp-section-title">Window</div>
+            <div class="cp-btn-row">
+                <button id="lockWindowsBtn">Lock</button>
+                <button id="unlockWindowsBtn">Unlock</button>
+            </div>
+            <button id="deleteWindowsBtn">Delete Selected Windows</button>
+        </div>
+
+        <a href="https://forms.gle/aE82E8z7ZjWQt6Hm7" target="_blank" rel="noopener" class="cp-feedback">Report Bugs &amp; Give Feedback</a>
+    </div>
+</div>
 
 <button id="notesTab" title="Mockup Notes">&#9998;<span>Notes</span></button>
 

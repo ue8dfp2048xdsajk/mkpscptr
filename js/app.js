@@ -4271,25 +4271,37 @@ function _notesEsc(str){
 }
 
 function updateLayerButtons(){
-    const del        = document.getElementById("deleteLayerBtn");
-    const dup        = document.getElementById("duplicateLayerBtn");
-    const invertBtn  = document.getElementById("invertColorsBtn");
-    const delWin     = document.getElementById("deleteWindowsBtn");
-    const lockBtn    = document.getElementById("lockWindowsBtn");
-    const unlockBtn  = document.getElementById("unlockWindowsBtn");
+    const del       = document.getElementById("deleteLayerBtn");
+    const dup       = document.getElementById("duplicateLayerBtn");
+    const invertBtn = document.getElementById("invertColorsBtn");
+
     if(selectedDesigns.size > 0){
-        del.style.display       = "inline-block";
-        dup.style.display       = "inline-block";
-        invertBtn.style.display = "inline-block";
+        del.style.display       = "block";
+        dup.style.display       = "block";
+        invertBtn.style.display = "block";
     } else {
         del.style.display       = "none";
         dup.style.display       = "none";
         invertBtn.style.display = "none";
     }
+
+    // Open / close the context panel
     const hasActive = activeIndices.length > 0;
-    delWin.style.display    = hasActive ? "inline-block" : "none";
-    lockBtn.style.display   = hasActive ? "inline-block" : "none";
-    unlockBtn.style.display = hasActive ? "inline-block" : "none";
+    const panel = document.getElementById("contextPanel");
+    if(panel) panel.classList.toggle("open", hasActive);
+
+    // Update panel title
+    const title = document.getElementById("contextPanelTitle");
+    if(title){
+        const n = activeIndices.length;
+        title.textContent = hasActive
+            ? (n === 1 ? "1 window selected" : `${n} windows selected`)
+            : "";
+    }
+
+    // Shift Notes tab so it sits beside the panel, not behind it
+    const notesTab = document.getElementById("notesTab");
+    if(notesTab) notesTab.classList.toggle("cp-open", hasActive);
 
     refreshNotesPanel();
 }
@@ -4327,6 +4339,10 @@ function deleteSelectedWindows(){
     updateSelectButtonState();
     updateDropUI();
 }
+
+document.getElementById("contextPanelClose").addEventListener("click", ()=>{
+    _deselectAll();
+});
 
 document.getElementById("deleteWindowsBtn").addEventListener("click", ()=>{
 
