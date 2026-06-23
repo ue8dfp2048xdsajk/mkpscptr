@@ -6516,7 +6516,7 @@ let _autoSaveTimer = null;
 
 function autoSaveSession(){
 
-    if(!canvasData.length) return;
+    if(!canvasData.length && !_textBoxes.length) return;
 
     clearTimeout(_autoSaveTimer);
 
@@ -7134,11 +7134,15 @@ document.getElementById("loadProgressInput").addEventListener("change", function
     reader.onload = async function(e){
 
         const data     = JSON.parse(e.target.result);
-        const snapshot = Array.isArray(data) ? data : (data.windows || []);
-        const tboxes   = Array.isArray(data) ? [] : (data.textBoxes || []);
+        const isLegacy = Array.isArray(data);
+        const snapshot = isLegacy ? data : (data.windows || []);
+        const tboxes   = isLegacy ? [] : (data.textBoxes || []);
 
+        _applyLayoutFromSnapshot(isLegacy ? null : data.layout);
         await createCanvasPreviewsFromSnapshot(snapshot);
         if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
+        _applyViewportFromSnapshot(isLegacy ? null : data.viewport);
+        _applyUndoHistoryFromSnapshot(isLegacy ? null : data.undoHistory);
 
         syncSliders();
         updateWindowBorders();
@@ -7724,10 +7728,58 @@ document.getElementById('exportTextBtn').addEventListener('click', () => {
 
 // ── Full snapshot (windows + text boxes) ─────────────────────────────────────
 function buildFullSnapshot() {
+    // Only lightweight undo types are serialisable (pan/selection have no image data).
+    // canvas-type and layout-type entries contain full data-URL snapshots — too large.
+    const serializableTypes = new Set(['pan', 'selection']);
+    const undoHistory = globalUndoStack
+        .filter(e => serializableTypes.has(e.type))
+        .slice(-20);
+
     return {
-        windows:   buildSnapshot(),
-        textBoxes: _textBoxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, content: b.content }))
+        windows:     buildSnapshot(),
+        textBoxes:   _textBoxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, content: b.content })),
+        viewport:    { scale: _vpScale, x: _vpX, y: _vpY },
+        layout:      { cols: _numColumns, rowGap: _rowGap, colGap: _colGap },
+        undoHistory: undoHistory
     };
+}
+
+// ── Snapshot meta-restore helpers ─────────────────────────────────────────────
+function _applyLayoutFromSnapshot(layout) {
+    if (!layout) return;
+    _numColumns = layout.cols   ?? 4;
+    _rowGap     = layout.rowGap ?? 20;
+    _colGap     = layout.colGap ?? 20;
+    const colsInput = document.getElementById('numColsInput');
+    const rowInput  = document.getElementById('rowGapInput');
+    const colInput  = document.getElementById('colGapInput');
+    if (colsInput) colsInput.value = _numColumns;
+    if (rowInput)  rowInput.value  = _rowGap;
+    if (colInput)  colInput.value  = _colGap;
+    const container = document.getElementById('canvasContainer');
+    if (container) {
+        container.style.gridTemplateColumns = `repeat(${_numColumns}, minmax(0, 1fr))`;
+        container.style.rowGap    = _rowGap + 'px';
+        container.style.columnGap = _colGap + 'px';
+    }
+}
+
+function _applyViewportFromSnapshot(vp) {
+    if (!vp) return;
+    _vpScale = vp.scale ?? 1;
+    _vpX     = vp.x     ?? 0;
+    _vpY     = vp.y     ?? 0;
+    _applyVP();
+}
+
+function _applyUndoHistoryFromSnapshot(history) {
+    if (!history || !history.length) return;
+    for (const entry of history) globalUndoStack.push(entry);
+    if (globalUndoStack.length > MAX_UNDO_HISTORY) {
+        globalUndoStack.splice(0, globalUndoStack.length - MAX_UNDO_HISTORY);
+    }
+    globalRedoStack = [];
+    updateUndoRedoButtons();
 }
 
 
@@ -7746,13 +7798,17 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         return;
     }
 
-    const windows = Array.isArray(snapshot) ? snapshot : (snapshot.windows || []);
-    const tboxes  = Array.isArray(snapshot) ? []       : (snapshot.textBoxes || []);
+    const isLegacy = Array.isArray(snapshot);
+    const windows  = isLegacy ? snapshot : (snapshot.windows  || []);
+    const tboxes   = isLegacy ? []       : (snapshot.textBoxes || []);
 
-    if (!windows.length) return;
+    if (!windows.length && !tboxes.length) return;
 
-    await createCanvasPreviewsFromSnapshot(windows);
+    _applyLayoutFromSnapshot(isLegacy ? null : snapshot.layout);
+    if (windows.length) await createCanvasPreviewsFromSnapshot(windows);
     if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
+    _applyViewportFromSnapshot(isLegacy ? null : snapshot.viewport);
+    _applyUndoHistoryFromSnapshot(isLegacy ? null : snapshot.undoHistory);
 
     syncSliders();
     updateWindowBorders();
