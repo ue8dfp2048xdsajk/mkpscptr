@@ -226,6 +226,8 @@ document.addEventListener('click', function(e){
     if(e.target.closest('#notesDrawer') || e.target.closest('#notesTab')) return;
     // Ignore clicks inside the context panel so adjusting controls doesn't deselect
     if(e.target.closest('#contextPanel')) return;
+    // Ignore clicks on the minimap (panning shouldn't deselect windows)
+    if(e.target.closest('#minimap')) return;
     _deselectAll();
 });
 
@@ -8505,9 +8507,9 @@ function updateMinimap(){
         const w = Math.max(1, el.offsetWidth  * ms);
         const h = Math.max(1, el.offsetHeight * ms);
 
-        ctx.fillStyle   = activeSet.has(i) ? 'rgba(30,94,255,0.55)' : 'rgba(255,255,255,0.18)';
-        ctx.strokeStyle = activeSet.has(i) ? 'rgba(102,153,255,0.9)' : 'rgba(255,255,255,0.3)';
-        ctx.lineWidth   = 0.5;
+        ctx.fillStyle   = activeSet.has(i) ? 'rgba(30,94,255,0.88)' : 'rgba(255,255,255,0.13)';
+        ctx.strokeStyle = activeSet.has(i) ? '#6aa0ff'              : 'rgba(255,255,255,0.28)';
+        ctx.lineWidth   = activeSet.has(i) ? 1 : 0.5;
         ctx.fillRect(x, y, w, h);
         ctx.strokeRect(x + 0.25, y + 0.25, w - 0.5, h - 0.5);
     });
