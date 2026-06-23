@@ -5202,6 +5202,10 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
     // entering clip mode
     startMarchingAnts();
 
+    // Deactivate any active toolbar tool (text/pan/select) so it doesn't
+    // interfere with clip-polygon drawing on the canvas
+    if(window._setActiveTool) window._setActiveTool(null);
+
     // Lock all design objects so they can't be accidentally moved/transformed
     canvasData.forEach(data=>{
         getAllDesignObjects(data).forEach(o=>{
@@ -7892,6 +7896,7 @@ function _applyVP() {
 
     vw.addEventListener('mousedown', e => {
         if (_activeTool !== 'text' || e.button !== 0) return;
+        if (clipEditMode || colorLayerMode) return;   // don't create text boxes in special modes
         if (e.target.closest('.canvas-text-box')) return;
         e.preventDefault();
         const pos = toCanvas(e.clientX, e.clientY);
@@ -7930,6 +7935,7 @@ function _applyVP() {
 
     document.addEventListener('mouseup', e => {
         if (!_tbStart || _activeTool !== 'text') return;
+        if (clipEditMode || colorLayerMode) { _tbStart = null; _tbDragging = false; return; }
         if (_tbPreview && _tbPreview.parentNode) _tbPreview.parentNode.removeChild(_tbPreview);
         _tbPreview = null;
 
