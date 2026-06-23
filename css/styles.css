@@ -489,21 +489,30 @@ body {
     z-index: 15;
 }
 
-/* Wrapper — border, shadow, drag cursor */
+/* Wrapper — transparent by default; border/bg appear on hover or edit */
 .canvas-text-box {
     position: absolute;
     min-width: 120px;
-    background: rgba(255,255,255,0.97);
-    border: 1.5px solid #ccc;
+    background: transparent;
+    border: 1.5px solid transparent;
     border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    box-shadow: none;
     pointer-events: auto;
     box-sizing: border-box;
     cursor: grab;
     user-select: none;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
-.canvas-text-box:hover { border-color: #1e5eff; box-shadow: 0 0 0 2px rgba(30,94,255,0.12), 0 2px 8px rgba(0,0,0,0.10); }
-.canvas-text-box.tb-focused { border-color: #1e5eff; box-shadow: 0 0 0 2px rgba(30,94,255,0.18), 0 2px 8px rgba(0,0,0,0.10); }
+.canvas-text-box:hover {
+    background: rgba(255,255,255,0.92);
+    border-color: #1e5eff;
+    box-shadow: 0 0 0 2px rgba(30,94,255,0.12), 0 2px 8px rgba(0,0,0,0.08);
+}
+.canvas-text-box.tb-focused {
+    background: rgba(255,255,255,0.97);
+    border-color: #1e5eff;
+    box-shadow: 0 0 0 2px rgba(30,94,255,0.18), 0 2px 8px rgba(0,0,0,0.10);
+}
 
 /* Thin grab bar at top */
 .tb-drag-bar {
