@@ -433,7 +433,149 @@ function _updateCropOverlay(data){
     data.cropOverlayRects = rects;
 
     if(data.backgroundObject) data.fabricCanvas.sendToBack(data.backgroundObject);
+    // Keep pattern overlay just above background when both exist
+    if(data.patternFabricObj){
+        data.fabricCanvas.sendToBack(data.patternFabricObj);
+        data.fabricCanvas.sendToBack(data.backgroundObject);
+    }
     data.fabricCanvas.requestRenderAll();
+}
+
+// ── Pattern Creator ────────────────────────────────────────────────────────────
+function _defaultPattern(){
+    return { type:'grid', hSpacing:0, vSpacing:0, angle:0, hOffset:0, rotH:0, rotV:0 };
+}
+
+function _renderPattern(data){
+    if(!data.patternMode || !data.patternFabricObj || !data.designObject) return;
+    const fc = data.fabricCanvas;
+    const W = fc.width, H = fc.height;
+    const obj = data.designObject;
+    const s = data.patternSettings || _defaultPattern();
+
+    const tileEl = obj.getElement();
+    if(!tileEl) return;
+    const srcW = tileEl.width  || tileEl.naturalWidth  || obj.width;
+    const srcH = tileEl.height || tileEl.naturalHeight || obj.height;
+    if(srcW < 1 || srcH < 1) return;
+
+    const tileW  = srcW * Math.abs(obj.scaleX);
+    const tileH  = srcH * Math.abs(obj.scaleY);
+    const stepX  = Math.max(1, tileW * (1 + (s.hSpacing || 0) / 100));
+    const stepY  = Math.max(1, tileH * (1 + (s.vSpacing || 0) / 100));
+    const aRad   = (s.angle || 0) * Math.PI / 180;
+    const cosA   = Math.cos(aRad), sinA = Math.sin(aRad);
+    const hOffPx = stepX * ((s.hOffset || 0) / 100);
+    const mc     = obj.getCenterPoint();
+    const mAngle = obj.angle || 0;
+
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    const ctx = off.getContext('2d');
+
+    const diagLen = Math.sqrt(W * W + H * H);
+    const nCols = Math.ceil(diagLen / stepX) + 2;
+    const nRows = Math.ceil(diagLen / stepY) + 2;
+    const margin = Math.sqrt(tileW * tileW + tileH * tileH);
+
+    for(let row = -nRows; row <= nRows; row++){
+        for(let col = -nCols; col <= nCols; col++){
+            let gx = col * stepX + row * hOffPx;
+            let gy = row * stepY;
+            if(s.type === 'brick-h' && Math.abs(row % 2) === 1) gx += stepX / 2;
+            if(s.type === 'brick-v' && Math.abs(col % 2) === 1) gy += stepY / 2;
+
+            const rx = gx * cosA - gy * sinA;
+            const ry = gx * sinA + gy * cosA;
+            const cx = mc.x + rx, cy = mc.y + ry;
+
+            if(cx + margin < 0 || cx - margin > W || cy + margin < 0 || cy - margin > H) continue;
+
+            const rot = (mAngle + col * (s.rotH || 0) + row * (s.rotV || 0)) * Math.PI / 180;
+            const sx  = obj.flipX ? -obj.scaleX : obj.scaleX;
+            const sy  = obj.flipY ? -obj.scaleY : obj.scaleY;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(rot);
+            ctx.globalAlpha = obj.opacity ?? 1;
+            ctx.scale(sx, sy);
+            ctx.drawImage(tileEl, -srcW / 2, -srcH / 2, srcW, srcH);
+            ctx.restore();
+        }
+    }
+
+    data.patternFabricObj.setElement(off);
+    data.patternFabricObj.set({ width: W, height: H, scaleX: 1, scaleY: 1 });
+    data.patternFabricObj.applyFilters();
+    fc.requestRenderAll();
+}
+
+function _togglePatternMode(data, on){
+    if(data.patternFabricObj){
+        data.fabricCanvas.remove(data.patternFabricObj);
+        data.patternFabricObj = null;
+    }
+    if(data._patternListener){
+        ['object:moving','object:scaling','object:rotating','object:modified'].forEach(ev =>
+            data.fabricCanvas.off(ev, data._patternListener));
+        data._patternListener = null;
+    }
+    data.patternMode = !!on;
+    if(!on){ data.fabricCanvas.requestRenderAll(); return; }
+    if(!data.designObject) return;
+
+    const fc = data.fabricCanvas;
+    const dummy = document.createElement('canvas');
+    dummy.width = fc.width; dummy.height = fc.height;
+    const pObj = new fabric.Image(dummy, {
+        left:0, top:0, originX:'left', originY:'top',
+        selectable:false, evented:false,
+    });
+    pObj._isPatternOverlay = true;
+    fc.add(pObj);
+    data.patternFabricObj = pObj;
+
+    // Z-order: bg (0) → pattern (1) → design/overlays above
+    fc.sendToBack(pObj);
+    if(data.backgroundObject) fc.sendToBack(data.backgroundObject);
+
+    data._patternListener = (e) => {
+        if(e.target !== data.designObject) return;
+        if(data._patternRAF) return;
+        data._patternRAF = requestAnimationFrame(() => {
+            data._patternRAF = null;
+            _renderPattern(data);
+        });
+    };
+    ['object:moving','object:scaling','object:rotating','object:modified'].forEach(ev =>
+        fc.on(ev, data._patternListener));
+
+    _renderPattern(data);
+}
+
+function _syncPatternDisplay(){
+    const data = activeIndices.length ? canvasData[activeIndices[0]] : null;
+    const on = data?.patternMode || false;
+    const s  = data?.patternSettings || _defaultPattern();
+
+    const toggle = document.getElementById('patternModeToggle');
+    const controls = document.getElementById('patternControls');
+    if(toggle) toggle.checked = on;
+    if(controls) controls.style.display = on ? 'block' : 'none';
+
+    document.querySelectorAll('.pattern-type-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.type === (s.type || 'grid')));
+
+    [['patternHSpacing','hSpacing'],['patternVSpacing','vSpacing'],['patternAngle','angle'],
+     ['patternHOffset','hOffset'],['patternRotH','rotH'],['patternRotV','rotV']
+    ].forEach(([id, key]) => {
+        const v = s[key] || 0;
+        const el = document.getElementById(id);
+        if(el) el.valueAsNumber = v;
+        const vEl = document.getElementById(id + 'Val');
+        if(vEl) vEl.textContent = v;
+    });
 }
 
 function _syncBgAdjustDisplay(){
@@ -2156,6 +2298,8 @@ function captureWindowState(data){
         notes:    data.notes    || '',
         bgAdjust: data.bgAdjust ? { ...data.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
         bgCrop:   data.bgCrop   ? { ...data.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
+        patternMode: !!data.patternMode,
+        patternSettings: data.patternSettings ? { ...data.patternSettings } : null,
         locked:   !!data.locked,
         flipX:    !!data.flipX,
         flipY:    !!data.flipY,
@@ -2250,6 +2394,12 @@ async function restoreWindowState(data, state){
     data.bgCrop     = state.bgCrop     ? { ...state.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 };
     _applyBgAdjust(data);
     _updateCropOverlay(data);
+
+    // Pattern mode restore (undo/redo)
+    if(data.patternMode || data.patternFabricObj) _togglePatternMode(data, false);
+    data.patternMode = !!state.patternMode;
+    data.patternSettings = state.patternSettings ? { ...state.patternSettings } : _defaultPattern();
+    if(data.patternMode) _togglePatternMode(data, true);
 
     if(data.designObject){
         data.designObject._fx = state.designFx
@@ -2686,6 +2836,7 @@ function syncSliders() {
     blendMode.value               = data.blendMode        || "normal";
 
     _syncBgAdjustDisplay();
+    _syncPatternDisplay();
 }
 
 
@@ -3807,6 +3958,70 @@ document.getElementById('bgCropResetBtn').addEventListener('click', () => {
     document.getElementById('bgCropCustomH').value = '';
     document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
     _markDirty();
+});
+
+// ── Pattern mode toggle ────────────────────────────────────────────────────────
+document.getElementById('patternModeToggle').addEventListener('change', e => {
+    if(!activeIndices.length) return;
+    pushGlobalUndo();
+    const on = e.target.checked;
+    document.getElementById('patternControls').style.display = on ? 'block' : 'none';
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if(d.locked) return;
+        if(!d.patternSettings) d.patternSettings = _defaultPattern();
+        _togglePatternMode(d, on);
+    });
+    _markDirty();
+});
+
+// ── Pattern type buttons ───────────────────────────────────────────────────────
+document.querySelectorAll('.pattern-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        if(!activeIndices.length) return;
+        const type = btn.dataset.type;
+        document.querySelectorAll('.pattern-type-btn').forEach(b => b.classList.toggle('active', b === btn));
+        pushGlobalUndo();
+        activeIndices.forEach(i => {
+            const d = canvasData[i];
+            if(d.locked) return;
+            if(!d.patternSettings) d.patternSettings = _defaultPattern();
+            d.patternSettings.type = type;
+            if(d.patternMode) _renderPattern(d);
+        });
+        _markDirty();
+    });
+});
+
+// ── Pattern sliders ────────────────────────────────────────────────────────────
+const _patternSliderDefs = [
+    ['patternHSpacing','hSpacing'],
+    ['patternVSpacing','vSpacing'],
+    ['patternAngle',   'angle'],
+    ['patternHOffset', 'hOffset'],
+    ['patternRotH',    'rotH'],
+    ['patternRotV',    'rotV'],
+];
+let _patternUndoLocked = false;
+_patternSliderDefs.forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(id + 'Val');
+    el.addEventListener('mousedown', () => {
+        if(!_patternUndoLocked){ _patternUndoLocked = true; pushGlobalUndo(); }
+    });
+    el.addEventListener('mouseup', () => { _patternUndoLocked = false; });
+    el.addEventListener('input', () => {
+        const v = parseFloat(el.value);
+        if(valEl) valEl.textContent = v;
+        activeIndices.forEach(i => {
+            const d = canvasData[i];
+            if(d.locked) return;
+            if(!d.patternSettings) d.patternSettings = _defaultPattern();
+            d.patternSettings[key] = v;
+            if(d.patternMode) _renderPattern(d);
+        });
+        _markDirty();
+    });
 });
 
 
@@ -7996,6 +8211,11 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         data.colorLayerCtx     = null;
         data.colorLayerHistory = [];
 
+        // ── Reset pattern ─────────────────────────────────────────────────────
+        if(data.patternMode || data.patternFabricObj) _togglePatternMode(data, false);
+        data.patternMode = false;
+        data.patternSettings = _defaultPattern();
+
         // ── Reset background adjustments ──────────────────────────────────────
         data.bgAdjust = { hue: 0, saturation: 0, brightness: 0, contrast: 0 };
 
@@ -8030,6 +8250,15 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
     document.getElementById('bgCropCustomW').value = '';
     document.getElementById('bgCropCustomH').value = '';
     document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
+
+    // ── Sync pattern UI ───────────────────────────────────────────────────────
+    document.getElementById('patternModeToggle').checked = false;
+    document.getElementById('patternControls').style.display = 'none';
+    document.querySelectorAll('.pattern-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === 'grid'));
+    _patternSliderDefs.forEach(([id]) => {
+        document.getElementById(id).valueAsNumber = 0;
+        document.getElementById(id + 'Val').textContent = 0;
+    });
 
     refreshFabricHandles();
     updateLayerButtons();
@@ -8084,6 +8313,8 @@ function buildSnapshot(){
             blendMode: data.blendMode ?? "normal",
             bgAdjust:  data.bgAdjust  ? { ...data.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
             bgCrop:    data.bgCrop    ? { ...data.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
+            patternMode: !!data.patternMode,
+            patternSettings: data.patternSettings ? { ...data.patternSettings } : null,
 
             // Normalise mask-path coordinates by dividing by previewScale so
             // they are stored in background-image-pixel space — the same
@@ -8473,6 +8704,11 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         data.backgroundObject = bgFabric;
         _applyBgAdjust(data);
         _updateCropOverlay(data);
+
+        // Pattern mode restore (JSON load)
+        data.patternMode = !!saved.patternMode;
+        data.patternSettings = saved.patternSettings ? { ...saved.patternSettings } : _defaultPattern();
+        if(data.patternMode) _togglePatternMode(data, true);
 
         // restore polygon overlay before rendering designs
         addClipOverlay(data);

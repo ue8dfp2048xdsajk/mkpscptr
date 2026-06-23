@@ -195,6 +195,53 @@ Preparing designs...
             <button id="bgCropResetBtn" style="margin-top:4px;">Reset Framing</button>
         </div>
 
+        <div class="cp-section lock-sensitive" id="patternSection">
+            <div class="cp-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Create Pattern</span>
+                <label class="cp-toggle-switch">
+                    <input type="checkbox" id="patternModeToggle">
+                    <span class="cp-toggle-track"><span class="cp-toggle-knob"></span></span>
+                </label>
+            </div>
+            <div id="patternControls" style="display:none;">
+                <div class="bg-crop-aspect-row">
+                    <button class="pattern-type-btn active" data-type="grid">Grid</button>
+                    <button class="pattern-type-btn" data-type="brick-h">Brick H</button>
+                    <button class="pattern-type-btn" data-type="brick-v">Brick V</button>
+                </div>
+                <div class="bg-adj-row">
+                    <label>H Spacing</label>
+                    <input type="range" id="patternHSpacing" min="-50" max="200" step="1" value="0">
+                    <span id="patternHSpacingVal">0</span>
+                </div>
+                <div class="bg-adj-row">
+                    <label>V Spacing</label>
+                    <input type="range" id="patternVSpacing" min="-50" max="200" step="1" value="0">
+                    <span id="patternVSpacingVal">0</span>
+                </div>
+                <div class="bg-adj-row">
+                    <label>Angle</label>
+                    <input type="range" id="patternAngle" min="-180" max="180" step="1" value="0">
+                    <span id="patternAngleVal">0</span>
+                </div>
+                <div class="bg-adj-row">
+                    <label>H Offset</label>
+                    <input type="range" id="patternHOffset" min="-100" max="100" step="1" value="0">
+                    <span id="patternHOffsetVal">0</span>
+                </div>
+                <div class="bg-adj-row">
+                    <label>Rot/H step</label>
+                    <input type="range" id="patternRotH" min="-180" max="180" step="1" value="0">
+                    <span id="patternRotHVal">0</span>
+                </div>
+                <div class="bg-adj-row">
+                    <label>Rot/V step</label>
+                    <input type="range" id="patternRotV" min="-180" max="180" step="1" value="0">
+                    <span id="patternRotVVal">0</span>
+                </div>
+            </div>
+        </div>
+
         <div class="cp-section lock-sensitive">
             <div class="cp-section-title">Warp &amp; Perspective</div>
             <label>Cylinder Warp
