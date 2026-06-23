@@ -9118,3 +9118,30 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         autoSaveSession();
     });
 })();
+
+
+// ── Batch rename ──────────────────────────────────────────────────────────────
+// When multiple windows are selected and the user edits any one of their
+// filename inputs, the new value is immediately mirrored to all other selected
+// windows.
+document.getElementById('canvasContainer').addEventListener('input', e => {
+    if(!e.target.classList.contains('filename-input')) return;
+    if(activeIndices.length <= 1) return;
+
+    const wrapper = e.target.closest('.canvas-wrapper');
+    if(!wrapper) return;
+    const srcData = canvasData.find(d => d.wrapperEl === wrapper);
+    if(!srcData) return;
+    const srcIdx  = canvasData.indexOf(srcData);
+    if(!activeIndices.includes(srcIdx)) return; // edited window isn't selected
+
+    const newName = e.target.value;
+    activeIndices.forEach(i => {
+        if(i === srcIdx) return;
+        const d = canvasData[i];
+        if(!d) return;
+        d.filename = newName;
+        const inp = d.wrapperEl?.querySelector('.filename-input');
+        if(inp && inp !== e.target) inp.value = newName;
+    });
+});
