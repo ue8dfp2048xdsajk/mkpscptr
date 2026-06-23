@@ -531,6 +531,7 @@ function _renderPattern(data, lowQuality = false){
     }
 
     // ── Apply warp / perspective to the entire tiled canvas ──────────────────
+    let finalCanvas = off;
 
     if(hasWarp){
         if(!data._patternWarpCanvas) data._patternWarpCanvas = document.createElement('canvas');
