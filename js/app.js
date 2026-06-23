@@ -3676,8 +3676,8 @@ function createCanvasPreviews(){
             const scaleRatio =
                 Math.min(1, targetColumnWidth / realWidth);
 
-            const previewWidth = realWidth * scaleRatio;
-            const previewHeight = realHeight * scaleRatio;
+            const previewWidth  = Math.round(realWidth  * scaleRatio);
+            const previewHeight = Math.round(realHeight * scaleRatio);
 
             fabricCanvas.setWidth(previewWidth);
             fabricCanvas.setHeight(previewHeight);
@@ -6664,11 +6664,13 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             ? JSON.parse(JSON.stringify(scaledMaskPath))
             : [];
 
-        fabricCanvas.setWidth(bgImg.width * previewScale);
-        fabricCanvas.setHeight(bgImg.height * previewScale);
+        const previewW = Math.round(bgImg.width  * previewScale);
+        const previewH = Math.round(bgImg.height * previewScale);
 
-        wrapper.style.width =
-            (bgImg.width * previewScale) + "px";
+        fabricCanvas.setWidth(previewW);
+        fabricCanvas.setHeight(previewH);
+
+        wrapper.style.width = previewW + "px";
 
         // Build the background Fabric image directly from the already-loaded
         // bgImg element — avoids a second load and the crossOrigin:'anonymous'
