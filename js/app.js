@@ -7996,9 +7996,40 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         data.colorLayerCtx     = null;
         data.colorLayerHistory = [];
 
+        // ── Reset background adjustments ──────────────────────────────────────
+        data.bgAdjust = { hue: 0, saturation: 0, brightness: 0, contrast: 0 };
+
+        // ── Reset framing (bgCrop) ────────────────────────────────────────────
+        data.bgCrop = { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 };
+        _applyBgAdjust(data);
+        _updateCropOverlay(data);
+
         data.fabricCanvas.discardActiveObject();
         data.fabricCanvas.requestRenderAll();
     });
+
+    // ── Sync bgAdjust UI ──────────────────────────────────────────────────────
+    bgHue.valueAsNumber        = 0;
+    bgSaturation.valueAsNumber = 0;
+    bgBrightness.valueAsNumber = 0;
+    bgContrast.valueAsNumber   = 0;
+    document.getElementById('bgHueVal')        && (document.getElementById('bgHueVal').textContent        = '0');
+    document.getElementById('bgSaturationVal') && (document.getElementById('bgSaturationVal').textContent = '0');
+    document.getElementById('bgBrightnessVal') && (document.getElementById('bgBrightnessVal').textContent = '0');
+    document.getElementById('bgContrastVal')   && (document.getElementById('bgContrastVal').textContent   = '0');
+
+    // ── Sync framing UI ───────────────────────────────────────────────────────
+    bgCropRotation.valueAsNumber = 0;
+    bgCropScale.valueAsNumber    = 100;
+    bgCropX.valueAsNumber        = 0;
+    bgCropY.valueAsNumber        = 0;
+    document.getElementById('bgCropRotationVal').textContent = '0';
+    document.getElementById('bgCropScaleVal').textContent    = '100';
+    document.getElementById('bgCropXVal').textContent        = '0';
+    document.getElementById('bgCropYVal').textContent        = '0';
+    document.getElementById('bgCropCustomW').value = '';
+    document.getElementById('bgCropCustomH').value = '';
+    document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
 
     refreshFabricHandles();
     updateLayerButtons();
