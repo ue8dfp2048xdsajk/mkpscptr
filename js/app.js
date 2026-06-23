@@ -3488,6 +3488,7 @@ document.getElementById('designUploadBtn').addEventListener('click', () => {
         e.preventDefault();
         e.stopPropagation();
         dropZone.classList.remove('dz-hover');
+        dropZone.style.display = 'none';
         if(clipEditMode){ showClipModeNotice(); return; }
         const files = Array.from(e.dataTransfer.files)
             .filter(f => f.type === 'image/png' || f.type === 'image/jpeg');
