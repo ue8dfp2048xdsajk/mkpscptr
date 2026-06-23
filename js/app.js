@@ -3761,6 +3761,26 @@ document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
     });
 });
 
+document.getElementById('bgCropCustomApply').addEventListener('click', () => {
+    if(!activeIndices.length) return;
+    if(activeIndices.every(i => canvasData[i].locked)) return;
+    const wVal = parseFloat(document.getElementById('bgCropCustomW').value);
+    const hVal = parseFloat(document.getElementById('bgCropCustomH').value);
+    if(!wVal || !hVal || wVal <= 0 || hVal <= 0) return;
+    pushGlobalUndo();
+    const aspect = wVal / hVal;
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if(d.locked) return;
+        if(!d.bgCrop) d.bgCrop = { x:0, y:0, scale:1, rotation:0, aspect:0 };
+        d.bgCrop.aspect = aspect;
+        _applyBgAdjust(d);
+        _updateCropOverlay(d);
+    });
+    document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
+    _markDirty();
+});
+
 document.getElementById('bgCropResetBtn').addEventListener('click', () => {
     if(!activeIndices.length) return;
     if(activeIndices.every(i => canvasData[i].locked)) return;
@@ -3783,6 +3803,9 @@ document.getElementById('bgCropResetBtn').addEventListener('click', () => {
     document.getElementById('bgCropScaleVal').textContent    = '100';
     document.getElementById('bgCropXVal').textContent        = '0';
     document.getElementById('bgCropYVal').textContent        = '0';
+    document.getElementById('bgCropCustomW').value = '';
+    document.getElementById('bgCropCustomH').value = '';
+    document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
     _markDirty();
 });
 
