@@ -860,6 +860,16 @@ function updateWindowBorders(){
                 w.classList.add("active");
             }
         });
+
+    // Update Change Design button label: "Add Design" if any selected window
+    // has no design, "Change Design" if all selected windows have designs.
+    const changeDesignBtn = document.getElementById('changeDesignBtn');
+    if(changeDesignBtn && activeIndices.length > 0){
+        const anyNoDesign = activeIndices.some(i => !canvasData[i]?.designOriginal);
+        changeDesignBtn.textContent = anyNoDesign ? 'Add Design' : 'Change Design';
+    } else if(changeDesignBtn){
+        changeDesignBtn.textContent = 'Change Design';
+    }
 }
 
 function getAllDesignObjects(data){
@@ -5158,17 +5168,6 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
         }, { crossOrigin: 'anonymous' });
 
         autoSaveSession();
-
-        // 10. Immediately prompt for a design (user can cancel to keep bg-only)
-        addWindowDesignInput.value = '';
-        addWindowDesignInput.click();
-    });
-
-    addWindowDesignInput.addEventListener('change', async e => {
-        const file = e.target.files[0];
-        addWindowDesignInput.value = '';
-        if(!file) return;           // cancelled — window stays background-only
-        await changeDesignForSelected(file);
     });
 })();
 
