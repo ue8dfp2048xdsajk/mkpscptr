@@ -4852,10 +4852,11 @@ async function duplicateSelectedWindows(){
             initialPerspectiveLeft: srcData.perspectiveLeft ?? 0,
         };
 
-        // Capture color layer state before async work
+        // Capture color layer + extra-layer state before async work
         const srcColorCanvas   = srcData.colorLayerCanvas  || null;
         const srcColorBlend    = srcData.colorLayerFabricObj?.globalCompositeOperation ?? 'source-over';
         const srcColorOpacity  = srcData.colorLayerFabricObj?.opacity ?? 1;
+        const srcDups          = captureWindowState(srcData).duplicates;
 
         // ── 2. Splice into canvasData now so indexOf works inside callbacks ──
         canvasData.splice(insertAt, 0, newData);
@@ -4949,7 +4950,12 @@ async function duplicateSelectedWindows(){
             }, { crossOrigin: 'anonymous' });
         });
 
-        // ── 7. Attach clip-drawing + color-painting events ────────────────────
+        // ── 7. Copy extra overlay layers from source ──────────────────────────
+        if(srcDups.length){
+            await restoreDuplicatesFromState(newData, srcDups);
+        }
+
+        // ── 8. Attach clip-drawing + color-painting events ────────────────────
         const currentIdx = canvasData.indexOf(newData);
         attachClipDrawing(wrapper, fabricCanvas, newData, currentIdx);
     }
@@ -6462,6 +6468,15 @@ document.addEventListener('keydown', function(e){
     if(clipEditMode) return;    // clip's own handler deals with it
     e.preventDefault();
     e.stopPropagation();
+    // While painting, Ctrl+Z undoes the last stroke on every active window
+    // (uses per-window colorLayerHistory). Redo is not supported in paint mode.
+    if(colorLayerMode && !e.shiftKey){
+        activeIndices.forEach(i => {
+            const d = canvasData[i];
+            if(d) undoColorLayer(d);
+        });
+        return;
+    }
     if(e.shiftKey){
         performGlobalRedo();
     } else {
