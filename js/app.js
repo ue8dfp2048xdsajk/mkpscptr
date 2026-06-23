@@ -488,21 +488,58 @@ function _updateBgAdjust(){
     _markDirty();
 }
 
+let _bgCropAttachDesign = false;
+document.getElementById('bgCropAttachDesign').addEventListener('change', e => {
+    _bgCropAttachDesign = e.target.checked;
+});
+
 function _updateBgCrop(){
     if(!activeIndices.length) return;
     document.getElementById('bgCropRotationVal').textContent = bgCropRotation.value;
     document.getElementById('bgCropScaleVal').textContent    = bgCropScale.value;
     document.getElementById('bgCropXVal').textContent        = bgCropX.value;
     document.getElementById('bgCropYVal').textContent        = bgCropY.value;
+
+    const newScale = parseFloat(bgCropScale.value) / 100;
+    const newX     = parseFloat(bgCropX.value)     / 100;
+    const newY     = parseFloat(bgCropY.value)     / 100;
+
     activeIndices.forEach(i => {
         const d = canvasData[i];
         if(d.locked) return;
         if(!d.bgCrop) d.bgCrop = { x:0, y:0, scale:1, rotation:0, aspect:0 };
+
+        const oldX     = d.bgCrop.x;
+        const oldY     = d.bgCrop.y;
+        const oldScale = d.bgCrop.scale;
+
         d.bgCrop.rotation = parseFloat(bgCropRotation.value);
-        d.bgCrop.scale    = parseFloat(bgCropScale.value)    / 100;
-        d.bgCrop.x        = parseFloat(bgCropX.value)        / 100;
-        d.bgCrop.y        = parseFloat(bgCropY.value)        / 100;
+        d.bgCrop.scale    = newScale;
+        d.bgCrop.x        = newX;
+        d.bgCrop.y        = newY;
         _applyBgAdjust(d);
+
+        if(_bgCropAttachDesign && d.designObject){
+            const W  = d.fabricCanvas.width;
+            const H  = d.fabricCanvas.height;
+            const obj = d.designObject;
+            const zr  = oldScale > 0 ? newScale / oldScale : 1;
+            const cx  = W / 2, cy = H / 2;
+            // Zoom: scale design position around canvas centre, then scale object
+            const zLeft  = cx + (obj.left - cx) * zr;
+            const zTop   = cy + (obj.top  - cy) * zr;
+            // Pan: shift by delta fraction of canvas size
+            const dxPx = (newX - oldX) * W;
+            const dyPx = (newY - oldY) * H;
+            obj.set({
+                left:   zLeft + dxPx,
+                top:    zTop  + dyPx,
+                scaleX: obj.scaleX * zr,
+                scaleY: obj.scaleY * zr,
+            });
+            obj.setCoords();
+            d.fabricCanvas.requestRenderAll();
+        }
     });
     _markDirty();
 }
