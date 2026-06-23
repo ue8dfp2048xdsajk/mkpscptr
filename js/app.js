@@ -4738,6 +4738,9 @@ function updateLayerButtons(){
         invertBtn.style.display = "none";
     }
 
+    const pasteBtn = document.getElementById('pasteTransformsBtn');
+    if(pasteBtn) pasteBtn.disabled = !(_copiedTransforms && activeIndices.length > 0);
+
     // Activate / idle the always-present left panel
     const hasActive = activeIndices.length > 0;
     const panel = document.getElementById("contextPanel");
@@ -5663,6 +5666,80 @@ function flipSelectedDesigns(axis){
 
 document.getElementById('flipHBtn').addEventListener('click', () => flipSelectedDesigns('H'));
 document.getElementById('flipVBtn').addEventListener('click', () => flipSelectedDesigns('V'));
+
+// ── Copy / Paste Transforms ────────────────────────────────────────────────────
+let _copiedTransforms = null;
+
+function _captureTransforms(data){
+    const obj = data.designObject;
+    const ps  = data.previewScale || 1;
+    return {
+        x:        obj ? obj.left          : data.x,
+        y:        obj ? obj.top           : data.y,
+        scale:    data.scale,
+        scaleX:   obj ? (obj.scaleX / ps) : (data.scaleX ?? data.scale),
+        scaleY:   obj ? (obj.scaleY / ps) : (data.scaleY ?? data.scale),
+        rotation: obj ? obj.angle         : data.rotation,
+        warpAmount:    data.warpAmount    ?? 0,
+        arcAmount:     data.arcAmount     ?? 0,
+        arcTilt:       data.arcTilt       ?? 0,
+        perspectiveTop:  data.perspectiveTop  ?? 0,
+        perspectiveLeft: data.perspectiveLeft ?? 0,
+        opacity:     data.opacity    ?? 1,
+        blurAmount:  data.blurAmount ?? 0,
+        noiseAmount: data.noiseAmount ?? 0,
+        blendMode:   data.blendMode  ?? 'normal',
+        flipX:       !!data.flipX,
+        flipY:       !!data.flipY,
+        designFx:    obj?._fx ? JSON.parse(JSON.stringify(obj._fx)) : null
+    };
+}
+
+function _applyTransforms(data, t){
+    if(data.locked || !data.designOriginal) return;
+    data.x           = t.x;
+    data.y           = t.y;
+    data.scale       = t.scale;
+    data.scaleX      = t.scaleX;
+    data.scaleY      = t.scaleY;
+    data.rotation    = t.rotation;
+    data.warpAmount  = t.warpAmount;
+    data.arcAmount   = t.arcAmount;
+    data.arcTilt     = t.arcTilt;
+    data.perspectiveTop  = t.perspectiveTop;
+    data.perspectiveLeft = t.perspectiveLeft;
+    data.opacity     = t.opacity;
+    data.blurAmount  = t.blurAmount;
+    data.noiseAmount = t.noiseAmount;
+    data.blendMode   = t.blendMode;
+    data.flipX       = t.flipX;
+    data.flipY       = t.flipY;
+    data._flipMap    = null;
+    if(data.designObject && t.designFx){
+        data.designObject._fx = JSON.parse(JSON.stringify(t.designFx));
+    }
+    applyWarpToData(data, false);
+}
+
+document.getElementById('copyTransformsBtn').addEventListener('click', () => {
+    const srcIdx = lastSelectedIndex ?? activeIndices[activeIndices.length - 1] ?? null;
+    if(srcIdx === null) return;
+    const data = canvasData[srcIdx];
+    if(!data) return;
+    _copiedTransforms = _captureTransforms(data);
+    // Visual feedback on the button
+    const btn = document.getElementById('copyTransformsBtn');
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = 'Copy Transforms'; }, 1400);
+    updateLayerButtons(); // enable Paste
+});
+
+document.getElementById('pasteTransformsBtn').addEventListener('click', () => {
+    if(!_copiedTransforms || !activeIndices.length) return;
+    pushGlobalUndo();
+    activeIndices.forEach(i => _applyTransforms(canvasData[i], _copiedTransforms));
+    syncSliders();
+});
 
 document.getElementById("selectAllBtn").addEventListener("click", ()=>{
 
