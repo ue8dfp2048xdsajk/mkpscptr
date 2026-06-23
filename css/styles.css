@@ -227,16 +227,17 @@ body {
 
 /* ── Pattern number inputs ────────────────────────────────────────────────────── */
 .pattern-num-input {
-    width: 46px;
-    font-size: 11px;
+    width: 46px !important;
+    font-size: 11px !important;
     text-align: right;
     flex-shrink: 0;
     border: 1px solid #ccc;
     border-radius: 4px;
-    padding: 1px 3px;
+    padding: 1px 3px !important;
     color: #333;
     background: #fff;
     -moz-appearance: textfield;
+    box-sizing: border-box;
 }
 .pattern-num-input::-webkit-inner-spin-button,
 .pattern-num-input::-webkit-outer-spin-button { opacity: 1; }
