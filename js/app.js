@@ -194,6 +194,8 @@ document.addEventListener('click', function(e){
     if(e.target.closest('.sticky-header')) return;
     // Ignore clicks inside the notes drawer/tab so editing notes doesn't deselect
     if(e.target.closest('#notesDrawer') || e.target.closest('#notesTab')) return;
+    // Ignore clicks inside the context panel so adjusting controls doesn't deselect
+    if(e.target.closest('#contextPanel')) return;
     _deselectAll();
 });
 
