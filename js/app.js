@@ -5097,6 +5097,7 @@ function attachFabricEvents(data, targetObject = null){
                     obj.top  += deltaY;
                 });
 
+                if(target.patternMode) _renderPattern(target, true);
                 target.fabricCanvas.requestRenderAll();
             });
 
@@ -5216,6 +5217,7 @@ function attachFabricEvents(data, targetObject = null){
                     obj.setCoords();
                 });
 
+                if(target.patternMode) _renderPattern(target, true);
                 target.fabricCanvas.requestRenderAll();
             });
 
@@ -5288,6 +5290,7 @@ function attachFabricEvents(data, targetObject = null){
                     obj.angle = angle;
                 });
 
+                if(target.patternMode) _renderPattern(target, true);
                 target.fabricCanvas.requestRenderAll();
             });
 
