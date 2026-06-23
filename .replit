@@ -27,7 +27,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node --max-old-space-size=2048 server.js"
+args = "serve . -l 5000"
 waitForPort = 5000
 
 [[ports]]
