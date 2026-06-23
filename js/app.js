@@ -4884,8 +4884,12 @@ function deleteSelectedWindows(){
 
     if(!activeIndices.length) return;
 
-    // Sort ascending so restoration can splice back in order
-    const sortedIndices = [...activeIndices].sort((a, b) => a - b);
+    // Sort ascending so restoration can splice back in order; skip locked windows
+    const sortedIndices = [...activeIndices]
+        .filter(i => !canvasData[i]?.locked)
+        .sort((a, b) => a - b);
+
+    if(!sortedIndices.length) return;
 
     // Save data objects (with live Fabric canvases still intact) for undo.
     // We do NOT dispose the Fabric canvas — undo will need to re-attach it.
@@ -9463,6 +9467,8 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         if(clipEditMode || colorLayerMode){ e.preventDefault(); return; }
         const wrapper = e.target.closest('.canvas-wrapper');
         if(!wrapper){ e.preventDefault(); return; }
+        const srcData = canvasData.find(d => d.wrapperEl === wrapper);
+        if(srcData?.locked){ e.preventDefault(); return; }
         _dragSrcWrapper = wrapper;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', ''); // required for Firefox
