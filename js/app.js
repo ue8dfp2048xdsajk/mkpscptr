@@ -338,16 +338,26 @@ function _applyBgAdjust(data){
     const obj = data.backgroundObject;
     if(!obj) return;
     const a = data.bgAdjust || {};
-    const hue = (a.hue        || 0) / 360;
-    const sat = (a.saturation || 0) / 100;
-    const bri = (a.brightness || 0) / 100;
-    const con = (a.contrast   || 0) / 100;
-    obj.filters = [
-        new fabric.Image.filters.HueRotation({ rotation: hue }),
-        new fabric.Image.filters.Saturation({ saturation: sat }),
-        new fabric.Image.filters.Brightness({ brightness: bri }),
-        new fabric.Image.filters.Contrast({ contrast: con })
-    ];
+    const hue = a.hue        || 0;
+    const sat = (a.saturation || 0) + 100;
+    const bri = (a.brightness || 0) + 100;
+    const con = (a.contrast   || 0) + 100;
+
+    const isNeutral = hue === 0 && sat === 100 && bri === 100 && con === 100;
+    const src = data.bg;
+
+    if(isNeutral){
+        obj.setElement(src);
+    } else {
+        const off = document.createElement('canvas');
+        off.width  = src.naturalWidth  || src.width;
+        off.height = src.naturalHeight || src.height;
+        const ctx = off.getContext('2d');
+        ctx.filter = `hue-rotate(${hue}deg) saturate(${sat}%) brightness(${bri}%) contrast(${con}%)`;
+        ctx.drawImage(src, 0, 0);
+        obj.setElement(off);
+    }
+    obj.filters = [];
     obj.applyFilters();
     data.fabricCanvas.requestRenderAll();
 }
@@ -355,10 +365,10 @@ function _applyBgAdjust(data){
 function _syncBgAdjustDisplay(){
     const data = activeIndices.length ? canvasData[activeIndices[0]] : null;
     const a = (data && data.bgAdjust) || {};
-    bgHue.value        = a.hue        ?? 0;
-    bgSaturation.value = a.saturation ?? 0;
-    bgBrightness.value = a.brightness ?? 0;
-    bgContrast.value   = a.contrast   ?? 0;
+    bgHue.valueAsNumber        = a.hue        ?? 0;
+    bgSaturation.valueAsNumber = a.saturation ?? 0;
+    bgBrightness.valueAsNumber = a.brightness ?? 0;
+    bgContrast.valueAsNumber   = a.contrast   ?? 0;
     document.getElementById('bgHueVal').textContent        = bgHue.value;
     document.getElementById('bgSaturationVal').textContent = bgSaturation.value;
     document.getElementById('bgBrightnessVal').textContent = bgBrightness.value;
@@ -3549,8 +3559,8 @@ document.getElementById('bgAdjustResetBtn').addEventListener('click', () => {
     if(!activeIndices.length) return;
     if(activeIndices.every(i => canvasData[i].locked)) return;
     pushGlobalUndo();
-    bgHue.value = 0; bgSaturation.value = 0;
-    bgBrightness.value = 0; bgContrast.value = 0;
+    bgHue.valueAsNumber = 0; bgSaturation.valueAsNumber = 0;
+    bgBrightness.valueAsNumber = 0; bgContrast.valueAsNumber = 0;
     _updateBgAdjust();
 });
 
