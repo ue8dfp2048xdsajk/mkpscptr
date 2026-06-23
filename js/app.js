@@ -2001,6 +2001,21 @@ async function applyLayoutState(state) {
     updateUndoRedoButtons();
 }
 
+function _applySelectionState(indices) {
+    activeIndices = [...indices];
+    lastSelectedIndex = activeIndices[activeIndices.length - 1] ?? null;
+    selectedDesigns.clear();
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if (d?.designObject && !d.locked) selectedDesigns.add(d.designObject);
+    });
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
+}
+
 // Re-inserts previously-deleted windows back into canvasData and the DOM.
 // `saved` is [{originalIdx, data}] sorted ascending by originalIdx.
 function _restoreDeletedWindows(saved){
@@ -2077,6 +2092,21 @@ async function performGlobalUndo(){
         return;
     }
 
+    if(entry.type === 'selection'){
+        globalRedoStack.push({ type: 'selection', prevActiveIndices: [...activeIndices] });
+        _applySelectionState(entry.prevActiveIndices);
+        updateUndoRedoButtons();
+        return;
+    }
+
+    if(entry.type === 'pan'){
+        globalRedoStack.push({ type: 'pan', prevX: _vpX, prevY: _vpY });
+        _vpX = entry.prevX; _vpY = entry.prevY;
+        _applyVP();
+        updateUndoRedoButtons();
+        return;
+    }
+
     globalRedoStack.push({
         affected: entry.affected,
         states: entry.affected
@@ -2108,6 +2138,21 @@ async function performGlobalRedo(){
     if(entry.type === 'layout'){
         globalUndoStack.push({ type: 'layout', state: captureLayoutState() });
         await applyLayoutState(entry.state);
+        return;
+    }
+
+    if(entry.type === 'selection'){
+        globalUndoStack.push({ type: 'selection', prevActiveIndices: [...activeIndices] });
+        _applySelectionState(entry.prevActiveIndices);
+        updateUndoRedoButtons();
+        return;
+    }
+
+    if(entry.type === 'pan'){
+        globalUndoStack.push({ type: 'pan', prevX: _vpX, prevY: _vpY });
+        _vpX = entry.prevX; _vpY = entry.prevY;
+        _applyVP();
+        updateUndoRedoButtons();
         return;
     }
 
@@ -7138,6 +7183,15 @@ let _vpPanning    = false;
 let _vpPanStart   = null;
 let _vpPanMoved   = false;
 let _vpSpaceDown  = false;
+let _activeTool   = null;  // null | 'select' | 'pan'
+
+// Global viewport apply — mirrors the IIFE-local applyVP; used by undo/redo.
+function _applyVP() {
+    const cc = document.getElementById('canvasContainer');
+    if (cc) cc.style.transform = `translate(${_vpX}px,${_vpY}px) scale(${_vpScale})`;
+    const el = document.getElementById('zoomLevelDisplay');
+    if (el) el.textContent = Math.round(_vpScale * 100) + '%';
+}
 
 (()=>{
     const vw = document.getElementById('viewportWrapper');
@@ -7314,6 +7368,141 @@ let _vpSpaceDown  = false;
 
     // Initialise on load
     applyGaps();
+})();
+
+
+// ── Toolbar tools: marquee-select + hand-pan ──────────────────────────────────
+(()=>{
+    const vw        = document.getElementById('viewportWrapper');
+    const cc        = document.getElementById('canvasContainer');
+    const selectBtn = document.getElementById('toolSelectBtn');
+    const panBtn    = document.getElementById('toolPanBtn');
+
+    // Rubber-band selection overlay
+    const rb = document.createElement('div');
+    rb.id = 'selectionRubberBand';
+    Object.assign(rb.style, {
+        position:'fixed', pointerEvents:'none', zIndex:'9998',
+        border:'1.5px dashed #1e5eff', background:'rgba(30,94,255,0.08)',
+        display:'none', boxSizing:'border-box'
+    });
+    document.body.appendChild(rb);
+
+    function showRb(x1, y1, x2, y2) {
+        rb.style.left   = Math.min(x1, x2) + 'px';
+        rb.style.top    = Math.min(y1, y2) + 'px';
+        rb.style.width  = Math.abs(x2 - x1) + 'px';
+        rb.style.height = Math.abs(y2 - y1) + 'px';
+    }
+
+    // ── Tool toggle ──────────────────────────────────────────────────────────
+    function setTool(tool) {
+        _activeTool = (_activeTool === tool) ? null : tool;
+        selectBtn.classList.toggle('tool-active', _activeTool === 'select');
+        panBtn.classList.toggle('tool-active',    _activeTool === 'pan');
+        // Disable Fabric pointer events while a tool is active so drags don't
+        // accidentally move designs.
+        cc.style.pointerEvents = (_activeTool !== null) ? 'none' : '';
+        vw.style.cursor = _activeTool === 'pan'    ? 'grab'
+                        : _activeTool === 'select' ? 'crosshair'
+                        : '';
+    }
+
+    selectBtn.addEventListener('click', () => setTool('select'));
+    panBtn.addEventListener('click',    () => setTool('pan'));
+
+    // ── Marquee select ───────────────────────────────────────────────────────
+    let _selStart = null, _selDragging = false;
+
+    vw.addEventListener('mousedown', e => {
+        if (_activeTool !== 'select' || e.button !== 0) return;
+        e.preventDefault();
+        _selStart    = { x: e.clientX, y: e.clientY };
+        _selDragging = false;
+    });
+
+    document.addEventListener('mousemove', e => {
+        if (!_selStart || _activeTool !== 'select') return;
+        if (!_selDragging &&
+            (Math.abs(e.clientX - _selStart.x) > 3 || Math.abs(e.clientY - _selStart.y) > 3)) {
+            _selDragging = true;
+            rb.style.display = 'block';
+        }
+        if (_selDragging) showRb(_selStart.x, _selStart.y, e.clientX, e.clientY);
+    });
+
+    document.addEventListener('mouseup', e => {
+        if (_activeTool !== 'select' || !_selStart) return;
+        rb.style.display = 'none';
+
+        if (_selDragging) {
+            const rx1 = Math.min(_selStart.x, e.clientX);
+            const ry1 = Math.min(_selStart.y, e.clientY);
+            const rx2 = Math.max(_selStart.x, e.clientX);
+            const ry2 = Math.max(_selStart.y, e.clientY);
+
+            // Record the pre-selection state for undo
+            globalUndoStack.push({ type: 'selection', prevActiveIndices: [...activeIndices] });
+            if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+            globalRedoStack = [];
+            updateUndoRedoButtons();
+
+            // Find windows whose wrappers intersect the rubber-band rect
+            const newIndices = [];
+            canvasData.forEach((d, i) => {
+                if (!d.wrapperEl) return;
+                const wr = d.wrapperEl.getBoundingClientRect();
+                if (wr.right > rx1 && wr.left < rx2 && wr.bottom > ry1 && wr.top < ry2) {
+                    newIndices.push(i);
+                }
+            });
+
+            activeIndices = newIndices;
+            lastSelectedIndex = newIndices[newIndices.length - 1] ?? null;
+            selectedDesigns.clear();
+            activeIndices.forEach(i => {
+                const d = canvasData[i];
+                if (d?.designObject && !d.locked) selectedDesigns.add(d.designObject);
+            });
+            refreshFabricHandles();
+            updateWindowBorders();
+            updateLayerButtons();
+            syncSliders();
+            updateSelectButtonState();
+            suppressNextWrapperClick = true;
+        }
+
+        _selStart    = null;
+        _selDragging = false;
+    });
+
+    // ── Hand pan tool ────────────────────────────────────────────────────────
+    let _panPreX = 0, _panPreY = 0;
+
+    vw.addEventListener('mousedown', e => {
+        if (_activeTool !== 'pan' || e.button !== 0) return;
+        e.preventDefault();
+        _panPreX = _vpX;
+        _panPreY = _vpY;
+        // Reuse the viewport IIFE's pan state — its mousemove/mouseup handlers
+        // pick up _vpPanning automatically, so the viewport updates as normal.
+        _vpPanning  = true;
+        _vpPanMoved = false;
+        _vpPanStart = { x: e.clientX - _vpX, y: e.clientY - _vpY };
+        vw.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (_activeTool !== 'pan') return;
+        // The viewport IIFE's mouseup resets cursor to '' — restore 'grab'.
+        requestAnimationFrame(() => { if (_activeTool === 'pan') vw.style.cursor = 'grab'; });
+        if (_vpPanMoved) {
+            globalUndoStack.push({ type: 'pan', prevX: _panPreX, prevY: _panPreY });
+            if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+            globalRedoStack = [];
+            updateUndoRedoButtons();
+        }
+    });
 })();
 
 

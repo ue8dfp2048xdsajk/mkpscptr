@@ -103,6 +103,30 @@ body {
     text-align: center;
 }
 
+.vp-tool-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.vp-tool-controls button {
+    font-size: 15px;
+    padding: 2px 8px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    cursor: pointer;
+    background: #f5f5f5;
+    line-height: 1.4;
+    transition: background 0.12s;
+}
+.vp-tool-controls button:hover { background: #e0e0e0; }
+.vp-tool-controls button.tool-active {
+    background: #1e5eff;
+    color: #fff;
+    border-color: #1e5eff;
+}
+
 #undoBtn, #redoBtn {
     background: #f0f0f0;
     border: 1px solid #bbb;
