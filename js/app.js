@@ -19,6 +19,8 @@ const _visibilityObserver = new IntersectionObserver(entries => {
 }, { rootMargin: '300px 0px' });
 let clipCopySelectMode = false;   // true while user is picking copy targets
 let clipCopySourceIndex = null;   // which window the clipping will be copied FROM
+let colorCopySelectMode  = false; // true while user is picking color-copy targets
+let colorCopySourceIndex = null;  // which window the color layer will be copied FROM
 
 // ── Color layer state ────────────────────────────────────────────────────────
 // ── Global undo / redo ───────────────────────────────────────────────────────
@@ -3901,10 +3903,19 @@ function createCanvasPreviews(){
                 return;
             }
 
-            if(colorLayerMode){
+            if(colorLayerMode && !colorCopySelectMode){
                 if(!activeIndices.includes(index)){
                     alert("Exit Color Layer mode to interact with other windows.");
                 }
+                return;
+            }
+
+            // In color copy-select mode: simple toggle so the user can pick targets
+            if(colorCopySelectMode){
+                const pos = activeIndices.indexOf(index);
+                if(pos === -1) activeIndices.push(index);
+                else           activeIndices.splice(pos, 1);
+                updateWindowBorders();
                 return;
             }
 
@@ -5533,13 +5544,17 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
 
         document.getElementById("addColorLayerBtn").innerText       = "Exit Color Layer";
         document.getElementById("colorLayerControls").style.display = "inline-flex";
+        document.getElementById("copyColorBtn").style.display       = "block";
+        document.getElementById("deleteColorBtn").style.display     = "block";
 
         // Start global mousemove tracking for the brush cursor ring
         _startColorLayerCursorTracking();
 
     } else {
 
-        colorLayerMode  = false;
+        colorLayerMode       = false;
+        colorCopySelectMode  = false;
+        colorCopySourceIndex = null;
         brushTool       = 'brush';
         isColorPainting = false;
         lastPaintNorm   = null;
@@ -5565,6 +5580,9 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
 
         document.getElementById("addColorLayerBtn").innerText       = "Add Color Layer";
         document.getElementById("colorLayerControls").style.display = "none";
+        document.getElementById("copyColorBtn").style.display           = "none";
+        document.getElementById("copyColorToSelectedBtn").style.display = "none";
+        document.getElementById("deleteColorBtn").style.display         = "none";
         document.getElementById("brushToolBtn").classList.add("active");
         document.getElementById("eraserToolBtn").classList.remove("active");
         document.getElementById("brushColorPicker").style.visibility = '';
@@ -5597,6 +5615,123 @@ document.getElementById("brushSizeSlider").addEventListener("input", e=>{
 document.getElementById("brushSoftnessSlider").addEventListener("input", e=>{
     brushSoftness = parseInt(e.target.value, 10);
 });
+
+
+// ── Delete Color Layer ────────────────────────────────────────────────────────
+document.getElementById("deleteColorBtn").addEventListener("click", ()=>{
+    if(!colorLayerMode || !activeIndices.length) return;
+    pushGlobalUndo();
+    activeIndices.forEach(i=>{
+        const data = canvasData[i];
+        if(!data.colorLayerCtx) return;
+        data.colorLayerCtx.clearRect(
+            0, 0,
+            data.colorLayerCanvas.width,
+            data.colorLayerCanvas.height
+        );
+        if(data.colorLayerFabricObj) data.colorLayerFabricObj.dirty = true;
+        data.fabricCanvas.requestRenderAll();
+    });
+});
+
+
+// ── "Copy Color" — enter target-selection mode ────────────────────────────────
+document.getElementById("copyColorBtn").addEventListener("click", ()=>{
+    if(!colorLayerMode) return;
+
+    const srcIndex = activeIndices.length ? activeIndices[0] : null;
+    if(srcIndex === null) return;
+
+    const src = canvasData[srcIndex];
+    if(!src.colorLayerCtx){
+        alert("No color layer to copy. Paint something first.");
+        return;
+    }
+
+    colorCopySourceIndex = srcIndex;
+    colorCopySelectMode  = true;
+
+    // Clear selection so user starts fresh picking targets
+    activeIndices = [];
+    updateWindowBorders();
+
+    // Swap buttons
+    document.getElementById("copyColorBtn").style.display           = "none";
+    document.getElementById("copyColorToSelectedBtn").style.display = "block";
+    document.getElementById("deleteColorBtn").style.display         = "none";
+});
+
+
+// ── "Copy Color to Selected" — apply and return ───────────────────────────────
+document.getElementById("copyColorToSelectedBtn").addEventListener("click", ()=>{
+    if(colorCopySourceIndex === null) return;
+
+    pushGlobalUndo();
+
+    const src = canvasData[colorCopySourceIndex];
+    let copied = 0;
+
+    activeIndices.forEach(i=>{
+        if(i === colorCopySourceIndex) return;
+
+        const tgt = canvasData[i];
+
+        // Init color layer on target if it doesn't have one
+        initColorLayer(tgt);
+
+        // Scale source color layer to fit target canvas dimensions
+        const tmpCanvas    = document.createElement('canvas');
+        tmpCanvas.width    = tgt.colorLayerCanvas.width;
+        tmpCanvas.height   = tgt.colorLayerCanvas.height;
+        const tmpCtx       = tmpCanvas.getContext('2d');
+        tmpCtx.drawImage(
+            src.colorLayerCanvas,
+            0, 0,
+            tgt.colorLayerCanvas.width,
+            tgt.colorLayerCanvas.height
+        );
+
+        // Replace target color layer content
+        tgt.colorLayerCtx.clearRect(0, 0, tgt.colorLayerCanvas.width, tgt.colorLayerCanvas.height);
+        tgt.colorLayerCtx.drawImage(tmpCanvas, 0, 0);
+
+        // Sync blend mode and opacity from source
+        if(tgt.colorLayerFabricObj && src.colorLayerFabricObj){
+            tgt.colorLayerFabricObj.set({
+                opacity: src.colorLayerFabricObj.opacity,
+                globalCompositeOperation: src.colorLayerFabricObj.globalCompositeOperation
+            });
+            tgt.colorLayerFabricObj.dirty = true;
+        }
+
+        // Ensure the target also gets the color-layer-mode CSS class for painting
+        const el = tgt.fabricCanvas.lowerCanvasEl;
+        const wr = el && el.closest('.canvas-wrapper');
+        if(wr) wr.classList.add('color-layer-mode');
+
+        tgt.fabricCanvas.requestRenderAll();
+        copied++;
+    });
+
+    // Restore source as sole active window
+    colorCopySelectMode  = false;
+    colorCopySourceIndex = null;
+    const restoredIdx = canvasData.indexOf(src);
+    activeIndices = restoredIdx !== -1 ? [restoredIdx] : [];
+
+    updateWindowBorders();
+    updateSelectButtonState?.();
+
+    // Restore buttons
+    document.getElementById("copyColorToSelectedBtn").style.display = "none";
+    document.getElementById("copyColorBtn").style.display           = "block";
+    document.getElementById("deleteColorBtn").style.display         = "block";
+
+    if(copied > 0){
+        alert(`Color layer copied to ${copied} window${copied > 1 ? "s" : ""}.`);
+    }
+});
+
 
 // Global Cmd/Ctrl+Z → Undo, Cmd/Ctrl+Shift+Z → Redo
 // (Clip-mode in-progress point removal is handled by its own guarded handler
@@ -6176,6 +6311,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
     // ── Color layer painting ─────────────────────────────────────────────────
     fabricCanvas.on('mouse:down', function(opt){
         if(!colorLayerMode) return;
+        if(colorCopySelectMode) return;   // no painting while picking copy targets
         if(!activeIndices.includes(index)) return;
 
         // Ensure color layer exists on every active window
@@ -7025,10 +7161,19 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                 return;
             }
 
-            if(colorLayerMode){
+            if(colorLayerMode && !colorCopySelectMode){
                 if(!activeIndices.includes(index)){
                     alert("Exit Color Layer mode to interact with other windows.");
                 }
+                return;
+            }
+
+            // In color copy-select mode: simple toggle so the user can pick targets
+            if(colorCopySelectMode){
+                const pos = activeIndices.indexOf(index);
+                if(pos === -1) activeIndices.push(index);
+                else           activeIndices.splice(pos, 1);
+                updateWindowBorders();
                 return;
             }
 
