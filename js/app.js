@@ -5115,44 +5115,47 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
         newData.initialX     = newData.x;
         newData.initialY     = newData.y;
 
-        // 5. Load background into Fabric
-        await new Promise(resolve => {
-            fabric.Image.fromURL(bgImg.src, bgFabricImg => {
-                bgFabricImg.set({
-                    left: 0, top: 0,
-                    selectable: false, evented: false,
-                    originX: 'left', originY: 'top',
-                    scaleX: scaleRatio, scaleY: scaleRatio
-                });
-                newData.backgroundObject = bgFabricImg;
-                fabricCanvas.add(bgFabricImg);
-                fabricCanvas.sendToBack(bgFabricImg);
-                addClipOverlay(newData);
-                fabricCanvas.requestRenderAll();
-                resolve();
-            }, { crossOrigin: 'anonymous' });
-        });
-
-        // 6. Insert at front of canvasData
+        // 5. Insert at front of canvasData + wire up interactions
         canvasData.unshift(newData);
 
-        // 7. Wire up interactions
         _attachWrapperClickListener(wrapper, newData);
         attachClipDrawing(wrapper, fabricCanvas, newData, 0);
 
-        // 8. Select the new window
-        activeIndices      = [0];
-        lastSelectedIndex  = 0;
+        // 6. Select the new window
+        activeIndices     = [0];
+        lastSelectedIndex = 0;
         selectedDesigns.clear();
         updateWindowBorders();
         syncSliders();
         updateContextPanel();
 
+        // 7. Hide the empty-state overlay so the new window is visible
+        const dropZoneEl     = document.getElementById('dropZone');
+        const designPromptEl = document.getElementById('designPrompt');
+        if(dropZoneEl)     dropZoneEl.style.display     = 'none';
+        if(designPromptEl) designPromptEl.style.display = 'none';
+
+        // 8. Hide loading indicator now — Fabric bg load is fire-and-forget
         loadingIndicator.style.display = 'none';
+
+        // 9. Load background into Fabric (fire-and-forget — matches renderBatch)
+        fabric.Image.fromURL(bgImg.src, bgFabricImg => {
+            bgFabricImg.set({
+                left: 0, top: 0,
+                selectable: false, evented: false,
+                originX: 'left', originY: 'top',
+                scaleX: scaleRatio, scaleY: scaleRatio
+            });
+            newData.backgroundObject = bgFabricImg;
+            fabricCanvas.add(bgFabricImg);
+            fabricCanvas.sendToBack(bgFabricImg);
+            addClipOverlay(newData);
+            fabricCanvas.requestRenderAll();
+        }, { crossOrigin: 'anonymous' });
 
         autoSaveSession();
 
-        // 9. Immediately prompt for a design (user can cancel to keep bg-only)
+        // 10. Immediately prompt for a design (user can cancel to keep bg-only)
         addWindowDesignInput.value = '';
         addWindowDesignInput.click();
     });
