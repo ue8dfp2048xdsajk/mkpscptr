@@ -5335,9 +5335,14 @@ async function changeDesignForSelected(file){
         data.initialDesignOriginal = newImg;
         data.designName            = file.name;
 
-        // If this window had no design, initialise scale/position exactly like
-        // createCanvasData does for a fresh upload (50% of bg, centred).
+        // If this window had no design, initialise scale/position AND filename
+        // exactly like createCanvasData does for a fresh upload.
         if(hadNoDesign){
+            const designBase = file.name.replace(/\.[^/.]+$/, '');
+            const bgBase     = (data.bgName || '').replace(/\.[^/.]+$/, '');
+            data.filename = bgBase ? `${designBase}_${bgBase}` : designBase;
+            const filenameInput = data.wrapperEl?.querySelector('.filename-input');
+            if(filenameInput) filenameInput.value = data.filename;
             const bgW = data.bg.width;
             const bgH = data.bg.height;
             data.scale         = Math.min(
