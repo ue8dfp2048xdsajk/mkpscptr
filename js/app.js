@@ -8039,6 +8039,61 @@ function _applyVP() {
 })();
 
 
+// ── Center / fit-all button ───────────────────────────────────────────────────
+document.getElementById('centerViewBtn').addEventListener('click', () => {
+
+    const vw = document.getElementById('viewportWrapper');
+    const cc = document.getElementById('canvasContainer');
+    if(!vw || !cc) return;
+
+    // Target: show all windows fitting inside the viewport with a small margin
+    let targetScale = 1;
+    let targetX     = 0;
+    let targetY     = 0;
+
+    if(canvasData.length > 0){
+        // Get the bounding box of the canvasContainer (at current transform)
+        // then compute scale + translate to fit it inside the viewport
+        const vwRect = vw.getBoundingClientRect();
+        const ccRect = cc.getBoundingClientRect();
+
+        // Natural (un-transformed) size of the container
+        const natW = ccRect.width  / _vpScale;
+        const natH = ccRect.height / _vpScale;
+
+        const MARGIN = 40;
+        const fitScaleX = (vwRect.width  - MARGIN * 2) / natW;
+        const fitScaleY = (vwRect.height - MARGIN * 2) / natH;
+        targetScale = Math.min(1, Math.max(0.08, Math.min(fitScaleX, fitScaleY)));
+
+        // Center the container in the viewport
+        targetX = (vwRect.width  - natW * targetScale) / 2;
+        targetY = (vwRect.height - natH * targetScale) / 2;
+    }
+
+    // Smooth lerp animation (~300 ms)
+    const startScale = _vpScale;
+    const startX     = _vpX;
+    const startY     = _vpY;
+    const duration   = 300;
+    const startTime  = performance.now();
+
+    function animStep(now){
+        const t    = Math.min(1, (now - startTime) / duration);
+        const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // ease-in-out quad
+
+        _vpScale = startScale + (targetScale - startScale) * ease;
+        _vpX     = startX     + (targetX     - startX)     * ease;
+        _vpY     = startY     + (targetY     - startY)     * ease;
+        _applyVP();
+
+        if(t < 1) requestAnimationFrame(animStep);
+    }
+
+    requestAnimationFrame(animStep);
+});
+
+
 // ── Column count control ──────────────────────────────────────────────────────
 (()=>{
     const container   = document.getElementById('canvasContainer');
