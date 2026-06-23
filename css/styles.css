@@ -154,36 +154,34 @@ body {
 
 /* ── Background Crop aspect buttons ─────────────────────────────────────────── */
 .bg-crop-aspect-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
     margin-bottom: 8px;
 }
 #contextPanel .bg-aspect-btn {
-    display: inline-block;
-    width: auto;
-    flex: 1 1 auto;
-    padding: 3px 4px;
-    font-size: 11px;
-    font-weight: 600;
-    background: #f0f0f0;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    display: block;
+    width: 100%;
+    padding: 6px 4px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #fff;
+    border: 2px solid #b2dfdb;
+    border-radius: 8px;
     cursor: pointer;
-    color: #444;
-    white-space: nowrap;
+    color: #00897b;
     text-align: center;
     transition: background 0.1s, color 0.1s, border-color 0.1s;
 }
 #contextPanel .bg-aspect-btn:hover {
-    background: #e0e8f0;
-    border-color: #99b;
-    color: #222;
+    background: #e0f2f1;
+    border-color: #00bfa5;
+    color: #00695c;
 }
 #contextPanel .bg-aspect-btn.active {
-    background: #3a7bd5;
-    color: #fff;
-    border-color: #2a5fad;
+    background: #e0f2f1;
+    border-color: #00897b;
+    color: #00695c;
 }
 
 /* ── Window count badge ─────────────────────────────────────────────────────── */
