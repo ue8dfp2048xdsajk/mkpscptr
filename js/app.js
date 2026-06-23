@@ -5325,10 +5325,38 @@ async function changeDesignForSelected(file){
         const data = canvasData[i];
         if(!data || data.locked) continue;
 
+        const hadNoDesign = !data.designOriginal;
+
         // Swap the image source — keep all transforms, effects, and layer settings as-is
         data.designOriginal        = newImg;
         data.initialDesignOriginal = newImg;
         data.designName            = file.name;
+
+        // If this window had no design, initialise scale/position exactly like
+        // createCanvasData does for a fresh upload (50% of bg, centred).
+        if(hadNoDesign){
+            const bgW = data.bg.width;
+            const bgH = data.bg.height;
+            data.scale         = Math.min(
+                (bgW * 0.5) / newImg.width,
+                (bgH * 0.5) / newImg.height
+            );
+            data.scaleX        = null;
+            data.scaleY        = null;
+            data.rotation      = 0;
+            data.warpAmount    = 0;
+            data.arcAmount     = 0;
+            data.arcTilt       = 0;
+            data.opacity       = 1;
+            data.blurAmount    = 0;
+            data.noiseAmount   = 0;
+            data.blendMode     = 'normal';
+            data.perspectiveTop  = 0;
+            data.perspectiveLeft = 0;
+            const fc = data.fabricCanvas;
+            data.x = fc ? fc.getWidth()  / 2 : bgW * data.previewScale / 2;
+            data.y = fc ? fc.getHeight() / 2 : bgH * data.previewScale / 2;
+        }
 
         applyWarpToData(data, true);
         setTimeout(() => applyWarpToData(data, false), 50);
