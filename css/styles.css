@@ -58,6 +58,7 @@ body {
     user-select: none;
 }
 #zoomLevelDisplay:hover { color: #1e5eff; }
+#centerViewBtn { width: auto; padding: 0 8px; font-size: 11px; }
 
 .vp-cols-control {
     display: inline-flex;
