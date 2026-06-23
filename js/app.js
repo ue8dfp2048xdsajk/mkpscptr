@@ -3674,8 +3674,10 @@ function createCanvasPreviews(){
             const targetColumnWidth =
                 Math.max(100, Math.min(420, availableWidth / _numColumns));
 
+            // Render at 1.5× the column display width so CSS zoom up to 1.5×
+            // stays crisp without significant extra memory cost.
             const scaleRatio =
-                Math.min(1, targetColumnWidth / realWidth);
+                Math.min(1, (targetColumnWidth * 1.5) / realWidth);
 
             const previewWidth  = Math.round(realWidth  * scaleRatio);
             const previewHeight = Math.round(realHeight * scaleRatio);
@@ -3683,7 +3685,8 @@ function createCanvasPreviews(){
             fabricCanvas.setWidth(previewWidth);
             fabricCanvas.setHeight(previewHeight);
 
-            wrapper.style.width = previewWidth + 'px';
+            // Display at the CSS column width; canvas is larger → CSS downscales it.
+            wrapper.style.width = Math.round(targetColumnWidth) + 'px';
 
             data.previewScale = scaleRatio;
 
@@ -6630,7 +6633,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             Math.max(100, Math.min(420, availableWidth / _numColumns));
 
         const previewScale =
-            Math.min(1, targetColumnWidth / realWidth);
+            Math.min(1, (targetColumnWidth * 1.5) / realWidth);
 
         data.previewScale = previewScale;
 
@@ -6673,7 +6676,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         fabricCanvas.setWidth(previewW);
         fabricCanvas.setHeight(previewH);
 
-        wrapper.style.width = previewW + "px";
+        // Display at CSS column width; canvas pixel size is larger (1.5× oversample).
+        wrapper.style.width = Math.round(targetColumnWidth) + "px";
 
         // Build the background Fabric image directly from the already-loaded
         // bgImg element — avoids a second load and the crossOrigin:'anonymous'
