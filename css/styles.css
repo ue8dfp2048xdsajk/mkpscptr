@@ -204,6 +204,8 @@ body {
 #contextPanel .color-tool-btn:hover   { background: #e0e0e0; }
 #contextPanel .color-tool-btn.active:hover { background: #3a7fd4; }
 
+/* Hide system cursor over the whole wrapper in color-layer mode */
+.canvas-wrapper.color-layer-mode,
 .canvas-wrapper.color-layer-mode .upper-canvas { cursor: none !important; }
 
 #brushCursorRing {

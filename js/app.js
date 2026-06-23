@@ -1763,7 +1763,8 @@ function paintDot(ctx, x, y, size, softness, hexColor, compositeOp = 'source-ove
 function updateBrushCursor(nativeEvent, previewScale){
     const ring = document.getElementById('brushCursorRing');
     if(!ring) return;
-    const d = Math.round(brushSize * previewScale * 2);
+    // Account for viewport zoom (_vpScale) so the ring matches the on-screen brush size
+    const d = Math.max(4, Math.round(brushSize * previewScale * (_vpScale || 1) * 2));
     ring.style.width  = d + 'px';
     ring.style.height = d + 'px';
     ring.style.left   = nativeEvent.clientX + 'px';
@@ -1774,6 +1775,40 @@ function updateBrushCursor(nativeEvent, previewScale){
 function hideBrushCursor(){
     const ring = document.getElementById('brushCursorRing');
     if(ring) ring.style.display = 'none';
+}
+
+// ── Global mousemove handler for the color-layer brush cursor ring ────────────
+// More reliable than Fabric's synthetic mouse:move (works even between canvases,
+// updates immediately when brush size changes, etc.)
+let _colorLayerMoveHandler = null;
+
+function _startColorLayerCursorTracking(){
+    if(_colorLayerMoveHandler) return;
+    _colorLayerMoveHandler = function(e){
+        if(!colorLayerMode){ hideBrushCursor(); return; }
+        // Only show ring while over a canvas wrapper that is in color-layer-mode
+        const wrapper = e.target && e.target.closest && e.target.closest('.canvas-wrapper.color-layer-mode');
+        if(!wrapper){ hideBrushCursor(); return; }
+        // Find matching canvasData to get the correct previewScale
+        let ps = 1;
+        for(let i = 0; i < canvasData.length; i++){
+            const el = canvasData[i].fabricCanvas && canvasData[i].fabricCanvas.lowerCanvasEl;
+            if(el && el.closest('.canvas-wrapper') === wrapper){
+                ps = canvasData[i].previewScale || 1;
+                break;
+            }
+        }
+        updateBrushCursor(e, ps);
+    };
+    document.addEventListener('mousemove', _colorLayerMoveHandler);
+}
+
+function _stopColorLayerCursorTracking(){
+    if(_colorLayerMoveHandler){
+        document.removeEventListener('mousemove', _colorLayerMoveHandler);
+        _colorLayerMoveHandler = null;
+    }
+    hideBrushCursor();
 }
 
 // ── Undo / redo engine ────────────────────────────────────────────────────────
@@ -5495,13 +5530,18 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
         document.getElementById("addColorLayerBtn").innerText       = "Exit Color Layer";
         document.getElementById("colorLayerControls").style.display = "inline-flex";
 
+        // Start global mousemove tracking for the brush cursor ring
+        _startColorLayerCursorTracking();
+
     } else {
 
         colorLayerMode  = false;
         brushTool       = 'brush';
         isColorPainting = false;
         lastPaintNorm   = null;
-        hideBrushCursor();
+
+        // Stop global mousemove tracking and hide ring
+        _stopColorLayerCursorTracking();
 
         // Restore interactivity on all design objects
         canvasData.forEach(data=>{
@@ -6152,9 +6192,6 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
     fabricCanvas.on('mouse:move', function(opt){
         if(!colorLayerMode) return;
-
-        // Always update cursor ring
-        updateBrushCursor(opt.e, data.previewScale);
 
         if(!isColorPainting) return;
         if(!activeIndices.includes(index)) return;
