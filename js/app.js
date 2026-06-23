@@ -741,6 +741,7 @@ function _updateBgCrop(){
                 angle:  (obj.angle || 0) + (newRotation - oldRotation),
             });
             obj.setCoords();
+            if(d.patternMode) _renderPattern(d, false);
             d.fabricCanvas.requestRenderAll();
         }
     });
