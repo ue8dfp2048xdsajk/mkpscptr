@@ -6377,7 +6377,10 @@ function buildSnapshot(){
 
             notes: data.notes || '',
 
-            locked: !!data.locked
+            locked: !!data.locked,
+
+            // Restore which windows were selected when the user saved
+            selected: activeIndices.includes(index)
         };
     });
 }
@@ -6457,7 +6460,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
             const img = new Image();
 
-            img.onload = ()=>resolve(img);
+            img.onload  = ()=>resolve(img);
+            img.onerror = ()=>resolve(img); // never hang if src is broken
 
             img.src = saved.bgSrc;
         });
@@ -6470,7 +6474,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
                 const img = new Image();
 
-                img.onload = ()=>resolve(img);
+                img.onload  = ()=>resolve(img);
+                img.onerror = ()=>resolve(null); // broken design — continue anyway
 
                 img.src = saved.designSrc;
             });
@@ -6569,6 +6574,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         const wrapper = document.createElement("div");
         wrapper.className = "canvas-wrapper";
+        data.wrapperEl = wrapper;
 
         const canvasEl = document.createElement("canvas");
 
@@ -6578,7 +6584,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         filenameInput.type = "text";
         filenameInput.className = "filename-input";
-        filenameInput.value = saved.filename;
+        filenameInput.value = saved.filename ?? '';
 
         filenameInput.addEventListener("input", e=>{
             data.filename = e.target.value;
@@ -6587,6 +6593,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         wrapper.appendChild(filenameInput);
 
         container.appendChild(wrapper);
+        _visibilityObserver.observe(wrapper);
 
         const fabricCanvas = new fabric.Canvas(canvasEl,{
             preserveObjectStacking: true,
@@ -6647,14 +6654,11 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         wrapper.style.width =
             (bgImg.width * previewScale) + "px";
 
-        const bgFabric = await new Promise(resolve=>{
-
-            fabric.Image.fromURL(saved.bgSrc, resolve,{
-                crossOrigin:'anonymous'
-            });
-        });
-
-        bgFabric.set({
+        // Build the background Fabric image directly from the already-loaded
+        // bgImg element — avoids a second load and the crossOrigin:'anonymous'
+        // flag that hangs on data URLs (browsers block CORS for data: URIs,
+        // causing the fromURL callback to never fire).
+        const bgFabric = new fabric.Image(bgImg, {
             left:0,
             top:0,
             selectable:false,
@@ -6945,6 +6949,27 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                 updateSelectButtonState();
             });
     }
+
+    // Restore selection state from snapshot
+    activeIndices = [];
+    selectedDesigns.clear();
+    lastSelectedIndex = null;
+    snapshot.forEach((saved, i) => {
+        if(saved.selected && canvasData[i]){
+            activeIndices.push(i);
+            const d = canvasData[i];
+            if(d?.designObject && !d.locked){
+                if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                selectedDesigns.add(d.designObject);
+            }
+        }
+    });
+    if(activeIndices.length) lastSelectedIndex = activeIndices[activeIndices.length - 1];
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
 
     loadingIndicator.innerText =
         "Session restored";
