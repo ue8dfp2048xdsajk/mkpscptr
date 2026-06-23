@@ -6004,45 +6004,65 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         const data = canvasData[index];
         if(data.locked) return;
 
-        // remove all duplicated designs
+        // ── Remove extra/duplicate layers ─────────────────────────────────────
         if(data.extraDesignObjects){
-
             data.extraDesignObjects.forEach(obj=>{
+                selectedDesigns.delete(obj); // remove from selection too
                 data.fabricCanvas.remove(obj);
             });
-
-            data.extraDesignObjects = [];
+            data.extraDesignObjects   = [];
+            data.extraDesignOriginals = [];
         }
 
-        // restore original position/state
-        data.x = data.initialX;
-        data.y = data.initialY;
-
-        data.scale = data.initialScale;
+        // ── Restore original position/state ───────────────────────────────────
+        data.x    = data.initialX;
+        data.y    = data.initialY;
+        data.scale  = data.initialScale;
         data.scaleX = null;
         data.scaleY = null;
+        data.rotation     = data.initialRotation;
+        data.warpAmount   = data.initialWarpAmount;
+        data.arcAmount    = data.initialArcAmount;
+        data.arcTilt      = data.initialArcTilt     ?? 0;
+        data.opacity      = data.initialOpacity;
+        data.blurAmount   = data.initialBlurAmount;
+        data.noiseAmount  = data.initialNoiseAmount ?? 0;
+        data.blendMode    = data.initialBlendMode   ?? "normal";
+        data.perspectiveTop  = data.initialPerspectiveTop  ?? 0;
+        data.perspectiveLeft = data.initialPerspectiveLeft ?? 0;
 
-        data.rotation = data.initialRotation;
-
-        data.warpAmount = data.initialWarpAmount;
-        data.arcAmount = data.initialArcAmount;
-        data.arcTilt = data.initialArcTilt;
-        data.opacity = data.initialOpacity;
-        data.blurAmount  = data.initialBlurAmount;
-        data.noiseAmount = data.initialNoiseAmount ?? 0;
-        data.blendMode   = data.initialBlendMode;
-        data.perspectiveTop = data.initialPerspectiveTop;
-        data.perspectiveLeft = data.initialPerspectiveLeft;
-
-        // restore original design object
+        // ── Reset _fx on the main design object ──────────────────────────────
+        // syncSliders() reads from _fx when selectedDesigns is non-empty, so _fx
+        // must be updated here — otherwise sliders show stale values after reset.
         if(data.designObject){
+            data.designObject._fx = {
+                warpAmount:      data.warpAmount,
+                arcAmount:       data.arcAmount,
+                arcTilt:         data.arcTilt,
+                perspectiveTop:  data.perspectiveTop,
+                perspectiveLeft: data.perspectiveLeft,
+                opacity:         data.opacity,
+                blurAmount:      data.blurAmount,
+                noiseAmount:     data.noiseAmount,
+                blendMode:       data.blendMode
+            };
 
+            // Invalidate the LQ pipeline cache so the next render runs clean.
+            data.designObject._c_src     = null;
+            data.designObject._c_blurred = null;
+            data.designObject._c_noisy   = null;
+            data.designObject._c_warpOk  = false;
+            data.designObject._c_trimmed = null;
+            data.designObject._c_persp   = null;
+        }
+
+        // ── Restore fabric object to initial transform ────────────────────────
+        if(data.designObject){
             applyClipMaskToObject(data.designObject, data);
-
-        data.designObject.set({
-                left: data.initialX,
-                top: data.initialY,
-                angle: data.initialRotation,
+            data.designObject.set({
+                left:   data.initialX,
+                top:    data.initialY,
+                angle:  data.initialRotation,
                 scaleX: data.initialScale * data.previewScale,
                 scaleY: data.initialScale * data.previewScale,
                 opacity: data.initialOpacity,
@@ -6050,8 +6070,7 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
             });
         }
 
-        // Restore designOriginal to the initially-uploaded source so that any
-        // pixel-level operations (invert, eraser baking) are fully undone.
+        // ── Restore designOriginal (undoes eraser baking / invert) ────────────
         if(data.initialDesignOriginal){
             data.designOriginal = data.initialDesignOriginal;
         }
@@ -6066,11 +6085,10 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         data.clipCurvePoints    = [];
         data.clipPolygonClosed  = false;
 
-        // Remove clip path from main design + any duplicates
         getAllDesignObjects(data).forEach(obj=>{
             applyClipMaskToObject(obj, data);
         });
-        addClipOverlay(data);   // clears overlay visuals
+        addClipOverlay(data);
 
         // ── Clear color layer ─────────────────────────────────────────────────
         if(data.colorLayerFabricObj){
@@ -6092,7 +6110,10 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         data.fabricCanvas.requestRenderAll();
     });
 
+    refreshFabricHandles();
+    updateLayerButtons();
     syncSliders();
+    autoSaveSession();
 });
 
 
