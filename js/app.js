@@ -4180,6 +4180,7 @@ function createCanvasPreviews(){
             setTimeout(()=>{
                 loadingIndicator.style.display = "none";
                 updateDropUI();
+                _scheduleMinimapUpdate();
             }, 800);
         }
     }
