@@ -2227,8 +2227,9 @@ async function performGlobalUndo(){
     }
 
     if(entry.type === 'pan'){
-        globalRedoStack.push({ type: 'pan', prevX: _vpX, prevY: _vpY });
+        globalRedoStack.push({ type: 'pan', prevX: _vpX, prevY: _vpY, prevScale: _vpScale });
         _vpX = entry.prevX; _vpY = entry.prevY;
+        if(entry.prevScale !== undefined) _vpScale = entry.prevScale;
         _applyVP();
         updateUndoRedoButtons();
         return;
@@ -2297,8 +2298,9 @@ async function performGlobalRedo(){
     }
 
     if(entry.type === 'pan'){
-        globalUndoStack.push({ type: 'pan', prevX: _vpX, prevY: _vpY });
+        globalUndoStack.push({ type: 'pan', prevX: _vpX, prevY: _vpY, prevScale: _vpScale });
         _vpX = entry.prevX; _vpY = entry.prevY;
+        if(entry.prevScale !== undefined) _vpScale = entry.prevScale;
         _applyVP();
         updateUndoRedoButtons();
         return;
@@ -8584,6 +8586,12 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
     const MARGIN = 40;
     let targetScale = 1, targetX = 0, targetY = 0;
 
+    // Push undo before moving so Ctrl+Z can revert the view
+    globalUndoStack.push({ type: 'pan', prevX: _vpX, prevY: _vpY, prevScale: _vpScale });
+    if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+    globalRedoStack = [];
+    updateUndoRedoButtons();
+
     // ── Zoom to selected ──────────────────────────────────────────────────────
     if(activeIndices.length > 0){
         // Union bounding rect of selected wrappers (in screen space)
@@ -8813,12 +8821,12 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
     });
 
     // ── Hand pan tool ────────────────────────────────────────────────────────
-    let _panPreX = 0, _panPreY = 0;
+    let _panPreX = 0, _panPreY = 0, _panPreScale = 1;
 
     vw.addEventListener('mousedown', e => {
         if (_activeTool !== 'pan' || e.button !== 0) return;
         e.preventDefault();
-        _panPreX = _vpX;
+        _panPreX = _vpX; _panPreScale = _vpScale;
         _panPreY = _vpY;
         // Reuse the viewport IIFE's pan state — its mousemove/mouseup handlers
         // pick up _vpPanning automatically, so the viewport updates as normal.
@@ -8833,7 +8841,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         // The viewport IIFE's mouseup resets cursor to '' — restore 'grab'.
         requestAnimationFrame(() => { if (_activeTool === 'pan') vw.style.cursor = 'grab'; });
         if (_vpPanMoved) {
-            globalUndoStack.push({ type: 'pan', prevX: _panPreX, prevY: _panPreY });
+            globalUndoStack.push({ type: 'pan', prevX: _panPreX, prevY: _panPreY, prevScale: _panPreScale });
             if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
             globalRedoStack = [];
             updateUndoRedoButtons();
