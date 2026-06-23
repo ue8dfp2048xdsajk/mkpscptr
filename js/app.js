@@ -3685,8 +3685,15 @@ function createCanvasPreviews(){
             fabricCanvas.setWidth(previewWidth);
             fabricCanvas.setHeight(previewHeight);
 
-            // Display at the CSS column width; canvas is larger → CSS downscales it.
-            wrapper.style.width = Math.round(targetColumnWidth) + 'px';
+            // Shrink Fabric's internal .canvas-container to the CSS display size.
+            // The canvas elements inside keep their oversampled DOM pixel count
+            // (previewWidth × DPR), so the browser downscales those extra pixels
+            // onto fewer CSS pixels — crisp rather than upscaled-blurry.
+            const displayW = Math.round(targetColumnWidth);
+            const displayH = Math.round(previewHeight * targetColumnWidth / previewWidth);
+            fabricCanvas.wrapperEl.style.width  = displayW + 'px';
+            fabricCanvas.wrapperEl.style.height = displayH + 'px';
+            wrapper.style.width = displayW + 'px';
 
             data.previewScale = scaleRatio;
 
@@ -6676,8 +6683,14 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         fabricCanvas.setWidth(previewW);
         fabricCanvas.setHeight(previewH);
 
-        // Display at CSS column width; canvas pixel size is larger (1.5× oversample).
-        wrapper.style.width = Math.round(targetColumnWidth) + "px";
+        // Shrink Fabric's .canvas-container to the CSS display size so it doesn't
+        // overflow the grid cell. Canvas DOM pixel count stays at previewW × DPR,
+        // so the browser downscales those extra pixels — crisp at zoom.
+        const displayW = Math.round(targetColumnWidth);
+        const displayH = Math.round(previewH * targetColumnWidth / previewW);
+        fabricCanvas.wrapperEl.style.width  = displayW + "px";
+        fabricCanvas.wrapperEl.style.height = displayH + "px";
+        wrapper.style.width = displayW + "px";
 
         // Build the background Fabric image directly from the already-loaded
         // bgImg element — avoids a second load and the crossOrigin:'anonymous'
