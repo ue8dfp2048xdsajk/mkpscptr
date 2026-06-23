@@ -30,19 +30,25 @@
         <button id="loadProgressBtn">Load Progress</button>
         <button id="clearSessionBtn" title="Remove the autosaved session so the canvas starts blank on next load">Clear Session</button>
         <input type="file" id="loadProgressInput" accept=".json" style="display:none;">
+        <span class="vp-zoom-controls">
+            <button id="zoomOutBtn" title="Zoom out (Ctrl+−)">−</button>
+            <span id="zoomLevelDisplay" title="Reset zoom (Ctrl+0)" style="cursor:pointer;">100%</span>
+            <button id="zoomInBtn" title="Zoom in (Ctrl+=)">+</button>
+        </span>
     </div>
 </div>
 
-<div id="dropZone">
-    <div id="dropZoneInner">
-        <div class="dz-icon">&#8659;</div>
-        <p class="dz-title">Drag background images here</p>
-        <p class="dz-sub">or use the <strong>Upload Backgrounds</strong> button above</p>
+<div id="viewportWrapper">
+    <div id="dropZone">
+        <div id="dropZoneInner">
+            <div class="dz-icon">&#8659;</div>
+            <p class="dz-title">Drag background images here</p>
+            <p class="dz-sub">or use the <strong>Upload Backgrounds</strong> button above</p>
+        </div>
     </div>
-</div>
-<div id="designPrompt">
-    <span>Backgrounds ready &mdash; drag your designs here, or <button id="designPromptBtn">click to upload designs</button></span>
-</div>
+    <div id="designPrompt">
+        <span>Backgrounds ready &mdash; drag your designs here, or <button id="designPromptBtn">click to upload designs</button></span>
+    </div>
 
 <div id="loadingIndicator" style="
 display:none;
@@ -60,7 +66,8 @@ font-family:Arial;
 Preparing designs...
 </div>
 
-<div class="canvas-container" id="canvasContainer"></div>
+    <div class="canvas-container" id="canvasContainer"></div>
+</div><!-- /#viewportWrapper -->
 
 <!-- ── Context Panel ─────────────────────────────────────────────────── -->
 <div id="contextPanel">

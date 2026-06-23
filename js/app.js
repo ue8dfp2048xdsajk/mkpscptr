@@ -7051,39 +7051,122 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
 });
 
 
-let resizeTimer;
-let _resizeRestoreInProgress = false;
+// ── Pan / Zoom Viewport ───────────────────────────────────────────────────────
+// Pure CSS-transform approach: the #canvasContainer is translated + scaled
+// inside #viewportWrapper. No Fabric canvas is re-rendered; all content,
+// edits, backgrounds, and designs remain completely unchanged during zoom/pan.
 
-window.addEventListener('resize', ()=>{
+let _vpScale = 1;
+let _vpX     = 0;
+let _vpY     = 0;
+let _vpPanning    = false;
+let _vpPanStart   = null;
+let _vpPanMoved   = false;
+let _vpSpaceDown  = false;
 
-    clearTimeout(resizeTimer);
+(()=>{
+    const vw = document.getElementById('viewportWrapper');
+    const cc = document.getElementById('canvasContainer');
 
-    resizeTimer = setTimeout(async ()=>{
+    function applyVP() {
+        cc.style.transform = `translate(${_vpX}px,${_vpY}px) scale(${_vpScale})`;
+        const pct = Math.round(_vpScale * 100);
+        document.getElementById('zoomLevelDisplay').textContent = pct + '%';
+    }
 
-        if(!canvasData.length) return;
+    function zoomAt(cx, cy, factor) {
+        const next = Math.max(0.08, Math.min(6, _vpScale * factor));
+        const ratio = next / _vpScale;
+        _vpX = cx - (cx - _vpX) * ratio;
+        _vpY = cy - (cy - _vpY) * ratio;
+        _vpScale = next;
+        applyVP();
+    }
 
-        // Guard against concurrent restores: if a previous resize is still
-        // running its async restore, skip this one entirely so canvasData
-        // is never written by two calls at once (which scrambles the order).
-        if(_resizeRestoreInProgress) return;
-
-        _resizeRestoreInProgress = true;
-
-        try {
-            // Rebuild at new viewport width while preserving all effects and transforms.
-            // createCanvasPreviews() resets everything to defaults; snapshot-restore keeps state.
-            const snapshot = buildSnapshot();
-
-            await createCanvasPreviewsFromSnapshot(snapshot);
-
-            syncSliders();
-            updateWindowBorders();
-        } finally {
-            _resizeRestoreInProgress = false;
+    // ── Wheel: Ctrl / pinch = zoom; plain scroll = pan ──────────────────────
+    vw.addEventListener('wheel', e => {
+        e.preventDefault();
+        const rect = vw.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        if (e.ctrlKey || e.metaKey) {
+            const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+            zoomAt(cx, cy, factor);
+        } else {
+            _vpX -= e.deltaX;
+            _vpY -= e.deltaY;
+            applyVP();
         }
+    }, { passive: false });
 
-    }, 150);
-});
+    // ── Space bar: grab cursor ───────────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+        if (e.code === 'Space' && !e.target.matches('input,textarea,select,[contenteditable]')) {
+            if (!_vpSpaceDown) { _vpSpaceDown = true; vw.style.cursor = 'grab'; }
+            e.preventDefault();
+        }
+    });
+    document.addEventListener('keyup', e => {
+        if (e.code === 'Space') { _vpSpaceDown = false; if (!_vpPanning) vw.style.cursor = ''; }
+    });
+
+    // ── Mouse pan: Space+left-drag OR middle-mouse-drag ──────────────────────
+    vw.addEventListener('mousedown', e => {
+        if (_vpSpaceDown || e.button === 1) {
+            _vpPanning  = true;
+            _vpPanMoved = false;
+            _vpPanStart = { x: e.clientX - _vpX, y: e.clientY - _vpY };
+            vw.style.cursor = 'grabbing';
+            e.preventDefault();
+        }
+    });
+    document.addEventListener('mousemove', e => {
+        if (!_vpPanning || !_vpPanStart) return;
+        const nx = e.clientX - _vpPanStart.x;
+        const ny = e.clientY - _vpPanStart.y;
+        if (Math.abs(nx - _vpX) > 2 || Math.abs(ny - _vpY) > 2) _vpPanMoved = true;
+        _vpX = nx; _vpY = ny;
+        applyVP();
+    });
+    document.addEventListener('mouseup', e => {
+        if (!_vpPanning) return;
+        _vpPanning = false;
+        vw.style.cursor = _vpSpaceDown ? 'grab' : '';
+        if (_vpPanMoved) {
+            // Suppress the next wrapper click so panning doesn't toggle selection
+            suppressNextWrapperClick = true;
+        }
+        _vpPanStart = null;
+    });
+
+    // ── Zoom buttons ─────────────────────────────────────────────────────────
+    document.getElementById('zoomInBtn').addEventListener('click', () => {
+        const r = vw.getBoundingClientRect();
+        zoomAt(r.width / 2, r.height / 2, 1.25);
+    });
+    document.getElementById('zoomOutBtn').addEventListener('click', () => {
+        const r = vw.getBoundingClientRect();
+        zoomAt(r.width / 2, r.height / 2, 1 / 1.25);
+    });
+    document.getElementById('zoomLevelDisplay').addEventListener('click', () => {
+        _vpScale = 1; _vpX = 0; _vpY = 0; applyVP();
+    });
+
+    // ── Keyboard shortcuts ───────────────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+        const mod = e.ctrlKey || e.metaKey;
+        if (!mod) return;
+        if (e.key === '0') {
+            _vpScale = 1; _vpX = 0; _vpY = 0; applyVP(); e.preventDefault();
+        } else if (e.key === '=' || e.key === '+') {
+            const r = vw.getBoundingClientRect();
+            zoomAt(r.width / 2, r.height / 2, 1.25); e.preventDefault();
+        } else if (e.key === '-') {
+            const r = vw.getBoundingClientRect();
+            zoomAt(r.width / 2, r.height / 2, 1 / 1.25); e.preventDefault();
+        }
+    });
+})();
 
 
 // ── Notes drawer wiring ──────────────────────────────────────────────────
