@@ -4475,6 +4475,7 @@ function attachFabricEvents(data, targetObject = null){
             if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
             globalRedoStack = [];
             updateUndoRedoButtons();
+            _markDirty();
         }
         designTarget._preDragUndoEntry  = null;
         designTarget._hadDragMovement   = false;
