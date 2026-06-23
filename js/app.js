@@ -509,11 +509,13 @@ function _updateBgCrop(){
         if(d.locked) return;
         if(!d.bgCrop) d.bgCrop = { x:0, y:0, scale:1, rotation:0, aspect:0 };
 
-        const oldX     = d.bgCrop.x;
-        const oldY     = d.bgCrop.y;
-        const oldScale = d.bgCrop.scale;
+        const oldX        = d.bgCrop.x;
+        const oldY        = d.bgCrop.y;
+        const oldScale    = d.bgCrop.scale;
+        const oldRotation = d.bgCrop.rotation;
 
-        d.bgCrop.rotation = parseFloat(bgCropRotation.value);
+        const newRotation = parseFloat(bgCropRotation.value);
+        d.bgCrop.rotation = newRotation;
         d.bgCrop.scale    = newScale;
         d.bgCrop.x        = newX;
         d.bgCrop.y        = newY;
@@ -523,19 +525,32 @@ function _updateBgCrop(){
             const W  = d.fabricCanvas.width;
             const H  = d.fabricCanvas.height;
             const obj = d.designObject;
-            const zr  = oldScale > 0 ? newScale / oldScale : 1;
             const cx  = W / 2, cy = H / 2;
-            // Zoom: scale design position around canvas centre, then scale object
-            const zLeft  = cx + (obj.left - cx) * zr;
-            const zTop   = cy + (obj.top  - cy) * zr;
+
+            // Zoom: scale position around canvas centre, scale object size
+            const zr     = oldScale > 0 ? newScale / oldScale : 1;
+            let left = cx + (obj.left - cx) * zr;
+            let top  = cy + (obj.top  - cy) * zr;
+
+            // Rotation: rotate position around canvas centre by delta angle
+            const dRad = (newRotation - oldRotation) * Math.PI / 180;
+            if(dRad !== 0){
+                const dx = left - cx, dy = top - cy;
+                const cos = Math.cos(dRad), sin = Math.sin(dRad);
+                left = cx + dx * cos - dy * sin;
+                top  = cy + dx * sin + dy * cos;
+            }
+
             // Pan: shift by delta fraction of canvas size
-            const dxPx = (newX - oldX) * W;
-            const dyPx = (newY - oldY) * H;
+            left += (newX - oldX) * W;
+            top  += (newY - oldY) * H;
+
             obj.set({
-                left:   zLeft + dxPx,
-                top:    zTop  + dyPx,
+                left,
+                top,
                 scaleX: obj.scaleX * zr,
                 scaleY: obj.scaleY * zr,
+                angle:  (obj.angle || 0) + (newRotation - oldRotation),
             });
             obj.setCoords();
             d.fabricCanvas.requestRenderAll();
