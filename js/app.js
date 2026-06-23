@@ -7549,82 +7549,167 @@ function _applyVP() {
         };
     }
 
+    // ── Floating font-size toolbar (singleton) ────────────────────────────────
+    const fontToolbar = document.createElement('div');
+    fontToolbar.className = 'tb-font-toolbar';
+    fontToolbar.innerHTML =
+        '<label>Size</label>' +
+        '<select id="tbFontSizeSelect">' +
+        [10,11,12,14,16,18,20,24,28,32,36,48,60,72].map(s =>
+            `<option value="${s}"${s===14?' selected':''}>${s}px</option>`
+        ).join('') +
+        '</select>';
+    document.body.appendChild(fontToolbar);
+
+    let _activeTbText = null;  // the currently focused .tb-text element
+
+    // Position toolbar above the selection / box
+    function positionFontToolbar(anchorEl) {
+        const r = anchorEl.getBoundingClientRect();
+        fontToolbar.style.left = r.left + 'px';
+        fontToolbar.style.top  = Math.max(4, r.top - 34) + 'px';
+    }
+
+    // Apply font size to current selection inside a .tb-text
+    const fontSizeSelect = fontToolbar.querySelector('#tbFontSizeSelect');
+    fontSizeSelect.addEventListener('mousedown', e => e.stopPropagation());
+    fontSizeSelect.addEventListener('change', () => {
+        const px = fontSizeSelect.value;
+        if (!_activeTbText) return;
+        _activeTbText.focus();
+        // Restore selection if browser wiped it on select change
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) return;
+        // Use fontName trick: mark selection, then replace <font> with <span>
+        document.execCommand('fontName', false, '__TBFS__');
+        _activeTbText.querySelectorAll('font[face="__TBFS__"]').forEach(f => {
+            const span = document.createElement('span');
+            span.style.fontSize = px + 'px';
+            span.innerHTML = f.innerHTML;
+            f.replaceWith(span);
+        });
+        const box = _textBoxes.find(b => b.textEl === _activeTbText);
+        if (box) { box.content = _activeTbText.innerHTML; autoSaveSession(); }
+    });
+
+    // Show/hide toolbar based on selection
+    document.addEventListener('selectionchange', () => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || !sel.rangeCount) {
+            fontToolbar.classList.remove('visible');
+            return;
+        }
+        const anchor = sel.anchorNode;
+        const textEl = anchor?.closest?.('.tb-text') ||
+                       anchor?.parentElement?.closest('.tb-text');
+        if (!textEl) { fontToolbar.classList.remove('visible'); return; }
+        fontToolbar.classList.add('visible');
+        positionFontToolbar(textEl.closest('.canvas-text-box'));
+    });
+
     // ── Build one text-box element ────────────────────────────────────────────
     function createTextBox(x, y, w, h, content) {
+        // Outer wrapper — handles border, shadow, drag
         const el = document.createElement('div');
-        el.className     = 'canvas-text-box';
-        el.contentEditable = 'true';
-        el.spellcheck    = false;
-        el.style.left    = x + 'px';
-        el.style.top     = y + 'px';
-        if (w > 0) el.style.width  = Math.max(80, w)  + 'px';
-        if (h > 0) el.style.height = Math.max(28, h) + 'px';
-        if (content) el.textContent = content;
+        el.className  = 'canvas-text-box';
+        el.style.left = x + 'px';
+        el.style.top  = y + 'px';
+        if (w > 0) el.style.width = Math.max(120, w) + 'px';
+        // NO height — auto-expands with content
 
-        // Drag handle (top-centre bar)
-        const handle = document.createElement('div');
-        handle.className = 'tb-handle';
-        handle.title = 'Drag to move';
-        el.appendChild(handle);
+        // Thin grab bar at the top
+        const bar = document.createElement('div');
+        bar.className = 'tb-drag-bar';
+        el.appendChild(bar);
 
-        // Delete button (top-right ×)
+        // Inner contenteditable
+        const textEl = document.createElement('div');
+        textEl.className       = 'tb-text';
+        textEl.contentEditable = 'true';
+        textEl.spellcheck      = false;
+        if (content) textEl.innerHTML = content;
+        el.appendChild(textEl);
+
+        // Delete button
         const del = document.createElement('button');
-        del.className = 'tb-delete';
+        del.className   = 'tb-delete';
         del.textContent = '×';
-        del.title = 'Delete text box';
+        del.title       = 'Delete text box';
         el.appendChild(del);
 
         tl.appendChild(el);
 
-        const box = { id: _tbNextId++, x, y, w: w || 0, h: h || 0, content: content || '', el };
+        const box = { id: _tbNextId++, x, y, w: w || 0, h: h || 0, content: content || '', el, textEl };
         _textBoxes.push(box);
 
-        // ── Sync content ──────────────────────────────────────────────────────
-        el.addEventListener('input', () => {
-            box.content = el.innerText;
+        // ── Sync content (save HTML to preserve font sizes) ───────────────────
+        textEl.addEventListener('input', () => {
+            box.content = textEl.innerHTML;
             autoSaveSession();
         });
 
-        // ── Blur: auto-delete if empty ────────────────────────────────────────
-        el.addEventListener('blur', () => {
+        // ── Focus / blur styling ──────────────────────────────────────────────
+        textEl.addEventListener('focus', () => {
+            el.classList.add('tb-focused');
+            _activeTbText = textEl;
+        });
+        textEl.addEventListener('blur', () => {
+            el.classList.remove('tb-focused');
+            if (_activeTbText === textEl) _activeTbText = null;
+            fontToolbar.classList.remove('visible');
             setTimeout(() => {
-                if (document.activeElement !== el && !el.innerText.trim()) {
+                if (document.activeElement !== textEl && !textEl.innerText.trim()) {
                     deleteTextBox(box);
                 }
             }, 200);
         });
 
-        // ── ESC: blur ────────────────────────────────────────────────────────
-        el.addEventListener('keydown', e => {
-            if (e.key === 'Escape') { e.preventDefault(); el.blur(); }
+        // ── ESC: blur ─────────────────────────────────────────────────────────
+        textEl.addEventListener('keydown', e => {
+            if (e.key === 'Escape') { e.preventDefault(); textEl.blur(); }
         });
 
-        // ── Prevent vw mousedown from creating a new box ──────────────────────
+        // ── Stop wrapper mousedown from bubbling to vw ────────────────────────
         el.addEventListener('mousedown', e => e.stopPropagation());
 
         // ── Delete button ─────────────────────────────────────────────────────
-        del.addEventListener('mousedown', e => e.stopPropagation());
-        del.addEventListener('click', e => { e.stopPropagation(); deleteTextBox(box); });
+        del.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+        del.addEventListener('click',     e => { e.stopPropagation(); deleteTextBox(box); });
 
-        // ── Drag handle: move the box ─────────────────────────────────────────
-        handle.addEventListener('mousedown', e => {
+        // ── Drag: grab bar OR border drag (click target is the outer el) ──────
+        function startDrag(e) {
             e.stopPropagation();
             e.preventDefault();
+            el.style.cursor = 'grabbing';
             const startCX = e.clientX, startCY = e.clientY;
             const startBX = box.x,     startBY = box.y;
+            let moved = false;
             function onMove(ev) {
-                box.x = startBX + (ev.clientX - startCX) / _vpScale;
-                box.y = startBY + (ev.clientY - startCY) / _vpScale;
+                const dx = (ev.clientX - startCX) / _vpScale;
+                const dy = (ev.clientY - startCY) / _vpScale;
+                if (!moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+                moved = true;
+                box.x = startBX + dx;
+                box.y = startBY + dy;
                 el.style.left = box.x + 'px';
                 el.style.top  = box.y + 'px';
             }
             function onUp() {
+                el.style.cursor = '';
                 document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup',  onUp);
-                autoSaveSession();
+                document.removeEventListener('mouseup',   onUp);
+                if (moved) autoSaveSession();
             }
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup',   onUp);
+        }
+
+        // Drag from the grab bar always moves
+        bar.addEventListener('mousedown', startDrag);
+
+        // Drag from the outer wrapper (border zone) moves only if target is el itself
+        el.addEventListener('mousedown', e => {
+            if (e.target === el) startDrag(e);
         });
 
         return box;
@@ -7709,13 +7794,13 @@ function _applyVP() {
 // ── Export canvas text ────────────────────────────────────────────────────────
 document.getElementById('exportTextBtn').addEventListener('click', () => {
     const sorted = [..._textBoxes]
-        .filter(b => b.content.trim())
+        .filter(b => b.textEl ? b.textEl.innerText.trim() : b.content.trim())
         .sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
     if (!sorted.length) {
         alert('No text on the canvas to export yet.');
         return;
     }
-    const text = sorted.map(b => b.content.trim()).join('\n\n') + '\n';
+    const text = sorted.map(b => (b.textEl ? b.textEl.innerText : b.content).trim()).join('\n\n') + '\n';
     const blob = new Blob([text], { type: 'text/plain' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
