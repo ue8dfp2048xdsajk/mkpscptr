@@ -2094,6 +2094,7 @@ function pushGlobalUndo(extraIdx = null){
     if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
     globalRedoStack = [];
     updateUndoRedoButtons();
+    _markDirty();
 }
 
 // ── Layout undo/redo (cols, row gap, col gap) ─────────────────────────────────
@@ -4187,6 +4188,7 @@ function createCanvasPreviews(){
                 loadingIndicator.style.display = "none";
                 updateDropUI();
                 _scheduleMinimapUpdate();
+                _markDirty();
             }, 800);
         }
     }
@@ -4911,6 +4913,7 @@ function deleteSelectedWindows(){
     if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
     globalRedoStack = [];
     updateUndoRedoButtons();
+    _markDirty();
 
     // Remove wrappers from DOM without destroying Fabric canvas
     const toDelete = new Set(sortedIndices);
@@ -7756,6 +7759,22 @@ function buildSnapshot(){
 
 let _autoSaveTimer = null;
 
+// ── Unsaved changes indicator ─────────────────────────────────────────────────
+let _unsaved = false;
+
+function _markDirty(){
+    if(_unsaved) return;
+    _unsaved = true;
+    document.getElementById('saveProgressBtn')?.classList.add('has-unsaved');
+    if(!document.title.startsWith('• ')) document.title = '• ' + document.title;
+}
+
+function _markClean(){
+    _unsaved = false;
+    document.getElementById('saveProgressBtn')?.classList.remove('has-unsaved');
+    document.title = document.title.replace(/^• /, '');
+}
+
 function autoSaveSession(){
 
     if(!canvasData.length && !_textBoxes.length) return;
@@ -7794,6 +7813,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
     a.click();
 
     URL.revokeObjectURL(url);
+    _markClean();
 });
 
 
@@ -9543,6 +9563,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
         globalRedoStack = [];
         updateUndoRedoButtons();
+        _markDirty();
 
         // ── 1. Reorder DOM ────────────────────────────────────────────────────
         _dragSrcWrapper.classList.remove('drag-source');

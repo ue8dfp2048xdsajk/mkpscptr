@@ -128,6 +128,18 @@ body {
     border-color: #1e5eff;
 }
 
+/* ── Unsaved changes indicator ──────────────────────────────────────────────── */
+#saveProgressBtn.has-unsaved {
+    border-color: #e07000;
+    box-shadow: 0 0 0 2px rgba(224,112,0,0.35);
+}
+#saveProgressBtn.has-unsaved::after {
+    content: ' ●';
+    color: #e07000;
+    font-size: 9px;
+    vertical-align: middle;
+}
+
 /* ── Minimap ────────────────────────────────────────────────────────────────── */
 #minimap {
     position: absolute;
