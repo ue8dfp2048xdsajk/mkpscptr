@@ -3817,6 +3817,7 @@ function createCanvasPreviews(){
             });
 
             wrapper.appendChild(filenameInput);
+            _addDragHandle(wrapper);
 
             container.appendChild(wrapper);
 
@@ -4634,6 +4635,15 @@ function updateLayerButtons(){
 
 
 // Reusable wrapper click handler — used by both renderBatch (inline) and duplicated windows.
+function _addDragHandle(wrapper) {
+    const handle = document.createElement('div');
+    handle.className = 'drag-handle';
+    handle.textContent = '⠿ drag';
+    handle.title = 'Drag to reorder';
+    wrapper.appendChild(handle);
+    wrapper.setAttribute('draggable', 'true');
+}
+
 function _attachWrapperClickListener(wrapper, data){
     wrapper.addEventListener('click', function(e){
         const index = canvasData.indexOf(data);
@@ -4880,6 +4890,7 @@ async function duplicateSelectedWindows(){
         filenameInput.className = 'filename-input';
         filenameInput.addEventListener('input', ev => { newData.filename = ev.target.value; });
         wrapper.appendChild(filenameInput);
+        _addDragHandle(wrapper);
 
         // Insert right after the source wrapper
         const refChild = container.children[insertAt] || null;
@@ -5099,6 +5110,7 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
         filenameInput.className = 'filename-input';
         filenameInput.addEventListener('input', ev => { newData.filename = ev.target.value; });
         wrapper.appendChild(filenameInput);
+        _addDragHandle(wrapper);
 
         // Insert at beginning of the grid
         container.insertBefore(wrapper, container.firstChild);
@@ -7643,6 +7655,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         });
 
         wrapper.appendChild(filenameInput);
+        _addDragHandle(wrapper);
 
         container.appendChild(wrapper);
         _visibilityObserver.observe(wrapper);
@@ -9005,3 +9018,103 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     syncSliders();
     updateWindowBorders();
 });
+
+
+// ── Drag-to-reorder windows ───────────────────────────────────────────────────
+(()=>{
+    const container = document.getElementById('canvasContainer');
+    let _dragSrcWrapper = null;
+    let _dropTarget     = null;
+    let _dropBefore     = true;
+    let _pendingFromHandle = false;
+
+    // Blue insertion-bar indicator (fixed-position overlay, avoids grid/overflow issues)
+    const ind = document.createElement('div');
+    ind.style.cssText = 'position:fixed;width:3px;border-radius:2px;background:#1e5eff;pointer-events:none;z-index:9999;display:none;';
+    document.body.appendChild(ind);
+
+    // Track whether the drag was initiated from a drag handle
+    document.addEventListener('mousedown', e => {
+        _pendingFromHandle = e.target.classList.contains('drag-handle');
+    });
+
+    container.addEventListener('dragstart', e => {
+        if(!_pendingFromHandle){ e.preventDefault(); return; }
+        if(clipEditMode || colorLayerMode){ e.preventDefault(); return; }
+        const wrapper = e.target.closest('.canvas-wrapper');
+        if(!wrapper){ e.preventDefault(); return; }
+        _dragSrcWrapper = wrapper;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', ''); // required for Firefox
+        // Delay opacity so the ghost image still renders at full opacity
+        requestAnimationFrame(() => wrapper.classList.add('drag-source'));
+    });
+
+    container.addEventListener('dragover', e => {
+        if(!_dragSrcWrapper) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const wrapper = e.target.closest('.canvas-wrapper');
+        if(!wrapper || wrapper === _dragSrcWrapper){ ind.style.display = 'none'; _dropTarget = null; return; }
+        const rect = wrapper.getBoundingClientRect();
+        _dropBefore = e.clientX < rect.left + rect.width / 2;
+        _dropTarget = wrapper;
+        // Position the blue bar in the gap between cells
+        const x = _dropBefore ? rect.left - 1 : rect.right - 2;
+        ind.style.left   = x + 'px';
+        ind.style.top    = rect.top + 'px';
+        ind.style.height = rect.height + 'px';
+        ind.style.display = 'block';
+    });
+
+    container.addEventListener('dragleave', e => {
+        if(!container.contains(e.relatedTarget)){
+            ind.style.display = 'none';
+            _dropTarget = null;
+        }
+    });
+
+    container.addEventListener('dragend', () => {
+        if(_dragSrcWrapper) _dragSrcWrapper.classList.remove('drag-source');
+        _dragSrcWrapper = null;
+        _dropTarget     = null;
+        ind.style.display = 'none';
+        _pendingFromHandle = false;
+    });
+
+    container.addEventListener('drop', e => {
+        e.preventDefault();
+        ind.style.display = 'none';
+
+        if(!_dragSrcWrapper || !_dropTarget || _dragSrcWrapper === _dropTarget){
+            if(_dragSrcWrapper) _dragSrcWrapper.classList.remove('drag-source');
+            _dragSrcWrapper = null; _dropTarget = null;
+            return;
+        }
+
+        // ── 1. Reorder DOM ────────────────────────────────────────────────────
+        _dragSrcWrapper.classList.remove('drag-source');
+        if(_dropBefore) _dropTarget.before(_dragSrcWrapper);
+        else            _dropTarget.after(_dragSrcWrapper);
+
+        // ── 2. Rebuild canvasData to match DOM order (all state lives on data
+        //       objects so nothing is lost — just the index changes) ────────────
+        const oldCanvasData   = [...canvasData];
+        const selectedDatas   = activeIndices.map(i => oldCanvasData[i]);
+        const lastSelData     = lastSelectedIndex !== null ? oldCanvasData[lastSelectedIndex] : null;
+
+        const wrappers = [...container.querySelectorAll('.canvas-wrapper')];
+        canvasData = wrappers.map(w => oldCanvasData.find(d => d.wrapperEl === w));
+
+        // ── 3. Remap active indices to new positions ───────────────────────────
+        activeIndices     = selectedDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
+        lastSelectedIndex = lastSelData ? canvasData.indexOf(lastSelData) : null;
+
+        _dragSrcWrapper = null;
+        _dropTarget     = null;
+
+        updateWindowBorders();
+        updateSelectButtonState();
+        autoSaveSession();
+    });
+})();
