@@ -187,9 +187,21 @@ function _deselectAll(){
     updateSelectButtonState();
 }
 
+// Track whether the most recent mousedown started on a form control (input,
+// select, textarea, button).  When the user drags a number input so fast that
+// the mouse leaves the browser window, the browser may synthesise a click on
+// document — we must not deselect windows in that case.
+let _mouseDownOnControl = false;
+document.addEventListener('mousedown', e => {
+    const tag = e.target.tagName;
+    _mouseDownOnControl = (tag === 'INPUT' || tag === 'SELECT' ||
+                           tag === 'TEXTAREA' || tag === 'BUTTON');
+});
+
 // Clicking empty space in the canvas container deselects everything
 document.getElementById('canvasContainer').addEventListener('click', function(e){
     if(suppressNextWrapperClick) return;
+    if(_mouseDownOnControl) return;   // drag started on a control — ignore
     if(clipEditMode || colorLayerMode) return;
     // Only act when the click landed outside every canvas-wrapper
     if(e.target.closest('.canvas-wrapper')) return;
@@ -199,6 +211,7 @@ document.getElementById('canvasContainer').addEventListener('click', function(e)
 // Clicking the white surrounding area (outside #canvasContainer) also deselects
 document.addEventListener('click', function(e){
     if(suppressNextWrapperClick) return;
+    if(_mouseDownOnControl) return;   // drag started on a control — ignore
     if(clipEditMode || colorLayerMode) return;
     // Ignore clicks that are inside the canvas container (handled above)
     if(e.target.closest('#canvasContainer')) return;
@@ -212,8 +225,11 @@ document.addEventListener('click', function(e){
 });
 
 document.addEventListener('mouseup', ()=>{
+    // Clear after click has had a chance to fire (click fires synchronously
+    // before setTimeout callbacks, so the flag is still true during click).
     setTimeout(()=>{
         suppressNextWrapperClick = false;
+        _mouseDownOnControl = false;
     }, 0);
 });
 
