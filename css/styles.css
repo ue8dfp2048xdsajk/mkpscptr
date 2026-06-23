@@ -293,24 +293,30 @@ body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0
     position: fixed;
     right: 0;
     top: 50%;
-    transform: translateY(-50%) rotate(90deg) translateX(50%);
-    transform-origin: right center;
+    transform: translateY(-50%);
     background: #2c3e50;
     color: #fff;
     border: none;
-    border-radius: 6px 6px 0 0;
-    padding: 6px 14px;
-    font-size: 13px;
+    border-radius: 6px 0 0 6px;
+    padding: 14px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
     cursor: pointer;
     z-index: 1100;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    white-space: nowrap;
+    box-shadow: -3px 0 10px rgba(0,0,0,0.2);
+    transition: background 0.15s, padding 0.15s;
     display: flex;
     align-items: center;
-    gap: 5px;
-    white-space: nowrap;
-    box-shadow: -2px 0 8px rgba(0,0,0,0.15);
-    transition: background 0.15s;
+    gap: 6px;
 }
-#notesTab:hover { background: #34495e; }
+#notesTab:hover {
+    background: #34495e;
+    padding-left: 11px;
+}
 
 #notesDrawer {
     position: fixed;

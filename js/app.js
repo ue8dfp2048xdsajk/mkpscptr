@@ -4111,7 +4111,7 @@ function _notesShowSingle(index){
     if(!body || !title) return;
     title.textContent = 'Notes';
     body.innerHTML = `
-        <div class="notes-single-header">${_notesEsc(data.bgName || `Mockup ${index+1}`)}</div>
+        <div class="notes-single-header">${_notesEsc(data.filename || data.bgName || `Mockup ${index+1}`)}</div>
         <textarea class="notes-textarea" placeholder="Add notes, keywords, SEO ideas…">${_notesEsc(data.notes || '')}</textarea>
     `;
     const ta = body.querySelector('.notes-textarea');
@@ -4126,7 +4126,7 @@ function _notesSummaryRows(body, indices){
     body.innerHTML = indices.map(i=>{
         const d = canvasData[i];
         if(!d) return '';
-        const name    = d.bgName || `Mockup ${i+1}`;
+        const name    = d.filename || d.bgName || `Mockup ${i+1}`;
         const preview = (d.notes||'').split('\n')[0].trim() || 'No notes yet';
         return `<div class="notes-summary-row" data-index="${i}">
             <div class="notes-summary-name">${_notesEsc(name)}</div>
@@ -6777,7 +6777,7 @@ window.addEventListener('resize', ()=>{
             return;
         }
         const lines = canvasData.map((d, i)=>{
-            const name  = d.bgName || `Mockup ${i+1}`;
+            const name  = d.filename || d.bgName || `Mockup ${i+1}`;
             const notes = (d.notes || '').trim() || '(no notes)';
             return `${name}\n${'─'.repeat(name.length)}\n${notes}`;
         });
