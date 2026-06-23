@@ -914,6 +914,34 @@ function invertImageSource(src) {
     return c;
 }
 
+// Returns a new canvas with src flipped horizontally, vertically, or both.
+function _flipImageSource(src, flipX, flipY) {
+    const w = src.naturalWidth  || src.width;
+    const h = src.naturalHeight || src.height;
+    const c = document.createElement('canvas');
+    c.width  = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.save();
+    ctx.translate(flipX ? w : 0, flipY ? h : 0);
+    ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+    ctx.drawImage(src, 0, 0, w, h);
+    ctx.restore();
+    return c;
+}
+
+// Returns a (cached) flipped version of src using data.flipX / data.flipY.
+// Cache is keyed on the source object so each unique source gets its own entry.
+function _cachedFlip(data, src) {
+    if(!data.flipX && !data.flipY) return src;
+    if(!data._flipMap) data._flipMap = new WeakMap();
+    const hit = data._flipMap.get(src);
+    if(hit && hit.fX === !!data.flipX && hit.fY === !!data.flipY) return hit.canvas;
+    const canvas = _flipImageSource(src, !!data.flipX, !!data.flipY);
+    data._flipMap.set(src, { fX: !!data.flipX, fY: !!data.flipY, canvas });
+    return canvas;
+}
+
 function ensureErasableCanvas(obj) {
     const el = obj.getElement();
     if (el && el.tagName === 'CANVAS') return el;
@@ -1862,6 +1890,8 @@ function captureWindowState(data){
         filename: data.filename || '',
         notes:    data.notes    || '',
         locked:   !!data.locked,
+        flipX:    !!data.flipX,
+        flipY:    !!data.flipY,
         designFx: data.designObject?._fx
             ? JSON.parse(JSON.stringify(data.designObject._fx))
             : null,
@@ -2005,6 +2035,11 @@ async function restoreWindowState(data, state){
 
     // Restore notes
     if(state.notes !== undefined) data.notes = state.notes;
+
+    // Restore flip — invalidate the flip cache so the pipeline re-flips correctly
+    if(state.flipX !== undefined) data.flipX = state.flipX;
+    if(state.flipY !== undefined) data.flipY = state.flipY;
+    if(state.flipX !== undefined || state.flipY !== undefined) data._flipMap = null;
 
     // Restore locked state (apply or remove lock without clobbering Fabric events)
     if(state.locked !== undefined){
@@ -3003,8 +3038,12 @@ async function applyWarpToData(data, lowQuality = false){
         data.warpCanvas = document.createElement("canvas");
     }
 
+    // Apply flip before the rest of the pipeline so all effects (blur, noise,
+    // warp, perspective) operate on the already-flipped image.
+    const pipelineSrc = _cachedFlip(data, data.designOriginal);
+
     const blurredSource = applyGaussianBlurToImage(
-        data.designOriginal,
+        pipelineSrc,
         (data.blurAmount || 0) / 5
     );
 
@@ -3058,7 +3097,7 @@ async function applyWarpToData(data, lowQuality = false){
                 const srcForObj =
                     data.extraDesignOriginals?.[i] || data.designOriginal;
 
-                _applyWarpToOneObject(obj, data, srcForObj, lowQuality);
+                _applyWarpToOneObject(obj, data, _cachedFlip(data, srcForObj), lowQuality);
             });
         }
 
@@ -5608,6 +5647,23 @@ document.getElementById("invertColorsBtn").addEventListener("click", ()=>{
     invertSelectedDesigns();
 });
 
+// ── Flip H / Flip V ───────────────────────────────────────────────────────────
+function flipSelectedDesigns(axis){
+    if(!activeIndices.length) return;
+    pushGlobalUndo();
+    activeIndices.forEach(i => {
+        const data = canvasData[i];
+        if(!data || data.locked || !data.designOriginal) return;
+        if(axis === 'H') data.flipX = !data.flipX;
+        else             data.flipY = !data.flipY;
+        data._flipMap = null; // invalidate cached flipped sources
+        applyWarpToData(data, false);
+    });
+}
+
+document.getElementById('flipHBtn').addEventListener('click', () => flipSelectedDesigns('H'));
+document.getElementById('flipVBtn').addEventListener('click', () => flipSelectedDesigns('V'));
+
 document.getElementById("selectAllBtn").addEventListener("click", ()=>{
 
     if(clipEditMode){
@@ -7381,6 +7437,9 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         data.blendMode    = data.initialBlendMode   ?? "normal";
         data.perspectiveTop  = data.initialPerspectiveTop  ?? 0;
         data.perspectiveLeft = data.initialPerspectiveLeft ?? 0;
+        data.flipX = false;
+        data.flipY = false;
+        data._flipMap = null;
 
         // ── Reset _fx on the main design object ──────────────────────────────
         // syncSliders() reads from _fx when selectedDesigns is non-empty, so _fx
