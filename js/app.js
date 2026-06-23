@@ -812,13 +812,15 @@ function updateWindowBorders(){
             w.classList.remove("active","design-active");
             const d = canvasData[i];
             if(selectedDesigns.size > 0){
-                // Design-select mode: highlight windows that contain a selected object
-                // OR windows in activeIndices (their designs move too via the sync handlers)
+                // Design-select mode: highlight windows that contain a selected object.
+                // Also highlight locked windows that are in activeIndices — their designs
+                // aren't in selectedDesigns (locked), but they're still "selected" windows
+                // and should show the gray border (.window-locked.active in CSS).
                 const hasSelected = d && (
                     (d.designObject && selectedDesigns.has(d.designObject)) ||
                     (d.extraDesignObjects||[]).some(obj => selectedDesigns.has(obj))
                 );
-                if(hasSelected) w.classList.add("active");
+                if(hasSelected || activeIndices.includes(i)) w.classList.add("active");
             } else if(activeIndices.includes(i)){
                 w.classList.add("active");
             }
