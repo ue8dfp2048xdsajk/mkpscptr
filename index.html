@@ -162,10 +162,14 @@ Preparing designs...
                 <button id="brushToolBtn" class="color-tool-btn active" title="Paintbrush" style="width:auto;">Paint</button>
                 <button id="eraserToolBtn" class="color-tool-btn" title="Eraser" style="width:auto;">Erase</button>
                 <input type="color" id="brushColorPicker" value="#ff0000" title="Paint color" style="cursor:pointer;width:28px;height:22px;padding:1px;border:1px solid #ccc;vertical-align:middle;">
-                <span style="font-size:11px;">Size</span>
-                <input type="range" id="brushSizeSlider" min="1" max="150" value="20" style="width:70px;vertical-align:middle;">
-                <span style="font-size:11px;">Soft</span>
-                <input type="range" id="brushSoftnessSlider" min="0" max="100" value="30" style="width:70px;vertical-align:middle;">
+                <span style="display:inline-flex;align-items:center;gap:4px;">
+                    <span style="font-size:11px;">Size</span>
+                    <input type="range" id="brushSizeSlider" min="1" max="150" value="20" style="width:70px;vertical-align:middle;">
+                </span>
+                <span style="display:inline-flex;align-items:center;gap:4px;">
+                    <span style="font-size:11px;">Soft</span>
+                    <input type="range" id="brushSoftnessSlider" min="0" max="100" value="30" style="width:70px;vertical-align:middle;">
+                </span>
                 <span style="font-size:11px;">Opacity</span>
                 <input type="number" id="colorLayerOpacityInput" min="0" max="100" value="100" style="width:50px;" title="Color Opacity %">
                 <span style="font-size:11px;font-weight:600;width:100%;display:block;margin-top:2px;">Color Layer Mode</span>
