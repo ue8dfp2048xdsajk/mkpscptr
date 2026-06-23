@@ -475,29 +475,15 @@ function _renderPattern(data, lowQuality = false){
     const mc     = obj.getCenterPoint();
     const mAngle = obj.angle || 0;
 
-    // ── Pre-compute warp / perspective so we know if extra margin is needed ──
+    // ── Pre-compute warp / perspective flags ─────────────────────────────────
     const hasWarp = (data.warpAmount || 0) !== 0 || (data.arcAmount || 0) !== 0;
     const hasPerspective = (data.perspectiveTop || 0) !== 0 || (data.perspectiveLeft || 0) !== 0;
 
-    // When warp or perspective is active, tile a canvas larger than W×H so
-    // that after distortion the edges are still filled (no white gaps).
-    // The extra pad must cover the maximum pixel displacement introduced by each effect.
-    const arcExtraPad   = Math.abs(data.arcAmount || 0) * 5
-                        + Math.abs(data.arcTilt  ?? 0) / 100 * H * 0.25;
-    const perspExtraPad = Math.abs(data.perspectiveTop  || 0) * W / 160
-                        + Math.abs(data.perspectiveLeft || 0) * H / 160;
-    const extraPad = (hasWarp || hasPerspective)
-        ? Math.ceil(arcExtraPad + perspExtraPad) + 20
-        : 0;
-
-    const offW = W + extraPad * 2;
-    const offH = H + extraPad * 2;
-
     const off = document.createElement('canvas');
-    off.width = offW; off.height = offH;
+    off.width = W; off.height = H;
     const ctx = off.getContext('2d');
 
-    const diagLen = Math.sqrt(offW * offW + offH * offH);
+    const diagLen = Math.sqrt(W * W + H * H);
     const nCols = Math.ceil(diagLen / stepX) + 2;
     const nRows = Math.ceil(diagLen / stepY) + 2;
     const margin = Math.sqrt(tileW * tileW + tileH * tileH);
@@ -511,10 +497,9 @@ function _renderPattern(data, lowQuality = false){
 
             const rx = gx * cosA - gy * sinA;
             const ry = gx * sinA + gy * cosA;
-            // Shift tile origin by extraPad so the larger canvas is fully tiled
-            const cx = mc.x + extraPad + rx, cy = mc.y + extraPad + ry;
+            const cx = mc.x + rx, cy = mc.y + ry;
 
-            if(cx + margin < 0 || cx - margin > offW || cy + margin < 0 || cy - margin > offH) continue;
+            if(cx + margin < 0 || cx - margin > W || cy + margin < 0 || cy - margin > H) continue;
 
             const rot = (mAngle + col * (s.rotH || 0) + row * (s.rotV || 0)) * Math.PI / 180;
             const sx  = obj.flipX ? -obj.scaleX : obj.scaleX;
@@ -545,18 +530,22 @@ function _renderPattern(data, lowQuality = false){
         finalCanvas = applyPerspectiveDistortion(finalCanvas, data, lowQuality);
     }
 
-    // ── Crop back to W×H after warp/perspective ───────────────────────────────
-    // The tiled canvas was made larger by extraPad on each side (plus internal
-    // warp padding), so after distortion we center-crop to W×H.  This ensures
-    // the extra surrounding tiles fill any gaps the warp leaves at the edges.
-    if(extraPad > 0 && finalCanvas.width > W){
-        const crop = document.createElement('canvas');
-        crop.width = W; crop.height = H;
-        const cropCtx = crop.getContext('2d');
-        const srcX = Math.round((finalCanvas.width  - W) / 2);
-        const srcY = Math.round((finalCanvas.height - H) / 2);
-        cropCtx.drawImage(finalCanvas, srcX, srcY, W, H, 0, 0, W, H);
-        finalCanvas = crop;
+    // ── Fit warp/perspective output into W×H ──────────────────────────────────
+    // The warp output is larger than W×H (it adds internal padding for arc
+    // displacement).  Drawing it CENTERED on a W×H canvas pushes the transparent
+    // gap area (which the warp places at the top of its output) toward the canvas
+    // edges, halving the visible gap compared to the original top-left draw.
+    if((hasWarp || hasPerspective) && (finalCanvas.width !== W || finalCanvas.height !== H)){
+        const fitted = document.createElement('canvas');
+        fitted.width = W; fitted.height = H;
+        const fCtx = fitted.getContext('2d');
+        fCtx.imageSmoothingEnabled = false;
+        fCtx.drawImage(
+            finalCanvas,
+            Math.round((W - finalCanvas.width)  / 2),
+            Math.round((H - finalCanvas.height) / 2)
+        );
+        finalCanvas = fitted;
     }
 
     // ── Burn clip mask into the pixel canvas ─────────────────────────────────
