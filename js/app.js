@@ -2574,6 +2574,10 @@ function exitDesignWarpMode(apply) {
 
         attachFabricEvents(applyData, newImg);
 
+        // Re-apply clip mask so the baked image stays inside the clipping area.
+        applyClipMaskToObject(newImg, applyData);
+        addClipOverlay(applyData);
+
         fc.setActiveObject(newImg);
         selectedDesigns.add(newImg);
         fc.requestRenderAll();
@@ -2636,6 +2640,10 @@ function exitDesignWarpMode(apply) {
             grpData.extraDesignObjects = grpNewExtras;
 
             attachFabricEvents(grpData, newImg2);
+
+            // Re-apply clip mask for secondary baked image.
+            applyClipMaskToObject(newImg2, grpData);
+            addClipOverlay(grpData);
 
             grpFc.setActiveObject(newImg2);
             selectedDesigns.add(newImg2);
