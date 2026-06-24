@@ -1186,6 +1186,39 @@ function trimTransparentBorders(canvas){
 
 // preTrimmed: pass an already-trimmed canvas to skip the getImageData pixel scan.
 // Used by _applyWarpToOneObject when the warp canvas hasn't changed (trim cache hit).
+// Build a mipmap chain from a canvas: [original, half, quarter, …]
+// Each level is half the previous, drawn with high smoothing.
+function buildMipChain(canvas) {
+    const mips = [canvas];
+    let prev = canvas;
+    while (prev.width > 8 && prev.height > 8) {
+        const half = document.createElement('canvas');
+        half.width  = Math.max(1, Math.floor(prev.width  / 2));
+        half.height = Math.max(1, Math.floor(prev.height / 2));
+        const hc = half.getContext('2d');
+        hc.imageSmoothingEnabled = true;
+        hc.imageSmoothingQuality = 'high';
+        hc.drawImage(prev, 0, 0, half.width, half.height);
+        mips.push(half);
+        prev = half;
+    }
+    return mips;
+}
+// Pick the smallest mip level whose width is still >= targetW (no upscaling).
+function pickMipW(mips, targetW) {
+    for (let i = mips.length - 1; i >= 0; i--) {
+        if (mips[i].width >= targetW) return i;
+    }
+    return 0;
+}
+// Pick the smallest mip level whose height is still >= targetH.
+function pickMipH(mips, targetH) {
+    for (let i = mips.length - 1; i >= 0; i--) {
+        if (mips[i].height >= targetH) return i;
+    }
+    return 0;
+}
+
 function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preTrimmed = null){
 
     const top  = data.perspectiveTop  || 0;
@@ -1236,10 +1269,11 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const horizontalSlices = lowQuality ? 60 : 180;
 
     // ── Pass 1: top/bottom perspective (horizontal slices) ───────────────────
-    // Width of each row is scaled by widthScale, which is 1 on the untouched
-    // side and 1+|top|/90 on the stretched side — straight lines, no curves.
-    // Source has no padding, so t is already content-normalised (t=0 = top edge,
-    // t=1 = bottom edge). top > 0: top side stretches; top < 0: bottom side stretches.
+    // Two-sided: top > 0 → top edge widens to 2× at max, bottom edge narrows to 0.
+    // Mip chain ensures each slice's drawImage compression ratio stays ≤ 2:1,
+    // preventing the pixelation that single-step extreme downscaling produces.
+
+    const srcMips = lowQuality ? [src] : buildMipChain(src);
 
     for(let y = 0; y < horizontalSlices; y++){
 
@@ -1253,23 +1287,26 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
             ? Math.max(0, 1 + (top  / 100) * (1 - 2 * t))
             : Math.max(0, 1 + (-top / 100) * (2 * t - 1));
         const targetW = srcW * widthScale;
+        if(targetW < 0.5) continue;
 
         const dx = pad + (srcW - targetW) / 2;
         const dy = pad + srcY;
 
+        const mi   = pickMipW(srcMips, targetW);
+        const mip  = srcMips[mi];
+        const mipSY = mip.height / srcH;
+
         ctx.drawImage(
-            src,
-            0,              Math.round(srcY),
-            srcW,           Math.ceil(sliceH),
-            Math.round(dx), Math.round(dy),
-            Math.ceil(targetW + 1), Math.ceil(sliceH + 1)
+            mip,
+            0,                                       Math.round(srcY  * mipSY),
+            mip.width,                               Math.max(1, Math.ceil(sliceH * mipSY)),
+            Math.round(dx),                          Math.round(dy),
+            Math.max(1, Math.ceil(targetW + 1)),     Math.ceil(sliceH + 1)
         );
     }
 
     // ── Pass 2: left/right perspective (vertical slices) ─────────────────────
-    // Height of each column interpolates linearly from leftScale (left) to 1
-    // (right). Vertical slices always span full canvas height → no horizontal
-    // gaps or stripes possible.
+    // Mip chain on the Pass-1 output keeps each column's height compression ≤ 2:1.
 
     if(left !== 0){
 
@@ -1280,6 +1317,8 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
         tempCtx.drawImage(out, 0, 0);
         ctx.clearRect(0, 0, out.width, out.height);
 
+        const tempMips = lowQuality ? [tempCanvas] : buildMipChain(tempCanvas);
+
         const verticalSlices = lowQuality ? 60 : 180;
 
         for(let x = 0; x < verticalSlices; x++){
@@ -1288,10 +1327,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
             const srcX   = t * out.width;
             const sliceW = Math.max(2, out.width / verticalSlices);
 
-            // t_c: normalised position within the design content (0 = left edge, 1 = right edge).
-            // Using the full-canvas t would make content edges slightly non-zero,
-            // causing both sides to stretch. Anchoring to content bounds ensures
-            // exactly scale=1 at the untouched side and scale=1+|left|/180 at the stretched side.
+            // t_c: normalised position within the design content (0 = left, 1 = right).
             const t_c = Math.max(0, Math.min(1, (srcX - pad) / srcW));
 
             // Two-sided: left > 0 → right edge tall (1+|left|/100), left edge
@@ -1300,15 +1336,21 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
                 ? Math.max(0, 1 + (left  / 100) * (2 * t_c - 1))
                 : Math.max(0, 1 + (-left / 100) * (1 - 2 * t_c));
             const targetH    = out.height * leftScale;
+            if(targetH < 0.5) continue;
             const extraSpace = targetH - out.height;
             const dy         = -(extraSpace / 2);
 
+            const mi   = pickMipH(tempMips, targetH);
+            const mip  = tempMips[mi];
+            const mipSX = mip.width  / tempCanvas.width;
+            const mipSY = mip.height / tempCanvas.height;
+
             ctx.drawImage(
-                tempCanvas,
-                Math.round(srcX), 0,
-                Math.ceil(sliceW), out.height,
-                Math.round(srcX),  Math.round(dy),
-                Math.ceil(sliceW + 1), Math.ceil(targetH + 1)
+                mip,
+                Math.round(srcX  * mipSX),              0,
+                Math.max(1, Math.ceil(sliceW * mipSX)), mip.height,
+                Math.round(srcX),                        Math.round(dy),
+                Math.ceil(sliceW + 1),                   Math.max(1, Math.ceil(targetH + 1))
             );
         }
     }
