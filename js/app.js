@@ -8802,24 +8802,35 @@ document.addEventListener('keydown', function(e){
     deleteSelectedWindows();
 });
 
-// L = lock selected windows, U = unlock selected windows.
+// L — lock selected windows
 document.addEventListener('keydown', function(e){
-    const key = e.key.toLowerCase();
-    if(key !== 'l' && key !== 'u') return;
+    if(e.key.toLowerCase() !== 'l') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
 
-    // Never fire while the user is typing.
     const tag = document.activeElement?.tagName;
     if(tag === 'INPUT' || tag === 'TEXTAREA') return;
     if(document.activeElement?.isContentEditable) return;
 
-    // Respect special modes.
     if(clipEditMode || designEraserMode || designWarpMode) return;
     if(!activeIndices.length) return;
 
     e.preventDefault();
-    if(key === 'l') lockSelectedWindows();
-    else             unlockSelectedWindows();
+    lockSelectedWindows();
+});
+
+// U — unselect all windows
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'u') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(clipEditMode || designEraserMode || designWarpMode) return;
+
+    e.preventDefault();
+    _deselectAll();
 });
 
 // E — toggle design eraser mode on/off
