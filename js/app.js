@@ -479,11 +479,23 @@ function _renderPattern(data, lowQuality = false){
     const hasWarp = (data.warpAmount || 0) !== 0 || (data.arcAmount || 0) !== 0;
     const hasPerspective = (data.perspectiveTop || 0) !== 0 || (data.perspectiveLeft || 0) !== 0;
 
+    // Extra padding fills the arc/tilt gap that warp creates at the canvas edges.
+    // Formula: gap at centre = arcCurve (= |arcAmount|×4) + 2×tiltK_max
+    //          tiltK_max = |arcTilt/100| × H × 0.18
+    // Perspective is applied AFTER the warp crop (on a W×H canvas) so it never
+    // sees the enlarged canvas and its distortion strength is not amplified.
+    const arcCurveMax = Math.abs(data.arcAmount || 0) * 4;
+    const tiltMax     = Math.abs(data.arcTilt ?? 0) / 100 * H * 0.18;
+    const extraPad    = hasWarp ? Math.ceil(arcCurveMax + 2 * tiltMax) : 0;
+
+    const offW = W + extraPad * 2;
+    const offH = H + extraPad * 2;
+
     const off = document.createElement('canvas');
-    off.width = W; off.height = H;
+    off.width = offW; off.height = offH;
     const ctx = off.getContext('2d');
 
-    const diagLen = Math.sqrt(W * W + H * H);
+    const diagLen = Math.sqrt(offW * offW + offH * offH);
     const nCols = Math.ceil(diagLen / stepX) + 2;
     const nRows = Math.ceil(diagLen / stepY) + 2;
     const margin = Math.sqrt(tileW * tileW + tileH * tileH);
@@ -497,9 +509,10 @@ function _renderPattern(data, lowQuality = false){
 
             const rx = gx * cosA - gy * sinA;
             const ry = gx * sinA + gy * cosA;
-            const cx = mc.x + rx, cy = mc.y + ry;
+            // Shift origin by extraPad so the enlarged canvas is fully tiled
+            const cx = mc.x + extraPad + rx, cy = mc.y + extraPad + ry;
 
-            if(cx + margin < 0 || cx - margin > W || cy + margin < 0 || cy - margin > H) continue;
+            if(cx + margin < 0 || cx - margin > offW || cy + margin < 0 || cy - margin > offH) continue;
 
             const rot = (mAngle + col * (s.rotH || 0) + row * (s.rotV || 0)) * Math.PI / 180;
             const sx  = obj.flipX ? -obj.scaleX : obj.scaleX;
@@ -515,7 +528,9 @@ function _renderPattern(data, lowQuality = false){
         }
     }
 
-    // ── Apply warp / perspective to the entire tiled canvas ──────────────────
+    // ── Apply warp to the enlarged tile canvas, then crop to W×H ─────────────
+    // referenceH = H keeps tiltK amplitude pinned to the original canvas height,
+    // preventing distortion amplification caused by the extraPad-enlarged canvas.
     let finalCanvas = off;
 
     if(hasWarp){
@@ -523,29 +538,40 @@ function _renderPattern(data, lowQuality = false){
         finalCanvas = createWarpedImage(
             finalCanvas,
             data.warpAmount, data.arcAmount, data.arcTilt ?? 0,
-            data._patternWarpCanvas, lowQuality
+            data._patternWarpCanvas, lowQuality,
+            H   // referenceH — tiltK uses original H, not enlarged canvas height
         );
-    }
-    if(hasPerspective){
-        finalCanvas = applyPerspectiveDistortion(finalCanvas, data, lowQuality);
+        // Center-crop back to W×H: extra border tiles have filled the arc/tilt gap.
+        if(finalCanvas.width !== W || finalCanvas.height !== H){
+            const crop = document.createElement('canvas');
+            crop.width = W; crop.height = H;
+            const cropCtx = crop.getContext('2d');
+            cropCtx.imageSmoothingEnabled = false;
+            const srcX = Math.round((finalCanvas.width  - W) / 2);
+            const srcY = Math.round((finalCanvas.height - H) / 2);
+            cropCtx.drawImage(finalCanvas, srcX, srcY, W, H, 0, 0, W, H);
+            finalCanvas = crop;
+        }
     }
 
-    // ── Fit warp/perspective output into W×H ──────────────────────────────────
-    // The warp output is larger than W×H (it adds internal padding for arc
-    // displacement).  Drawing it CENTERED on a W×H canvas pushes the transparent
-    // gap area (which the warp places at the top of its output) toward the canvas
-    // edges, halving the visible gap compared to the original top-left draw.
-    if((hasWarp || hasPerspective) && (finalCanvas.width !== W || finalCanvas.height !== H)){
-        const fitted = document.createElement('canvas');
-        fitted.width = W; fitted.height = H;
-        const fCtx = fitted.getContext('2d');
-        fCtx.imageSmoothingEnabled = false;
-        fCtx.drawImage(
-            finalCanvas,
-            Math.round((W - finalCanvas.width)  / 2),
-            Math.round((H - finalCanvas.height) / 2)
-        );
-        finalCanvas = fitted;
+    // ── Apply perspective on the W×H canvas (after warp crop) ────────────────
+    // Operating on W×H prevents perspective distortion strength from being
+    // amplified by the enlarged canvas used during the warp step above.
+    if(hasPerspective){
+        finalCanvas = applyPerspectiveDistortion(finalCanvas, data, lowQuality);
+        // Fit trim-padded perspective output back to W×H (centered draw).
+        if(finalCanvas.width !== W || finalCanvas.height !== H){
+            const fitted = document.createElement('canvas');
+            fitted.width = W; fitted.height = H;
+            const fCtx = fitted.getContext('2d');
+            fCtx.imageSmoothingEnabled = false;
+            fCtx.drawImage(
+                finalCanvas,
+                Math.round((W - finalCanvas.width)  / 2),
+                Math.round((H - finalCanvas.height) / 2)
+            );
+            finalCanvas = fitted;
+        }
     }
 
     // ── Burn clip mask into the pixel canvas ─────────────────────────────────
@@ -1090,7 +1116,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const outH = out.height;
 
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = lowQuality ? 'low' : 'medium';
+    ctx.imageSmoothingQuality = lowQuality ? 'low' : 'high';
 
     // Live-drag uses fewer slices (3× faster per pass) with no visible quality
     // difference because perspective distortion is a smooth linear transform.
@@ -1184,7 +1210,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
 }
 
 
-function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, targetCanvas, lowQuality = false) {
+function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, targetCanvas, lowQuality = false, referenceH = null) {
 
     const temp = targetCanvas;
 
@@ -1202,12 +1228,14 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
     }
 
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "medium";
+    ctx.imageSmoothingQuality = "high";
 
     // pad must cover both arc displacement (max = arcAmount px at centre) and
-    // tilt displacement (max = 0.18 × img.height × |arcTiltAmount|/100 at centre).
+    // tilt displacement.  Use referenceH (original canvas H) when provided so
+    // the pad — and tiltK below — are not amplified by an enlarged tile canvas.
+    const effectH = referenceH || img.height;
     const pad = Math.abs(arcAmount) * 6
-        + Math.ceil(Math.abs(arcTiltAmount) / 100 * img.height * 0.2);
+        + Math.ceil(Math.abs(arcTiltAmount) / 100 * effectH * 0.2);
 
     temp.width = img.width + pad;
     temp.height = img.height + pad * 2;
@@ -1261,7 +1289,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
         // tiltK > 0 (camera from above): bottom curves more, top curves less.
         // tiltK < 0 (camera from below): top curves more, bottom curves less.
         // Scales with img.height so the effect is consistent across design sizes.
-        const tiltK = (-arcTiltAmount / 100) * img.height * 0.18 * (1 - nx * nx);
+        const tiltK = (-arcTiltAmount / 100) * effectH * 0.18 * (1 - nx * nx);
 
         // When cylinderAmount=0, projectedX=0 so all slices collapse to centerX.
         // Otherwise normalize: divide by sinMax so edges always land at ±img.width/2
