@@ -768,6 +768,8 @@ body {
     font-family: Arial, sans-serif;
 }
 #contextPanel button:hover { background: #f0f0f0; }
+#contextPanel button:disabled { opacity: 0.4; cursor: not-allowed; }
+#contextPanel button:disabled:hover { background: #fff; }
 
 /* Clipping sub-buttons — indented secondary actions */
 #contextPanel .clip-sub-btn {
