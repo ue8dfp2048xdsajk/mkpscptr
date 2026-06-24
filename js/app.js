@@ -5863,6 +5863,7 @@ function attachFabricEvents(data, targetObject = null){
             // Always includes this canvas's window (index) so that erasing on a window
             // that wasn't in activeIndices at entry time is still undoable.
             if (!designEraserDown) {
+                const index = canvasData.indexOf(data);
                 const toCapture = new Set([...activeIndices, index]);
                 const items = [];
                 toCapture.forEach(i => {
