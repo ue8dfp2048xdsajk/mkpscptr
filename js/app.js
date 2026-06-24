@@ -114,13 +114,17 @@ document.addEventListener('click', function(e){
     const copyClipButton =
         e.target.id === 'copyClipBtn';
 
+    const hideLayersButton =
+        e.target.id === 'hideClipLayersBtn';
+
     if(
         insideSelectedWindow ||
         insideAnyWindow ||
         exitButton ||
         deleteClipButton ||
         addClipAreaButton ||
-        copyClipButton
+        copyClipButton ||
+        hideLayersButton
     ){
         return;
     }
