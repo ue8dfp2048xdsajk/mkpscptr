@@ -4377,7 +4377,7 @@ let _bgAdjUndoLocked = false;
 });
 document.getElementById('bgAdjustResetBtn').addEventListener('click', () => {
     if(!activeIndices.length) return;
-    if(activeIndices.every(i => canvasData[i].locked)) return;
+    if(activeIndices.every(i => canvasData[i]?.locked)) return;
     pushGlobalUndo();
     bgHue.valueAsNumber = 0; bgSaturation.valueAsNumber = 0;
     bgBrightness.valueAsNumber = 0; bgContrast.valueAsNumber = 0;
@@ -4397,7 +4397,7 @@ let _bgCropUndoLocked = false;
 document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         if(!activeIndices.length) return;
-        if(activeIndices.every(i => canvasData[i].locked)) return;
+        if(activeIndices.every(i => canvasData[i]?.locked)) return;
         pushGlobalUndo();
         const aspect = parseFloat(btn.dataset.aspect);
         activeIndices.forEach(i => {
@@ -4417,7 +4417,7 @@ document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
 
 document.getElementById('bgCropCustomApply').addEventListener('click', () => {
     if(!activeIndices.length) return;
-    if(activeIndices.every(i => canvasData[i].locked)) return;
+    if(activeIndices.every(i => canvasData[i]?.locked)) return;
     const wVal = parseFloat(document.getElementById('bgCropCustomW').value);
     const hVal = parseFloat(document.getElementById('bgCropCustomH').value);
     if(!wVal || !hVal || wVal <= 0 || hVal <= 0) return;
@@ -4437,7 +4437,7 @@ document.getElementById('bgCropCustomApply').addEventListener('click', () => {
 
 document.getElementById('bgCropResetBtn').addEventListener('click', () => {
     if(!activeIndices.length) return;
-    if(activeIndices.every(i => canvasData[i].locked)) return;
+    if(activeIndices.every(i => canvasData[i]?.locked)) return;
     pushGlobalUndo();
     bgCropRotation.valueAsNumber = 0;
     bgCropScale.valueAsNumber    = 100;
@@ -9011,38 +9011,43 @@ async function exportDataToBlob(data, fmt, quality){
         goBtn.textContent = 'Exporting…';
         goBtn.disabled = true;
 
-        // --- Path A: File System Access API (Chrome/Edge) ---
-        if(typeof window.showDirectoryPicker === 'function'){
-            let dirHandle;
-            try{ dirHandle = await window.showDirectoryPicker(); }
-            catch(err){ goBtn.textContent = 'Export'; goBtn.disabled = false; return; }
+        try {
+            // --- Path A: File System Access API (Chrome/Edge) ---
+            if(typeof window.showDirectoryPicker === 'function'){
+                let dirHandle;
+                try{ dirHandle = await window.showDirectoryPicker(); }
+                catch(err){ return; }  // user cancelled picker — finally re-enables button
 
-            for(const index of indices){
-                const data = canvasData[index];
-                const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
-                const fh   = await dirHandle.getFileHandle(data.filename + '.' + ext, { create: true });
-                const wr   = await fh.createWritable();
-                await wr.write(blob);
-                await wr.close();
+                for(const index of indices){
+                    const data = canvasData[index];
+                    const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
+                    const fh   = await dirHandle.getFileHandle(data.filename + '.' + ext, { create: true });
+                    const wr   = await fh.createWritable();
+                    await wr.write(blob);
+                    await wr.close();
+                }
+                alert('Exported ' + indices.length + ' file(s)!');
+            } else {
+                // --- Path B: fallback <a download> ---
+                for(const index of indices){
+                    const data = canvasData[index];
+                    const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
+                    const url  = URL.createObjectURL(blob);
+                    const a    = document.createElement('a');
+                    a.href     = url;
+                    a.download = data.filename + '.' + ext;
+                    a.click();
+                    await new Promise(r => setTimeout(r, 150));
+                    URL.revokeObjectURL(url);
+                }
             }
-            alert('Exported ' + indices.length + ' file(s)!');
-        } else {
-            // --- Path B: fallback <a download> ---
-            for(const index of indices){
-                const data = canvasData[index];
-                const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
-                const url  = URL.createObjectURL(blob);
-                const a    = document.createElement('a');
-                a.href     = url;
-                a.download = data.filename + '.' + ext;
-                a.click();
-                await new Promise(r => setTimeout(r, 150));
-                URL.revokeObjectURL(url);
-            }
+        } catch(err) {
+            console.error('Export failed:', err);
+            alert('Export failed — ' + (err.message || 'unknown error'));
+        } finally {
+            goBtn.textContent = 'Export';
+            goBtn.disabled = false;
         }
-
-        goBtn.textContent = 'Export';
-        goBtn.disabled = false;
     });
 })();
 
@@ -10017,7 +10022,13 @@ document.getElementById("loadProgressInput").addEventListener("change", function
 
     reader.onload = async function(e){
 
-        const data     = JSON.parse(e.target.result);
+        let data;
+        try {
+            data = JSON.parse(e.target.result);
+        } catch(err) {
+            alert('Could not load project — the file appears to be corrupt or is not a valid project file.');
+            return;
+        }
         const isLegacy = Array.isArray(data);
         const snapshot = isLegacy ? data : (data.windows || []);
         const tboxes   = isLegacy ? [] : (data.textBoxes || []);
