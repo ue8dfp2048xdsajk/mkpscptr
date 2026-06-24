@@ -5838,25 +5838,20 @@ function attachFabricEvents(data, targetObject = null){
                     activeIndices.push(winIdx);
                 }
             } else {
-                // Plain click on a design object.
-                // Within the already-active window: add to the current selection so the
-                // user can freely accumulate any number of designs/layers without needing
-                // a modifier key.  Clicking in a different window starts fresh.
-                if(!selectedDesigns.has(target)){
-                    const clickingInActiveWindow = activeIndices.includes(winIdx);
-                    if(!clickingInActiveWindow){
-                        // Different window — clear and start fresh
-                        selectedDesigns.clear();
-                        if(winIdx !== -1) activeIndices = [winIdx];
-                    }
-                    if(!target._fx) target._fx = _defaultFx(data);
-                    selectedDesigns.add(target);
-                    refreshFabricHandles();
-                    updateWindowBorders();
-                    updateLayerButtons();
-                    syncSliders();
+                // Plain click: select ONLY this design object, deselecting all
+                // others.  Use Shift or Cmd/Ctrl to build a multi-layer selection.
+                if(selectedDesigns.size === 1 && selectedDesigns.has(target)){
+                    // Already the sole selection — nothing to do.
+                    return;
                 }
-                // else: already selected — Fabric handles active object naturally.
+                selectedDesigns.clear();
+                if(winIdx !== -1) activeIndices = [winIdx];
+                if(!target._fx) target._fx = _defaultFx(data);
+                selectedDesigns.add(target);
+                refreshFabricHandles();
+                updateWindowBorders();
+                updateLayerButtons();
+                syncSliders();
                 return;
             }
 
