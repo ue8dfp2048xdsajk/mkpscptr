@@ -1876,20 +1876,23 @@ function applyDesignEraserAt(data, pointer) {
         obj._c_warpOk = false;
     });
 
-    if (hasWarp) {
-        // With warp active, rebuilding the full pipeline per-stroke is too
-        // expensive; the display-element erase in eraseFromObject provides
-        // immediate visual feedback.  Mark this data entry so the mouse:up
-        // handler can do a proper full rebuild from the erased source.
-        data._erasePendingRebuild = true;
-        data.fabricCanvas.requestRenderAll();
-    } else {
-        // No warp: pipeline rebuild is cheap (just a drawImage), run it now so
-        // blur/noise effects are correctly applied on top of the erased source.
-        applyWarpToData(data, true);
-        // Safety: ensure a render fires even if applyWarpToData returned early.
-        data.fabricCanvas.requestRenderAll();
-    }
+    // Always defer the full pipeline rebuild until mouse:up.
+    //
+    // Previously the no-warp path called applyWarpToData() inline (per stroke
+    // point) so that blur/noise would show during the stroke.  That caused a
+    // subtle cursor-displacement bug: applyWarpToData → _applyWarpToOneObject
+    // → trimTransparentBorders repositions the Fabric object mid-stroke, which
+    // changes obj.calcTransformMatrix().  The next mouse:move then computes the
+    // object-local erase point from the shifted matrix, so subsequent erase
+    // marks land at a different canvas-space location than the visible preview
+    // circle, making the eraser appear offset.
+    //
+    // Deferring via _erasePendingRebuild (same path as the warp case) keeps the
+    // Fabric object's position stable for the entire stroke so getPointer() →
+    // calcTransformMatrix() stays consistent with the cursor circle.
+    // Blur/noise are applied correctly on mouse:up when the rebuild runs.
+    data._erasePendingRebuild = true;
+    data.fabricCanvas.requestRenderAll();
 }
 
 // Mirror the current eraser stroke from `primaryData`'s canvas space to every
