@@ -1915,15 +1915,30 @@ function enterDesignWarpMode() {
         const grpFc       = grpData.fabricCanvas;
         const grpAllFObjs = grpFc.getObjects();
 
-        const rects  = grpObjs.map(o => o.getBoundingRect(true, true));
-        const bMinX  = Math.min(...rects.map(r => r.left));
-        const bMinY  = Math.min(...rects.map(r => r.top));
-        const bMaxX  = Math.max(...rects.map(r => r.left + r.width));
-        const bMaxY  = Math.max(...rects.map(r => r.top  + r.height));
-        const grpBounds = { left: bMinX, top: bMinY, width: bMaxX - bMinX, height: bMaxY - bMinY };
+        // When pattern mode is on the visible surface is patternFabricObj (W×H overlay).
+        // Expand bounds to the full canvas so the warp grid and rasterised source cover
+        // the whole pattern sheet rather than the invisible designObject bounding box.
+        const hasPattern = !!(grpData.patternMode && grpData.patternFabricObj);
+        group.wasPatternMode = hasPattern;
+
+        let grpBounds;
+        if (hasPattern) {
+            grpBounds = { left: 0, top: 0, width: grpFc.width, height: grpFc.height };
+        } else {
+            const rects  = grpObjs.map(o => o.getBoundingRect(true, true));
+            const bMinX  = Math.min(...rects.map(r => r.left));
+            const bMinY  = Math.min(...rects.map(r => r.top));
+            const bMaxX  = Math.max(...rects.map(r => r.left + r.width));
+            const bMaxY  = Math.max(...rects.map(r => r.top  + r.height));
+            grpBounds = { left: bMinX, top: bMinY, width: bMaxX - bMinX, height: bMaxY - bMinY };
+        }
 
         grpAllFObjs.forEach(o => {
-            if (!grpObjs.includes(o)) { o._warpHiddenVis = o.visible; o.visible = false; }
+            if (!grpObjs.includes(o)) {
+                // Keep patternFabricObj visible so the full pattern sheet is rasterised.
+                if (hasPattern && o === grpData.patternFabricObj) return;
+                o._warpHiddenVis = o.visible; o.visible = false;
+            }
         });
         const savedBg  = grpFc.backgroundImage;
         if (savedBg) grpFc.backgroundImage = null;
@@ -2045,7 +2060,7 @@ function exitDesignWarpMode(apply) {
             warpSourceBounds = savedBnds;
             warpDPR          = savedDpr;
 
-            secondaryResults.push({ ownerData: grp.ownerData, targets: grp.targets, result: grpResult });
+            secondaryResults.push({ ownerData: grp.ownerData, targets: grp.targets, result: grpResult, wasPatternMode: grp.wasPatternMode });
         }
     }
 
@@ -2145,6 +2160,10 @@ function exitDesignWarpMode(apply) {
         newImg._ownerData = applyData;
         newImg._fx        = _defaultFx(applyData);
 
+        // If the window was in pattern mode, turn it off before swapping —
+        // the warp result is a flat image; patternFabricObj is no longer needed.
+        if (allGroups[0]?.wasPatternMode) _togglePatternMode(applyData, false);
+
         // Swap old objects for new in one synchronous block so the canvas never
         // shows a frame with no design.
         applyObjs.forEach(obj => fc.remove(obj));
@@ -2161,7 +2180,7 @@ function exitDesignWarpMode(apply) {
         fc.requestRenderAll();
 
         // Apply secondary group results with the same pattern.
-        for (const { ownerData: grpData, targets: grpObjs, result: grpResult } of secondaryResults) {
+        for (const { ownerData: grpData, targets: grpObjs, result: grpResult, wasPatternMode: grpWasPattern } of secondaryResults) {
             const { canvas: outCanvas2, left: left2, top: top2, dpr: dpr2 = 1 } = grpResult;
             const grpFc  = grpData.fabricCanvas;
             const grpPs  = grpData.previewScale || 1;
@@ -2207,6 +2226,8 @@ function exitDesignWarpMode(apply) {
 
             newImg2._ownerData = grpData;
             newImg2._fx        = _defaultFx(grpData);
+
+            if (grpWasPattern) _togglePatternMode(grpData, false);
 
             grpObjs.forEach(obj => grpFc.remove(obj));
             grpFc.add(newImg2);
