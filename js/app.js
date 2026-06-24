@@ -8056,6 +8056,11 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
                 delete o._clipPrevSelectable;
                 delete o._clipPrevEvented;
             });
+            // Restore Fabric rubber-band selection state
+            if(data._clipPrevFabricSelection !== undefined){
+                data.fabricCanvas.selection = data._clipPrevFabricSelection;
+                delete data._clipPrevFabricSelection;
+            }
         });
 
         // Restore cursor
@@ -8116,6 +8121,10 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
             o.lockMovementX       = true;
             o.lockMovementY       = true;
         });
+        // Disable Fabric's rubber-band selection so dragging handles
+        // doesn't draw a blue selection rectangle over the canvas.
+        data._clipPrevFabricSelection = data.fabricCanvas.selection;
+        data.fabricCanvas.selection   = false;
         data.fabricCanvas.discardActiveObject();
         data.fabricCanvas.requestRenderAll();
     });
