@@ -4126,12 +4126,6 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     const prevSkewY  = obj.skewY || 0;
     const prevAngle  = obj.angle;
 
-    // Capture the pre-trim canvas dimensions so we can compensate for any
-    // position shift that trimTransparentBorders introduces.  The warp canvas
-    // is always the source that Stage 4 trimmed, so its size is the reference.
-    const preTrimW = obj._warpCanvas ? obj._warpCanvas.width  : (obj.width  || 1);
-    const preTrimH = obj._warpCanvas ? obj._warpCanvas.height : (obj.height || 1);
-
     obj.setElement(warped);
     obj.dirty = true;
     applyClipMaskToObject(obj, data);
@@ -4140,21 +4134,34 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     // Only when arc/warp are both zero: arc and warp intentionally produce
     // asymmetric transparent borders whose trim must NOT be corrected
     // (compensating them shifts the design as sliders move).
+    // Always use srcOriginal (pre-blur) as the reference: when blur is active,
+    // obj._warpCanvas is padded (W + 2*pad) so its trim offsets diverge from
+    // the original eraser-trimmed content and cause an apparent leftward shift.
     let adjLeft = prevLeft;
     let adjTop  = prevTop;
-    if (arcA === 0 && warpA === 0 &&
-        warped === trimmed &&
-        (trimmed._trimX0 !== undefined || trimmed._trimY0 !== undefined)) {
-        const tx0 = trimmed._trimX0 || 0;
-        const ty0 = trimmed._trimY0 || 0;
-        const dx  = (tx0 + warped.width  / 2) - preTrimW / 2;
-        const dy  = (ty0 + warped.height / 2) - preTrimH / 2;
-        if (dx !== 0 || dy !== 0) {
-            const rad  = (prevAngle || 0) * Math.PI / 180;
-            const cosA = Math.cos(rad);
-            const sinA = Math.sin(rad);
-            adjLeft += dx * prevScaleX * cosA - dy * prevScaleY * sinA;
-            adjTop  += dx * prevScaleX * sinA + dy * prevScaleY * cosA;
+    if (arcA === 0 && warpA === 0) {
+        // Cache trim of srcOriginal: only re-run getImageData when the source changes
+        // (e.g. after an eraser stroke), not on every slider-drag render.
+        let srcTrimmed;
+        if (obj._c_srcTrimSrc === srcOriginal && obj._c_srcTrimmed) {
+            srcTrimmed = obj._c_srcTrimmed;
+        } else {
+            srcTrimmed = trimTransparentBorders(srcOriginal);
+            obj._c_srcTrimSrc = srcOriginal;
+            obj._c_srcTrimmed = srcTrimmed;
+        }
+        if (srcTrimmed._trimX0 !== undefined || srcTrimmed._trimY0 !== undefined) {
+            const tx0 = srcTrimmed._trimX0 || 0;
+            const ty0 = srcTrimmed._trimY0 || 0;
+            const dx  = (tx0 + srcTrimmed.width  / 2) - srcOriginal.width  / 2;
+            const dy  = (ty0 + srcTrimmed.height / 2) - srcOriginal.height / 2;
+            if (dx !== 0 || dy !== 0) {
+                const rad  = (prevAngle || 0) * Math.PI / 180;
+                const cosA = Math.cos(rad);
+                const sinA = Math.sin(rad);
+                adjLeft += dx * prevScaleX * cosA - dy * prevScaleY * sinA;
+                adjTop  += dx * prevScaleX * sinA + dy * prevScaleY * cosA;
+            }
         }
     }
 
@@ -4236,20 +4243,28 @@ async function applyWarpToData(data, lowQuality = false){
         let adjX = data.x;
         let adjY = data.y;
         const _noArcWarp = !(data.arcAmount || 0) && !(data.warpAmount || 0);
-        if (_noArcWarp &&
-            (warpedCanvas._trimX0 !== undefined || warpedCanvas._trimY0 !== undefined)) {
-            const tx0  = warpedCanvas._trimX0 || 0;
-            const ty0  = warpedCanvas._trimY0 || 0;
-            const refW = warpedBaseCanvas.width;
-            const refH = warpedBaseCanvas.height;
-            const dx   = (tx0 + warpedCanvas.width  / 2) - refW / 2;
-            const dy   = (ty0 + warpedCanvas.height / 2) - refH / 2;
-            if (dx !== 0 || dy !== 0) {
-                const rad  = (data.rotation || 0) * Math.PI / 180;
-                const cosA = Math.cos(rad);
-                const sinA = Math.sin(rad);
-                adjX += dx * scX * cosA - dy * scY * sinA;
-                adjY += dx * scX * sinA + dy * scY * cosA;
+        if (_noArcWarp) {
+            // Always compute position compensation from pipelineSrc (pre-blur).
+            // When blur is active, warpedBaseCanvas is padded (W + 2*pad) so
+            // its trim offsets diverge from the original eraser-trimmed content,
+            // causing the design to appear to shift left as blur increases.
+            // pipelineSrc has the original dimensions in all cases (blur = 0
+            // makes blurredSource === pipelineSrc, so behaviour is unchanged).
+            const srcTrimmed = trimTransparentBorders(pipelineSrc);
+            if (srcTrimmed._trimX0 !== undefined || srcTrimmed._trimY0 !== undefined) {
+                const tx0  = srcTrimmed._trimX0 || 0;
+                const ty0  = srcTrimmed._trimY0 || 0;
+                const refW = pipelineSrc.width;
+                const refH = pipelineSrc.height;
+                const dx   = (tx0 + srcTrimmed.width  / 2) - refW / 2;
+                const dy   = (ty0 + srcTrimmed.height / 2) - refH / 2;
+                if (dx !== 0 || dy !== 0) {
+                    const rad  = (data.rotation || 0) * Math.PI / 180;
+                    const cosA = Math.cos(rad);
+                    const sinA = Math.sin(rad);
+                    adjX += dx * scX * cosA - dy * scY * sinA;
+                    adjY += dx * scX * sinA + dy * scY * cosA;
+                }
             }
         }
 
