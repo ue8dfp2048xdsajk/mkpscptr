@@ -8651,6 +8651,40 @@ document.addEventListener('keydown', function(e){
 });
 
 // Backspace — delete selected windows, or just the selected extra layers if
+// Backspace in clip mode — delete the last placed anchor point.
+document.addEventListener('keydown', function(e){
+    if(e.key !== 'Backspace') return;
+    if(!clipEditMode) return;
+    if(clipPolygonClosed) return; // polygon finished; nothing in-progress to undo
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(!clipCurvePoints.length) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    clipCurvePoints.pop();
+
+    const activeCanvas = window.__activeClipCanvas;
+    const redraw       = window.__activeClipRedraw;
+
+    if(activeCanvas){
+        activeCanvas.getObjects()
+            .filter(obj => obj.excludeFromExport && obj !== activeCanvas.backgroundImage)
+            .forEach(obj => activeCanvas.remove(obj));
+    }
+    activeCurvePreview = null;
+
+    if(clipCurvePoints.length && redraw){
+        redraw();
+    } else if(activeCanvas){
+        activeCanvas.requestRenderAll();
+    }
+});
+
 // only non-main design layers are selected (main design is NOT in selection).
 document.addEventListener('keydown', function(e){
     if(e.key !== 'Backspace') return;
