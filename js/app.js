@@ -446,6 +446,32 @@ function _defaultPattern(){
     return { type:'grid', hSpacing:0, vSpacing:0, angle:0, hOffset:0, rotH:0, rotV:0 };
 }
 
+// Progressive downsampling: halve dimensions until within 2× of (targetW, targetH).
+// Bilinear at 0.5× is excellent; this avoids the aliasing of a single large-to-tiny step.
+function _downsampleTile(src, srcW, srcH, targetW, targetH) {
+    let cur;
+    if (src instanceof HTMLCanvasElement) {
+        cur = src;
+    } else {
+        const tmp = document.createElement('canvas');
+        tmp.width = srcW; tmp.height = srcH;
+        tmp.getContext('2d').drawImage(src, 0, 0);
+        cur = tmp;
+    }
+    while (cur.width > targetW * 2 || cur.height > targetH * 2) {
+        const nw = Math.max(targetW, Math.ceil(cur.width  / 2));
+        const nh = Math.max(targetH, Math.ceil(cur.height / 2));
+        const next = document.createElement('canvas');
+        next.width = nw; next.height = nh;
+        const nc = next.getContext('2d');
+        nc.imageSmoothingEnabled = true;
+        nc.imageSmoothingQuality = 'high';
+        nc.drawImage(cur, 0, 0, nw, nh);
+        cur = next;
+    }
+    return cur;
+}
+
 function _renderPattern(data, lowQuality = false){
     if(!data.patternMode || !data.patternFabricObj || !data.designObject) return;
     const fc = data.fabricCanvas;
@@ -516,6 +542,24 @@ function _renderPattern(data, lowQuality = false){
     const nRows = Math.ceil(diagLen / stepY) + 2;
     const margin = Math.sqrt(tileW * tileW + tileH * tileH);
 
+    // ── Progressive downsampling (mipmap-style) ───────────────────────────────
+    // When a tile is displayed much smaller than its source, a single drawImage
+    // call from e.g. 1200px → 30px causes aliasing even with imageSmoothingQuality
+    // 'high'.  Pre-shrink to ~2× the physical display size in halving steps so the
+    // final drawImage only needs to do a gentle ≤2× reduction — much sharper.
+    const physTileW = Math.max(2, Math.round(tileW * dpr));
+    const physTileH = Math.max(2, Math.round(tileH * dpr));
+    let drawEl = tileEl;
+    if (srcW > physTileW * 2 || srcH > physTileH * 2) {
+        const dsKey = `${srcW}x${srcH}_${physTileW}x${physTileH}`;
+        if (data._dsSrc !== tileEl || data._dsKey !== dsKey) {
+            data._dsCanvas = _downsampleTile(tileEl, srcW, srcH, physTileW, physTileH);
+            data._dsSrc    = tileEl;
+            data._dsKey    = dsKey;
+        }
+        drawEl = data._dsCanvas;
+    }
+
     for(let row = -nRows; row <= nRows; row++){
         for(let col = -nCols; col <= nCols; col++){
             let gx = col * stepX + row * hOffPx;
@@ -539,7 +583,10 @@ function _renderPattern(data, lowQuality = false){
             ctx.rotate(rot);
             // opacity is handled by patternFabricObj, not per-tile
             ctx.scale(sx, sy);
-            ctx.drawImage(tileEl, -srcW / 2, -srcH / 2, srcW, srcH);
+            // Draw at the original CSS rectangle so the ctx transforms map it to
+            // the correct physical size; drawEl is already pre-shrunk so this
+            // last step is a smooth ≤2× reduction, not a huge jump.
+            ctx.drawImage(drawEl, -srcW / 2, -srcH / 2, srcW, srcH);
             ctx.restore();
         }
     }
