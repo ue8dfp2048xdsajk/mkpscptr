@@ -8983,6 +8983,26 @@ document.addEventListener('keydown', function(e){
     document.getElementById('editClipBtn').click();
 });
 
+// P — toggle pattern mode on/off
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'p') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(clipEditMode || designEraserMode || designWarpMode) return;
+    if(!activeIndices.length) return;
+
+    e.preventDefault();
+    const toggle = document.getElementById('patternModeToggle');
+    if(toggle){
+        toggle.checked = !toggle.checked;
+        toggle.dispatchEvent(new Event('change'));
+    }
+});
+
 // H — toggle layer visibility in clip mode
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'h') return;
