@@ -3873,6 +3873,8 @@ async function applyWarpToData(data, lowQuality = false){
             angle: data.rotation,
             scaleX: (data.scaleX || data.scale) * data.previewScale,
             scaleY: (data.scaleY || data.scale) * data.previewScale,
+            skewX: 0,
+            skewY: 0,
             opacity: data.opacity ?? 1,
             globalCompositeOperation: _blendToGCO(data.blendMode)
         });
@@ -9006,6 +9008,8 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
                 angle:  data.initialRotation,
                 scaleX: data.initialScale * data.previewScale,
                 scaleY: data.initialScale * data.previewScale,
+                skewX:  0,
+                skewY:  0,
                 opacity: data.initialOpacity,
                 globalCompositeOperation: 'source-over'
             });
