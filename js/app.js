@@ -358,6 +358,7 @@ function _applyBgAdjust(data){
 
     if(colorNeutral && cropNeutral){
         obj.setElement(src);
+        obj.dirty = true;
         obj.filters = [];
         obj.applyFilters();
         data.fabricCanvas.requestRenderAll();
@@ -388,6 +389,7 @@ function _applyBgAdjust(data){
     ctx.restore();
 
     obj.setElement(off);
+    obj.dirty = true;
     obj.filters = [];
     obj.applyFilters();
     data.fabricCanvas.requestRenderAll();
@@ -740,6 +742,7 @@ function _renderPattern(data, lowQuality = false){
         top:  0,
     });
     data.patternFabricObj.setElement(finalCanvas);
+    data.patternFabricObj.dirty = true;
     data.patternFabricObj.applyFilters();
     fc.requestRenderAll();
 }
@@ -1693,6 +1696,7 @@ function ensureErasableCanvas(obj) {
     c.height   = (src && (src.naturalHeight || src.height)) || obj.height;
     if (src) c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
     obj.setElement(c);
+    obj.dirty = true;
     return c;
 }
 
@@ -4102,6 +4106,7 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     const prevAngle  = obj.angle;
 
     obj.setElement(warped);
+    obj.dirty = true;
     applyClipMaskToObject(obj, data);
 
     obj.set({
@@ -4144,6 +4149,7 @@ async function applyWarpToData(data, lowQuality = false){
         data._patternTileSource = noisySource;
         if(data.designObject){
             data.designObject.setElement(noisySource);
+            data.designObject.dirty = true;
             data.designObject.set({opacity: 0});
         }
         _renderPattern(data, lowQuality);
@@ -4169,6 +4175,7 @@ async function applyWarpToData(data, lowQuality = false){
     if(data.designObject){
 
         data.designObject.setElement(warpedCanvas);
+        data.designObject.dirty = true;
 
         applyClipMaskToObject(data.designObject, data);
 
@@ -4381,6 +4388,7 @@ function _lqRenderSliders(){
                 const _pNoise = applyNoiseToImage(_pBlur, newFx.noiseAmount || 0);
                 d._patternTileSource = _pNoise;
                 obj.setElement(_pNoise);
+                obj.dirty = true;
                 obj.set({opacity: 0});
                 _renderPattern(d, true);
                 d.fabricCanvas.requestRenderAll();
@@ -4485,6 +4493,7 @@ function _lqRenderSliders(){
             data._patternTileSource = _pNoise;
             if(data.designObject){
                 data.designObject.setElement(_pNoise);
+                data.designObject.dirty = true;
                 data.designObject.set({opacity: 0});
             }
             _renderPattern(data, true);
