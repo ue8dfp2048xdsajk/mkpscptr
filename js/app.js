@@ -7081,6 +7081,8 @@ async function _pasteLayerToTargets(){
 
     if (!targets.length){
         alert('Select one or more windows (other than the source) to paste into.');
+        _copiedLayer = null;
+        _updateCopyLayerBtn();
         return;
     }
 
@@ -7172,9 +7174,10 @@ async function _pasteLayerToTargets(){
         }
     }
 
+    _copiedLayer = null;
+    _updateCopyLayerBtn();
     syncSliders();
     _markDirty();
-    // Keep _copiedLayer so the user can paste again into more windows
 }
 
 document.getElementById('copyLayerBtn').addEventListener('click', () => {
