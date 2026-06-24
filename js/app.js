@@ -8035,16 +8035,31 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
 
         activeClipWindowIndex = null;
 
-        // Restore interactivity on all design objects
+        // Restore interactivity on all design objects, background, and pattern
         canvasData.forEach(data=>{
             getAllDesignObjects(data).forEach(o=>{
                 if(!o) return;
-                o.selectable = (o._prevSelectable !== undefined) ? o._prevSelectable : true;
-                o.evented    = (o._prevEvented    !== undefined) ? o._prevEvented    : true;
+                o.selectable    = (o._prevSelectable !== undefined) ? o._prevSelectable : true;
+                o.evented       = (o._prevEvented    !== undefined) ? o._prevEvented    : true;
+                o.lockMovementX = false;
+                o.lockMovementY = false;
                 delete o._prevSelectable;
                 delete o._prevEvented;
             });
+            // Restore background and pattern objects
+            [data.backgroundObject, data.patternFabricObj].forEach(o => {
+                if(!o) return;
+                o.selectable    = (o._clipPrevSelectable !== undefined) ? o._clipPrevSelectable : false;
+                o.evented       = (o._clipPrevEvented    !== undefined) ? o._clipPrevEvented    : false;
+                o.lockMovementX = false;
+                o.lockMovementY = false;
+                delete o._clipPrevSelectable;
+                delete o._clipPrevEvented;
+            });
         });
+
+        // Restore cursor
+        document.querySelectorAll('.canvas-wrapper').forEach(w => { w.style.cursor = ''; });
 
         refreshFabricHandles();
 
@@ -8080,7 +8095,8 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
     // interfere with clip-polygon drawing on the canvas
     if(window._setActiveTool) window._setActiveTool(null);
 
-    // Lock all design objects so they can't be accidentally moved/transformed
+    // Lock all objects so nothing can be accidentally moved/transformed.
+    // This covers design layers, background image, and pattern overlay.
     canvasData.forEach(data=>{
         getAllDesignObjects(data).forEach(o=>{
             if(!o) return;
@@ -8088,10 +8104,24 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
             o._prevEvented    = o.evented;
             o.selectable      = false;
             o.evented         = false;
+            o.lockMovementX   = true;
+            o.lockMovementY   = true;
+        });
+        [data.backgroundObject, data.patternFabricObj].forEach(o => {
+            if(!o) return;
+            o._clipPrevSelectable = o.selectable;
+            o._clipPrevEvented    = o.evented;
+            o.selectable          = false;
+            o.evented             = false;
+            o.lockMovementX       = true;
+            o.lockMovementY       = true;
         });
         data.fabricCanvas.discardActiveObject();
         data.fabricCanvas.requestRenderAll();
     });
+
+    // Set crosshair cursor so it's clear the user is drawing, not selecting
+    document.querySelectorAll('.canvas-wrapper').forEach(w => { w.style.cursor = 'crosshair'; });
 
     selectedDesigns.clear();
 
