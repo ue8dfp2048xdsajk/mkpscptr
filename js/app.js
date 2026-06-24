@@ -1194,6 +1194,11 @@ function trimTransparentBorders(canvas){
     trimmed.height = y1 - y0;
     trimmed.getContext('2d').drawImage(canvas, x0, y0, trimmed.width, trimmed.height,
                                                0,  0,  trimmed.width, trimmed.height);
+    // Record crop offsets so callers can compensate for the position shift.
+    trimmed._trimX0   = x0;
+    trimmed._trimY0   = y0;
+    trimmed._trimSrcW = width;
+    trimmed._trimSrcH = height;
     return trimmed;
 }
 
@@ -4105,13 +4110,43 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     const prevSkewY  = obj.skewY || 0;
     const prevAngle  = obj.angle;
 
+    // Capture the pre-trim canvas dimensions so we can compensate for any
+    // position shift that trimTransparentBorders introduces.  The warp canvas
+    // is always the source that Stage 4 trimmed, so its size is the reference.
+    const preTrimW = obj._warpCanvas ? obj._warpCanvas.width  : (obj.width  || 1);
+    const preTrimH = obj._warpCanvas ? obj._warpCanvas.height : (obj.height || 1);
+
     obj.setElement(warped);
     obj.dirty = true;
     applyClipMaskToObject(obj, data);
 
+    // Compensate for content shift introduced by trimTransparentBorders.
+    // When no perspective is applied, `warped` IS `trimmed` (same reference).
+    // trimmed._trimX0 / _trimY0 record how many pixels were removed from the
+    // left / top of the warp canvas, so the content centre shifted by:
+    //   dx = (x0 + warpedW/2) - preTrimW/2  (in warp-canvas pixel units)
+    // We rotate that offset by the object's angle and apply via scaleX/Y to
+    // convert to Fabric canvas coordinates, then add to left/top.
+    let adjLeft = prevLeft;
+    let adjTop  = prevTop;
+    if (warped === trimmed &&
+        (trimmed._trimX0 !== undefined || trimmed._trimY0 !== undefined)) {
+        const tx0 = trimmed._trimX0 || 0;
+        const ty0 = trimmed._trimY0 || 0;
+        const dx  = (tx0 + warped.width  / 2) - preTrimW / 2;
+        const dy  = (ty0 + warped.height / 2) - preTrimH / 2;
+        if (dx !== 0 || dy !== 0) {
+            const rad  = (prevAngle || 0) * Math.PI / 180;
+            const cosA = Math.cos(rad);
+            const sinA = Math.sin(rad);
+            adjLeft += dx * prevScaleX * cosA - dy * prevScaleY * sinA;
+            adjTop  += dx * prevScaleX * sinA + dy * prevScaleY * cosA;
+        }
+    }
+
     obj.set({
-        left:   prevLeft,
-        top:    prevTop,
+        left:   adjLeft,
+        top:    adjTop,
         scaleX: prevScaleX,
         scaleY: prevScaleY,
         skewX:  prevSkewX,
