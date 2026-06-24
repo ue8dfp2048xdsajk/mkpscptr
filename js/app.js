@@ -8791,6 +8791,19 @@ document.addEventListener('keydown', function(e){
     if(typeof window._setActiveTool === 'function') window._setActiveTool('text');
 });
 
+// S — toggle marquee-select tool on/off
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 's') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    e.preventDefault();
+    if(typeof window._setActiveTool === 'function') window._setActiveTool('select');
+});
+
 document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{
     if(!_sliderUndoLocked){ _sliderUndoLocked = true; pushGlobalUndo(); }
 });
