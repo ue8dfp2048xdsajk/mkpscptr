@@ -2640,6 +2640,8 @@ function captureWindowState(data){
         scale: data.scale,
         scaleX: _obj ? (_obj.scaleX / _ps) : (data.scaleX ?? data.scale),
         scaleY: _obj ? (_obj.scaleY / _ps) : (data.scaleY ?? data.scale),
+        skewX: _obj ? (_obj.skewX || 0) : (data.skewX || 0),
+        skewY: _obj ? (_obj.skewY || 0) : (data.skewY || 0),
         rotation: _obj ? _obj.angle : data.rotation,
         warpAmount:    data.warpAmount    ?? 0,
         arcAmount:     data.arcAmount     ?? 0,
@@ -2677,6 +2679,7 @@ function captureWindowState(data){
         duplicates: (data.extraDesignObjects || []).map((obj, i) => ({
             left: obj.left, top: obj.top,
             scaleX: obj.scaleX, scaleY: obj.scaleY,
+            skewX: obj.skewX || 0, skewY: obj.skewY || 0,
             angle: obj.angle,
             src:  data.extraDesignOriginals?.[i]?.src ?? null,
             name: obj._uploadedDesignName ?? null,
@@ -2701,7 +2704,9 @@ async function restoreDuplicatesFromState(data, savedDups){
         const obj = data.extraDesignObjects[i];
         const s   = savedDups[i];
         obj.set({ left: s.left, top: s.top,
-                  scaleX: s.scaleX, scaleY: s.scaleY, angle: s.angle });
+                  scaleX: s.scaleX, scaleY: s.scaleY,
+                  skewX: s.skewX || 0, skewY: s.skewY || 0,
+                  angle: s.angle });
         if(s.fx) obj._fx = JSON.parse(JSON.stringify(s.fx));
         obj.setCoords();
     }
@@ -2714,6 +2719,7 @@ async function restoreDuplicatesFromState(data, savedDups){
                 const fImg = new fabric.Image(imgEl, {
                     left: s.left, top: s.top,
                     scaleX: s.scaleX, scaleY: s.scaleY,
+                    skewX: s.skewX || 0, skewY: s.skewY || 0,
                     angle: s.angle,
                     selectable: true, evented: true
                 });
@@ -2748,6 +2754,8 @@ async function restoreWindowState(data, state){
     data.x = state.x;   data.y = state.y;
     data.scale  = state.scale;
     data.scaleX = state.scaleX;  data.scaleY = state.scaleY;
+    data.skewX  = state.skewX  ?? 0;
+    data.skewY  = state.skewY  ?? 0;
     data.rotation    = state.rotation;
     data.warpAmount  = state.warpAmount  ?? 0;
     data.arcAmount   = state.arcAmount   ?? 0;
@@ -2777,6 +2785,8 @@ async function restoreWindowState(data, state){
             angle: state.rotation,
             scaleX: (state.scaleX ?? state.scale) * data.previewScale,
             scaleY: (state.scaleY ?? state.scale) * data.previewScale,
+            skewX: state.skewX ?? 0,
+            skewY: state.skewY ?? 0,
             opacity: state.opacity ?? 1,
             globalCompositeOperation: _blendToGCO(state.blendMode)
         });
@@ -3933,8 +3943,8 @@ async function applyWarpToData(data, lowQuality = false){
             angle: data.rotation,
             scaleX: (data.scaleX || data.scale) * data.previewScale,
             scaleY: (data.scaleY || data.scale) * data.previewScale,
-            skewX: 0,
-            skewY: 0,
+            skewX: data.skewX || 0,
+            skewY: data.skewY || 0,
             opacity: data.opacity ?? 1,
             globalCompositeOperation: _blendToGCO(data.blendMode)
         });
@@ -5761,6 +5771,8 @@ function attachFabricEvents(data, targetObject = null){
 
         const scaleX = designTarget.scaleX;
         const scaleY = designTarget.scaleY;
+        const skewX  = designTarget.skewX || 0;
+        const skewY  = designTarget.skewY || 0;
         const left   = designTarget.left;
         const top    = designTarget.top;
 
@@ -5778,6 +5790,8 @@ function attachFabricEvents(data, targetObject = null){
                 if((data.extraDesignObjects||[]).includes(obj) && !selectedDesigns.has(obj)) return;
                 obj.scaleX = scaleX;
                 obj.scaleY = scaleY;
+                obj.skewX  = skewX;
+                obj.skewY  = skewY;
                 obj.left   = left;
                 obj.top    = top;
                 obj.setCoords();
@@ -5799,6 +5813,8 @@ function attachFabricEvents(data, targetObject = null){
                     }
                     obj.scaleX  = scaleX;
                     obj.scaleY  = scaleY;
+                    obj.skewX   = skewX;
+                    obj.skewY   = skewY;
                     obj.left   += deltaX;
                     obj.top    += deltaY;
                     obj.setCoords();
@@ -5818,6 +5834,8 @@ function attachFabricEvents(data, targetObject = null){
                 if(obj._ownerData !== data) return;
                 obj.scaleX  = scaleX;
                 obj.scaleY  = scaleY;
+                obj.skewX   = skewX;
+                obj.skewY   = skewY;
                 obj.left   += deltaX;
                 obj.top    += deltaY;
                 obj.setCoords();
@@ -5833,6 +5851,8 @@ function attachFabricEvents(data, targetObject = null){
                 if(peer){
                     peer.scaleX  = scaleX;
                     peer.scaleY  = scaleY;
+                    peer.skewX   = skewX;
+                    peer.skewY   = skewY;
                     peer.left   += deltaX;
                     peer.top    += deltaY;
                     peer.setCoords();
@@ -5914,6 +5934,11 @@ function attachFabricEvents(data, targetObject = null){
 
     // persist position/scale/rotation changes that don't go through applyWarpToData
     designTarget.on('mouseup', ()=>{
+        // Write skew back to data so captureWindowState/duplicate/undo all see it.
+        if(isMainDesign){
+            data.skewX = designTarget.skewX || 0;
+            data.skewY = designTarget.skewY || 0;
+        }
         autoSaveSession();
     });
 }
@@ -6262,6 +6287,8 @@ async function duplicateSelectedWindows(){
             scale:    srcData.scale,
             scaleX:   srcObj ? srcObj.scaleX / srcData.previewScale : srcData.scaleX,
             scaleY:   srcObj ? srcObj.scaleY / srcData.previewScale : srcData.scaleY,
+            skewX:    srcObj ? (srcObj.skewX || 0) : (srcData.skewX || 0),
+            skewY:    srcObj ? (srcObj.skewY || 0) : (srcData.skewY || 0),
             rotation: srcObj ? srcObj.angle                      : (srcData.rotation ?? 0),
 
             warpAmount:    srcData.warpAmount    ?? 0,
@@ -9033,6 +9060,8 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         data.flipX = false;
         data.flipY = false;
         data._flipMap = null;
+        data.skewX = 0;
+        data.skewY = 0;
 
         // ── Reset _fx on the main design object ──────────────────────────────
         // syncSliders() reads from _fx when selectedDesigns is non-empty, so _fx
