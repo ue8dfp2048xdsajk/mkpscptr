@@ -32,7 +32,7 @@ let _sliderUndoLocked = false;   // one push per slider drag gesture
 let designEraserMode     = false;  // true while design-layer eraser is active
 let designEraserDown     = false;  // true while mouse button held in eraser mode
 let designEraserSize     = 30;     // eraser radius in CSS pixels (visual size on screen)
-let designEraserSoftness = 60;     // 0 = hard edge, 100 = fully soft
+let designEraserSoftness = 0;      // 0 = hard edge, 100 = fully soft
 let eraserTargetObjects  = new Set(); // design objects selected at eraser-entry time
 
 let designWarpMode   = false;      // true while free-form mesh warp is active
@@ -8704,6 +8704,26 @@ document.addEventListener('keydown', function(e){
     e.preventDefault();
     if(key === 'l') lockSelectedWindows();
     else             unlockSelectedWindows();
+});
+
+// E — toggle design eraser mode on/off
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'e') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(clipEditMode || designWarpMode) return;
+
+    e.preventDefault();
+    if(designEraserMode) {
+        exitDesignEraserMode();
+    } else {
+        if(!activeIndices.length) return;
+        enterDesignEraserMode();
+    }
 });
 
 document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{
