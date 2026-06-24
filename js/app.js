@@ -4214,12 +4214,39 @@ async function applyWarpToData(data, lowQuality = false){
 
         applyClipMaskToObject(data.designObject, data);
 
+        // Compensate for the position shift caused by trimTransparentBorders
+        // (called inside applyPerspectiveDistortion).  When transparent pixels
+        // are cropped asymmetrically — e.g. after erasing the left side —
+        // the smaller canvas placed at data.x/data.y renders the content at
+        // the wrong screen position.  _trimX0 / _trimY0 record how many pixels
+        // were cropped from the left / top of warpedBaseCanvas, so we shift
+        // the center to keep the visible content stationary.
+        const scX = (data.scaleX || data.scale) * data.previewScale;
+        const scY = (data.scaleY || data.scale) * data.previewScale;
+        let adjX = data.x;
+        let adjY = data.y;
+        if (warpedCanvas._trimX0 !== undefined || warpedCanvas._trimY0 !== undefined) {
+            const tx0  = warpedCanvas._trimX0 || 0;
+            const ty0  = warpedCanvas._trimY0 || 0;
+            const refW = warpedBaseCanvas.width;
+            const refH = warpedBaseCanvas.height;
+            const dx   = (tx0 + warpedCanvas.width  / 2) - refW / 2;
+            const dy   = (ty0 + warpedCanvas.height / 2) - refH / 2;
+            if (dx !== 0 || dy !== 0) {
+                const rad  = (data.rotation || 0) * Math.PI / 180;
+                const cosA = Math.cos(rad);
+                const sinA = Math.sin(rad);
+                adjX += dx * scX * cosA - dy * scY * sinA;
+                adjY += dx * scX * sinA + dy * scY * cosA;
+            }
+        }
+
         data.designObject.set({
-            left: data.x,
-            top: data.y,
+            left: adjX,
+            top:  adjY,
             angle: data.rotation,
-            scaleX: (data.scaleX || data.scale) * data.previewScale,
-            scaleY: (data.scaleY || data.scale) * data.previewScale,
+            scaleX: scX,
+            scaleY: scY,
             skewX: data.skewX || 0,
             skewY: data.skewY || 0,
             opacity: data.opacity ?? 1,
