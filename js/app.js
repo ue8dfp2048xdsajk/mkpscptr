@@ -914,35 +914,46 @@ function _updateBgCrop(){
         if(_bgCropAttachDesign && d.designObject){
             const W  = d.fabricCanvas.width;
             const H  = d.fabricCanvas.height;
-            const obj = d.designObject;
-            const cx  = W / 2, cy = H / 2;
+            const cx = W / 2, cy = H / 2;
 
-            // Zoom: scale position around canvas centre, scale object size
-            const zr     = oldScale > 0 ? newScale / oldScale : 1;
-            let left = cx + (obj.left - cx) * zr;
-            let top  = cy + (obj.top  - cy) * zr;
-
-            // Rotation: rotate position around canvas centre by delta angle
+            // Pre-compute shared transform deltas
+            const zr   = oldScale > 0 ? newScale / oldScale : 1;
             const dRad = (newRotation - oldRotation) * Math.PI / 180;
-            if(dRad !== 0){
-                const dx = left - cx, dy = top - cy;
-                const cos = Math.cos(dRad), sin = Math.sin(dRad);
-                left = cx + dx * cos - dy * sin;
-                top  = cy + dx * sin + dy * cos;
-            }
+            const dAngle = newRotation - oldRotation;
+            const cos  = Math.cos(dRad), sin = Math.sin(dRad);
+            const dPanX = (newX - oldX) * W;
+            const dPanY = (newY - oldY) * H;
 
-            // Pan: shift by delta fraction of canvas size
-            left += (newX - oldX) * W;
-            top  += (newY - oldY) * H;
+            // Apply to every design object in this window (main + duplicates/uploads)
+            const allObjs = [d.designObject, ...(d.extraDesignObjects || [])];
+            allObjs.forEach(obj => {
+                if (!obj) return;
 
-            obj.set({
-                left,
-                top,
-                scaleX: obj.scaleX * zr,
-                scaleY: obj.scaleY * zr,
-                angle:  (obj.angle || 0) + (newRotation - oldRotation),
+                // Zoom: scale position around canvas centre, scale object size
+                let left = cx + (obj.left - cx) * zr;
+                let top  = cy + (obj.top  - cy) * zr;
+
+                // Rotation: rotate position around canvas centre by delta angle
+                if(dRad !== 0){
+                    const dx = left - cx, dy = top - cy;
+                    left = cx + dx * cos - dy * sin;
+                    top  = cy + dx * sin + dy * cos;
+                }
+
+                // Pan: shift by delta fraction of canvas size
+                left += dPanX;
+                top  += dPanY;
+
+                obj.set({
+                    left,
+                    top,
+                    scaleX: obj.scaleX * zr,
+                    scaleY: obj.scaleY * zr,
+                    angle:  (obj.angle || 0) + dAngle,
+                });
+                obj.setCoords();
             });
-            obj.setCoords();
+
             if(d.patternMode) _renderPattern(d, false);
             d.fabricCanvas.requestRenderAll();
         }
@@ -1817,7 +1828,12 @@ function applyDesignEraserAt(data, pointer) {
     if (data.designObject)       targets.push(data.designObject);
     if (data.extraDesignObjects) targets.push(...data.extraDesignObjects);
     if (eraserTargetObjects.size > 0) {
-        targets = targets.filter(obj => eraserTargetObjects.has(obj));
+        const filtered = targets.filter(obj => eraserTargetObjects.has(obj));
+        // Only restrict to the pre-selected objects if this window actually had
+        // some of them selected.  For windows the user wasn't on when entering
+        // eraser mode, erase all design layers so they don't have to exit and
+        // re-enter just to switch windows.
+        if (filtered.length > 0) targets = filtered;
     }
     if (!targets.length) return;
 
@@ -5786,14 +5802,15 @@ function attachFabricEvents(data, targetObject = null){
         data.fabricCanvas.on('mouse:down', (opt) => {
             if (!designEraserMode) return;
 
-            // Snapshot ALL active (non-locked) windows ONCE at the very start of each
-            // stroke (before any pixels change).  This is the undo checkpoint; a second
-            // mousedown within the same stroke is prevented by the designEraserDown guard.
+            // Snapshot ONCE at the very start of each stroke (before any pixels change).
+            // Always includes this canvas's window (index) so that erasing on a window
+            // that wasn't in activeIndices at entry time is still undoable.
             if (!designEraserDown) {
+                const toCapture = new Set([...activeIndices, index]);
                 const items = [];
-                canvasData.forEach((d, i) => {
+                toCapture.forEach(i => {
+                    const d = canvasData[i];
                     if (!d || d.locked) return;
-                    if (!activeIndices.includes(i)) return;
                     items.push({ idx: i, snap: _captureEraserSnapshot(d) });
                 });
                 if (items.length) {
