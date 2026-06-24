@@ -8558,6 +8558,94 @@ document.addEventListener('keydown', function(e){
     document.getElementById('selectAllBtn').click();
 });
 
+// Backspace — delete selected windows, or just the selected extra layers if
+// only non-main design layers are selected (main design is NOT in selection).
+document.addEventListener('keydown', function(e){
+    if(e.key !== 'Backspace') return;
+
+    // Never fire when the user is typing in a text field or editable element.
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    // Respect special modes that have their own keyboard handling.
+    if(clipEditMode || designEraserMode || designWarpMode) return;
+    if(!activeIndices.length) return;
+
+    e.preventDefault();
+
+    // Build a set of ALL extra design objects across active windows so we can
+    // classify what's in selectedDesigns.
+    const extraObjsInActiveWindows = new Set();
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if(d) (d.extraDesignObjects || []).forEach(o => extraObjsInActiveWindows.add(o));
+    });
+
+    // Check whether any selected design is the MAIN design of its window.
+    const selectedArr = [...selectedDesigns];
+    const hasMainSelected = selectedArr.some(obj =>
+        canvasData.some(d => d.designObject === obj)
+    );
+
+    // Extra-layer-only deletion: all selected objects are extra layers (none
+    // are main designs).  Delete just those layers and leave the windows intact.
+    const extraToDelete = selectedArr.filter(obj => extraObjsInActiveWindows.has(obj));
+    if(selectedDesigns.size > 0 && !hasMainSelected && extraToDelete.length > 0){
+        // Snapshot before mutation so Ctrl+Z can restore the deleted layers.
+        // pushGlobalUndo captures captureWindowState which includes `duplicates`
+        // (the full extraDesignObjects list), so restoreWindowState will rebuild them.
+        const affectedIndices = activeIndices.filter(i => {
+            const d = canvasData[i];
+            return d && (d.extraDesignObjects || []).some(o => selectedDesigns.has(o));
+        });
+        if(!affectedIndices.length) return;
+
+        // Push undo for each affected window.
+        globalUndoStack.push({
+            affected: affectedIndices,
+            states: affectedIndices.map(i => captureWindowState(canvasData[i]))
+        });
+        if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+        globalRedoStack = [];
+        updateUndoRedoButtons();
+        _markDirty();
+
+        // Remove the selected extra layers from each window.
+        affectedIndices.forEach(i => {
+            const d = canvasData[i];
+            if(!d || !d.extraDesignObjects) return;
+            const toRemove = new Set(d.extraDesignObjects.filter(o => selectedDesigns.has(o)));
+            if(!toRemove.size) return;
+
+            toRemove.forEach(obj => d.fabricCanvas.remove(obj));
+
+            // Rebuild the arrays, keeping originals aligned with their objects.
+            const newExtras     = [];
+            const newOriginals  = [];
+            d.extraDesignObjects.forEach((obj, idx) => {
+                if(!toRemove.has(obj)){
+                    newExtras.push(obj);
+                    newOriginals.push(d.extraDesignOriginals?.[idx] ?? null);
+                }
+            });
+            d.extraDesignObjects  = newExtras;
+            d.extraDesignOriginals = newOriginals;
+            d.fabricCanvas.requestRenderAll();
+        });
+
+        selectedDesigns.clear();
+        refreshFabricHandles();
+        updateWindowBorders();
+        updateLayerButtons();
+        syncSliders();
+        return;
+    }
+
+    // Default: delete the active windows (same behaviour as the Delete button).
+    deleteSelectedWindows();
+});
+
 document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{
     if(!_sliderUndoLocked){ _sliderUndoLocked = true; pushGlobalUndo(); }
 });
