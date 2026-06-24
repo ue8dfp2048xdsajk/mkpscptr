@@ -4629,12 +4629,6 @@ document.getElementById('exportPatternBtn').addEventListener('click', () => {
     _exportPatternPNG(data);
 });
 
-document.getElementById('copyPatternToSelectedBtn').addEventListener('click', () => {
-    if (!activeIndices.length) return;
-    const data = canvasData[activeIndices[0]];
-    if (!data) return;
-    _copyDesignToSelected(data);
-});
 
 const _patternSliderDefs = [
     ['patternHSpacing','hSpacing'],
@@ -5972,6 +5966,14 @@ function updateLayerButtons(){
         invertBtn.style.display = "none";
     }
 
+    // Copy Layer / Paste Layer button
+    const copyLayerBtn = document.getElementById('copyLayerBtn');
+    if (copyLayerBtn){
+        const showIt = selectedDesigns.size > 0 || _copiedLayer !== null;
+        copyLayerBtn.style.display = showIt ? 'block' : 'none';
+        _updateCopyLayerBtn();
+    }
+
     const copyBtn  = document.getElementById('copyTransformsBtn');
     if(copyBtn)  copyBtn.disabled  = (activeIndices.length !== 1);
     const pasteBtn = document.getElementById('pasteTransformsBtn');
@@ -6924,6 +6926,175 @@ function flipSelectedDesigns(axis){
 
 document.getElementById('flipHBtn').addEventListener('click', () => flipSelectedDesigns('H'));
 document.getElementById('flipVBtn').addEventListener('click', () => flipSelectedDesigns('V'));
+
+// ── Copy / Paste Layer ─────────────────────────────────────────────────────────
+// Stores the last "Copy Layer" payload so the user can paste it into other windows.
+// type:'design' → replaces the window's main design
+// type:'extra'  → appended as an overlay layer on top of the existing design
+let _copiedLayer = null;
+
+function _updateCopyLayerBtn(){
+    const btn = document.getElementById('copyLayerBtn');
+    if (!btn) return;
+    if (_copiedLayer){
+        btn.textContent         = 'Paste Layer';
+        btn.style.background    = '#e8f5e9';
+        btn.style.borderColor   = '#66bb6a';
+        btn.style.color         = '#2e7d32';
+    } else {
+        btn.textContent         = 'Copy Layer';
+        btn.style.background    = '';
+        btn.style.borderColor   = '';
+        btn.style.color         = '';
+    }
+}
+
+function _copyCurrentLayer(){
+    if (!selectedDesigns.size) return;
+
+    const obj = [...selectedDesigns][0];
+    let sourceData = null, layerType = null, layerIdx = -1;
+
+    for (const d of canvasData){
+        if (d.designObject === obj){ sourceData = d; layerType = 'design'; break; }
+        const ei = (d.extraDesignObjects || []).indexOf(obj);
+        if (ei !== -1){ sourceData = d; layerType = 'extra'; layerIdx = ei; break; }
+    }
+    if (!sourceData) return;
+
+    const srcEl = layerType === 'design'
+        ? sourceData.designOriginal
+        : sourceData.extraDesignOriginals?.[layerIdx];
+    if (!srcEl) return;
+
+    _copiedLayer = {
+        type:     layerType,
+        el:       srcEl,
+        name:     obj._uploadedDesignName || null,
+        fx:       obj._fx ? JSON.parse(JSON.stringify(obj._fx)) : null,
+        srcIdx:   canvasData.indexOf(sourceData),
+        srcScaleX: obj.scaleX,
+        srcScaleY: obj.scaleY,
+    };
+
+    _updateCopyLayerBtn();
+    updateLayerButtons();
+}
+
+async function _pasteLayerToTargets(){
+    if (!_copiedLayer || !activeIndices.length) return;
+
+    const srcIdx  = _copiedLayer.srcIdx;
+    const targets = activeIndices
+        .filter(i => i !== srcIdx)
+        .map(i => canvasData[i])
+        .filter(d => d && !d.locked);
+
+    if (!targets.length){
+        alert('Select one or more windows (other than the source) to paste into.');
+        return;
+    }
+
+    // Snapshot every target for undo before touching anything
+    const undoItems = targets
+        .map(d => ({ idx: canvasData.indexOf(d), state: captureWindowState(d), original: d.designOriginal }))
+        .filter(item => item.idx !== -1);
+    if (undoItems.length){
+        globalUndoStack.push({ type: 'warp', items: undoItems });
+        if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+        globalRedoStack = [];
+        updateUndoRedoButtons();
+    }
+
+    if (_copiedLayer.type === 'design'){
+        // ── Replace main design in each target window ──────────────────────
+        let srcEl = _copiedLayer.el;
+        if (!(srcEl instanceof HTMLCanvasElement)){
+            const tmp = document.createElement('canvas');
+            tmp.width  = srcEl.naturalWidth  || srcEl.width  || 1;
+            tmp.height = srcEl.naturalHeight || srcEl.height || 1;
+            tmp.getContext('2d').drawImage(srcEl, 0, 0);
+            srcEl = tmp;
+        }
+        for (const d of targets){
+            if (d.patternMode || d.patternFabricObj) _togglePatternMode(d, false);
+            const fc   = d.fabricCanvas;
+            const W    = fc.getWidth();
+            const H    = fc.getHeight();
+            const dpr  = Math.max(1, fc.lowerCanvasEl.width / W);
+            const tps  = d.previewScale || 1;
+            const copy = document.createElement('canvas');
+            copy.width  = W * dpr;
+            copy.height = H * dpr;
+            const cCtx  = copy.getContext('2d');
+            cCtx.imageSmoothingEnabled = true;
+            cCtx.imageSmoothingQuality = 'high';
+            cCtx.drawImage(srcEl, 0, 0, W * dpr, H * dpr);
+            d.designOriginal = copy;
+            d.warpCanvas     = null;
+            d.x          = W / 2;
+            d.y          = H / 2;
+            d.scaleX     = (1 / dpr) / tps;
+            d.scaleY     = (1 / dpr) / tps;
+            d.rotation   = 0;
+            d.warpAmount = 0;
+            d.arcAmount  = 0;
+            d.arcTilt    = 0;
+            d.perspectiveTop  = 0;
+            d.perspectiveLeft = 0;
+            applyWarpToData(d, false);
+        }
+    } else {
+        // ── Append as an overlay layer in each target window ───────────────
+        const srcEl = _copiedLayer.el;
+        for (const d of targets){
+            if (!d.designObject) continue;
+            const canvasW = d.fabricCanvas.getWidth();
+            const canvasH = d.fabricCanvas.getHeight();
+            const fabricImg = new fabric.Image(srcEl, {
+                left:   canvasW / 2,
+                top:    canvasH / 2,
+                scaleX: _copiedLayer.srcScaleX,
+                scaleY: _copiedLayer.srcScaleY,
+                angle:  0,
+                opacity: _copiedLayer.fx?.opacity ?? 1,
+                globalCompositeOperation: 'source-over',
+                originX: 'center',
+                originY: 'center',
+                transparentCorners: false,
+                cornerColor: '#ff6600',
+                cornerStyle: 'circle'
+            });
+            fabricImg._isOverlay          = true;
+            fabricImg._uploadedDesignName = _copiedLayer.name || 'pasted_layer';
+            fabricImg._fx = _copiedLayer.fx
+                ? JSON.parse(JSON.stringify(_copiedLayer.fx))
+                : { warpAmount: 0, arcAmount: 0, arcTilt: 0,
+                    perspectiveTop: 0, perspectiveLeft: 0,
+                    opacity: 1, blurAmount: 0, noiseAmount: 0, blendMode: 'normal' };
+            d.extraDesignObjects   = d.extraDesignObjects   || [];
+            d.extraDesignOriginals = d.extraDesignOriginals || [];
+            d.extraDesignObjects.push(fabricImg);
+            d.extraDesignOriginals.push(srcEl);
+            applyClipMaskToObject(fabricImg, d);
+            d.fabricCanvas.add(fabricImg);
+            attachFabricEvents(d, fabricImg);
+            d.fabricCanvas.requestRenderAll();
+        }
+    }
+
+    syncSliders();
+    _markDirty();
+    // Keep _copiedLayer so the user can paste again into more windows
+}
+
+document.getElementById('copyLayerBtn').addEventListener('click', () => {
+    if (_copiedLayer){
+        _pasteLayerToTargets();
+    } else {
+        _copyCurrentLayer();
+    }
+});
 
 // ── Copy / Paste Transforms ────────────────────────────────────────────────────
 let _copiedTransforms = null;
