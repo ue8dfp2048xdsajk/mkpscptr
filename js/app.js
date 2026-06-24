@@ -4121,15 +4121,13 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     applyClipMaskToObject(obj, data);
 
     // Compensate for content shift introduced by trimTransparentBorders.
-    // When no perspective is applied, `warped` IS `trimmed` (same reference).
-    // trimmed._trimX0 / _trimY0 record how many pixels were removed from the
-    // left / top of the warp canvas, so the content centre shifted by:
-    //   dx = (x0 + warpedW/2) - preTrimW/2  (in warp-canvas pixel units)
-    // We rotate that offset by the object's angle and apply via scaleX/Y to
-    // convert to Fabric canvas coordinates, then add to left/top.
+    // Only when arc/warp are both zero: arc and warp intentionally produce
+    // asymmetric transparent borders whose trim must NOT be corrected
+    // (compensating them shifts the design as sliders move).
     let adjLeft = prevLeft;
     let adjTop  = prevTop;
-    if (warped === trimmed &&
+    if (arcA === 0 && warpA === 0 &&
+        warped === trimmed &&
         (trimmed._trimX0 !== undefined || trimmed._trimY0 !== undefined)) {
         const tx0 = trimmed._trimX0 || 0;
         const ty0 = trimmed._trimY0 || 0;
@@ -4214,18 +4212,16 @@ async function applyWarpToData(data, lowQuality = false){
 
         applyClipMaskToObject(data.designObject, data);
 
-        // Compensate for the position shift caused by trimTransparentBorders
-        // (called inside applyPerspectiveDistortion).  When transparent pixels
-        // are cropped asymmetrically — e.g. after erasing the left side —
-        // the smaller canvas placed at data.x/data.y renders the content at
-        // the wrong screen position.  _trimX0 / _trimY0 record how many pixels
-        // were cropped from the left / top of warpedBaseCanvas, so we shift
-        // the center to keep the visible content stationary.
+        // Compensate for eraser-induced position shift only when arc/warp are
+        // both zero.  Arc and warp produce their own asymmetric transparent
+        // borders; compensating those trims shifts the design as sliders move.
         const scX = (data.scaleX || data.scale) * data.previewScale;
         const scY = (data.scaleY || data.scale) * data.previewScale;
         let adjX = data.x;
         let adjY = data.y;
-        if (warpedCanvas._trimX0 !== undefined || warpedCanvas._trimY0 !== undefined) {
+        const _noArcWarp = !(data.arcAmount || 0) && !(data.warpAmount || 0);
+        if (_noArcWarp &&
+            (warpedCanvas._trimX0 !== undefined || warpedCanvas._trimY0 !== undefined)) {
             const tx0  = warpedCanvas._trimX0 || 0;
             const ty0  = warpedCanvas._trimY0 || 0;
             const refW = warpedBaseCanvas.width;
