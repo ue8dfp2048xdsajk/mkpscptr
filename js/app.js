@@ -7076,6 +7076,14 @@ function _copyCurrentLayer(){
         : sourceData.extraDesignOriginals?.[layerIdx];
     if (!srcEl) return;
 
+    // Compute a canvas-size-independent scale ratio so the same visual
+    // proportion is reproduced on any target canvas (even different sizes).
+    // ratio = scaleX / fillScale  where fillScale = (1/srcDpr)/srcPs
+    const srcDpr = Math.max(1, sourceData.fabricCanvas.lowerCanvasEl.width / sourceData.fabricCanvas.getWidth());
+    const srcPs  = sourceData.previewScale || 1;
+    const srcSX  = sourceData.scaleX ?? sourceData.scale ?? 1;
+    const srcSY  = sourceData.scaleY ?? sourceData.scale ?? 1;
+
     _copiedLayer = {
         type:     layerType,
         el:       srcEl,
@@ -7084,6 +7092,19 @@ function _copyCurrentLayer(){
         srcIdx:   canvasData.indexOf(sourceData),
         srcScaleX: obj.scaleX,
         srcScaleY: obj.scaleY,
+        // canvas-relative scale ratios (1.0 = fills canvas exactly)
+        designScaleXRatio: srcSX * srcPs * srcDpr,
+        designScaleYRatio: srcSY * srcPs * srcDpr,
+        designRotation:       sourceData.rotation      ?? 0,
+        designWarpAmount:     sourceData.warpAmount     ?? 0,
+        designArcAmount:      sourceData.arcAmount      ?? 0,
+        designArcTilt:        sourceData.arcTilt        ?? 0,
+        designPerspectiveTop: sourceData.perspectiveTop ?? 0,
+        designPerspectiveLeft:sourceData.perspectiveLeft?? 0,
+        designSkewX:  sourceData.skewX  ?? 0,
+        designSkewY:  sourceData.skewY  ?? 0,
+        designFlipX:  !!sourceData.flipX,
+        designFlipY:  !!sourceData.flipY,
     };
 
     _updateCopyLayerBtn();
@@ -7145,14 +7166,22 @@ async function _pasteLayerToTargets(){
             d.warpCanvas     = null;
             d.x          = W / 2;
             d.y          = H / 2;
-            d.scaleX     = (1 / dpr) / tps;
-            d.scaleY     = (1 / dpr) / tps;
-            d.rotation   = 0;
-            d.warpAmount = 0;
-            d.arcAmount  = 0;
-            d.arcTilt    = 0;
-            d.perspectiveTop  = 0;
-            d.perspectiveLeft = 0;
+            // Apply source transforms, converting canvas-relative ratios to
+            // target scale units: ratio / (tps * dpr) = fillScale × ratio
+            const cl = _copiedLayer;
+            const fillScale = (1 / dpr) / tps;
+            d.scaleX          = cl.designScaleXRatio !== undefined ? cl.designScaleXRatio * fillScale : fillScale;
+            d.scaleY          = cl.designScaleYRatio !== undefined ? cl.designScaleYRatio * fillScale : fillScale;
+            d.rotation        = cl.designRotation       ?? 0;
+            d.warpAmount      = cl.designWarpAmount     ?? 0;
+            d.arcAmount       = cl.designArcAmount      ?? 0;
+            d.arcTilt         = cl.designArcTilt        ?? 0;
+            d.perspectiveTop  = cl.designPerspectiveTop ?? 0;
+            d.perspectiveLeft = cl.designPerspectiveLeft?? 0;
+            d.skewX           = cl.designSkewX          ?? 0;
+            d.skewY           = cl.designSkewY          ?? 0;
+            d.flipX           = cl.designFlipX          ?? false;
+            d.flipY           = cl.designFlipY          ?? false;
             applyWarpToData(d, false);
         }
     } else {
@@ -7214,9 +7243,15 @@ let _copiedTransforms = null;
 function _captureTransforms(data){
     const obj = data.designObject;
     const ps  = data.previewScale || 1;
+    const cW  = data.fabricCanvas ? data.fabricCanvas.getWidth()  : 1;
+    const cH  = data.fabricCanvas ? data.fabricCanvas.getHeight() : 1;
+    const absX = obj ? obj.left : data.x;
+    const absY = obj ? obj.top  : data.y;
     return {
-        x:        obj ? obj.left          : data.x,
-        y:        obj ? obj.top           : data.y,
+        x:        absX,
+        y:        absY,
+        xFrac:    absX / cW,
+        yFrac:    absY / cH,
         scale:    data.scale,
         scaleX:   obj ? (obj.scaleX / ps) : (data.scaleX ?? data.scale),
         scaleY:   obj ? (obj.scaleY / ps) : (data.scaleY ?? data.scale),
@@ -7240,8 +7275,15 @@ function _captureTransforms(data){
 
 function _applyTransforms(data, t){
     if(data.locked || !data.designOriginal) return;
-    data.x           = t.x;
-    data.y           = t.y;
+    // Restore position: use canvas-fraction if available (works across
+    // different-sized canvases), fall back to absolute coords.
+    if(t.xFrac !== undefined && data.fabricCanvas){
+        data.x = t.xFrac * data.fabricCanvas.getWidth();
+        data.y = t.yFrac * data.fabricCanvas.getHeight();
+    } else {
+        data.x = t.x;
+        data.y = t.y;
+    }
     data.scale       = t.scale;
     data.scaleX      = t.scaleX;
     data.scaleY      = t.scaleY;
