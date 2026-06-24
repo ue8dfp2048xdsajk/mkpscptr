@@ -129,77 +129,139 @@ Preparing designs...
     </div>
     <div id="contextPanelBody">
 
-        <div class="cp-section lock-sensitive" id="bgAdjustSection">
-            <div class="cp-section-title">Background Adjustments</div>
-            <div class="bg-adj-row">
-                <label>Hue</label>
-                <input type="range" id="bgHue" min="-180" max="180" value="0">
-                <span id="bgHueVal">0</span>
+        <!-- ── Layers ─────────────────────────────────────────────────────── -->
+        <div class="cp-section lock-sensitive">
+            <div class="cp-section-title">Layers</div>
+            <button id="addLayerBtn" title="Upload images as overlay layers onto selected mockups">Add Layer</button>
+            <input type="file" id="layerUpload" accept="image/*" multiple style="display:none;">
+            <button id="copyLayerBtn" disabled title="Select a layer first to copy or paste it">Copy Layer</button>
+            <button id="editClipBtn">Edit Clipping</button>
+            <button id="addClipAreaBtn" class="clip-sub-btn" style="display:none;">Add Clipping Area</button>
+            <button id="copyClipBtn" class="clip-sub-btn" style="display:none;">Copy Clipping</button>
+            <button id="copyClipToSelectedBtn" class="clip-sub-btn" style="display:none;">Copy Clipping to Selected</button>
+            <button id="deleteClipBtn" class="clip-sub-btn clip-sub-btn--danger" style="display:none;">Delete Clipping</button>
+            <button id="duplicateLayerBtn" disabled title="Select a layer to duplicate it">Duplicate Layer</button>
+            <button id="deleteLayerBtn" disabled title="Select a layer to delete it">Delete Layer</button>
+            <button id="invertColorsBtn" disabled title="Select a layer to invert its colors">Invert Colors</button>
+            <div class="cp-btn-row">
+                <button id="flipHBtn" title="Flip design horizontally">↔ Flip H</button>
+                <button id="flipVBtn" title="Flip design vertically">↕ Flip V</button>
             </div>
-            <div class="bg-adj-row">
-                <label>Saturation</label>
-                <input type="range" id="bgSaturation" min="-100" max="100" value="0">
-                <span id="bgSaturationVal">0</span>
+            <div class="cp-btn-row">
+                <button id="copyTransformsBtn" title="Copy position, scale, rotation and FX from the last selected mockup">Copy Style</button>
+                <button id="pasteTransformsBtn" title="Paste copied style to all selected mockups" disabled>Paste Style</button>
             </div>
-            <div class="bg-adj-row">
-                <label>Brightness</label>
-                <input type="range" id="bgBrightness" min="-100" max="100" value="0">
-                <span id="bgBrightnessVal">0</span>
-            </div>
-            <div class="bg-adj-row">
-                <label>Contrast</label>
-                <input type="range" id="bgContrast" min="-100" max="100" value="0">
-                <span id="bgContrastVal">0</span>
-            </div>
-            <button id="bgAdjustResetBtn" style="margin-top:4px;">Reset Adjustments</button>
         </div>
 
-        <div class="cp-section lock-sensitive" id="bgCropSection">
-            <div class="cp-section-title">Framing</div>
-            <div class="bg-crop-aspect-row">
-                <button class="bg-aspect-btn" data-aspect="1">1:1</button>
-                <button class="bg-aspect-btn" data-aspect="0.8">4:5</button>
-                <button class="bg-aspect-btn" data-aspect="1.25">5:4</button>
-                <button class="bg-aspect-btn" data-aspect="0.6667">2:3</button>
-                <button class="bg-aspect-btn" data-aspect="1.5">3:2</button>
-                <button class="bg-aspect-btn" data-aspect="1.7778">16:9</button>
-            </div>
-            <div style="display:flex;align-items:center;gap:4px;margin-top:6px;">
-                <input type="number" id="bgCropCustomW" min="1" max="999" step="1" placeholder="W"
-                    style="width:44px;padding:3px 5px;border:1px solid #ccc;border-radius:4px;font-size:12px;text-align:center;">
-                <span style="font-size:13px;color:#666;font-weight:600;">:</span>
-                <input type="number" id="bgCropCustomH" min="1" max="999" step="1" placeholder="H"
-                    style="width:44px;padding:3px 5px;border:1px solid #ccc;border-radius:4px;font-size:12px;text-align:center;">
-                <button id="bgCropCustomApply"
-                    style="flex:1;padding:3px 6px;font-size:12px;background:#26a69a;color:#fff;border:none;border-radius:4px;cursor:pointer;">
-                    Custom
-                </button>
-            </div>
-            <div class="bg-adj-row">
-                <label>Rotation</label>
-                <input type="range" id="bgCropRotation" min="-180" max="180" step="1" value="0">
-                <span id="bgCropRotationVal">0</span>
-            </div>
-            <div class="bg-adj-row">
-                <label>Zoom %</label>
-                <input type="range" id="bgCropScale" min="50" max="300" step="1" value="100">
-                <span id="bgCropScaleVal">100</span>
-            </div>
-            <div class="bg-adj-row">
-                <label>Pan X</label>
-                <input type="range" id="bgCropX" min="-50" max="50" step="1" value="0">
-                <span id="bgCropXVal">0</span>
-            </div>
-            <div class="bg-adj-row">
-                <label>Pan Y</label>
-                <input type="range" id="bgCropY" min="-50" max="50" step="1" value="0">
-                <span id="bgCropYVal">0</span>
-            </div>
-            <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#555;cursor:pointer;user-select:none;">
-                <input type="checkbox" id="bgCropAttachDesign" style="width:14px;height:14px;cursor:pointer;accent-color:#26a69a;">
-                Attach design to background
+        <div class="cp-section lock-sensitive">
+            <div class="cp-section-title">Appearance</div>
+            <label>Opacity %
+                <input type="number" id="opacityAmount" min="0" max="100" step="1" value="100">
             </label>
-            <button id="bgCropResetBtn" style="margin-top:4px;">Reset Framing</button>
+            <label>Gaussian Blur %
+                <input type="number" id="blurAmount" min="0" max="100" step="1" value="0">
+            </label>
+            <label>Noise %
+                <input type="number" id="noiseAmount" min="0" max="100" step="1" value="0">
+            </label>
+            <label>Layer Mode
+                <select id="blendMode">
+                    <option value="normal">Normal</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                    <option value="overlay">Overlay</option>
+                    <option value="soft-light">Soft Light</option>
+                    <option value="color">Color</option>
+                    <option value="luminosity">Luminosity</option>
+                </select>
+            </label>
+        </div>
+
+        <!-- ── Mockup ──────────────────────────────────────────────────────── -->
+        <div class="cp-section">
+            <div class="cp-section-title">Mockup</div>
+            <button id="addWindowBtn" title="Add a single new mockup at the start of the grid">Add Mockup</button>
+            <input type="file" id="addWindowBgInput"     accept="image/png, image/jpeg" style="display:none;">
+            <input type="file" id="addWindowDesignInput" accept="image/png, image/jpeg" style="display:none;">
+            <div class="cp-btn-row">
+                <button id="lockWindowsBtn" class="lock-sensitive">Lock</button>
+                <button id="unlockWindowsBtn">Unlock</button>
+            </div>
+            <button id="changeBgBtn" class="lock-sensitive">Change Background</button>
+            <input type="file" id="changeBgInput" accept="image/*" style="display:none;">
+            <button id="changeDesignBtn" class="lock-sensitive">Change Design</button>
+            <input type="file" id="changeDesignInput" accept="image/*" style="display:none;">
+            <button id="duplicateWindowsBtn" class="lock-sensitive">Duplicate Selected</button>
+            <button id="deleteWindowsBtn" class="lock-sensitive">Delete Selected</button>
+            <button id="resetBtn" class="lock-sensitive">Reset Selected</button>
+        </div>
+
+        <div class="cp-section lock-sensitive">
+            <div class="cp-section-title">Warp &amp; Perspective</div>
+            <label>Cylinder Warp
+                <input type="range" id="warpAmount" min="0" max="100" value="0">
+            </label>
+            <label>Vertical Arc
+                <input type="range" id="arcAmount" min="-100" max="100" value="0">
+            </label>
+            <label>Arc Tilt
+                <input type="range" id="arcTilt" min="-100" max="100" value="0">
+            </label>
+            <label>Horizontal Perspective
+                <input type="range" id="perspectiveTop" min="-100" max="100" value="0">
+            </label>
+            <label>Vertical Perspective
+                <input type="range" id="perspectiveLeft" min="-100" max="100" value="0">
+            </label>
+            <button id="designWarpBtn">Warp Mesh</button>
+            <span id="warpModeControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
+                <button id="warpApplyBtn" style="background:#2ecc71;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;width:auto;">Apply</button>
+                <button id="warpCancelBtn" style="background:#e74c3c;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;width:auto;">Cancel</button>
+                <span style="font-size:11px;color:#666;">Drag grid points to warp</span>
+            </span>
+        </div>
+
+        <!-- ── Painting ────────────────────────────────────────────────────── -->
+        <div class="cp-section lock-sensitive">
+            <div class="cp-section-title">Painting</div>
+            <button id="designEraserBtn">Eraser</button>
+            <span id="designEraserControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
+                <span style="font-size:11px;">Size</span>
+                <input type="range" id="designEraserSizeSlider" min="1" max="200" value="30" style="width:80px;vertical-align:middle;">
+                <span id="designEraserSizeVal" style="font-size:11px;min-width:24px;">30</span>
+                <span style="font-size:11px;">Soft</span>
+                <input type="range" id="designEraserSoftnessSlider" min="0" max="100" value="60" style="width:80px;vertical-align:middle;">
+                <span id="designEraserSoftnessVal" style="font-size:11px;min-width:24px;">60</span>
+            </span>
+            <button id="addColorLayerBtn">Paint Overlay</button>
+            <button id="copyColorBtn"           class="clip-sub-btn"              style="display:none;">Copy Color</button>
+            <button id="copyColorToSelectedBtn" class="clip-sub-btn"              style="display:none;">Copy Color to Selected</button>
+            <button id="deleteColorBtn"         class="clip-sub-btn clip-sub-btn--danger" style="display:none;">Delete Color</button>
+            <span id="colorLayerControls" style="display:none;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px;">
+                <button id="brushToolBtn" class="color-tool-btn active" title="Paintbrush" style="width:auto;">Paint</button>
+                <button id="eraserToolBtn" class="color-tool-btn" title="Eraser" style="width:auto;">Erase</button>
+                <input type="color" id="brushColorPicker" value="#ff0000" title="Paint color" style="cursor:pointer;width:28px;height:22px;padding:1px;border:1px solid #ccc;vertical-align:middle;">
+                <span style="display:inline-flex;align-items:center;gap:4px;">
+                    <span style="font-size:11px;">Size</span>
+                    <input type="range" id="brushSizeSlider" min="1" max="150" value="20" style="width:70px;vertical-align:middle;">
+                </span>
+                <span style="display:inline-flex;align-items:center;gap:4px;">
+                    <span style="font-size:11px;">Soft</span>
+                    <input type="range" id="brushSoftnessSlider" min="0" max="100" value="30" style="width:70px;vertical-align:middle;">
+                </span>
+                <span style="font-size:11px;">Opacity</span>
+                <input type="number" id="colorLayerOpacityInput" min="0" max="100" value="100" style="width:50px;" title="Color Opacity %">
+                <span style="font-size:11px;font-weight:600;width:100%;display:block;margin-top:2px;">Color Layer Mode</span>
+                <select id="colorLayerModeSelect" title="Color Layer Mode" style="width:100%;">
+                    <option value="source-over">Normal</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                    <option value="overlay">Overlay</option>
+                    <option value="soft-light">Soft Light</option>
+                    <option value="color">Color</option>
+                    <option value="luminosity">Luminosity</option>
+                </select>
+            </span>
         </div>
 
         <div class="cp-section lock-sensitive" id="patternSection">
@@ -256,139 +318,77 @@ Preparing designs...
             </div>
         </div>
 
-        <div class="cp-section lock-sensitive">
-            <div class="cp-section-title">Warp &amp; Perspective</div>
-            <label>Cylinder Warp
-                <input type="range" id="warpAmount" min="0" max="100" value="0">
-            </label>
-            <label>Vertical Arc
-                <input type="range" id="arcAmount" min="-100" max="100" value="0">
-            </label>
-            <label>Arc Tilt
-                <input type="range" id="arcTilt" min="-100" max="100" value="0">
-            </label>
-            <label>Horizontal Perspective
-                <input type="range" id="perspectiveTop" min="-100" max="100" value="0">
-            </label>
-            <label>Vertical Perspective
-                <input type="range" id="perspectiveLeft" min="-100" max="100" value="0">
-            </label>
-            <button id="designWarpBtn">Warp Mesh</button>
-            <span id="warpModeControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
-                <button id="warpApplyBtn" style="background:#2ecc71;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;width:auto;">Apply</button>
-                <button id="warpCancelBtn" style="background:#e74c3c;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;width:auto;">Cancel</button>
-                <span style="font-size:11px;color:#666;">Drag grid points to warp</span>
-            </span>
-        </div>
-
-        <div class="cp-section lock-sensitive">
-            <div class="cp-section-title">Appearance</div>
-            <label>Opacity %
-                <input type="number" id="opacityAmount" min="0" max="100" step="1" value="100">
-            </label>
-            <label>Gaussian Blur %
-                <input type="number" id="blurAmount" min="0" max="100" step="1" value="0">
-            </label>
-            <label>Noise %
-                <input type="number" id="noiseAmount" min="0" max="100" step="1" value="0">
-            </label>
-            <label>Layer Mode
-                <select id="blendMode">
-                    <option value="normal">Normal</option>
-                    <option value="multiply">Multiply</option>
-                    <option value="screen">Screen</option>
-                    <option value="overlay">Overlay</option>
-                    <option value="soft-light">Soft Light</option>
-                    <option value="color">Color</option>
-                    <option value="luminosity">Luminosity</option>
-                </select>
-            </label>
-        </div>
-
-        <!-- ── Painting ────────────────────────────────────────────────────── -->
-        <div class="cp-section lock-sensitive">
-            <div class="cp-section-title">Painting</div>
-            <button id="designEraserBtn">Eraser</button>
-            <span id="designEraserControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
-                <span style="font-size:11px;">Size</span>
-                <input type="range" id="designEraserSizeSlider" min="1" max="200" value="30" style="width:80px;vertical-align:middle;">
-                <span id="designEraserSizeVal" style="font-size:11px;min-width:24px;">30</span>
-                <span style="font-size:11px;">Soft</span>
-                <input type="range" id="designEraserSoftnessSlider" min="0" max="100" value="60" style="width:80px;vertical-align:middle;">
-                <span id="designEraserSoftnessVal" style="font-size:11px;min-width:24px;">60</span>
-            </span>
-            <button id="addColorLayerBtn">Paint Overlay</button>
-            <button id="copyColorBtn"           class="clip-sub-btn"              style="display:none;">Copy Color</button>
-            <button id="copyColorToSelectedBtn" class="clip-sub-btn"              style="display:none;">Copy Color to Selected</button>
-            <button id="deleteColorBtn"         class="clip-sub-btn clip-sub-btn--danger" style="display:none;">Delete Color</button>
-            <span id="colorLayerControls" style="display:none;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px;">
-                <button id="brushToolBtn" class="color-tool-btn active" title="Paintbrush" style="width:auto;">Paint</button>
-                <button id="eraserToolBtn" class="color-tool-btn" title="Eraser" style="width:auto;">Erase</button>
-                <input type="color" id="brushColorPicker" value="#ff0000" title="Paint color" style="cursor:pointer;width:28px;height:22px;padding:1px;border:1px solid #ccc;vertical-align:middle;">
-                <span style="display:inline-flex;align-items:center;gap:4px;">
-                    <span style="font-size:11px;">Size</span>
-                    <input type="range" id="brushSizeSlider" min="1" max="150" value="20" style="width:70px;vertical-align:middle;">
-                </span>
-                <span style="display:inline-flex;align-items:center;gap:4px;">
-                    <span style="font-size:11px;">Soft</span>
-                    <input type="range" id="brushSoftnessSlider" min="0" max="100" value="30" style="width:70px;vertical-align:middle;">
-                </span>
-                <span style="font-size:11px;">Opacity</span>
-                <input type="number" id="colorLayerOpacityInput" min="0" max="100" value="100" style="width:50px;" title="Color Opacity %">
-                <span style="font-size:11px;font-weight:600;width:100%;display:block;margin-top:2px;">Color Layer Mode</span>
-                <select id="colorLayerModeSelect" title="Color Layer Mode" style="width:100%;">
-                    <option value="source-over">Normal</option>
-                    <option value="multiply">Multiply</option>
-                    <option value="screen">Screen</option>
-                    <option value="overlay">Overlay</option>
-                    <option value="soft-light">Soft Light</option>
-                    <option value="color">Color</option>
-                    <option value="luminosity">Luminosity</option>
-                </select>
-            </span>
-        </div>
-
-        <!-- ── Layers ─────────────────────────────────────────────────────── -->
-        <div class="cp-section lock-sensitive">
-            <div class="cp-section-title">Layers</div>
-            <button id="addLayerBtn" title="Upload images as overlay layers onto selected mockups">Add Layer</button>
-            <input type="file" id="layerUpload" accept="image/*" multiple style="display:none;">
-            <button id="copyLayerBtn" disabled title="Select a layer first to copy or paste it">Copy Layer</button>
-            <button id="editClipBtn">Edit Clipping</button>
-            <button id="addClipAreaBtn" class="clip-sub-btn" style="display:none;">Add Clipping Area</button>
-            <button id="copyClipBtn" class="clip-sub-btn" style="display:none;">Copy Clipping</button>
-            <button id="copyClipToSelectedBtn" class="clip-sub-btn" style="display:none;">Copy Clipping to Selected</button>
-            <button id="deleteClipBtn" class="clip-sub-btn clip-sub-btn--danger" style="display:none;">Delete Clipping</button>
-            <button id="duplicateLayerBtn" disabled title="Select a layer to duplicate it">Duplicate Layer</button>
-            <button id="deleteLayerBtn" disabled title="Select a layer to delete it">Delete Layer</button>
-            <button id="invertColorsBtn" disabled title="Select a layer to invert its colors">Invert Colors</button>
-            <div class="cp-btn-row">
-                <button id="flipHBtn" title="Flip design horizontally">↔ Flip H</button>
-                <button id="flipVBtn" title="Flip design vertically">↕ Flip V</button>
+        <div class="cp-section lock-sensitive" id="bgCropSection">
+            <div class="cp-section-title">Framing</div>
+            <div class="bg-crop-aspect-row">
+                <button class="bg-aspect-btn" data-aspect="1">1:1</button>
+                <button class="bg-aspect-btn" data-aspect="0.8">4:5</button>
+                <button class="bg-aspect-btn" data-aspect="1.25">5:4</button>
+                <button class="bg-aspect-btn" data-aspect="0.6667">2:3</button>
+                <button class="bg-aspect-btn" data-aspect="1.5">3:2</button>
+                <button class="bg-aspect-btn" data-aspect="1.7778">16:9</button>
             </div>
-            <div class="cp-btn-row">
-                <button id="copyTransformsBtn" title="Copy position, scale, rotation and FX from the last selected mockup">Copy Style</button>
-                <button id="pasteTransformsBtn" title="Paste copied style to all selected mockups" disabled>Paste Style</button>
+            <div style="display:flex;align-items:center;gap:4px;margin-top:6px;">
+                <input type="number" id="bgCropCustomW" min="1" max="999" step="1" placeholder="W"
+                    style="width:44px;padding:3px 5px;border:1px solid #ccc;border-radius:4px;font-size:12px;text-align:center;">
+                <span style="font-size:13px;color:#666;font-weight:600;">:</span>
+                <input type="number" id="bgCropCustomH" min="1" max="999" step="1" placeholder="H"
+                    style="width:44px;padding:3px 5px;border:1px solid #ccc;border-radius:4px;font-size:12px;text-align:center;">
+                <button id="bgCropCustomApply"
+                    style="flex:1;padding:3px 6px;font-size:12px;background:#26a69a;color:#fff;border:none;border-radius:4px;cursor:pointer;">
+                    Custom
+                </button>
             </div>
+            <div class="bg-adj-row">
+                <label>Rotation</label>
+                <input type="range" id="bgCropRotation" min="-180" max="180" step="1" value="0">
+                <span id="bgCropRotationVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Zoom %</label>
+                <input type="range" id="bgCropScale" min="50" max="300" step="1" value="100">
+                <span id="bgCropScaleVal">100</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Pan X</label>
+                <input type="range" id="bgCropX" min="-50" max="50" step="1" value="0">
+                <span id="bgCropXVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Pan Y</label>
+                <input type="range" id="bgCropY" min="-50" max="50" step="1" value="0">
+                <span id="bgCropYVal">0</span>
+            </div>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#555;cursor:pointer;user-select:none;">
+                <input type="checkbox" id="bgCropAttachDesign" style="width:14px;height:14px;cursor:pointer;accent-color:#26a69a;">
+                Attach design to background
+            </label>
+            <button id="bgCropResetBtn" style="margin-top:4px;">Reset Framing</button>
         </div>
 
-        <!-- ── Mockup ──────────────────────────────────────────────────────── -->
-        <div class="cp-section">
-            <div class="cp-section-title">Mockup</div>
-            <button id="addWindowBtn" title="Add a single new mockup at the start of the grid">Add Mockup</button>
-            <input type="file" id="addWindowBgInput"     accept="image/png, image/jpeg" style="display:none;">
-            <input type="file" id="addWindowDesignInput" accept="image/png, image/jpeg" style="display:none;">
-            <div class="cp-btn-row">
-                <button id="lockWindowsBtn" class="lock-sensitive">Lock</button>
-                <button id="unlockWindowsBtn">Unlock</button>
+        <div class="cp-section lock-sensitive" id="bgAdjustSection">
+            <div class="cp-section-title">Background Adjustments</div>
+            <div class="bg-adj-row">
+                <label>Hue</label>
+                <input type="range" id="bgHue" min="-180" max="180" value="0">
+                <span id="bgHueVal">0</span>
             </div>
-            <button id="changeBgBtn" class="lock-sensitive">Change Background</button>
-            <input type="file" id="changeBgInput" accept="image/*" style="display:none;">
-            <button id="changeDesignBtn" class="lock-sensitive">Change Design</button>
-            <input type="file" id="changeDesignInput" accept="image/*" style="display:none;">
-            <button id="duplicateWindowsBtn" class="lock-sensitive">Duplicate Selected</button>
-            <button id="deleteWindowsBtn" class="lock-sensitive">Delete Selected</button>
-            <button id="resetBtn" class="lock-sensitive">Reset Selected</button>
+            <div class="bg-adj-row">
+                <label>Saturation</label>
+                <input type="range" id="bgSaturation" min="-100" max="100" value="0">
+                <span id="bgSaturationVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Brightness</label>
+                <input type="range" id="bgBrightness" min="-100" max="100" value="0">
+                <span id="bgBrightnessVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Contrast</label>
+                <input type="range" id="bgContrast" min="-100" max="100" value="0">
+                <span id="bgContrastVal">0</span>
+            </div>
+            <button id="bgAdjustResetBtn" style="margin-top:4px;">Reset Adjustments</button>
         </div>
 
         <a href="https://forms.gle/aE82E8z7ZjWQt6Hm7" target="_blank" rel="noopener" class="cp-feedback">Report Bugs &amp; Give Feedback</a>
