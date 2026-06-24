@@ -1678,10 +1678,12 @@ function eraseFromObject(obj, data, pointer) {
     const el  = ensureErasableCanvas(obj);
     const ctx = el.getContext('2d');
 
-    // CSS-pixel radius → Fabric canvas units
-    const cvEl       = data.fabricCanvas.upperCanvasEl;
-    const rect       = cvEl.getBoundingClientRect();
-    const cssToFabric = (rect.width > 0) ? (cvEl.width / rect.width) : 1;
+    // CSS-pixel radius → Fabric logical canvas units.
+    // Use fabricCanvas.width (logical units) not cvEl.width (physical pixels);
+    // getPointer() works in logical units so the two must share the same scale.
+    const cvEl        = data.fabricCanvas.upperCanvasEl;
+    const rect        = cvEl.getBoundingClientRect();
+    const cssToFabric = (rect.width > 0) ? (data.fabricCanvas.width / rect.width) : 1;
     const fabricRadius = designEraserSize * cssToFabric;
 
     // Convert Fabric canvas-space → object-local space (origin = object center)
