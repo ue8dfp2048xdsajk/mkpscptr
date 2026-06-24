@@ -450,6 +450,15 @@ function _renderPattern(data, lowQuality = false){
     if(!data.patternMode || !data.patternFabricObj || !data.designObject) return;
     const fc = data.fabricCanvas;
     const W = fc.width, H = fc.height;
+
+    // Render the tile canvas at physical (device) resolution so the pattern is
+    // pixel-crisp on high-DPI screens.  All CSS-pixel coordinates are fed to a
+    // 2D context pre-scaled by dpr; the resulting canvas is then displayed via
+    // patternFabricObj at 1/dpr scale so it occupies the correct CSS area.
+    const dpr = window.devicePixelRatio || 1;
+    const PW  = Math.round(W * dpr);   // physical canvas width
+    const PH  = Math.round(H * dpr);   // physical canvas height
+
     const obj = data.designObject;
     const s = data.patternSettings || _defaultPattern();
 
@@ -465,6 +474,8 @@ function _renderPattern(data, lowQuality = false){
     // including its position, so it shows through the evented-false overlay.
     obj.set({opacity: 0});
 
+    // All dimensions below are in CSS pixels; ctx.scale(dpr,dpr) converts them
+    // to physical pixels without having to touch any of the tile math.
     const tileW  = srcW * Math.abs(obj.scaleX);
     const tileH  = srcH * Math.abs(obj.scaleY);
     const stepX  = Math.max(1, tileW * (1 + (s.hSpacing || 0) / 100));
@@ -479,23 +490,28 @@ function _renderPattern(data, lowQuality = false){
     const hasWarp = (data.warpAmount || 0) !== 0 || (data.arcAmount || 0) !== 0;
     const hasPerspective = (data.perspectiveTop || 0) !== 0 || (data.perspectiveLeft || 0) !== 0;
 
-    // Extra padding fills the arc/tilt gap that warp creates at the canvas edges.
-    // Formula: gap at centre = arcCurve (= |arcAmount|×4) + 2×tiltK_max
-    //          tiltK_max = |arcTilt/100| × H × 0.18
-    // Perspective is applied AFTER the warp crop (on a W×H canvas) so it never
-    // sees the enlarged canvas and its distortion strength is not amplified.
+    // Extra padding (CSS pixels) fills the arc/tilt gap at canvas edges.
+    // Perspective is applied AFTER the warp crop so its strength is never amplified.
     const arcCurveMax = Math.abs(data.arcAmount || 0) * 4;
     const tiltMax     = Math.abs(data.arcTilt ?? 0) / 100 * H * 0.18;
     const extraPad    = hasWarp ? Math.ceil(arcCurveMax + 2 * tiltMax) : 0;
 
-    const offW = W + extraPad * 2;
-    const offH = H + extraPad * 2;
+    // Physical canvas dimensions (CSS extraPad scaled to physical pixels via dpr)
+    const offW = Math.round((W + extraPad * 2) * dpr);
+    const offH = Math.round((H + extraPad * 2) * dpr);
 
     const off = document.createElement('canvas');
     off.width = offW; off.height = offH;
     const ctx = off.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    // Pre-scale by dpr so all tile coordinates are expressed in CSS pixels
+    ctx.scale(dpr, dpr);
 
-    const diagLen = Math.sqrt(offW * offW + offH * offH);
+    // Use CSS-pixel canvas dimensions for the tile-coverage bounds check
+    const cssOffW = W + extraPad * 2;
+    const cssOffH = H + extraPad * 2;
+    const diagLen = Math.sqrt(cssOffW * cssOffW + cssOffH * cssOffH);
     const nCols = Math.ceil(diagLen / stepX) + 2;
     const nRows = Math.ceil(diagLen / stepY) + 2;
     const margin = Math.sqrt(tileW * tileW + tileH * tileH);
@@ -509,10 +525,10 @@ function _renderPattern(data, lowQuality = false){
 
             const rx = gx * cosA - gy * sinA;
             const ry = gx * sinA + gy * cosA;
-            // Shift origin by extraPad so the enlarged canvas is fully tiled
+            // Shift origin by extraPad (CSS px) so the enlarged canvas is fully tiled
             const cx = mc.x + extraPad + rx, cy = mc.y + extraPad + ry;
 
-            if(cx + margin < 0 || cx - margin > offW || cy + margin < 0 || cy - margin > offH) continue;
+            if(cx + margin < 0 || cx - margin > cssOffW || cy + margin < 0 || cy - margin > cssOffH) continue;
 
             const rot = (mAngle + col * (s.rotH || 0) + row * (s.rotV || 0)) * Math.PI / 180;
             const sx  = obj.flipX ? -obj.scaleX : obj.scaleX;
@@ -528,55 +544,56 @@ function _renderPattern(data, lowQuality = false){
         }
     }
 
-    // ── Apply warp to the enlarged tile canvas, then crop to W×H ─────────────
-    // referenceH = H keeps tiltK amplitude pinned to the original canvas height,
-    // preventing distortion amplification caused by the extraPad-enlarged canvas.
+    // ── Apply warp to the enlarged tile canvas, then crop to PW×PH ───────────
+    // Pass arcAmount * dpr so the arc-curve displacement (arcAmount×4 pixels in
+    // canvas space) scales correctly for the physical-pixel canvas.
+    // Pass referenceH = PH so tiltK amplitude matches the physical canvas height.
     let finalCanvas = off;
 
     if(hasWarp){
         if(!data._patternWarpCanvas) data._patternWarpCanvas = document.createElement('canvas');
         finalCanvas = createWarpedImage(
             finalCanvas,
-            data.warpAmount, data.arcAmount, data.arcTilt ?? 0,
+            data.warpAmount, data.arcAmount * dpr, data.arcTilt ?? 0,
             data._patternWarpCanvas, lowQuality,
-            H   // referenceH — tiltK uses original H, not enlarged canvas height
+            PH   // referenceH in physical pixels
         );
-        // Center-crop back to W×H: extra border tiles have filled the arc/tilt gap.
-        if(finalCanvas.width !== W || finalCanvas.height !== H){
+        // Center-crop back to PW×PH: extra border tiles filled the arc/tilt gap.
+        if(finalCanvas.width !== PW || finalCanvas.height !== PH){
             const crop = document.createElement('canvas');
-            crop.width = W; crop.height = H;
+            crop.width = PW; crop.height = PH;
             const cropCtx = crop.getContext('2d');
-            cropCtx.imageSmoothingEnabled = false;
-            const srcX = Math.round((finalCanvas.width  - W) / 2);
-            const srcY = Math.round((finalCanvas.height - H) / 2);
-            cropCtx.drawImage(finalCanvas, srcX, srcY, W, H, 0, 0, W, H);
+            cropCtx.imageSmoothingEnabled = true;
+            cropCtx.imageSmoothingQuality = 'high';
+            const srcX = Math.round((finalCanvas.width  - PW) / 2);
+            const srcY = Math.round((finalCanvas.height - PH) / 2);
+            cropCtx.drawImage(finalCanvas, srcX, srcY, PW, PH, 0, 0, PW, PH);
             finalCanvas = crop;
         }
     }
 
-    // ── Apply perspective on the W×H canvas (after warp crop) ────────────────
-    // Operating on W×H prevents perspective distortion strength from being
-    // amplified by the enlarged canvas used during the warp step above.
+    // ── Apply perspective on the PW×PH canvas (after warp crop) ──────────────
     if(hasPerspective){
         finalCanvas = applyPerspectiveDistortion(finalCanvas, data, lowQuality);
-        // Fit trim-padded perspective output back to W×H (centered draw).
-        if(finalCanvas.width !== W || finalCanvas.height !== H){
+        // Fit trim-padded perspective output back to PW×PH (centered draw).
+        if(finalCanvas.width !== PW || finalCanvas.height !== PH){
             const fitted = document.createElement('canvas');
-            fitted.width = W; fitted.height = H;
+            fitted.width = PW; fitted.height = PH;
             const fCtx = fitted.getContext('2d');
-            fCtx.imageSmoothingEnabled = false;
+            fCtx.imageSmoothingEnabled = true;
+            fCtx.imageSmoothingQuality = 'high';
             fCtx.drawImage(
                 finalCanvas,
-                Math.round((W - finalCanvas.width)  / 2),
-                Math.round((H - finalCanvas.height) / 2)
+                Math.round((PW - finalCanvas.width)  / 2),
+                Math.round((PH - finalCanvas.height) / 2)
             );
             finalCanvas = fitted;
         }
     }
 
     // ── Burn clip mask into the pixel canvas ─────────────────────────────────
-    // Fabric.js clipPath on a full-canvas image at (0,0) is unreliable in v5;
-    // we clip directly with the Canvas 2D API so the mask is pixel-perfect.
+    // Mask paths are stored in CSS pixels; scale the context by dpr so they
+    // map correctly onto the physical-pixel finalCanvas.
     if(data.maskEnabled && data.maskType === 'bezier' && (data.maskPath || data.maskPaths?.length)){
         const allPaths = data.maskPaths?.length
             ? data.maskPaths
@@ -585,6 +602,7 @@ function _renderPattern(data, lowQuality = false){
         const masked = document.createElement('canvas');
         masked.width = cw; masked.height = ch;
         const mCtx = masked.getContext('2d');
+        mCtx.scale(dpr, dpr);   // CSS-pixel path coords → physical pixels
         mCtx.beginPath();
         allPaths.forEach(points => {
             if(!points?.length) return;
@@ -611,19 +629,22 @@ function _renderPattern(data, lowQuality = false){
             mCtx.closePath();
         });
         mCtx.clip();
-        mCtx.drawImage(finalCanvas, 0, 0);
+        // Draw finalCanvas at CSS size — the dpr scale converts it to physical
+        mCtx.drawImage(finalCanvas, 0, 0, W, H);
         finalCanvas = masked;
     }
 
-    // ── Apply opacity and blend mode to the pattern object ───────────────────
-    // (clipPath on patternFabricObj is now handled pixel-level above)
+    // ── Apply opacity / blend mode; display at CSS size via 1/dpr scale ───────
     data.patternFabricObj.clipPath = null;
     data.patternFabricObj.set({
         opacity: data.opacity ?? 1,
         globalCompositeOperation: _blendToGCO(data.blendMode ?? 'normal'),
-        width: finalCanvas.width || W,
-        height: finalCanvas.height || H,
-        scaleX: 1, scaleY: 1, left: 0, top: 0,
+        width:  PW,
+        height: PH,
+        scaleX: 1 / dpr,
+        scaleY: 1 / dpr,
+        left: 0,
+        top:  0,
     });
     data.patternFabricObj.setElement(finalCanvas);
     data.patternFabricObj.applyFilters();
