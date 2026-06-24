@@ -208,7 +208,7 @@ document.addEventListener('mousedown', e => {
 document.getElementById('canvasContainer').addEventListener('click', function(e){
     if(suppressNextWrapperClick) return;
     if(_mouseDownOnControl) return;   // drag started on a control — ignore
-    if(clipEditMode || colorLayerMode) return;
+    if(clipEditMode || colorLayerMode || designEraserMode) return;
     // Only act when the click landed outside every canvas-wrapper
     if(e.target.closest('.canvas-wrapper')) return;
     _deselectAll();
@@ -218,7 +218,7 @@ document.getElementById('canvasContainer').addEventListener('click', function(e)
 document.addEventListener('click', function(e){
     if(suppressNextWrapperClick) return;
     if(_mouseDownOnControl) return;   // drag started on a control — ignore
-    if(clipEditMode || colorLayerMode) return;
+    if(clipEditMode || colorLayerMode || designEraserMode) return;
     // Ignore clicks that are inside the canvas container (handled above)
     if(e.target.closest('#canvasContainer')) return;
     // Ignore clicks on the sticky toolbar (buttons, sliders, inputs, etc.)
@@ -6472,6 +6472,8 @@ function _attachWrapperClickListener(wrapper, data){
         if(index === -1) return;
 
         if(suppressNextWrapperClick) return;
+
+        if(designEraserMode) return;
 
         if(clipEditMode && !clipCopySelectMode) return;
 
