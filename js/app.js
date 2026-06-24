@@ -1698,7 +1698,7 @@ function eraseFromObject(obj, data, pointer) {
 
     // Radius in element pixels (compensate for object scale and element:object ratio)
     const scl    = Math.min(obj.scaleX || 1, obj.scaleY || 1);
-    const radius = Math.max(1, fabricRadius / scl * Math.min(sx, sy));
+    const radius = Math.max(0.5, fabricRadius / scl * Math.min(sx, sy));
 
     // Softness: inner hard core radius where erase is 100%, fades to 0 at outer edge
     const softFrac  = designEraserSoftness / 100;
