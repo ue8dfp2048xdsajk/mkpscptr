@@ -1672,6 +1672,35 @@ function ensureErasableCanvas(obj) {
     return c;
 }
 
+// ── Eraser undo helpers ───────────────────────────────────────────────────────
+// Clone a canvas/image source for eraser undo.
+// HTMLCanvasElement → fresh canvas with same pixels (mutable, must copy).
+// HTMLImageElement / null → returned as-is (immutable, safe to reuse as reference).
+function _cloneEraserSource(src){
+    if(!src) return null;
+    if(!(src instanceof HTMLCanvasElement)) return src;
+    const copy = document.createElement('canvas');
+    copy.width  = src.width;
+    copy.height = src.height;
+    copy.getContext('2d').drawImage(src, 0, 0);
+    return copy;
+}
+
+// Snapshot the designOriginal + every extraDesignOriginal for one window.
+function _captureEraserSnapshot(data){
+    return {
+        original:       _cloneEraserSource(data.designOriginal),
+        extraOriginals: (data.extraDesignOriginals || []).map(_cloneEraserSource)
+    };
+}
+
+// Restore a previously captured eraser snapshot into a window's data.
+function _applyEraserSnapshot(data, snap){
+    data.designOriginal       = snap.original;
+    data.extraDesignOriginals = snap.extraOriginals.slice();
+    data.warpCanvas           = null; // invalidate warp cache so next applyWarpToData rerenders
+}
+
 // Convert the pipeline SOURCE (data.designOriginal or extraDesignOriginals[i])
 // to a writable canvas so the eraser can modify it in-place.  Erasing the
 // source rather than the post-warp display element means any subsequent
@@ -3149,6 +3178,30 @@ async function performGlobalUndo(){
         return;
     }
 
+    if(entry.type === 'eraser'){
+        // Capture current (post-erase) pixel data so redo can re-apply it.
+        const redoEntry = {
+            type: 'eraser',
+            items: entry.items
+                .filter(item => item.idx < canvasData.length)
+                .map(item => ({
+                    idx:  item.idx,
+                    snap: _captureEraserSnapshot(canvasData[item.idx])
+                }))
+        };
+        globalRedoStack.push(redoEntry);
+        updateUndoRedoButtons();
+        for(const item of entry.items){
+            if(item.idx >= canvasData.length) continue;
+            const d = canvasData[item.idx];
+            _applyEraserSnapshot(d, item.snap);
+            await applyWarpToData(d, false);
+        }
+        syncSliders();
+        updateUndoRedoButtons();
+        return;
+    }
+
     if(entry.type === 'warp'){
         // Save current (post-warp) state+original so redo can re-apply it.
         const redoEntry = {
@@ -3241,6 +3294,30 @@ async function performGlobalRedo(){
         activeIndices     = selDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
         lastSelectedIndex = lastSel ? canvasData.indexOf(lastSel) : null;
         updateWindowBorders();
+        updateUndoRedoButtons();
+        return;
+    }
+
+    if(entry.type === 'eraser'){
+        // Capture current (pre-restore) pixel data so undo can revert it again.
+        const undoEntry = {
+            type: 'eraser',
+            items: entry.items
+                .filter(item => item.idx < canvasData.length)
+                .map(item => ({
+                    idx:  item.idx,
+                    snap: _captureEraserSnapshot(canvasData[item.idx])
+                }))
+        };
+        globalUndoStack.push(undoEntry);
+        updateUndoRedoButtons();
+        for(const item of entry.items){
+            if(item.idx >= canvasData.length) continue;
+            const d = canvasData[item.idx];
+            _applyEraserSnapshot(d, item.snap);
+            await applyWarpToData(d, false);
+        }
+        syncSliders();
         updateUndoRedoButtons();
         return;
     }
@@ -5708,6 +5785,25 @@ function attachFabricEvents(data, targetObject = null){
         // Objects are made non-selectable on entry so clicks go straight to these handlers.
         data.fabricCanvas.on('mouse:down', (opt) => {
             if (!designEraserMode) return;
+
+            // Snapshot ALL active (non-locked) windows ONCE at the very start of each
+            // stroke (before any pixels change).  This is the undo checkpoint; a second
+            // mousedown within the same stroke is prevented by the designEraserDown guard.
+            if (!designEraserDown) {
+                const items = [];
+                canvasData.forEach((d, i) => {
+                    if (!d || d.locked) return;
+                    if (!activeIndices.includes(i)) return;
+                    items.push({ idx: i, snap: _captureEraserSnapshot(d) });
+                });
+                if (items.length) {
+                    globalUndoStack.push({ type: 'eraser', items });
+                    if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+                    globalRedoStack = [];
+                    updateUndoRedoButtons();
+                }
+            }
+
             designEraserDown = true;
             applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
         });
