@@ -1821,8 +1821,10 @@ function eraseFromObject(obj, data, pointer) {
 }
 
 // Apply the eraser at a canvas-space point to design objects in one window.
-// Only touches objects that were selected when eraser mode was entered;
-// falls back to all objects if nothing was selected at that time.
+// Erases exactly ONE layer per window: the first (primary) object that was
+// selected when eraser mode was entered, or the main design if nothing specific
+// was selected.  For windows the user wasn't on at entry time, the restriction
+// is dropped and the main design object is erased.
 function applyDesignEraserAt(data, pointer) {
     let targets = [];
     if (data.designObject)       targets.push(data.designObject);
@@ -1837,10 +1839,13 @@ function applyDesignEraserAt(data, pointer) {
     }
     if (!targets.length) return;
 
+    // Only erase the PRIMARY (first) target — one layer at a time per window.
+    const primaryTarget = targets[0];
+
     const hasWarp = (data.warpAmount || 0) || (data.arcAmount    || 0) ||
                     (data.perspectiveTop || 0) || (data.perspectiveLeft || 0);
 
-    targets.forEach(obj => eraseFromObject(obj, data, pointer));
+    eraseFromObject(primaryTarget, data, pointer);
 
     if (hasWarp) {
         // With warp active, rebuilding the full pipeline per-stroke is too
@@ -1854,6 +1859,26 @@ function applyDesignEraserAt(data, pointer) {
         // blur/noise effects are correctly applied on top of the erased source.
         applyWarpToData(data, true);
     }
+}
+
+// Mirror the current eraser stroke from `primaryData`'s canvas space to every
+// other currently-selected window at the same proportional position.
+// Called immediately after applyDesignEraserAt for the primary canvas so that
+// all selected windows are erased simultaneously in one gesture.
+function _applyEraserSync(primaryData, pointer) {
+    const W = primaryData.fabricCanvas.width;
+    const H = primaryData.fabricCanvas.height;
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if (!d || d === primaryData || d.locked) return;
+        if (!d.designObject && !(d.extraDesignObjects && d.extraDesignObjects.length)) return;
+        // Scale pointer proportionally to the target canvas dimensions
+        const syncPointer = {
+            x: pointer.x / W * d.fabricCanvas.width,
+            y: pointer.y / H * d.fabricCanvas.height,
+        };
+        applyDesignEraserAt(d, syncPointer);
+    });
 }
 
 function updateEraserCursor(e) {
@@ -5822,11 +5847,15 @@ function attachFabricEvents(data, targetObject = null){
             }
 
             designEraserDown = true;
-            applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
+            const pointerDown = data.fabricCanvas.getPointer(opt.e);
+            applyDesignEraserAt(data, pointerDown);
+            _applyEraserSync(data, pointerDown);
         });
         data.fabricCanvas.on('mouse:move', (opt) => {
             if (!designEraserMode || !designEraserDown) return;
-            applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
+            const pointerMove = data.fabricCanvas.getPointer(opt.e);
+            applyDesignEraserAt(data, pointerMove);
+            _applyEraserSync(data, pointerMove);
         });
         data.fabricCanvas.on('mouse:up', () => {
             if (designEraserMode) {
@@ -5835,10 +5864,20 @@ function attachFabricEvents(data, targetObject = null){
                 // updated the display element for performance.  Now that the stroke
                 // is finished, rebuild the full pipeline from the erased source so
                 // future blur/noise/warp changes all start from the correct state.
+                // Flush this window plus every other window that was synced during
+                // the stroke (they may also have _erasePendingRebuild set).
                 if (data._erasePendingRebuild) {
                     data._erasePendingRebuild = false;
                     applyWarpToData(data, false);
                 }
+                activeIndices.forEach(i => {
+                    const d = canvasData[i];
+                    if (!d || d === data) return;
+                    if (d._erasePendingRebuild) {
+                        d._erasePendingRebuild = false;
+                        applyWarpToData(d, false);
+                    }
+                });
             }
         });
 
