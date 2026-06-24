@@ -254,6 +254,25 @@ body {
 }
 .pattern-reset-btn:hover { background: #e8e8e8; border-color: #aaa; color: #333; }
 
+.pattern-action-btn {
+    flex: 1;
+    font-size: 11px;
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #f5f5f5;
+    color: #555;
+    cursor: pointer;
+    font-weight: 500;
+}
+.pattern-action-btn:hover { background: #e8e8e8; border-color: #aaa; color: #333; }
+.pattern-action-btn--teal {
+    background: #26a69a;
+    color: #fff;
+    border-color: #1d8a80;
+}
+.pattern-action-btn--teal:hover { background: #1d8a80; border-color: #18766d; color: #fff; }
+
 /* ── Window count badge ─────────────────────────────────────────────────────── */
 .window-count-badge {
     display: inline-block;

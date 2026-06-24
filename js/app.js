@@ -4436,6 +4436,203 @@ document.getElementById('resetPatternBtn').addEventListener('click', () => {
     _markDirty();
 });
 
+// ── Bake Pattern Sheet ────────────────────────────────────────────────────────
+// Flattens the live tiled pattern into a full-canvas PNG, exits pattern mode,
+// and installs the result as the window's designOriginal so all subsequent
+// tools (warp, arc, clip, erase, duplicate, copy) work on the flat sheet.
+
+function _bakePatternSheet(data) {
+    if (!data || !data.patternMode || !data.patternFabricObj) return;
+
+    const fc  = data.fabricCanvas;
+    const W   = fc.getWidth();
+    const H   = fc.getHeight();
+    const dpr = Math.max(1, fc.lowerCanvasEl.width / W);
+
+    // Push undo BEFORE mutating — reuse the warp undo type which snapshots both
+    // the window state and designOriginal so Undo can restore them together.
+    const affIdx = canvasData.indexOf(data);
+    if (affIdx !== -1) {
+        globalUndoStack.push({
+            type: 'warp',
+            items: [{ idx: affIdx, state: captureWindowState(data), original: data.designOriginal }]
+        });
+        if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+        globalRedoStack = [];
+        updateUndoRedoButtons();
+    }
+
+    // Capture the currently rendered pattern at the physical (DPR) resolution.
+    const pEl = data.patternFabricObj.getElement();
+    const bakedCanvas = document.createElement('canvas');
+    bakedCanvas.width  = W * dpr;
+    bakedCanvas.height = H * dpr;
+    const ctx = bakedCanvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(pEl, 0, 0, W * dpr, H * dpr);
+
+    // Exit pattern mode — removes patternFabricObj, restores designObject opacity.
+    _togglePatternMode(data, false);
+
+    // Install the baked canvas as the new design source.
+    data.designOriginal = bakedCanvas;
+    data.warpCanvas     = null;  // invalidate any cached warp canvas
+
+    // Centre the flat sheet and size it to fill the canvas exactly.
+    // scaleX/scaleY are "data-space" values; applyWarpToData multiplies by previewScale.
+    data.x          = W / 2;
+    data.y          = H / 2;
+    data.scaleX     = 1 / dpr;
+    data.scaleY     = 1 / dpr;
+    data.rotation   = 0;
+    data.warpAmount = 0;
+    data.arcAmount  = 0;
+    data.arcTilt    = 0;
+    data.perspectiveTop  = 0;
+    data.perspectiveLeft = 0;
+
+    applyWarpToData(data, false);
+
+    syncSliders();
+    _syncPatternDisplay();
+    refreshFabricHandles();
+    updateWindowBorders();
+    _markDirty();
+}
+
+// ── Export Pattern PNG ────────────────────────────────────────────────────────
+// Downloads the current pattern canvas (before or after baking) as a PNG file.
+
+function _exportPatternPNG(data) {
+    if (!data) return;
+
+    let src = (data.patternMode && data.patternFabricObj)
+        ? data.patternFabricObj.getElement()
+        : data.designOriginal;
+    if (!src) return;
+
+    // designOriginal may be an HTMLImageElement; wrap it in a canvas for toBlob.
+    if (!(src instanceof HTMLCanvasElement)) {
+        const tmp = document.createElement('canvas');
+        tmp.width  = src.naturalWidth  || src.width  || 1;
+        tmp.height = src.naturalHeight || src.height || 1;
+        tmp.getContext('2d').drawImage(src, 0, 0);
+        src = tmp;
+    }
+
+    src.toBlob(blob => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href     = url;
+        a.download = (data.filename || 'pattern') + '_sheet.png';
+        a.click();
+        URL.revokeObjectURL(url);
+    }, 'image/png');
+}
+
+// ── Copy Design to Selected Windows ──────────────────────────────────────────
+// Takes the primary active window's designOriginal (the baked sheet or any
+// other design) and loads it into every OTHER currently selected window,
+// scaled to fill each target canvas.
+
+function _copyDesignToSelected(sourceData) {
+    if (!sourceData?.designOriginal) return;
+
+    // Normalise the source to a canvas element so we can rescale it per target.
+    let srcEl = sourceData.designOriginal;
+    if (!(srcEl instanceof HTMLCanvasElement)) {
+        const tmp = document.createElement('canvas');
+        tmp.width  = srcEl.naturalWidth  || srcEl.width  || 1;
+        tmp.height = srcEl.naturalHeight || srcEl.height || 1;
+        tmp.getContext('2d').drawImage(srcEl, 0, 0);
+        srcEl = tmp;
+    }
+
+    const srcIdx  = canvasData.indexOf(sourceData);
+    const targets = activeIndices
+        .filter(i => i !== srcIdx)
+        .map(i => canvasData[i])
+        .filter(d => d && !d.locked);
+
+    if (!targets.length) {
+        alert('Select one or more additional windows to receive the design.');
+        return;
+    }
+
+    // Snapshot every target for undo before touching anything.
+    const undoItems = targets
+        .map(d => ({ idx: canvasData.indexOf(d), state: captureWindowState(d), original: d.designOriginal }))
+        .filter(item => item.idx !== -1);
+    if (undoItems.length) {
+        globalUndoStack.push({ type: 'warp', items: undoItems });
+        if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+        globalRedoStack = [];
+        updateUndoRedoButtons();
+    }
+
+    targets.forEach(d => {
+        // Turn off pattern mode in the target if active.
+        if (d.patternMode || d.patternFabricObj) _togglePatternMode(d, false);
+
+        const fc     = d.fabricCanvas;
+        const W      = fc.getWidth();
+        const H      = fc.getHeight();
+        const dpr    = Math.max(1, fc.lowerCanvasEl.width / W);
+        const physW  = W * dpr;
+        const physH  = H * dpr;
+
+        // Rescale the source canvas to exactly fill the target at physical resolution.
+        const copy = document.createElement('canvas');
+        copy.width  = physW;
+        copy.height = physH;
+        const cCtx  = copy.getContext('2d');
+        cCtx.imageSmoothingEnabled = true;
+        cCtx.imageSmoothingQuality = 'high';
+        cCtx.drawImage(srcEl, 0, 0, physW, physH);
+
+        d.designOriginal = copy;
+        d.warpCanvas     = null;
+        d.x          = W / 2;
+        d.y          = H / 2;
+        d.scaleX     = 1 / dpr;
+        d.scaleY     = 1 / dpr;
+        d.rotation   = 0;
+        d.warpAmount = 0;
+        d.arcAmount  = 0;
+        d.arcTilt    = 0;
+        d.perspectiveTop  = 0;
+        d.perspectiveLeft = 0;
+
+        applyWarpToData(d, false);
+    });
+
+    syncSliders();
+    _markDirty();
+}
+
+document.getElementById('bakePatternBtn').addEventListener('click', () => {
+    if (!activeIndices.length) return;
+    const data = canvasData[activeIndices[0]];
+    if (!data || data.locked) return;
+    _bakePatternSheet(data);
+});
+
+document.getElementById('exportPatternBtn').addEventListener('click', () => {
+    if (!activeIndices.length) return;
+    const data = canvasData[activeIndices[0]];
+    if (!data) return;
+    _exportPatternPNG(data);
+});
+
+document.getElementById('copyPatternToSelectedBtn').addEventListener('click', () => {
+    if (!activeIndices.length) return;
+    const data = canvasData[activeIndices[0]];
+    if (!data) return;
+    _copyDesignToSelected(data);
+});
+
 const _patternSliderDefs = [
     ['patternHSpacing','hSpacing'],
     ['patternVSpacing','vSpacing'],
