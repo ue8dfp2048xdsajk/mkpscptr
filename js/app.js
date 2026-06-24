@@ -9607,6 +9607,9 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
 
 
 
+document.getElementById("resetBtnTop").addEventListener("click", () =>
+    document.getElementById("resetBtn").click());
+
 document.getElementById("resetBtn").addEventListener("click", ()=>{
 
     if(!activeIndices.length) return;
