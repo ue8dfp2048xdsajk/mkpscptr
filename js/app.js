@@ -5205,11 +5205,7 @@ function updateDropUI(){
     const bgCount      = document.getElementById('bgCount');
     const designCount  = document.getElementById('designCount');
 
-    // If windows already exist (e.g. added via Add Window) never show overlays
-    if(canvasData.length > 0){
-        dropZone.style.display     = 'none';
-        designPrompt.style.display = 'none';
-    } else if(backgrounds.length === 0){
+    if(backgrounds.length === 0){
         dropZone.style.display     = 'flex';
         designPrompt.style.display = 'none';
     } else if(designs.length === 0){
@@ -8786,6 +8782,19 @@ document.addEventListener('keydown', function(e){
         if(!activeIndices.length) return;
         enterDesignEraserMode();
     }
+});
+
+// T — toggle text tool on/off
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 't') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    e.preventDefault();
+    if(typeof window._setActiveTool === 'function') window._setActiveTool('text');
 });
 
 document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{
