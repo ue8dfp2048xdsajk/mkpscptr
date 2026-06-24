@@ -1853,6 +1853,20 @@ function applyDesignEraserAt(data, pointer) {
 
     targets.forEach(obj => eraseFromObject(obj, data, pointer));
 
+    // The eraser modifies source canvases IN-PLACE (same JS reference, different pixels).
+    // Several pipeline caches use reference equality to detect source changes, so they
+    // would serve stale results after an in-place modification.  Invalidate them all:
+    //   • data._dsSrc / _hqCanvas  — pattern tile mipmap cache in _renderPattern
+    //   • data._flipMap            — flip cache keyed by source canvas reference
+    //   • obj._c_src / _c_warpOk  — per-object blur/noise/warp cache in _applyWarpToOneObject
+    data._dsSrc    = null;
+    data._hqCanvas = null;
+    data._flipMap = null;
+    targets.forEach(obj => {
+        obj._c_src    = null;
+        obj._c_warpOk = false;
+    });
+
     if (hasWarp) {
         // With warp active, rebuilding the full pipeline per-stroke is too
         // expensive; the display-element erase in eraseFromObject provides
