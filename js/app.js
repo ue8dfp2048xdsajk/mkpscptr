@@ -1821,31 +1821,24 @@ function eraseFromObject(obj, data, pointer) {
 }
 
 // Apply the eraser at a canvas-space point to design objects in one window.
-// Erases exactly ONE layer per window: the first (primary) object that was
-// selected when eraser mode was entered, or the main design if nothing specific
-// was selected.  For windows the user wasn't on at entry time, the restriction
-// is dropped and the main design object is erased.
+// If specific layers were selected when eraser mode was entered those are the
+// only ones touched; otherwise all design layers in the window are erased.
+// For windows the user wasn't on at entry time the restriction is dropped so
+// they don't have to exit and re-enter just to switch windows.
 function applyDesignEraserAt(data, pointer) {
     let targets = [];
     if (data.designObject)       targets.push(data.designObject);
     if (data.extraDesignObjects) targets.push(...data.extraDesignObjects);
     if (eraserTargetObjects.size > 0) {
         const filtered = targets.filter(obj => eraserTargetObjects.has(obj));
-        // Only restrict to the pre-selected objects if this window actually had
-        // some of them selected.  For windows the user wasn't on when entering
-        // eraser mode, erase all design layers so they don't have to exit and
-        // re-enter just to switch windows.
         if (filtered.length > 0) targets = filtered;
     }
     if (!targets.length) return;
 
-    // Only erase the PRIMARY (first) target — one layer at a time per window.
-    const primaryTarget = targets[0];
-
     const hasWarp = (data.warpAmount || 0) || (data.arcAmount    || 0) ||
                     (data.perspectiveTop || 0) || (data.perspectiveLeft || 0);
 
-    eraseFromObject(primaryTarget, data, pointer);
+    targets.forEach(obj => eraseFromObject(obj, data, pointer));
 
     if (hasWarp) {
         // With warp active, rebuilding the full pipeline per-stroke is too
@@ -1858,6 +1851,8 @@ function applyDesignEraserAt(data, pointer) {
         // No warp: pipeline rebuild is cheap (just a drawImage), run it now so
         // blur/noise effects are correctly applied on top of the erased source.
         applyWarpToData(data, true);
+        // Safety: ensure a render fires even if applyWarpToData returned early.
+        data.fabricCanvas.requestRenderAll();
     }
 }
 
@@ -5847,15 +5842,11 @@ function attachFabricEvents(data, targetObject = null){
             }
 
             designEraserDown = true;
-            const pointerDown = data.fabricCanvas.getPointer(opt.e);
-            applyDesignEraserAt(data, pointerDown);
-            _applyEraserSync(data, pointerDown);
+            applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
         });
         data.fabricCanvas.on('mouse:move', (opt) => {
             if (!designEraserMode || !designEraserDown) return;
-            const pointerMove = data.fabricCanvas.getPointer(opt.e);
-            applyDesignEraserAt(data, pointerMove);
-            _applyEraserSync(data, pointerMove);
+            applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
         });
         data.fabricCanvas.on('mouse:up', () => {
             if (designEraserMode) {
