@@ -8117,6 +8117,10 @@ document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
     clipCopySelectMode  = false;
     clipCopySourceIndex = null;
 
+    // Allow the user to click any target window to start editing its clipping.
+    // Leaving this set to the source would block switching to any target.
+    activeClipWindowIndex = null;
+
     activeIndices = [restoredIndex];
 
     updateWindowBorders();
@@ -8148,7 +8152,9 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
 
         colorLayerMode = true;
 
-        // Lock all design objects so they can't be accidentally moved/transformed
+        // Lock all design objects so they can't be accidentally moved/transformed,
+        // AND disable Fabric's drag-to-select so it doesn't draw its blue selection
+        // rectangle over the paint strokes.
         canvasData.forEach(data=>{
             getAllDesignObjects(data).forEach(o=>{
                 if(!o) return;
@@ -8157,6 +8163,7 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
                 o.selectable      = false;
                 o.evented         = false;
             });
+            data.fabricCanvas.selection = false;
             data.fabricCanvas.discardActiveObject();
             data.fabricCanvas.requestRenderAll();
         });
@@ -8192,7 +8199,7 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
         // Stop global mousemove tracking and hide ring
         _stopColorLayerCursorTracking();
 
-        // Restore interactivity on all design objects
+        // Restore interactivity on all design objects and re-enable Fabric selection
         canvasData.forEach(data=>{
             getAllDesignObjects(data).forEach(o=>{
                 if(!o) return;
@@ -8201,6 +8208,7 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
                 delete o._prevSelectable;
                 delete o._prevEvented;
             });
+            data.fabricCanvas.selection = true;
         });
 
         refreshFabricHandles();
@@ -8643,6 +8651,40 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
         if(activeClipWindowIndex === null){
 
             activeClipWindowIndex = index;
+
+            // Load this canvas's existing clip data (e.g. from Copy Clipping)
+            // into the editor globals and draw the bezier handles so it is
+            // immediately editable, just like the original source window.
+            const thisData = canvasData[index];
+            if(thisData?.maskPath?.length){
+                clipCurvePoints    = thisData.maskPath.map(p => ({ ...p }));
+                clipPolygonClosed  = true;
+            } else {
+                clipCurvePoints   = [];
+                clipPolygonClosed = false;
+            }
+
+            clearBezierHelpers(fabricCanvas);
+
+            if(clipCurvePoints.length){
+                // Draw the editable overlay (marching-ant path + anchor nodes)
+                activeCurvePreview = createCurveOverlay(clipCurvePoints, true);
+                activeCurvePreview.forEach(o => fabricCanvas.add(o));
+                drawBezierHelpers(fabricCanvas, clipCurvePoints);
+                drawInactivePaths(fabricCanvas, thisData);
+                activeCurvePreview.forEach(o => o.bringToFront());
+                activeBezierHelpers.forEach(obj => obj.bringToFront());
+            }
+
+            window.__activeClipCanvas = fabricCanvas;
+            window.__activeClipRedraw = redrawEditor;
+            fabricCanvas.requestRenderAll();
+
+            // If existing clip data was loaded, stop here — the activation
+            // click should not also move an anchor or add a new point.
+            // For a fresh window (no clip yet), fall through so this first
+            // click begins drawing the polygon.
+            if(clipCurvePoints.length) return;
         }
 
         // In copy-select mode the user is picking target windows —
@@ -9596,6 +9638,13 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
     backgrounds = [];
     designs = [];
 
+    // Hide the drop zone immediately — canvasData is empty right now, so any
+    // call to updateDropUI would mistakenly show it during the load loop.
+    const _dropZoneEl     = document.getElementById('dropZone');
+    const _designPromptEl = document.getElementById('designPrompt');
+    if(_dropZoneEl)     _dropZoneEl.style.display     = 'none';
+    if(_designPromptEl) _designPromptEl.style.display = 'none';
+
     loadingIndicator.style.display = "block";
 
     for(let index = 0; index < snapshot.length; index++){
@@ -9870,6 +9919,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                     await new Promise(resolve=>{
 
                         const img = new Image();
+
+                        img.onerror = ()=>resolve(); // never hang on a broken src
 
                         img.onload = ()=>{
 
