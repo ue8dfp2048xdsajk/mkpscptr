@@ -3870,6 +3870,8 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     const prevTop    = obj.top;
     const prevScaleX = obj.scaleX;
     const prevScaleY = obj.scaleY;
+    const prevSkewX  = obj.skewX || 0;
+    const prevSkewY  = obj.skewY || 0;
     const prevAngle  = obj.angle;
 
     obj.setElement(warped);
@@ -3880,6 +3882,8 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
         top:    prevTop,
         scaleX: prevScaleX,
         scaleY: prevScaleY,
+        skewX:  prevSkewX,
+        skewY:  prevSkewY,
         angle:  prevAngle,
         opacity: fx.opacity ?? 1,
         globalCompositeOperation: _blendToGCO(fx.blendMode)
@@ -7204,6 +7208,8 @@ function _captureTransforms(data){
         scale:    data.scale,
         scaleX:   obj ? (obj.scaleX / ps) : (data.scaleX ?? data.scale),
         scaleY:   obj ? (obj.scaleY / ps) : (data.scaleY ?? data.scale),
+        skewX:    obj ? (obj.skewX  || 0) : (data.skewX  || 0),
+        skewY:    obj ? (obj.skewY  || 0) : (data.skewY  || 0),
         rotation: obj ? obj.angle         : data.rotation,
         warpAmount:    data.warpAmount    ?? 0,
         arcAmount:     data.arcAmount     ?? 0,
@@ -7237,6 +7243,8 @@ function _applyTransforms(data, t){
     data.blurAmount  = t.blurAmount;
     data.noiseAmount = t.noiseAmount;
     data.blendMode   = t.blendMode;
+    data.skewX       = t.skewX  || 0;
+    data.skewY       = t.skewY  || 0;
     data.flipX       = t.flipX;
     data.flipY       = t.flipY;
     data._flipMap    = null;
@@ -9236,6 +9244,12 @@ function buildSnapshot(){
             scaleX: mainObj ? (mainObj.scaleX / data.previewScale) : data.scaleX,
             scaleY: mainObj ? (mainObj.scaleY / data.previewScale) : data.scaleY,
 
+            skewX: mainObj ? (mainObj.skewX || 0) : (data.skewX || 0),
+            skewY: mainObj ? (mainObj.skewY || 0) : (data.skewY || 0),
+
+            flipX: !!data.flipX,
+            flipY: !!data.flipY,
+
             rotation: mainObj ? mainObj.angle : data.rotation,
 
             warpAmount: data.warpAmount ?? 0,
@@ -9291,7 +9305,13 @@ function buildSnapshot(){
                 scaleX: obj.scaleX / data.previewScale,
                 scaleY: obj.scaleY / data.previewScale,
 
+                skewX: obj.skewX || 0,
+                skewY: obj.skewY || 0,
+
                 angle: obj.angle,
+
+                opacity:   obj.opacity ?? 1,
+                blendMode: obj.globalCompositeOperation ?? 'source-over',
 
                 // Uploaded designs store their own image source so they
                 // survive save/restore independently of the main design.
@@ -9474,6 +9494,12 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             scaleY: saved.scaleY,
 
             rotation: saved.rotation,
+
+            skewX: saved.skewX ?? 0,
+            skewY: saved.skewY ?? 0,
+
+            flipX: !!saved.flipX,
+            flipY: !!saved.flipY,
 
             warpAmount: saved.warpAmount,
             arcAmount: saved.arcAmount,
@@ -9676,6 +9702,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                                 top:  dup.top  * previewScale,
                                 scaleX: dup.scaleX * previewScale,
                                 scaleY: dup.scaleY * previewScale,
+                                skewX: dup.skewX ?? 0,
+                                skewY: dup.skewY ?? 0,
                                 angle: dup.angle,
                                 opacity: dup.opacity ?? data.opacity,
                                 globalCompositeOperation: _blendToGCO(dup.blendMode),
@@ -9716,16 +9744,15 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                                 left: dup.left * previewScale,
                                 top:  dup.top  * previewScale,
 
-                                scaleX:
-                                    dup.scaleX * previewScale,
+                                scaleX: dup.scaleX * previewScale,
+                                scaleY: dup.scaleY * previewScale,
 
-                                scaleY:
-                                    dup.scaleY * previewScale,
+                                skewX: dup.skewX ?? 0,
+                                skewY: dup.skewY ?? 0,
 
                                 angle: dup.angle,
 
-                                opacity:
-                                    dup.opacity ?? data.opacity,
+                                opacity: dup.opacity ?? data.opacity,
 
                                 globalCompositeOperation: _blendToGCO(dup.blendMode)
                             });
