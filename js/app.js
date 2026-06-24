@@ -6067,21 +6067,15 @@ function updateLayerButtons(){
     const dup       = document.getElementById("duplicateLayerBtn");
     const invertBtn = document.getElementById("invertColorsBtn");
 
-    if(selectedDesigns.size > 0){
-        del.style.display       = "block";
-        dup.style.display       = "block";
-        invertBtn.style.display = "block";
-    } else {
-        del.style.display       = "none";
-        dup.style.display       = "none";
-        invertBtn.style.display = "none";
-    }
+    const hasSelection = selectedDesigns.size > 0;
+    del.disabled       = !hasSelection;
+    dup.disabled       = !hasSelection;
+    invertBtn.disabled = !hasSelection;
 
     // Copy Layer / Paste Layer button
     const copyLayerBtn = document.getElementById('copyLayerBtn');
     if (copyLayerBtn){
-        const showIt = selectedDesigns.size > 0 || _copiedLayer !== null;
-        copyLayerBtn.style.display = showIt ? 'block' : 'none';
+        copyLayerBtn.disabled = !(hasSelection || _copiedLayer !== null);
         _updateCopyLayerBtn();
     }
 
@@ -6103,7 +6097,7 @@ function updateLayerButtons(){
     if(title){
         const n = activeIndices.length;
         title.textContent = hasActive
-            ? (n === 1 ? "1 window selected" : `${n} windows selected`)
+            ? (n === 1 ? "1 mockup selected" : `${n} mockups selected`)
             : "Controls";
     }
 
@@ -7104,7 +7098,7 @@ async function _pasteLayerToTargets(){
         .filter(d => d && !d.locked);
 
     if (!targets.length){
-        alert('Select one or more windows (other than the source) to paste into.');
+        alert('Select one or more mockups (other than the source) to paste into.');
         _copiedLayer = null;
         _updateCopyLayerBtn();
         return;
@@ -7279,7 +7273,7 @@ document.getElementById('copyTransformsBtn').addEventListener('click', () => {
     // Visual feedback on the button
     const btn = document.getElementById('copyTransformsBtn');
     btn.textContent = '✓ Copied';
-    setTimeout(() => { btn.textContent = 'Copy Transforms'; }, 1400);
+    setTimeout(() => { btn.textContent = 'Copy Style'; }, 1400);
     updateLayerButtons(); // enable Paste
 });
 
@@ -8075,7 +8069,7 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
         document.querySelectorAll('.canvas-wrapper')
             .forEach(w=> w.classList.remove('color-layer-mode'));
 
-        document.getElementById("addColorLayerBtn").innerText       = "Add Color Layer";
+        document.getElementById("addColorLayerBtn").innerText       = "Paint Overlay";
         document.getElementById("colorLayerControls").style.display = "none";
         document.getElementById("copyColorBtn").style.display           = "none";
         document.getElementById("copyColorToSelectedBtn").style.display = "none";
@@ -9401,6 +9395,24 @@ function autoSaveSession(){
     }, 2500);
 }
 
+
+// ── File menu dropdown toggle ─────────────────────────────────────────────────
+(()=>{
+    const fileBtn     = document.getElementById('fileMenuBtn');
+    const filePopover = document.getElementById('fileMenuPopover');
+    if(!fileBtn || !filePopover) return;
+
+    fileBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        filePopover.hidden = !filePopover.hidden;
+    });
+
+    document.addEventListener('click', e => {
+        if(!filePopover.hidden && !filePopover.contains(e.target) && e.target !== fileBtn){
+            filePopover.hidden = true;
+        }
+    });
+})();
 
 document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
 
