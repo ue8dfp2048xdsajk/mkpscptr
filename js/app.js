@@ -522,17 +522,26 @@ function _renderPattern(data, lowQuality = false){
     const tiltMax     = Math.abs(data.arcTilt ?? 0) / 100 * H * 0.18;
     const extraPad    = hasWarp ? Math.ceil(arcCurveMax + 2 * tiltMax) : 0;
 
-    // Physical canvas dimensions (CSS extraPad scaled to physical pixels via dpr)
+    // Physical canvas dimensions at normal DPR (used for warp/perspective/display)
     const offW = Math.round((W + extraPad * 2) * dpr);
     const offH = Math.round((H + extraPad * 2) * dpr);
 
+    // ── Tile-phase supersampling (SS=2) ────────────────────────────────────────
+    // Render tiles at SS× physical resolution so each output pixel averages SS²
+    // source samples (4-sample SSAA at SS=2).  After the tile loop the supersampled
+    // canvas is box-filtered down to normal physical resolution; warp/perspective
+    // then run on the normal-resolution canvas so their slice counts are unchanged.
+    const SS   = lowQuality ? 1 : 2;
+    const ssW  = Math.round((W + extraPad * 2) * dpr * SS);
+    const ssH  = Math.round((H + extraPad * 2) * dpr * SS);
+
     const off = document.createElement('canvas');
-    off.width = offW; off.height = offH;
+    off.width = ssW; off.height = ssH;
     const ctx = off.getContext('2d');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    // Pre-scale by dpr so all tile coordinates are expressed in CSS pixels
-    ctx.scale(dpr, dpr);
+    // Pre-scale by dpr×SS so all tile coordinates stay in CSS pixel space
+    ctx.scale(dpr * SS, dpr * SS);
 
     // Use CSS-pixel canvas dimensions for the tile-coverage bounds check
     const cssOffW = W + extraPad * 2;
@@ -543,21 +552,44 @@ function _renderPattern(data, lowQuality = false){
     const margin = Math.sqrt(tileW * tileW + tileH * tileH);
 
     // ── Progressive downsampling (mipmap-style) ───────────────────────────────
-    // When a tile is displayed much smaller than its source, a single drawImage
-    // call from e.g. 1200px → 30px causes aliasing even with imageSmoothingQuality
-    // 'high'.  Pre-shrink to ~2× the physical display size in halving steps so the
-    // final drawImage only needs to do a gentle ≤2× reduction — much sharper.
-    const physTileW = Math.max(2, Math.round(tileW * dpr));
-    const physTileH = Math.max(2, Math.round(tileH * dpr));
+    // When a tile is drawn much smaller than its source a single drawImage step
+    // causes aliasing.  Pre-shrink in halving steps to ~2× the SS-scaled display
+    // size so the final drawImage only performs a ≤2× reduction — much sharper.
+    const physTileW = Math.max(2, Math.round(tileW * dpr * SS));
+    const physTileH = Math.max(2, Math.round(tileH * dpr * SS));
     let drawEl = tileEl;
     if (srcW > physTileW * 2 || srcH > physTileH * 2) {
         const dsKey = `${srcW}x${srcH}_${physTileW}x${physTileH}`;
         if (data._dsSrc !== tileEl || data._dsKey !== dsKey) {
+            // Sync mipmap: used immediately
             data._dsCanvas = _downsampleTile(tileEl, srcW, srcH, physTileW, physTileH);
             data._dsSrc    = tileEl;
             data._dsKey    = dsKey;
+            data._hqCanvas = null;  // invalidate any prior HQ mip
+
+            // Async HQ mip via createImageBitmap (Lanczos/area-average quality).
+            // Resolves quickly; triggers a second crisp render automatically.
+            if (!lowQuality && typeof createImageBitmap === 'function') {
+                createImageBitmap(tileEl, {
+                    resizeWidth:   physTileW * 2,
+                    resizeHeight:  physTileH * 2,
+                    resizeQuality: 'high',
+                }).then(bmp => {
+                    // Only apply if tile/key still match (user hasn't moved on)
+                    if (data._dsKey === dsKey && data._dsSrc === tileEl) {
+                        const hq = document.createElement('canvas');
+                        hq.width  = bmp.width;
+                        hq.height = bmp.height;
+                        hq.getContext('2d').drawImage(bmp, 0, 0);
+                        data._hqCanvas = hq;
+                        data._hqKey    = dsKey;
+                        _renderPattern(data, false);  // re-render with Lanczos mip
+                    }
+                }).catch(() => {});
+            }
         }
-        drawEl = data._dsCanvas;
+        // Prefer the HQ Lanczos mip if it matches the current key
+        drawEl = (data._hqCanvas && data._hqKey === dsKey) ? data._hqCanvas : data._dsCanvas;
     }
 
     for(let row = -nRows; row <= nRows; row++){
@@ -583,19 +615,33 @@ function _renderPattern(data, lowQuality = false){
             ctx.rotate(rot);
             // opacity is handled by patternFabricObj, not per-tile
             ctx.scale(sx, sy);
-            // Draw at the original CSS rectangle so the ctx transforms map it to
-            // the correct physical size; drawEl is already pre-shrunk so this
-            // last step is a smooth ≤2× reduction, not a huge jump.
+            // Draw at the original CSS rectangle; ctx already at dpr×SS scale, and
+            // drawEl is pre-shrunk so the final step is a gentle ≤2× reduction.
             ctx.drawImage(drawEl, -srcW / 2, -srcH / 2, srcW, srcH);
             ctx.restore();
         }
     }
 
-    // ── Apply warp to the enlarged tile canvas, then crop to PW×PH ───────────
-    // Pass arcAmount * dpr so the arc-curve displacement (arcAmount×4 pixels in
-    // canvas space) scales correctly for the physical-pixel canvas.
+    // ── Box-filter SS× tile canvas down to normal physical resolution ─────────
+    // Each output pixel averages SS² supersampled input pixels → SSAA.
+    // Warp and perspective then run on the normal-resolution canvas so their
+    // slice counts and arc amplitudes are unchanged.
+    let finalCanvas;
+    if (SS > 1) {
+        const norm = document.createElement('canvas');
+        norm.width  = offW; norm.height = offH;
+        const normCtx = norm.getContext('2d');
+        normCtx.imageSmoothingEnabled = true;
+        normCtx.imageSmoothingQuality = 'high';
+        normCtx.drawImage(off, 0, 0, offW, offH);
+        finalCanvas = norm;
+    } else {
+        finalCanvas = off;
+    }
+
+    // ── Apply warp to the normal-resolution tile canvas, then crop to PW×PH ───
+    // Pass arcAmount * dpr so the arc-curve displacement scales for physical pixels.
     // Pass referenceH = PH so tiltK amplitude matches the physical canvas height.
-    let finalCanvas = off;
 
     if(hasWarp){
         if(!data._patternWarpCanvas) data._patternWarpCanvas = document.createElement('canvas');
