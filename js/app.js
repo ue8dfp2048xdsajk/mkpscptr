@@ -1195,6 +1195,19 @@ function trimTransparentBorders(canvas){
 }
 
 
+// Ensure every render call on a Fabric canvas uses high-quality image smoothing.
+// Fabric v5 leaves imageSmoothingQuality at the browser default ('low'), which
+// causes visible pixelation when a high-res design is drawn at a small scale.
+function _setFabricHighQualitySmoothing(fc) {
+    fc.on('before:render', () => {
+        const ctx = fc.contextContainer;
+        if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+        }
+    });
+}
+
 // preTrimmed: pass an already-trimmed canvas to skip the getImageData pixel scan.
 // Used by _applyWarpToOneObject when the warp canvas hasn't changed (trim cache hit).
 // Build a mipmap chain from a canvas: [original, half, quarter, …]
@@ -5440,6 +5453,7 @@ function createCanvasPreviews(){
             });
 
             data.fabricCanvas = fabricCanvas;
+            _setFabricHighQualitySmoothing(fabricCanvas);
 
             const realWidth = data.bg.width;
             const realHeight = data.bg.height;
@@ -6631,6 +6645,7 @@ async function duplicateSelectedWindows(){
             renderOnAddRemove: false,
         });
         newData.fabricCanvas = fabricCanvas;
+        _setFabricHighQualitySmoothing(fabricCanvas);
 
         const srcFC = srcData.fabricCanvas;
         fabricCanvas.setWidth(srcFC.getWidth());
@@ -6847,6 +6862,7 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
             renderOnAddRemove: false
         });
         newData.fabricCanvas = fabricCanvas;
+        _setFabricHighQualitySmoothing(fabricCanvas);
 
         const realWidth  = bgImg.width;
         const realHeight = bgImg.height;
@@ -10040,6 +10056,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         });
 
         data.fabricCanvas = fabricCanvas;
+        _setFabricHighQualitySmoothing(fabricCanvas);
 
         const realWidth = bgImg.width;
 
