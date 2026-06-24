@@ -2121,9 +2121,15 @@ function enterDesignWarpMode() {
 
     // Hide ALL group targets. Each canvas now has a live warp preview drawn in
     // after:render that replaces the hidden originals, so none will go blank.
-    warpAllGroups.forEach(({ targets: grpObjs }) =>
-        grpObjs.forEach(o => { o._warpWasVisible = o.visible; o.visible = false; })
-    );
+    // Also hide patternFabricObj so only the live warp preview is shown (not
+    // the original unwarped pattern underneath it).
+    warpAllGroups.forEach(({ targets: grpObjs, ownerData: grpData }) => {
+        grpObjs.forEach(o => { o._warpWasVisible = o.visible; o.visible = false; });
+        if (grpData.patternFabricObj) {
+            grpData.patternFabricObj._warpPatternVis = grpData.patternFabricObj.visible;
+            grpData.patternFabricObj.visible = false;
+        }
+    });
 
     // Disable Fabric selection on all canvases (same pattern as eraser).
     canvasData.forEach(d => {
@@ -2188,12 +2194,18 @@ function exitDesignWarpMode(apply) {
     }
 
     // Restore target object visibility for ALL groups regardless of apply/cancel.
-    allGroups.forEach(({ targets: grpObjs }) =>
+    // On cancel also restore patternFabricObj (apply removes it via _togglePatternMode).
+    allGroups.forEach(({ targets: grpObjs, ownerData: grpData }) => {
         grpObjs.forEach(o => {
             o.visible = (o._warpWasVisible !== undefined) ? o._warpWasVisible : true;
             delete o._warpWasVisible;
-        })
-    );
+        });
+        if (grpData.patternFabricObj) {
+            if (!apply && grpData.patternFabricObj._warpPatternVis !== undefined)
+                grpData.patternFabricObj.visible = grpData.patternFabricObj._warpPatternVis;
+            delete grpData.patternFabricObj._warpPatternVis;
+        }
+    });
 
     // Clear warp state so after:render no longer draws the overlay.
     designWarpMode   = false;
@@ -2221,6 +2233,22 @@ function exitDesignWarpMode(apply) {
     document.getElementById('warpModeControls').style.display = 'none';
 
     if (renderResult && applyData) {
+        // Capture the PRE-WARP state (designOriginal + full window snapshot) for
+        // every affected window BEFORE any mutation so undo can reconstruct it.
+        const warpUndoItems = allGroups
+            .map(({ ownerData: d }) => ({
+                idx: canvasData.indexOf(d),
+                state: captureWindowState(d),
+                original: d.designOriginal,
+            }))
+            .filter(item => item.idx !== -1);
+        if (warpUndoItems.length) {
+            globalUndoStack.push({ type: 'warp', items: warpUndoItems });
+            if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+            globalRedoStack = [];
+            updateUndoRedoButtons();
+        }
+
         const { canvas: outCanvas, left, top, dpr = 1 } = renderResult;
         const fc   = applyData.fabricCanvas;
         const ps   = applyData.previewScale || 1;
@@ -2370,7 +2398,6 @@ function exitDesignWarpMode(apply) {
         updateWindowBorders();
         updateLayerButtons();
         syncSliders();
-        pushGlobalUndo();
     } else {
         // Cancel — re-render every involved canvas with the restored originals.
         allGroups.forEach(({ ownerData: d }) => d.fabricCanvas.requestRenderAll());
@@ -2961,6 +2988,31 @@ async function performGlobalUndo(){
         return;
     }
 
+    if(entry.type === 'warp'){
+        // Save current (post-warp) state+original so redo can re-apply it.
+        const redoEntry = {
+            type: 'warp',
+            items: entry.items
+                .filter(item => item.idx < canvasData.length)
+                .map(item => ({
+                    idx:      item.idx,
+                    state:    captureWindowState(canvasData[item.idx]),
+                    original: canvasData[item.idx].designOriginal,
+                })),
+        };
+        globalRedoStack.push(redoEntry);
+        updateUndoRedoButtons();
+        for(const item of entry.items){
+            if(item.idx >= canvasData.length) continue;
+            const d = canvasData[item.idx];
+            d.designOriginal = item.original;
+            await restoreWindowState(d, item.state);
+        }
+        syncSliders();
+        updateUndoRedoButtons();
+        return;
+    }
+
     globalRedoStack.push({
         affected: entry.affected,
         states: entry.affected
@@ -3028,6 +3080,31 @@ async function performGlobalRedo(){
         activeIndices     = selDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
         lastSelectedIndex = lastSel ? canvasData.indexOf(lastSel) : null;
         updateWindowBorders();
+        updateUndoRedoButtons();
+        return;
+    }
+
+    if(entry.type === 'warp'){
+        // Save current (pre-warp) state+original so undo can revert it again.
+        const undoEntry = {
+            type: 'warp',
+            items: entry.items
+                .filter(item => item.idx < canvasData.length)
+                .map(item => ({
+                    idx:      item.idx,
+                    state:    captureWindowState(canvasData[item.idx]),
+                    original: canvasData[item.idx].designOriginal,
+                })),
+        };
+        globalUndoStack.push(undoEntry);
+        updateUndoRedoButtons();
+        for(const item of entry.items){
+            if(item.idx >= canvasData.length) continue;
+            const d = canvasData[item.idx];
+            d.designOriginal = item.original;
+            await restoreWindowState(d, item.state);
+        }
+        syncSliders();
         updateUndoRedoButtons();
         return;
     }
