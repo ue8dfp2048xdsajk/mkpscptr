@@ -2049,8 +2049,6 @@ function enterDesignWarpMode() {
 
         grpAllFObjs.forEach(o => {
             if (!grpObjs.includes(o)) {
-                // Keep patternFabricObj visible so the full pattern sheet is rasterised.
-                if (hasPattern && o === grpData.patternFabricObj) return;
                 o._warpHiddenVis = o.visible; o.visible = false;
             }
         });
@@ -2059,22 +2057,33 @@ function enterDesignWarpMode() {
         const savedSel = new Set(selectedDesigns);
         selectedDesigns.clear();
         grpFc.discardActiveObject();
-        grpFc.renderAll();
 
         const lc  = grpFc.lowerCanvasEl;
         const dpr = Math.max(1, lc.width / grpFc.getWidth());
-        const lcX = Math.round(bMinX * dpr);
-        const lcY = Math.round(bMinY * dpr);
+        // Use grpBounds.left/top so coords are defined for both the pattern
+        // (left=0, top=0) and normal (left=bMinX, top=bMinY) paths.
+        const lcX = Math.round(grpBounds.left * dpr);
+        const lcY = Math.round(grpBounds.top  * dpr);
         const lcW = Math.max(1, Math.round(grpBounds.width  * dpr));
         const lcH = Math.max(1, Math.round(grpBounds.height * dpr));
 
-        const srcCanvas        = document.createElement('canvas');
+        const srcCanvas = document.createElement('canvas');
         srcCanvas.width  = lcW;
         srcCanvas.height = lcH;
         const sCtx = srcCanvas.getContext('2d');
         sCtx.imageSmoothingEnabled = true;
         sCtx.imageSmoothingQuality = 'high';
-        sCtx.drawImage(lc, lcX, lcY, lcW, lcH, 0, 0, lcW, lcH);
+
+        if (hasPattern && grpData.patternFabricObj) {
+            // Read the pattern overlay's own pixel canvas — it is a transparent
+            // canvas with just the tiles, no Fabric background colour baked in.
+            // Drawing this in the warp preview lets the real background show through.
+            const pEl = grpData.patternFabricObj.getElement();
+            if (pEl) sCtx.drawImage(pEl, 0, 0, lcW, lcH);
+        } else {
+            grpFc.renderAll();
+            sCtx.drawImage(lc, lcX, lcY, lcW, lcH, 0, 0, lcW, lcH);
+        }
 
         savedSel.forEach(o => selectedDesigns.add(o));
         grpAllFObjs.forEach(o => {
