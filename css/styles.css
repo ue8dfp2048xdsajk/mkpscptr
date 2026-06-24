@@ -456,6 +456,19 @@ body {
 }
 .window-locked .drag-handle { display: none; }
 .window-locked .filename-input { opacity: 0.5; cursor: not-allowed; }
+
+/* Crossed-eye badge for clip-layers-hidden windows */
+.canvas-wrapper.clip-layers-hidden::before {
+    content: '🚫';
+    position: absolute;
+    top: 5px;
+    left: 6px;
+    font-size: 13px;
+    line-height: 1;
+    z-index: 10;
+    pointer-events: none;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35));
+}
 .window-locked::before {
     content: '🔒';
     position: absolute;

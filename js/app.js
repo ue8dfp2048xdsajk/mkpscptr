@@ -58,6 +58,7 @@ let selectedDesigns = new Set();  // design objects directly clicked (main or ex
 let lastSelectedIndex = null;
 
 let clipEditMode = false;
+let clipLayersHidden = false;  // true while design layers are visually hidden in clip mode
 let clipCurvePoints = [];
 let activeCurvePreview = null;
 let currentCurveHandle = null;
@@ -8007,6 +8008,64 @@ document.getElementById("layerUpload").addEventListener("change", async function
 });
 
 
+// Toggle design-layer visibility while in clip edit mode.
+// Opacity is saved and restored; nothing structural is changed.
+function toggleClipLayersHidden() {
+    if (!clipEditMode) return;
+    clipLayersHidden = !clipLayersHidden;
+
+    canvasData.forEach(data => {
+        const wrapper = data.wrapperEl;
+        const isActive = activeIndices.includes(canvasData.indexOf(data));
+
+        if (clipLayersHidden && isActive) {
+            // Save and hide
+            getAllDesignObjects(data).forEach(o => {
+                if (!o) return;
+                o._clipHiddenOpacity = o.opacity;
+                o.opacity = 0;
+            });
+            data.fabricCanvas.requestRenderAll();
+            if (wrapper) wrapper.classList.add('clip-layers-hidden');
+        } else if (!clipLayersHidden) {
+            // Restore
+            getAllDesignObjects(data).forEach(o => {
+                if (!o) return;
+                if (o._clipHiddenOpacity !== undefined) {
+                    o.opacity = o._clipHiddenOpacity;
+                    delete o._clipHiddenOpacity;
+                }
+            });
+            data.fabricCanvas.requestRenderAll();
+            if (wrapper) wrapper.classList.remove('clip-layers-hidden');
+        }
+    });
+
+    const btn = document.getElementById('hideClipLayersBtn');
+    if (btn) btn.textContent = clipLayersHidden ? '🚫 Show Layers' : '👁 Hide Layers';
+}
+
+// Restore all layers that were hidden during clip mode.
+function _restoreClipLayersVisibility() {
+    if (!clipLayersHidden) return;
+    clipLayersHidden = false;
+    canvasData.forEach(data => {
+        getAllDesignObjects(data).forEach(o => {
+            if (!o) return;
+            if (o._clipHiddenOpacity !== undefined) {
+                o.opacity = o._clipHiddenOpacity;
+                delete o._clipHiddenOpacity;
+            }
+        });
+        data.fabricCanvas.requestRenderAll();
+        if (data.wrapperEl) data.wrapperEl.classList.remove('clip-layers-hidden');
+    });
+    const btn = document.getElementById('hideClipLayersBtn');
+    if (btn) btn.textContent = '👁 Hide Layers';
+}
+
+document.getElementById("hideClipLayersBtn").addEventListener("click", toggleClipLayersHidden);
+
 document.getElementById("editClipBtn").addEventListener("click", ()=>{
 
     if(!activeIndices.length){
@@ -8030,6 +8089,9 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
     document.getElementById("copyClipBtn").style.display =
         clipEditMode ? "inline-block" : "none";
 
+    document.getElementById("hideClipLayersBtn").style.display =
+        clipEditMode ? "inline-block" : "none";
+
     // always hide the "to selected" button when toggling clip mode
     document.getElementById("copyClipToSelectedBtn").style.display = "none";
 
@@ -8041,6 +8103,9 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
 
     // exiting clip mode
     if(!clipEditMode){
+
+        // Restore any layers hidden via the Hide Layers toggle
+        _restoreClipLayersVisibility();
 
         stopMarchingAnts();
 
@@ -8910,6 +8975,21 @@ document.addEventListener('keydown', function(e){
 
     e.preventDefault();
     document.getElementById('editClipBtn').click();
+});
+
+// H — toggle layer visibility in clip mode
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'h') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(!clipEditMode) return;
+
+    e.preventDefault();
+    toggleClipLayersHidden();
 });
 
 document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{
