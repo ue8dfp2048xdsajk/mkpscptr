@@ -2721,6 +2721,10 @@ async function restoreDuplicatesFromState(data, savedDups){
                     scaleX: s.scaleX, scaleY: s.scaleY,
                     skewX: s.skewX || 0, skewY: s.skewY || 0,
                     angle: s.angle,
+                    originX: 'center', originY: 'center',
+                    transparentCorners: false,
+                    cornerColor: 'blue',
+                    cornerStyle: 'circle',
                     selectable: true, evented: true
                 });
                 fImg._fx = s.fx ? JSON.parse(JSON.stringify(s.fx)) : _defaultFx(data);
