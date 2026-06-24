@@ -268,7 +268,7 @@ body {
 .pattern-action-btn:hover { background: #e8e8e8; border-color: #aaa; color: #333; }
 .pattern-action-btn--teal {
     background: #26a69a;
-    color: #fff;
+    color: #000;
     border-color: #1d8a80;
 }
 .pattern-action-btn--teal:hover { background: #1d8a80; border-color: #18766d; color: #fff; }
