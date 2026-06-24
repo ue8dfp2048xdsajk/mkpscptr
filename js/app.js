@@ -4480,11 +4480,13 @@ function _bakePatternSheet(data) {
     data.warpCanvas     = null;  // invalidate any cached warp canvas
 
     // Centre the flat sheet and size it to fill the canvas exactly.
-    // scaleX/scaleY are "data-space" values; applyWarpToData multiplies by previewScale.
+    // applyWarpToData multiplies by previewScale, so we pre-divide to cancel it out.
+    // Effective Fabric scale = (1/dpr / ps) * ps = 1/dpr → fills canvas exactly.
+    const ps = data.previewScale || 1;
     data.x          = W / 2;
     data.y          = H / 2;
-    data.scaleX     = 1 / dpr;
-    data.scaleY     = 1 / dpr;
+    data.scaleX     = (1 / dpr) / ps;
+    data.scaleY     = (1 / dpr) / ps;
     data.rotation   = 0;
     data.warpAmount = 0;
     data.arcAmount  = 0;
@@ -4592,12 +4594,13 @@ function _copyDesignToSelected(sourceData) {
         cCtx.imageSmoothingQuality = 'high';
         cCtx.drawImage(srcEl, 0, 0, physW, physH);
 
+        const tps = d.previewScale || 1;
         d.designOriginal = copy;
         d.warpCanvas     = null;
         d.x          = W / 2;
         d.y          = H / 2;
-        d.scaleX     = 1 / dpr;
-        d.scaleY     = 1 / dpr;
+        d.scaleX     = (1 / dpr) / tps;
+        d.scaleY     = (1 / dpr) / tps;
         d.rotation   = 0;
         d.warpAmount = 0;
         d.arcAmount  = 0;
