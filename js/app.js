@@ -4567,8 +4567,8 @@ function _bakePatternSheet(data) {
     const ps = data.previewScale || 1;
     data.x          = W / 2;
     data.y          = H / 2;
-    data.scaleX     = (1 / dpr) / ps;
-    data.scaleY     = (1 / dpr) / ps;
+    data.scaleX     = (1 / dpr) / ps * 0.9;
+    data.scaleY     = (1 / dpr) / ps * 0.9;
     data.rotation   = 0;
     data.warpAmount = 0;
     data.arcAmount  = 0;
