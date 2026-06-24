@@ -1224,15 +1224,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const top  = data.perspectiveTop  || 0;
     const left = data.perspectiveLeft || 0;
 
-    // Trim transparent borders from the source (e.g. warp/arc padding) BEFORE
-    // computing perspective. Two problems arise if we skip this:
-    //   1. Jump at 0: the early-return path returns a padded warpedBase canvas
-    //      while the non-zero path returns a trimmed canvas → size differs → jump.
-    //   2. Squashing: srcW/srcH include warp padding, so perspective maths are
-    //      computed over a larger area than the actual content — the effect is
-    //      over-amplified proportionally to the warp padding.
-    // Trimming here is fast (< 1 ms for typical sizes) and idempotent for sources
-    // that already have no transparent border (e.g. a plain uploaded image).
+    // Trim transparent borders from the source (e.g. warp/arc padding).
     const src  = preTrimmed || trimTransparentBorders(sourceCanvas);
     const srcW = src.width;
     const srcH = src.height;
@@ -1241,25 +1233,45 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
         return src;
     }
 
+    // ── Supersampling ─────────────────────────────────────────────────────────
+    // At extreme perspective values the compressed tip is built from very few
+    // source pixels, which causes severe pixelation regardless of how well each
+    // drawImage step is tuned. The fix is to work at a higher resolution:
+    // upscale the source by 1/(1−perspFactor) so the compressed tip retains
+    // approximately the original pixel count, then scale the output back down.
+    // Cap at 4× in HQ (live-drag keeps 1× for speed).
+    const perspF  = Math.min(0.75, Math.max(Math.abs(top), Math.abs(left)) / 100);
+    const upScale = lowQuality ? 1 : Math.min(4, Math.max(1, 1 / (1 - perspF)));
+
+    let wSrc = src;
+    if(upScale > 1.05){
+        wSrc = document.createElement('canvas');
+        wSrc.width  = Math.round(srcW * upScale);
+        wSrc.height = Math.round(srcH * upScale);
+        const wc = wSrc.getContext('2d');
+        wc.imageSmoothingEnabled = true;
+        wc.imageSmoothingQuality = 'high';
+        wc.drawImage(src, 0, 0, wSrc.width, wSrc.height);
+    }
+    const wSrcW = wSrc.width;
+    const wSrcH = wSrc.height;
+
     const out = document.createElement('canvas');
     const ctx = out.getContext('2d');
 
     // Two-sided symmetric perspective: one edge grows to 1+|v|/100, the other
     // shrinks to 1-|v|/100 (reaching 0 at max). Required padding so neither
-    // edge clips: pad ≥ srcW * |top| / 200  (transposed for vPad).
+    // edge clips: pad ≥ wSrcW * |top| / 200  (transposed for vPad).
     const hPadNeeded = Math.abs(top) > 0
-        ? Math.ceil(srcW * Math.abs(top) / 200)
+        ? Math.ceil(wSrcW * Math.abs(top) / 200)
         : 0;
     const vPadNeeded = Math.abs(left) > 0
-        ? Math.ceil(srcH * Math.abs(left) / 200)
+        ? Math.ceil(wSrcH * Math.abs(left) / 200)
         : 0;
     const pad = Math.max(hPadNeeded, vPadNeeded, 20);
 
-    out.width  = srcW + pad * 2;
-    out.height = srcH + pad * 2;
-
-    const outW = out.width;
-    const outH = out.height;
+    out.width  = wSrcW + pad * 2;
+    out.height = wSrcH + pad * 2;
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = lowQuality ? 'low' : 'high';
@@ -1269,44 +1281,43 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const horizontalSlices = lowQuality ? 60 : 180;
 
     // ── Pass 1: top/bottom perspective (horizontal slices) ───────────────────
-    // Two-sided: top > 0 → top edge widens to 2× at max, bottom edge narrows to 0.
-    // Mip chain ensures each slice's drawImage compression ratio stays ≤ 2:1,
-    // preventing the pixelation that single-step extreme downscaling produces.
+    // Mip chain keeps each slice's internal compression ≤ 2:1 on top of
+    // the supersampled source.
 
-    const srcMips = lowQuality ? [src] : buildMipChain(src);
+    const srcMips = lowQuality ? [wSrc] : buildMipChain(wSrc);
 
     for(let y = 0; y < horizontalSlices; y++){
 
         const t      = y / (horizontalSlices - 1);
-        const srcY   = t * srcH;
-        const sliceH = Math.max(2, srcH / horizontalSlices);
+        const srcY   = t * wSrcH;
+        const sliceH = Math.max(2, wSrcH / horizontalSlices);
 
         // Two-sided: top > 0 → top edge wide (1+|top|/100), bottom edge narrows
         // to 0 at max (sharp tip). top < 0: mirrored. Max(0) prevents negatives.
         const widthScale = top > 0
             ? Math.max(0, 1 + (top  / 100) * (1 - 2 * t))
             : Math.max(0, 1 + (-top / 100) * (2 * t - 1));
-        const targetW = srcW * widthScale;
+        const targetW = wSrcW * widthScale;
         if(targetW < 0.5) continue;
 
-        const dx = pad + (srcW - targetW) / 2;
+        const dx = pad + (wSrcW - targetW) / 2;
         const dy = pad + srcY;
 
-        const mi   = pickMipW(srcMips, targetW);
-        const mip  = srcMips[mi];
-        const mipSY = mip.height / srcH;
+        const mi    = pickMipW(srcMips, targetW);
+        const mip   = srcMips[mi];
+        const mipSY = mip.height / wSrcH;
 
         ctx.drawImage(
             mip,
-            0,                                       Math.round(srcY  * mipSY),
-            mip.width,                               Math.max(1, Math.ceil(sliceH * mipSY)),
-            Math.round(dx),                          Math.round(dy),
-            Math.max(1, Math.ceil(targetW + 1)),     Math.ceil(sliceH + 1)
+            0,                                   Math.round(srcY * mipSY),
+            mip.width,                           Math.max(1, Math.ceil(sliceH * mipSY)),
+            Math.round(dx),                      Math.round(dy),
+            Math.max(1, Math.ceil(targetW + 1)), Math.ceil(sliceH + 1)
         );
     }
 
     // ── Pass 2: left/right perspective (vertical slices) ─────────────────────
-    // Mip chain on the Pass-1 output keeps each column's height compression ≤ 2:1.
+    // Operates on the supersampled Pass-1 output; mip chain applied here too.
 
     if(left !== 0){
 
@@ -1328,7 +1339,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
             const sliceW = Math.max(2, out.width / verticalSlices);
 
             // t_c: normalised position within the design content (0 = left, 1 = right).
-            const t_c = Math.max(0, Math.min(1, (srcX - pad) / srcW));
+            const t_c = Math.max(0, Math.min(1, (srcX - pad) / wSrcW));
 
             // Two-sided: left > 0 → right edge tall (1+|left|/100), left edge
             // narrows to 0 at max (sharp tip). left < 0: mirrored.
@@ -1340,28 +1351,36 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
             const extraSpace = targetH - out.height;
             const dy         = -(extraSpace / 2);
 
-            const mi   = pickMipH(tempMips, targetH);
-            const mip  = tempMips[mi];
+            const mi    = pickMipH(tempMips, targetH);
+            const mip   = tempMips[mi];
             const mipSX = mip.width  / tempCanvas.width;
             const mipSY = mip.height / tempCanvas.height;
 
             ctx.drawImage(
                 mip,
-                Math.round(srcX  * mipSX),              0,
+                Math.round(srcX * mipSX),              0,
                 Math.max(1, Math.ceil(sliceW * mipSX)), mip.height,
-                Math.round(srcX),                        Math.round(dy),
-                Math.ceil(sliceW + 1),                   Math.max(1, Math.ceil(targetH + 1))
+                Math.round(srcX),                       Math.round(dy),
+                Math.ceil(sliceW + 1),                  Math.max(1, Math.ceil(targetH + 1))
             );
         }
     }
 
-    // Always trim transparent borders so the bounding box / handles reflect the
-    // actual distorted content size in both LQ (live drag) and HQ (debounce)
-    // passes. Without this, handles oscillate between the oversized padded canvas
-    // and the trimmed canvas every 220 ms, which looks like the design jumping.
-    // trimTransparentBorders is a fast pixel scan (< 1 ms for typical canvas sizes)
-    // so it is safe to run on every drag frame.
-    return trimTransparentBorders(out);
+    // ── Scale back down & trim ────────────────────────────────────────────────
+    // Trim first at full supersampled size, then scale down to 1× so the caller
+    // receives the same output dimensions as without supersampling.
+    const trimmedHQ = trimTransparentBorders(out);
+    if(upScale <= 1.05) return trimmedHQ;
+
+    const finalOut = document.createElement('canvas');
+    finalOut.width  = Math.round(trimmedHQ.width  / upScale);
+    finalOut.height = Math.round(trimmedHQ.height / upScale);
+    if(finalOut.width < 1 || finalOut.height < 1) return trimmedHQ;
+    const fc = finalOut.getContext('2d');
+    fc.imageSmoothingEnabled = true;
+    fc.imageSmoothingQuality = 'high';
+    fc.drawImage(trimmedHQ, 0, 0, finalOut.width, finalOut.height);
+    return finalOut;
 }
 
 
