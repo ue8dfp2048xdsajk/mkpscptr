@@ -5840,8 +5840,11 @@ function attachFabricEvents(data, targetObject = null){
             } else {
                 // Plain click on a design object — select only this layer.
                 // Use Shift or Cmd/Ctrl to build a multi-layer selection.
-                if(!selectedDesigns.has(target) || selectedDesigns.size > 1){
-                    // Replace whatever is currently selected with just this layer.
+                if(!selectedDesigns.has(target)){
+                    // Plain click on an unselected layer — replace the current
+                    // selection with just this layer.  When clicking a layer that
+                    // is already selected (e.g. to start dragging it along with
+                    // other selected layers) we leave the multi-selection intact.
                     selectedDesigns.clear();
                     if(winIdx !== -1) activeIndices = [winIdx];
                     if(!target._fx) target._fx = _defaultFx(data);
@@ -5851,7 +5854,7 @@ function attachFabricEvents(data, targetObject = null){
                     updateLayerButtons();
                     syncSliders();
                 }
-                // else: only this layer is already selected — nothing to change.
+                // else: already selected — preserve multi-selection for group drag.
                 return;
             }
 
