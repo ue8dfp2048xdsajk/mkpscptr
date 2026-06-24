@@ -5887,6 +5887,7 @@ function attachFabricEvents(data, targetObject = null){
             getAllDesignObjects(data).forEach(obj=>{
                 if((data.extraDesignObjects||[]).includes(obj) && !selectedDesigns.has(obj)) return;
                 obj.angle = angle;
+                obj.setCoords();
             });
 
             activeIndices.forEach(index=>{
@@ -5903,6 +5904,7 @@ function attachFabricEvents(data, targetObject = null){
                         if(srcPeer && !selectedDesigns.has(srcPeer)) return;
                     }
                     obj.angle = angle;
+                    obj.setCoords();
                 });
 
                 if(target.patternMode) _renderPattern(target, true);
@@ -5942,10 +5944,24 @@ function attachFabricEvents(data, targetObject = null){
 
     // persist position/scale/rotation changes that don't go through applyWarpToData
     designTarget.on('mouseup', ()=>{
-        // Write skew back to data so captureWindowState/duplicate/undo all see it.
+        // Sync every active window's main-design Fabric state back to data.
+        // The moving/scaling/rotating handlers update Fabric objects directly on
+        // peer windows without touching their data.* fields.  If data.* stays stale
+        // and a slider change later calls applyWarpToData, that function reads data.x/y
+        // and would silently teleport the design back to its pre-drag position.
         if(isMainDesign){
-            data.skewX = designTarget.skewX || 0;
-            data.skewY = designTarget.skewY || 0;
+            activeIndices.forEach(i => {
+                const d = canvasData[i];
+                if(!d || d.locked || !d.designObject) return;
+                const ps = d.previewScale || 1;
+                d.x        = d.designObject.left;
+                d.y        = d.designObject.top;
+                d.scaleX   = d.designObject.scaleX / ps;
+                d.scaleY   = d.designObject.scaleY / ps;
+                d.rotation = d.designObject.angle;
+                d.skewX    = d.designObject.skewX || 0;
+                d.skewY    = d.designObject.skewY || 0;
+            });
         }
         autoSaveSession();
     });
@@ -6416,7 +6432,7 @@ async function duplicateSelectedWindows(){
                 // Re-apply design with same transforms
                 if(newData.designOriginal){
                     applyWarpToData(newData, true);
-                    setTimeout(() => applyWarpToData(newData, false), 50);
+                    setTimeout(() => { if(canvasData.includes(newData)) applyWarpToData(newData, false); }, 50);
                 }
 
                 // Copy color layer content from source
@@ -6759,7 +6775,7 @@ async function changeBackgroundForSelected(file){
 
                 if(data.designOriginal){
                     applyWarpToData(data, true);
-                    setTimeout(() => applyWarpToData(data, false), 50);
+                    setTimeout(() => { if(canvasData.includes(data)) applyWarpToData(data, false); }, 50);
                 }
 
                 fabricCanvas.requestRenderAll();
@@ -6860,7 +6876,7 @@ async function changeDesignForSelected(file){
         }
 
         applyWarpToData(data, true);
-        setTimeout(() => applyWarpToData(data, false), 50);
+        setTimeout(() => { if(canvasData.includes(data)) applyWarpToData(data, false); }, 50);
     }
 
     refreshFabricHandles();
@@ -9410,6 +9426,10 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
     const loadingIndicator =
         document.getElementById("loadingIndicator");
+
+    // Unobserve all existing wrappers before discarding them — without this,
+    // the IntersectionObserver keeps stale entries for removed DOM nodes.
+    canvasData.forEach(d => { if(d.wrapperEl) _visibilityObserver.unobserve(d.wrapperEl); });
 
     container.innerHTML = "";
     canvasData = [];
