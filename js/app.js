@@ -1211,15 +1211,14 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const out = document.createElement('canvas');
     const ctx = out.getContext('2d');
 
-    // Minimum horizontal padding: stretched row dx = pad - srcW*|top|/180 ≥ 0
-    // → pad ≥ srcW * |top| / 180  (same derivation as vPadNeeded, transposed).
+    // Two-sided symmetric perspective: one edge grows to 1+|v|/100, the other
+    // shrinks to 1-|v|/100 (reaching 0 at max). Required padding so neither
+    // edge clips: pad ≥ srcW * |top| / 200  (transposed for vPad).
     const hPadNeeded = Math.abs(top) > 0
-        ? Math.ceil(srcW * Math.abs(top) / 180)
+        ? Math.ceil(srcW * Math.abs(top) / 200)
         : 0;
-    // Correct minimum padding: content top in output = dy + pad*leftScale ≥ 0
-    // → pad ≥ srcH * L/2, where L = max leftScale - 1 = |left|/90 (for 2× formula).
     const vPadNeeded = Math.abs(left) > 0
-        ? Math.ceil(srcH * Math.abs(left) / 180)
+        ? Math.ceil(srcH * Math.abs(left) / 200)
         : 0;
     const pad = Math.max(hPadNeeded, vPadNeeded, 20);
 
@@ -1248,11 +1247,11 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
         const srcY   = t * srcH;
         const sliceH = Math.max(2, srcH / horizontalSlices);
 
-        // top > 0: top edge (t=0) at max width, bottom edge (t=1) untouched
-        // top < 0: top edge (t=0) untouched, bottom edge (t=1) at max width
+        // Two-sided: top > 0 → top edge wide (1+|top|/100), bottom edge narrows
+        // to 0 at max (sharp tip). top < 0: mirrored. Max(0) prevents negatives.
         const widthScale = top > 0
-            ? 1 + (top  / 90) * (1 - t)
-            : 1 + (-top / 90) * t;
+            ? Math.max(0, 1 + (top  / 100) * (1 - 2 * t))
+            : Math.max(0, 1 + (-top / 100) * (2 * t - 1));
         const targetW = srcW * widthScale;
 
         const dx = pad + (srcW - targetW) / 2;
@@ -1295,11 +1294,11 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
             // exactly scale=1 at the untouched side and scale=1+|left|/180 at the stretched side.
             const t_c = Math.max(0, Math.min(1, (srcX - pad) / srcW));
 
-            // left > 0: right side stretches, left side untouched
-            // left < 0: left side stretches, right side untouched
+            // Two-sided: left > 0 → right edge tall (1+|left|/100), left edge
+            // narrows to 0 at max (sharp tip). left < 0: mirrored.
             const leftScale = left > 0
-                ? 1 + (left  / 90) * t_c
-                : 1 + (-left / 90) * (1 - t_c);
+                ? Math.max(0, 1 + (left  / 100) * (2 * t_c - 1))
+                : Math.max(0, 1 + (-left / 100) * (1 - 2 * t_c));
             const targetH    = out.height * leftScale;
             const extraSpace = targetH - out.height;
             const dy         = -(extraSpace / 2);
