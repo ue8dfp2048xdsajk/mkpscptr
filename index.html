@@ -15,7 +15,7 @@
     <h1>mockup scripter</h1>
 
     <div>
-        <button id="selectAllBtn">Select All</button>
+        <button id="selectAllBtn">Select All (Ctrl/Cmd+A)</button>
         <input id="filterByNameInput" type="text" placeholder="Select by filename…" style="width:160px;padding:3px 7px;font-size:13px;border:1px solid #ccc;border-radius:4px;">
         <button id="bgUploadBtn">Upload Backgrounds</button>
         <span id="bgCount" class="upload-count"></span>
@@ -23,9 +23,9 @@
         <button id="designUploadBtn">Upload Designs</button>
         <span id="designCount" class="upload-count"></span>
         <input type="file" id="designUpload" accept="image/png, image/jpeg" multiple style="display:none;">
-        <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">↩ Undo</button>
-        <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">↪ Redo</button>
-        <button id="resetBtnTop" class="lock-sensitive" title="Reset selected mockups to default">Reset Selected</button>
+        <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">↩ Undo (Ctrl/Cmd+Z)</button>
+        <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">↪ Redo (Ctrl/Cmd+Shift+Z)</button>
+        <button id="resetBtnTop" class="lock-sensitive" title="Reset selected mockups to default">Reset Selected (R)</button>
         <span class="export-wrap">
             <button id="exportBtn">Export ▾</button>
             <div id="exportPopover" class="export-popover" hidden>
@@ -64,8 +64,8 @@
             </div>
         </span>
         <span class="vp-tool-controls">
-            <button id="toolTextBtn" title="Text tool — click or drag to add text to the canvas">Text</button>
-            <button id="toolSelectBtn" title="Marquee select — drag to select mockups">Select</button>
+            <button id="toolTextBtn" title="Text tool — click or drag to add text to the canvas">Text (T)</button>
+            <button id="toolSelectBtn" title="Marquee select — drag to select mockups">Select (S)</button>
             <button id="toolPanBtn" title="Pan tool — drag to pan the canvas">Pan</button>
         </span>
         <span class="vp-zoom-controls">
@@ -136,12 +136,12 @@ Preparing designs...
             <button id="addLayerBtn" title="Upload images as overlay layers onto selected mockups">Add Layer</button>
             <input type="file" id="layerUpload" accept="image/*" multiple style="display:none;">
             <button id="copyLayerBtn" disabled title="Select a layer first to copy or paste it">Copy Layer</button>
-            <button id="editClipBtn">Edit Clipping</button>
+            <button id="editClipBtn">Edit Clipping (C)</button>
             <button id="addClipAreaBtn" class="clip-sub-btn" style="display:none;">Add Clipping Area</button>
             <button id="copyClipBtn" class="clip-sub-btn" style="display:none;">Copy Clipping</button>
             <button id="copyClipToSelectedBtn" class="clip-sub-btn" style="display:none;">Copy Clipping to Selected</button>
             <button id="deleteClipBtn" class="clip-sub-btn clip-sub-btn--danger" style="display:none;">Delete Clipping</button>
-            <button id="hideClipLayersBtn" class="clip-sub-btn" style="display:none;">👁 Hide Layers</button>
+            <button id="hideClipLayersBtn" class="clip-sub-btn" style="display:none;">👁 Hide Layers (H)</button>
             <button id="duplicateLayerBtn" disabled title="Select a layer to duplicate it">Duplicate Layer</button>
             <button id="deleteLayerBtn" disabled title="Select a layer to delete it">Delete Layer</button>
             <button id="invertColorsBtn" disabled title="Select a layer to invert its colors">Invert Colors</button>
@@ -186,7 +186,7 @@ Preparing designs...
             <input type="file" id="addWindowBgInput"     accept="image/png, image/jpeg" style="display:none;">
             <input type="file" id="addWindowDesignInput" accept="image/png, image/jpeg" style="display:none;">
             <div class="cp-btn-row">
-                <button id="lockWindowsBtn" class="lock-sensitive">Lock</button>
+                <button id="lockWindowsBtn" class="lock-sensitive">Lock (L)</button>
                 <button id="unlockWindowsBtn">Unlock</button>
             </div>
             <button id="changeBgBtn" class="lock-sensitive">Change Background</button>
@@ -195,7 +195,7 @@ Preparing designs...
             <input type="file" id="changeDesignInput" accept="image/*" style="display:none;">
             <button id="duplicateWindowsBtn" class="lock-sensitive">Duplicate Selected</button>
             <button id="deleteWindowsBtn" class="lock-sensitive">Delete Selected</button>
-            <button id="resetBtn" class="lock-sensitive">Reset Selected</button>
+            <button id="resetBtn" class="lock-sensitive">Reset Selected (R)</button>
         </div>
 
         <div class="cp-section lock-sensitive">
@@ -226,7 +226,7 @@ Preparing designs...
         <!-- ── Painting ────────────────────────────────────────────────────── -->
         <div class="cp-section lock-sensitive">
             <div class="cp-section-title">Painting</div>
-            <button id="designEraserBtn">Eraser</button>
+            <button id="designEraserBtn">Eraser (E)</button>
             <span id="designEraserControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
                 <span style="font-size:11px;">Size</span>
                 <input type="range" id="designEraserSizeSlider" min="1" max="200" value="30" style="width:80px;vertical-align:middle;">
@@ -268,7 +268,7 @@ Preparing designs...
 
         <div class="cp-section lock-sensitive" id="patternSection">
             <div class="cp-section-title" style="display:flex;justify-content:space-between;align-items:center;">
-                <span>Create Pattern</span>
+                <span>Create Pattern (P)</span>
                 <label class="cp-toggle-switch">
                     <input type="checkbox" id="patternModeToggle">
                     <span class="cp-toggle-track"><span class="cp-toggle-knob"></span></span>
