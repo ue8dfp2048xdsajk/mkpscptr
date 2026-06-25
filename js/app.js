@@ -530,7 +530,8 @@ function _renderPattern(data, lowQuality = false){
     const _absArcAlpha = Math.abs(data.arcAmount || 0) / 100 * (Math.PI / 2);
     const arcCurveMax  = _absArcAlpha < 1e-6 ? 0
         : (W / 2) * Math.tan(_absArcAlpha / 2);
-    const extraPad     = hasWarp ? Math.ceil(arcCurveMax) : 0;
+    const tiltMax      = Math.abs(data.arcTilt ?? 0) / 100 * H * 0.45;
+    const extraPad     = hasWarp ? Math.ceil(arcCurveMax + 2 * tiltMax) : 0;
 
     // Physical canvas dimensions at normal DPR (used for warp/perspective/display)
     const offW = Math.round((W + extraPad * 2) * dpr);
@@ -1460,9 +1461,10 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
     const arcSagitta = sinAlpha < 1e-6 ? 0 : arcR * (1 - arcCosAlpha);
     const arcSign    = Math.sign(arcAmount);
 
-    // pad covers the arc sagitta only — fisheye is a horizontal-only effect
-    // and adds no vertical displacement beyond the arc curve.
-    const pad = Math.ceil(arcSagitta);
+    // pad must cover arc sagitta AND the fisheye vertical balloon at the centre.
+    const effectH = referenceH || img.height;
+    const pad = Math.ceil(arcSagitta)
+        + Math.ceil(Math.abs(arcTiltAmount) / 100 * effectH * 0.45);
 
     temp.width = img.width + pad;
     temp.height = img.height + pad * 2;
@@ -1513,23 +1515,29 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
 
         const drawH = img.height * verticalScale;
 
-        // Fisheye horizontal distortion (replaces old arc-tilt vertical shift).
-        // Positive arcTiltAmount = barrel / expands centre outward.
-        // Negative arcTiltAmount = pincushion / pinches centre inward.
-        // C=0.45 keeps nx_dest within [-1,1] for all nx (requires C < 0.5).
-        const fisheyeK  = (arcTiltAmount / 100) * 0.45;
-        // Apply fisheye in projected display space so it stacks cleanly with cylinder.
-        const nx_proj   = cylinderAmount === 0 ? nx : (projectedX / sinMax);
-        const nx_dest   = nx_proj * (1 + fisheyeK * (1 - nx_proj * nx_proj));
-        // Local magnification d(nx_dest)/d(nx_proj) — keeps slices gap-free.
-        const fisheyeScale = 1 + fisheyeK * (1 - 3 * nx_proj * nx_proj);
+        // Fisheye vertical effect: each slice is vertically stretched or squashed
+        // by an amount that peaks at the centre (nx=0) and falls to zero at edges.
+        // Negative (left) → tiltK positive → slice drawn lower + shorter = pinched.
+        // Positive (right) → tiltK negative → slice drawn higher + taller = ballooned.
+        // Coefficient 0.45 gives near-full pinch / 1.9× balloon at extremes.
+        const tiltK = (-arcTiltAmount / 100) * effectH * 0.45 * (1 - nx * nx);
 
         // When cylinderAmount=0, projectedX=0 so all slices collapse to centerX.
         // Otherwise normalize: divide by sinMax so edges always land at ±img.width/2
         // from center regardless of cylinder amount — design width stays constant.
-        const dx = centerX + nx_dest * (img.width / 2);
+        const dx = cylinderAmount === 0
+            ? centerX + (sx + sliceW / 2 - img.width / 2)
+            : centerX + (projectedX / sinMax) * (img.width / 2);
 
-        const dy = centerY - drawH / 2 + arcCurve;
+        // tiltK shifts the top edge and compresses/stretches height so top and
+        // bottom arcs are independent: top = arcCurve + tiltK, bottom = arcCurve - tiltK.
+        const dy =
+            centerY -
+            drawH / 2 +
+            arcCurve +
+            tiltK;
+
+        const drawH_tilt = Math.max(1, drawH - 2 * tiltK);
 
         // projectedSliceW must match the actual derivative of dx w.r.t. slice index,
         // otherwise slices spread wider than they draw and leave transparent gaps.
@@ -1537,9 +1545,9 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
         // projection; with normalization the centre spacing is π/2 * sliceW (~3.14px)
         // but the old formula only drew 2px there — causing periodic 1px gaps.
         const projectedSliceW = cylinderAmount === 0
-            ? Math.max(1, sliceW * Math.abs(fisheyeScale))
+            ? sliceW
             : Math.max(
-                depth * (Math.PI / 2) * (Math.abs(cylinderAmount) / 100) / sinMax * sliceW * Math.abs(fisheyeScale),
+                depth * (Math.PI / 2) * (Math.abs(cylinderAmount) / 100) / sinMax * sliceW,
                 1
               );
 
@@ -1555,7 +1563,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
             Math.round(dx - (projectedSliceW / 2)),
             Math.round(dy),
             Math.ceil(projectedSliceW + 1),
-            Math.ceil(drawH)
+            Math.ceil(drawH_tilt)
         );
     }
 

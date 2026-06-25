@@ -1,32 +1,36 @@
 ---
 name: Fisheye replaces arc tilt
-description: The arcTilt slider now drives a barrel/pincushion fisheye effect, not a vertical asymmetry.
+description: The arcTilt slider drives a vertical barrel/pincushion fisheye — same mechanism as the original tiltK but stronger.
 ---
 
-## What changed
-The `arcTilt` slider (label renamed to "Fisheye") was previously a vertical asymmetry (one side of the arc bent more). It now drives a **horizontal barrel/pincushion distortion**:
+## What it does
+The `arcTilt` slider (label "Fisheye") creates a **vertical barrel/pincushion** distortion:
 
-- **Positive** = barrel: centre expands outward  
-- **Negative** = pincushion: centre pinches inward
+- **Left (negative)** → centre rows squashed (pinched in the middle)
+- **Right (positive)** → centre rows stretched tall (ballooned out in the middle, edges normal)
 
-## Formula
-Applied in the slice loop of `createWarpedImage`, after cylinder projection:
+This is the same shape as the original `tiltK` formula, just with a larger coefficient (0.45 vs 0.18) for a more dramatic effect.
 
+## Formula (in createWarpedImage slice loop)
 ```js
-const fisheyeK   = (arcTiltAmount / 100) * 0.45;   // C=0.45 keeps nx_dest in [-1,1]
-const nx_proj    = cylinderAmount === 0 ? nx : (projectedX / sinMax);
-const nx_dest    = nx_proj * (1 + fisheyeK * (1 - nx_proj * nx_proj));
-const fisheyeScale = 1 + fisheyeK * (1 - 3 * nx_proj * nx_proj);  // for slice width
-const dx         = centerX + nx_dest * (img.width / 2);
-const projectedSliceW = Math.max(1, baseSliceW * Math.abs(fisheyeScale));
+const tiltK = (-arcTiltAmount / 100) * effectH * 0.45 * (1 - nx * nx);
+const dy = centerY - drawH / 2 + arcCurve + tiltK;
+const drawH_tilt = Math.max(1, drawH - 2 * tiltK);
 ```
 
-**Why C=0.45 (< 0.5):** For C < 0.5, the derivative d(nx_dest)/d(nx_proj) is always positive on [-1,1], preventing sign-flip and fold-over artifacts. At C=0.45 and fisheye=±100, centre magnification is ±45%.
+At extremes (±100): `tiltK_centre = ∓ 0.45 * effectH`
+- Right (+100): centre slices drawn 1.9× taller (ballooned)
+- Left (−100): centre slices ~0.1× normal height (tightly pinched)
 
-## What was removed
-- `tiltK` vertical shift and `drawH_tilt` height scaling are gone.
-- `tiltMax` was removed from `extraPad` in `_renderPattern` (fisheye adds no vertical displacement).
-- `effectH` / `referenceH` no longer used in the pad calculation.
+## Padding
+`effectH` and `referenceH` are still needed so tiltK amplitude matches the design's original height, not the padded canvas size.
 
-## _noArcWarp note
-`arcTilt` is NOT part of the `_noArcWarp` condition. Fisheye is purely horizontal — it does not create asymmetric transparent borders, so eraser-position compensation runs correctly when only fisheye is active.
+```js
+const effectH = referenceH || img.height;
+const pad = Math.ceil(arcSagitta) + Math.ceil(Math.abs(arcTiltAmount) / 100 * effectH * 0.45);
+```
+
+`_renderPattern` uses the same coefficient for `tiltMax`.
+
+## What NOT to do
+Do NOT replace tiltK with a horizontal mapping (nx_dest remap). The user expects vertical stretch/squash, not horizontal barrel/pincushion.
