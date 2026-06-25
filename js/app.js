@@ -9018,6 +9018,22 @@ document.addEventListener('keydown', function(e){
     }
 });
 
+// R — reset selected mockup window
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'r') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(clipEditMode || designEraserMode || designWarpMode) return;
+    if(!activeIndices.length) return;
+
+    e.preventDefault();
+    document.getElementById('resetBtn').click();
+});
+
 // H — toggle layer visibility in clip mode
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'h') return;
