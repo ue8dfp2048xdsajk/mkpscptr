@@ -9072,9 +9072,12 @@ document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'r') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
 
-    const tag = document.activeElement?.tagName;
-    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if(document.activeElement?.isContentEditable) return;
+    const el = document.activeElement;
+    // Block R when typing in a text field, but allow it through for range sliders
+    // so dragging a warp slider then pressing R still resets the design.
+    if(el?.tagName === 'TEXTAREA') return;
+    if(el?.tagName === 'INPUT' && el?.type !== 'range') return;
+    if(el?.isContentEditable) return;
 
     if(clipEditMode || designEraserMode || designWarpMode) return;
     if(!activeIndices.length) return;
