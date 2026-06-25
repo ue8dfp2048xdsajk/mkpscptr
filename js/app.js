@@ -2832,6 +2832,18 @@ function _stopColorLayerCursorTracking(){
 
 // ── Undo / redo engine ────────────────────────────────────────────────────────
 
+// Returns a drawable-source data URL for an extra-layer original, whether it is
+// stored as an Image element (has .src), a canvas (toDataURL), or a restored
+// { src } placeholder.  Returns null when no usable source exists.
+function _originalToSrc(orig){
+    if(!orig) return null;
+    if(typeof orig.src === 'string' && orig.src) return orig.src;
+    if(typeof orig.toDataURL === 'function'){
+        try { return orig.toDataURL(); } catch(_e){ return null; }
+    }
+    return null;
+}
+
 function captureWindowState(data){
     // Read live transforms directly from the Fabric object so the snapshot is
     // accurate even when data.x/y/scaleX/scaleY/rotation haven't been flushed
@@ -2885,7 +2897,7 @@ function captureWindowState(data){
             scaleX: obj.scaleX, scaleY: obj.scaleY,
             skewX: obj.skewX || 0, skewY: obj.skewY || 0,
             angle: obj.angle,
-            src:  data.extraDesignOriginals?.[i]?.src ?? null,
+            src:  _originalToSrc(data.extraDesignOriginals?.[i]),
             name: obj._uploadedDesignName ?? null,
             fx:   obj._fx ? JSON.parse(JSON.stringify(obj._fx)) : null
         }))
@@ -2937,7 +2949,10 @@ async function restoreDuplicatesFromState(data, savedDups){
                 data.extraDesignObjects  = data.extraDesignObjects  || [];
                 data.extraDesignOriginals = data.extraDesignOriginals || [];
                 data.extraDesignObjects.push(fImg);
-                data.extraDesignOriginals.push(s.src ? { src: s.src } : null);
+                // Store the actual drawable element (Image / canvas) so the warp
+                // pipeline can use it directly.  Storing a plain { src } object
+                // here would break ctx.drawImage during any later render.
+                data.extraDesignOriginals.push(imgEl || null);
 
                 data.fabricCanvas.add(fImg);
                 attachFabricEvents(data, fImg);
@@ -9728,7 +9743,9 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
     fabricCanvas.on('mouse:down', function(opt){
         if(!colorLayerMode) return;
         if(colorCopySelectMode) return;   // no painting while picking copy targets
-        if(!activeIndices.includes(index)) return;
+        // Recompute the live index: windows are inserted via unshift, so the
+        // index captured at attach time goes stale as more windows are added.
+        if(!activeIndices.includes(canvasData.indexOf(data))) return;
 
         // Ensure color layer exists on every active window
         activeIndices.forEach(i=>{
@@ -9750,7 +9767,8 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
         if(!colorLayerMode) return;
 
         if(!isColorPainting) return;
-        if(!activeIndices.includes(index)) return;
+        // Recompute the live index (see mouse:down note above).
+        if(!activeIndices.includes(canvasData.indexOf(data))) return;
 
         const ptr  = fabricCanvas.getPointer(opt.e);
         const norm = { x: ptr.x / data.previewScale, y: ptr.y / data.previewScale };
@@ -10229,7 +10247,7 @@ function buildSnapshot(){
 
                 // Uploaded designs store their own image source so they
                 // survive save/restore independently of the main design.
-                src:  data.extraDesignOriginals?.[i]?.src  ?? null,
+                src:  _originalToSrc(data.extraDesignOriginals?.[i]),
                 name: data.extraDesignOriginals?.[i]
                     ? (obj._uploadedDesignName || null)
                     : null,

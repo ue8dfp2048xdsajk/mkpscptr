@@ -1,0 +1,1 @@
+- [Extra layers undo & stale index](extra-layers-undo.md) — extraDesignOriginals must be drawable (Image/canvas, never {src}); attachClipDrawing's `index` param is stale (unshift), recompute canvasData.indexOf(data).
