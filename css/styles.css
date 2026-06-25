@@ -1,996 +1,415 @@
-html, body {
-    height: 100%;
-    overflow: hidden;
-}
-body {
-    font-family: Arial, sans-serif;
-    text-align: center;
-    margin: 0;
-    padding: 0 0 0 220px; /* always-present left panel */
-    display: flex;
-    flex-direction: column;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="stylesheet" href="css/styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup Generator Fabric Warp</title>
 
-.sticky-header {
-    flex-shrink: 0;
-    background: #fff;
-    z-index: 1000;
-    border-bottom: 1px solid #ccc;
-    padding: 10px 0;
-}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
 
-#viewportWrapper {
-    flex: 1;
-    position: relative;
-    overflow: hidden;
-    background: #f0f0f0;
-    cursor: default;
-}
+</head>
+<body>
 
-.vp-zoom-controls {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-left: 10px;
-    vertical-align: middle;
-}
-.vp-zoom-controls button {
-    background: #f0f0f0;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    width: 24px;
-    height: 24px;
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-.vp-zoom-controls button:hover { background: #ddd; }
-#zoomLevelDisplay {
-    font-size: 12px;
-    font-weight: 600;
-    min-width: 40px;
-    text-align: center;
-    color: #444;
-    user-select: none;
-}
-#zoomLevelDisplay:hover { color: #1e5eff; }
-#centerViewBtn { width: auto; padding: 0 8px; font-size: 11px; }
+<div class="sticky-header">
+    <h1>mockup scripter</h1>
 
-.vp-cols-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-left: 10px;
-    vertical-align: middle;
-}
-.vp-cols-control label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #555;
-    user-select: none;
-}
-#numColsInput {
-    width: 44px;
-    font-size: 13px;
-    padding: 2px 4px;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    text-align: center;
-}
+    <div>
+        <button id="selectAllBtn">Select All (Ctrl/Cmd+A)</button>
+        <input id="filterByNameInput" type="text" placeholder="Select by filename…" style="width:160px;padding:3px 7px;font-size:13px;border:1px solid #ccc;border-radius:4px;">
+        <button id="bgUploadBtn">Upload Backgrounds</button>
+        <span id="bgCount" class="upload-count"></span>
+        <input type="file" id="bgUpload" accept="image/png, image/jpeg" multiple style="display:none;">
+        <button id="designUploadBtn">Upload Designs</button>
+        <span id="designCount" class="upload-count"></span>
+        <input type="file" id="designUpload" accept="image/png, image/jpeg" multiple style="display:none;">
+        <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">↩ Undo (Ctrl/Cmd+Z)</button>
+        <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">↪ Redo (Ctrl/Cmd+Shift+Z)</button>
+        <button id="resetBtnTop" class="lock-sensitive" title="Reset selected mockups to default">Reset Selected (R)</button>
+        <span class="export-wrap">
+            <button id="exportBtn" title="Export (Ctrl/Cmd+E)">Export ▾</button>
+            <div id="exportPopover" class="export-popover" hidden>
+                <div class="export-row">
+                    <span class="export-label">Scope</span>
+                    <span class="export-seg" id="exportScopeToggle">
+                        <button class="seg-btn seg-active" data-val="selected">Selected</button>
+                        <button class="seg-btn" data-val="all">All</button>
+                    </span>
+                </div>
+                <div class="export-row">
+                    <span class="export-label">Format</span>
+                    <span class="export-seg" id="exportFormatToggle">
+                        <button class="seg-btn seg-active" data-val="png">PNG</button>
+                        <button class="seg-btn" data-val="jpeg">JPEG</button>
+                    </span>
+                </div>
+                <div class="export-row" id="exportQualityRow">
+                    <span class="export-label">Quality</span>
+                    <input type="range" id="exportQualitySlider" min="1" max="100" value="92">
+                    <span id="exportQualityVal">92%</span>
+                </div>
+                <div class="export-row">
+                    <button id="exportTextBtn" title="Export canvas text boxes as .txt" style="width:100%;font-size:12px;">Export Text Boxes</button>
+                </div>
+                <button id="exportGoBtn">Export</button>
+            </div>
+        </span>
+        <span class="export-wrap">
+            <button id="fileMenuBtn">File ▾</button>
+            <div id="fileMenuPopover" class="export-popover" hidden>
+                <button id="saveProgressBtn" style="width:100%;margin-bottom:6px;">Save Progress (Ctrl/Cmd+S)</button>
+                <button id="loadProgressBtn" style="width:100%;margin-bottom:6px;">Load Progress (Ctrl/Cmd+L)</button>
+                <input type="file" id="loadProgressInput" accept=".json" style="display:none;">
+                <button id="clearSessionBtn" title="Remove the autosaved session so the canvas starts blank on next load" style="width:100%;">Clear Session</button>
+            </div>
+        </span>
+        <span class="vp-tool-controls">
+            <button id="toolTextBtn" title="Text tool — click or drag to add text to the canvas">Text (T)</button>
+            <button id="toolSelectBtn" title="Marquee select — drag to select mockups">Select (S)</button>
+            <button id="toolPanBtn" title="Pan tool — drag to pan the canvas (or hold Space)">Pan (Space)</button>
+        </span>
+        <span class="vp-zoom-controls">
+            <button id="zoomOutBtn" title="Zoom out (Ctrl+−)">−</button>
+            <span id="zoomLevelDisplay" title="Reset zoom (Ctrl+0)" style="cursor:pointer;">100%</span>
+            <button id="zoomInBtn" title="Zoom in (Ctrl+=)">+</button>
+            <button id="centerViewBtn" title="Center view — fit all mockups into view">Center (F)</button>
+        </span>
+        <span class="vp-cols-control">
+            <label for="numColsInput">Cols</label>
+            <input id="numColsInput" type="number" min="1" max="20" value="4" title="Number of columns (1–20)">
+        </span>
+        <span id="windowCountBadge" class="window-count-badge" hidden></span>
+        <span class="vp-gap-control">
+            <label for="rowGapInput">Row gap</label>
+            <input id="rowGapInput" type="number" min="0" max="120" value="20" title="Vertical space between mockups (px)">
+            <label for="colGapInput">Col gap</label>
+            <input id="colGapInput" type="number" min="0" max="120" value="20" title="Horizontal space between mockups (px)">
+        </span>
+    </div>
+</div>
 
-.vp-gap-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-left: 10px;
-    vertical-align: middle;
-}
-.vp-gap-control label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #555;
-    user-select: none;
-}
-#rowGapInput, #colGapInput {
-    width: 44px;
-    font-size: 13px;
-    padding: 2px 4px;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    text-align: center;
-}
+<div id="viewportWrapper">
+    <div id="dropZone">
+        <div id="dropZoneInner">
+            <div class="dz-icon">&#8659;</div>
+            <p class="dz-title">Drag background images here</p>
+            <p class="dz-sub">or use the <strong>Upload Backgrounds</strong> button above</p>
+        </div>
+    </div>
+    <div id="designPrompt">
+        <span>Backgrounds ready &mdash; drag your designs here, or <button id="designPromptBtn">click to upload designs</button></span>
+    </div>
 
-.vp-tool-controls {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    margin-left: 6px;
-    vertical-align: middle;
-}
-.vp-tool-controls button {
-    font-size: 15px;
-    padding: 2px 8px;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    cursor: pointer;
-    background: #f5f5f5;
-    line-height: 1.4;
-    transition: background 0.12s;
-}
-.vp-tool-controls button:hover { background: #e0e0e0; }
-.vp-tool-controls button.tool-active {
-    background: #1e5eff;
-    color: #fff;
-    border-color: #1e5eff;
-}
+<div id="loadingIndicator" style="
+display:none;
+position:fixed;
+top:80px;
+right:20px;
+background:#111;
+color:#fff;
+padding:10px 14px;
+border-radius:8px;
+z-index:9999;
+font-size:14px;
+font-family:Arial;
+">
+Preparing designs...
+</div>
 
-/* ── Background Adjustments ─────────────────────────────────────────────────── */
-.bg-adj-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
-}
-.bg-adj-row label {
-    width: 70px;
-    font-size: 12px;
-    flex-shrink: 0;
-}
-.bg-adj-row input[type=range] {
-    flex: 1;
-    min-width: 0;
-}
-.bg-adj-row span {
-    width: 30px;
-    font-size: 11px;
-    text-align: right;
-    flex-shrink: 0;
-    color: #555;
-}
+    <div class="canvas-container" id="canvasContainer"></div>
+    <div id="textLayer"></div>
+    <div id="minimap" hidden>
+        <canvas id="minimapCanvas"></canvas>
+    </div>
+</div><!-- /#viewportWrapper -->
 
-/* ── Background Crop aspect buttons ─────────────────────────────────────────── */
-.bg-crop-aspect-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 5px;
-    margin-bottom: 8px;
-}
-#contextPanel .bg-aspect-btn {
-    display: block;
-    width: 100%;
-    padding: 6px 4px;
-    font-size: 12px;
-    font-weight: 700;
-    background: #fff;
-    border: 2px solid #b2dfdb;
-    border-radius: 8px;
-    cursor: pointer;
-    color: #00897b;
-    text-align: center;
-    transition: background 0.1s, color 0.1s, border-color 0.1s;
-}
-#contextPanel .bg-aspect-btn:hover {
-    background: #e0f2f1;
-    border-color: #00bfa5;
-    color: #00695c;
-}
-#contextPanel .bg-aspect-btn.active {
-    background: #e0f2f1;
-    border-color: #00897b;
-    color: #00695c;
-}
+<!-- ── Context Panel ─────────────────────────────────────────────────── -->
+<div id="contextPanel">
+    <div id="contextPanelHeader">
+        <span id="contextPanelTitle"></span>
+    </div>
+    <div id="contextPanelBody">
 
-/* ── Pattern creator toggle switch ───────────────────────────────────────────── */
-.cp-toggle-switch { position:relative; display:inline-flex; align-items:center; cursor:pointer; }
-.cp-toggle-switch input { opacity:0; width:0; height:0; position:absolute; }
-.cp-toggle-track {
-    display: block;
-    width: 38px; height: 22px;
-    background: #ccc;
-    border-radius: 11px;
-    position: relative;
-    transition: background 0.2s;
-}
-.cp-toggle-switch input:checked + .cp-toggle-track { background: #26a69a; }
-.cp-toggle-knob {
-    position: absolute;
-    width: 18px; height: 18px;
-    background: #fff;
-    border-radius: 50%;
-    top: 2px; left: 2px;
-    transition: left 0.18s;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-.cp-toggle-switch input:checked + .cp-toggle-track .cp-toggle-knob { left: 18px; }
+        <!-- ── Layers ─────────────────────────────────────────────────────── -->
+        <div class="cp-section lock-sensitive">
+            <div class="cp-section-title">Layers</div>
+            <button id="addLayerBtn" title="Upload images as overlay layers onto selected mockups">Add Layer</button>
+            <input type="file" id="layerUpload" accept="image/*" multiple style="display:none;">
+            <button id="copyLayerBtn" disabled title="Select a layer first to copy or paste it">Copy Layer</button>
+            <button id="editClipBtn">Edit Clipping (C)</button>
+            <button id="addClipAreaBtn" class="clip-sub-btn" style="display:none;">Add Clipping Area</button>
+            <button id="copyClipBtn" class="clip-sub-btn" style="display:none;">Copy Clipping</button>
+            <button id="copyClipToSelectedBtn" class="clip-sub-btn" style="display:none;">Copy Clipping to Selected</button>
+            <button id="deleteClipBtn" class="clip-sub-btn clip-sub-btn--danger" style="display:none;">Delete Clipping</button>
+            <button id="hideClipLayersBtn" class="clip-sub-btn" style="display:none;">👁 Hide Layers (H)</button>
+            <button id="duplicateLayerBtn" disabled title="Select a layer to duplicate it">Duplicate Layer</button>
+            <button id="deleteLayerBtn" disabled title="Select a layer to delete it">Delete Layer</button>
+            <button id="invertColorsBtn" disabled title="Select a layer to invert its colors">Invert Colors</button>
+            <div class="cp-btn-row">
+                <button id="flipHBtn" title="Flip design horizontally">↔ Flip H</button>
+                <button id="flipVBtn" title="Flip design vertically">↕ Flip V</button>
+            </div>
+            <div class="cp-btn-row">
+                <button id="copyTransformsBtn" title="Copy position, scale, rotation and FX from the last selected mockup">Copy Style</button>
+                <button id="pasteTransformsBtn" title="Paste copied style to all selected mockups" disabled>Paste Style</button>
+            </div>
+        </div>
 
-/* ── Pattern type buttons ─────────────────────────────────────────────────────── */
-#contextPanel .pattern-type-btn {
-    display: block;
-    width: 100%;
-    padding: 5px 2px;
-    font-size: 11px;
-    font-weight: 600;
-    background: #fff;
-    border: 2px solid #b2dfdb;
-    border-radius: 8px;
-    cursor: pointer;
-    color: #00897b;
-    text-align: center;
-    transition: background 0.1s, color 0.1s, border-color 0.1s;
-}
-#contextPanel .pattern-type-btn:hover { background:#e0f2f1; border-color:#00bfa5; color:#00695c; }
-#contextPanel .pattern-type-btn.active { background:#e0f2f1; border-color:#00897b; color:#00695c; }
+        <div class="cp-section lock-sensitive">
+            <div class="cp-section-title">Appearance</div>
+            <label>Opacity %
+                <input type="number" id="opacityAmount" min="0" max="100" step="1" value="100">
+            </label>
+            <label>Gaussian Blur %
+                <input type="number" id="blurAmount" min="0" max="100" step="1" value="0">
+            </label>
+            <label>Noise %
+                <input type="number" id="noiseAmount" min="0" max="100" step="1" value="0">
+            </label>
+            <label>Layer Mode
+                <select id="blendMode">
+                    <option value="normal">Normal</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                    <option value="overlay">Overlay</option>
+                    <option value="soft-light">Soft Light</option>
+                    <option value="color">Color</option>
+                    <option value="luminosity">Luminosity</option>
+                </select>
+            </label>
+        </div>
 
-/* ── Pattern number inputs ────────────────────────────────────────────────────── */
-.pattern-num-input {
-    width: 46px !important;
-    font-size: 11px !important;
-    text-align: right;
-    flex-shrink: 0;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 1px 3px !important;
-    color: #333;
-    background: #fff;
-    -moz-appearance: textfield;
-    box-sizing: border-box;
-}
-.pattern-num-input::-webkit-inner-spin-button,
-.pattern-num-input::-webkit-outer-spin-button { opacity: 1; }
+        <!-- ── Mockup ──────────────────────────────────────────────────────── -->
+        <div class="cp-section">
+            <div class="cp-section-title">Mockup</div>
+            <button id="addWindowBtn" title="Add a single new mockup at the start of the grid">Add Mockup</button>
+            <input type="file" id="addWindowBgInput"     accept="image/png, image/jpeg" style="display:none;">
+            <input type="file" id="addWindowDesignInput" accept="image/png, image/jpeg" style="display:none;">
+            <div class="cp-btn-row">
+                <button id="lockWindowsBtn" class="lock-sensitive">Lock (L)</button>
+                <button id="unlockWindowsBtn">Unlock</button>
+            </div>
+            <button id="changeBgBtn" class="lock-sensitive">Change Background</button>
+            <input type="file" id="changeBgInput" accept="image/*" style="display:none;">
+            <button id="changeDesignBtn" class="lock-sensitive">Change Design</button>
+            <input type="file" id="changeDesignInput" accept="image/*" style="display:none;">
+            <button id="duplicateWindowsBtn" class="lock-sensitive">Duplicate Selected (Ctrl/Cmd+D)</button>
+            <button id="deleteWindowsBtn" class="lock-sensitive">Delete Selected (Del)</button>
+            <button id="resetBtn" class="lock-sensitive">Reset Selected (R)</button>
+        </div>
 
-.pattern-reset-btn {
-    font-size: 11px;
-    padding: 3px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background: #f5f5f5;
-    color: #555;
-    cursor: pointer;
-    flex-shrink: 0;
-}
-.pattern-reset-btn:hover { background: #e8e8e8; border-color: #aaa; color: #333; }
+        <div class="cp-section lock-sensitive">
+            <div class="cp-section-title">Warp &amp; Perspective</div>
+            <label>Cylinder Warp
+                <input type="range" id="warpAmount" min="0" max="100" value="0">
+            </label>
+            <label>Vertical Arc
+                <input type="range" id="arcAmount" min="-100" max="100" value="0">
+            </label>
+            <label>Fisheye
+                <input type="range" id="arcTilt" min="-100" max="100" value="0">
+            </label>
+            <label>Horizontal Perspective
+                <input type="range" id="perspectiveTop" min="-100" max="100" value="0">
+            </label>
+            <label>Vertical Perspective
+                <input type="range" id="perspectiveLeft" min="-100" max="100" value="0">
+            </label>
+            <button id="designWarpBtn">Warp Mesh (W)</button>
+            <span id="warpModeControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
+                <button id="warpApplyBtn" style="background:#2ecc71;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;width:auto;">Apply</button>
+                <button id="warpCancelBtn" style="background:#e74c3c;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px;width:auto;">Cancel</button>
+                <span style="font-size:11px;color:#666;">Drag grid points to warp</span>
+            </span>
+        </div>
 
-.pattern-action-btn {
-    flex: 1;
-    font-size: 11px;
-    padding: 4px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background: #f5f5f5;
-    color: #555;
-    cursor: pointer;
-    font-weight: 500;
-}
-.pattern-action-btn:hover { background: #e8e8e8; border-color: #aaa; color: #333; }
-.pattern-action-btn--teal {
-    background: #26a69a;
-    color: #000;
-    border-color: #1d8a80;
-}
-.pattern-action-btn--teal:hover { background: #1d8a80; border-color: #18766d; color: #fff; }
+        <!-- ── Painting ────────────────────────────────────────────────────── -->
+        <div class="cp-section lock-sensitive">
+            <div class="cp-section-title">Painting</div>
+            <button id="designEraserBtn">Eraser (E)</button>
+            <span id="designEraserControls" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px;">
+                <span style="font-size:11px;">Size</span>
+                <input type="range" id="designEraserSizeSlider" min="1" max="200" value="30" style="width:80px;vertical-align:middle;">
+                <span id="designEraserSizeVal" style="font-size:11px;min-width:24px;">30</span>
+                <span style="font-size:11px;">Soft</span>
+                <input type="range" id="designEraserSoftnessSlider" min="0" max="100" value="0" style="width:80px;vertical-align:middle;">
+                <span id="designEraserSoftnessVal" style="font-size:11px;min-width:24px;">0</span>
+            </span>
+            <button id="addColorLayerBtn">Paint Overlay</button>
+            <button id="copyColorBtn"           class="clip-sub-btn"              style="display:none;">Copy Color</button>
+            <button id="copyColorToSelectedBtn" class="clip-sub-btn"              style="display:none;">Copy Color to Selected</button>
+            <button id="deleteColorBtn"         class="clip-sub-btn clip-sub-btn--danger" style="display:none;">Delete Color</button>
+            <span id="colorLayerControls" style="display:none;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px;">
+                <button id="brushToolBtn" class="color-tool-btn active" title="Paintbrush" style="width:auto;">Paint</button>
+                <button id="eraserToolBtn" class="color-tool-btn" title="Eraser" style="width:auto;">Erase</button>
+                <input type="color" id="brushColorPicker" value="#ff0000" title="Paint color" style="cursor:pointer;width:28px;height:22px;padding:1px;border:1px solid #ccc;vertical-align:middle;">
+                <span style="display:inline-flex;align-items:center;gap:4px;">
+                    <span style="font-size:11px;">Size</span>
+                    <input type="range" id="brushSizeSlider" min="1" max="150" value="20" style="width:70px;vertical-align:middle;">
+                </span>
+                <span style="display:inline-flex;align-items:center;gap:4px;">
+                    <span style="font-size:11px;">Soft</span>
+                    <input type="range" id="brushSoftnessSlider" min="0" max="100" value="30" style="width:70px;vertical-align:middle;">
+                </span>
+                <span style="font-size:11px;">Opacity</span>
+                <input type="number" id="colorLayerOpacityInput" min="0" max="100" value="100" style="width:50px;" title="Color Opacity %">
+                <span style="font-size:11px;font-weight:600;width:100%;display:block;margin-top:2px;">Color Layer Mode</span>
+                <select id="colorLayerModeSelect" title="Color Layer Mode" style="width:100%;">
+                    <option value="source-over">Normal</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                    <option value="overlay">Overlay</option>
+                    <option value="soft-light">Soft Light</option>
+                    <option value="color">Color</option>
+                    <option value="luminosity">Luminosity</option>
+                </select>
+            </span>
+        </div>
 
-/* ── Window count badge ─────────────────────────────────────────────────────── */
-.window-count-badge {
-    display: inline-block;
-    font-size: 12px;
-    color: #555;
-    background: #eee;
-    border: 1px solid #d4d4d4;
-    border-radius: 10px;
-    padding: 2px 9px;
-    vertical-align: middle;
-    white-space: nowrap;
-    user-select: none;
-}
+        <div class="cp-section lock-sensitive" id="patternSection">
+            <div class="cp-section-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>Create Pattern (P)</span>
+                <label class="cp-toggle-switch">
+                    <input type="checkbox" id="patternModeToggle">
+                    <span class="cp-toggle-track"><span class="cp-toggle-knob"></span></span>
+                </label>
+            </div>
+            <div id="patternControls" style="display:none;">
+                <div class="bg-crop-aspect-row">
+                    <button class="pattern-type-btn active" data-type="grid">Grid</button>
+                    <button class="pattern-type-btn" data-type="brick-h">Brick H</button>
+                    <button class="pattern-type-btn" data-type="brick-v">Brick V</button>
+                </div>
+                <div class="bg-adj-row">
+                    <label>H Spacing</label>
+                    <input type="range" id="patternHSpacing" min="0" max="200" step="1" value="0">
+                    <input type="number" class="pattern-num-input" id="patternHSpacingVal" min="0" max="200" step="1" value="0">
+                </div>
+                <div class="bg-adj-row">
+                    <label>V Spacing</label>
+                    <input type="range" id="patternVSpacing" min="0" max="200" step="1" value="0">
+                    <input type="number" class="pattern-num-input" id="patternVSpacingVal" min="0" max="200" step="1" value="0">
+                </div>
+                <div class="bg-adj-row">
+                    <label>Angle</label>
+                    <input type="range" id="patternAngle" min="-180" max="180" step="1" value="0">
+                    <input type="number" class="pattern-num-input" id="patternAngleVal" min="-180" max="180" step="1" value="0">
+                </div>
+                <div class="bg-adj-row">
+                    <label>H Offset</label>
+                    <input type="range" id="patternHOffset" min="-100" max="100" step="1" value="0">
+                    <input type="number" class="pattern-num-input" id="patternHOffsetVal" min="-100" max="100" step="1" value="0">
+                </div>
+                <div class="bg-adj-row">
+                    <label>Rot/H step</label>
+                    <input type="range" id="patternRotH" min="-180" max="180" step="1" value="0">
+                    <input type="number" class="pattern-num-input" id="patternRotHVal" min="-180" max="180" step="1" value="0">
+                </div>
+                <div class="bg-adj-row">
+                    <label>Rot/V step</label>
+                    <input type="range" id="patternRotV" min="-180" max="180" step="1" value="0">
+                    <input type="number" class="pattern-num-input" id="patternRotVVal" min="-180" max="180" step="1" value="0">
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+                    <button id="resetPatternBtn" class="pattern-reset-btn">Reset Pattern</button>
+                </div>
+                <div style="display:flex;gap:4px;margin-top:6px;">
+                    <button id="bakePatternBtn" class="pattern-action-btn pattern-action-btn--teal">Flatten to Image</button>
+                    <button id="exportPatternBtn" class="pattern-action-btn">Export PNG</button>
+                </div>
+            </div>
+        </div>
 
-/* ── Unsaved changes indicator ──────────────────────────────────────────────── */
-#saveProgressBtn.has-unsaved {
-    border-color: #e07000;
-    box-shadow: 0 0 0 2px rgba(224,112,0,0.35);
-}
-#saveProgressBtn.has-unsaved::after {
-    content: ' ●';
-    color: #e07000;
-    font-size: 9px;
-    vertical-align: middle;
-}
+        <div class="cp-section lock-sensitive" id="bgCropSection">
+            <div class="cp-section-title">Framing</div>
+            <div class="bg-crop-aspect-row">
+                <button class="bg-aspect-btn" data-aspect="1">1:1</button>
+                <button class="bg-aspect-btn" data-aspect="0.8">4:5</button>
+                <button class="bg-aspect-btn" data-aspect="1.25">5:4</button>
+                <button class="bg-aspect-btn" data-aspect="0.6667">2:3</button>
+                <button class="bg-aspect-btn" data-aspect="1.5">3:2</button>
+                <button class="bg-aspect-btn" data-aspect="1.7778">16:9</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;margin-top:6px;">
+                <input type="number" id="bgCropCustomW" min="1" max="999" step="1" placeholder="W"
+                    style="width:44px;padding:3px 5px;border:1px solid #ccc;border-radius:4px;font-size:12px;text-align:center;">
+                <span style="font-size:13px;color:#666;font-weight:600;">:</span>
+                <input type="number" id="bgCropCustomH" min="1" max="999" step="1" placeholder="H"
+                    style="width:44px;padding:3px 5px;border:1px solid #ccc;border-radius:4px;font-size:12px;text-align:center;">
+                <button id="bgCropCustomApply"
+                    style="flex:1;padding:3px 6px;font-size:12px;background:#26a69a;color:#fff;border:none;border-radius:4px;cursor:pointer;">
+                    Custom
+                </button>
+            </div>
+            <div class="bg-adj-row">
+                <label>Rotation</label>
+                <input type="range" id="bgCropRotation" min="-180" max="180" step="1" value="0">
+                <span id="bgCropRotationVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Zoom %</label>
+                <input type="range" id="bgCropScale" min="50" max="300" step="1" value="100">
+                <span id="bgCropScaleVal">100</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Pan X</label>
+                <input type="range" id="bgCropX" min="-50" max="50" step="1" value="0">
+                <span id="bgCropXVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Pan Y</label>
+                <input type="range" id="bgCropY" min="-50" max="50" step="1" value="0">
+                <span id="bgCropYVal">0</span>
+            </div>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#555;cursor:pointer;user-select:none;">
+                <input type="checkbox" id="bgCropAttachDesign" style="width:14px;height:14px;cursor:pointer;accent-color:#26a69a;">
+                Attach design to background
+            </label>
+            <button id="bgCropResetBtn" style="margin-top:4px;">Reset Framing</button>
+        </div>
 
-/* ── Minimap ────────────────────────────────────────────────────────────────── */
-#minimap {
-    position: absolute;
-    bottom: 16px;
-    right: 16px;
-    background: rgba(18, 18, 18, 0.75);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 7px;
-    overflow: hidden;
-    z-index: 500;
-    cursor: crosshair;
-    box-shadow: 0 3px 12px rgba(0,0,0,.45);
-    user-select: none;
-    backdrop-filter: blur(3px);
-}
-#minimapCanvas { display: block; }
+        <div class="cp-section lock-sensitive" id="bgAdjustSection">
+            <div class="cp-section-title">Background Adjustments</div>
+            <div class="bg-adj-row">
+                <label>Hue</label>
+                <input type="range" id="bgHue" min="-180" max="180" value="0">
+                <span id="bgHueVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Saturation</label>
+                <input type="range" id="bgSaturation" min="-100" max="100" value="0">
+                <span id="bgSaturationVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Brightness</label>
+                <input type="range" id="bgBrightness" min="-100" max="100" value="0">
+                <span id="bgBrightnessVal">0</span>
+            </div>
+            <div class="bg-adj-row">
+                <label>Contrast</label>
+                <input type="range" id="bgContrast" min="-100" max="100" value="0">
+                <span id="bgContrastVal">0</span>
+            </div>
+            <button id="bgAdjustResetBtn" style="margin-top:4px;">Reset Adjustments</button>
+        </div>
 
-/* ── Export popover ─────────────────────────────────────────────────────────── */
-.export-wrap {
-    position: relative;
-    display: inline-block;
-    vertical-align: middle;
-}
-.export-popover {
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    background: #fff;
-    border: 1px solid #d0d0d0;
-    border-radius: 8px;
-    box-shadow: 0 4px 18px rgba(0,0,0,.14);
-    padding: 12px 14px 14px;
-    z-index: 2000;
-    min-width: 220px;
-    text-align: left;
-}
-.export-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-}
-.export-row:last-of-type { margin-bottom: 12px; }
-.export-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #555;
-    width: 52px;
-    flex-shrink: 0;
-}
-.export-seg {
-    display: inline-flex;
-    border: 1px solid #bbb;
-    border-radius: 5px;
-    overflow: hidden;
-}
-.seg-btn {
-    background: #f5f5f5;
-    border: none;
-    border-right: 1px solid #bbb;
-    padding: 4px 11px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: background .1s;
-    line-height: 1.4;
-}
-.seg-btn:last-child { border-right: none; }
-.seg-btn:hover:not(.seg-active) { background: #e5e5e5; }
-.seg-btn.seg-active { background: #1e5eff; color: #fff; }
-#exportQualityRow { margin-bottom: 12px; }
-#exportQualitySlider { flex: 1; cursor: pointer; accent-color: #1e5eff; }
-#exportQualityVal {
-    font-size: 12px;
-    color: #444;
-    min-width: 32px;
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-}
-#exportGoBtn {
-    display: block;
-    width: 100%;
-    padding: 7px 0;
-    background: #1e5eff;
-    color: #fff;
-    border: none;
-    border-radius: 5px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background .15s;
-}
-#exportGoBtn:hover { background: #1548cc; }
+        <a href="https://forms.gle/aE82E8z7ZjWQt6Hm7" target="_blank" rel="noopener" class="cp-feedback">Report Bugs &amp; Give Feedback</a>
+    </div>
 
-#undoBtn, #redoBtn {
-    background: #f0f0f0;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    padding: 4px 10px;
-    cursor: pointer;
-    font-size: 13px;
-    transition: background 0.15s;
-}
-#undoBtn:hover:not(:disabled), #redoBtn:hover:not(:disabled) { background: #ddd; }
-#undoBtn:disabled, #redoBtn:disabled { opacity: 0.4; cursor: default; }
-
-#canvasContainer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    transform-origin: 0 0;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 20px;
-    width: 100%;
-    padding: 20px;
-    box-sizing: border-box;
-    align-items: start;
-}
-#canvasContainer > * { min-width: 0; }
-
-.canvas-wrapper {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    cursor: pointer;
-    border: 2px solid transparent;
-    width: 100%;
-    max-width: 420px;
-    min-width: 0;
-    overflow: hidden;
-    vertical-align: top;
-    box-sizing: border-box;
-    align-items: center;
-    justify-self: center;
-}
-.canvas-wrapper canvas { width: 100% !important; height: auto !important; display: block; }
-
-.filename-input {
-    margin-top: 5px;
-    width: calc(100% - 12px);
-    max-width: 100%;
-    box-sizing: border-box;
-}
-
-.canvas-wrapper.active          { border: 2px solid #1e5eff !important; box-shadow: 0 0 0 1px #1e5eff; }
-.canvas-wrapper.design-active   { border: 2px solid orange !important;  box-shadow: 0 0 0 1px orange; }
-.canvas-wrapper.window-locked.active { border: 2px solid #bbb !important; box-shadow: 0 0 0 1px #bbb; }
-.canvas-wrapper.window-locked::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: rgba(255,255,255,0.38);
-    pointer-events: none;
-    z-index: 5;
-}
-.window-locked .drag-handle { display: none; }
-.window-locked .filename-input { opacity: 0.5; cursor: not-allowed; }
-
-/* Crossed-eye badge for clip-layers-hidden windows */
-.canvas-wrapper.clip-layers-hidden::before {
-    content: '🚫';
-    position: absolute;
-    top: 5px;
-    left: 6px;
-    font-size: 13px;
-    line-height: 1;
-    z-index: 10;
-    pointer-events: none;
-    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35));
-}
-.window-locked::before {
-    content: '🔒';
-    position: absolute;
-    top: 5px;
-    right: 6px;
-    font-size: 11px;
-    line-height: 1;
-    z-index: 10;
-    pointer-events: none;
-    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35));
-}
-
-/* Gray out lock-sensitive panel controls when every selected window is locked */
-#contextPanelBody.all-locked .lock-sensitive {
-    opacity: 0.38;
-    pointer-events: none;
-    user-select: none;
-}
-
-.color-tool-btn {
-    padding: 2px 7px;
-    font-size: 11px;
-    border: 1px solid #aaa;
-    background: #f0f0f0;
-    border-radius: 3px;
-    cursor: pointer;
-}
-/* Needs higher specificity than #contextPanel button to override background */
-#contextPanel .color-tool-btn         { background: #f0f0f0; color: #222; border: 1px solid #aaa; width: auto; display: inline-block; padding: 2px 7px; font-size: 11px; }
-#contextPanel .color-tool-btn.active  { background: #4a90e2; color: #fff; border-color: #2c6fba; }
-#contextPanel .color-tool-btn:hover   { background: #e0e0e0; }
-#contextPanel .color-tool-btn.active:hover { background: #3a7fd4; }
-
-/* Hide system cursor over the whole wrapper in color-layer mode */
-.canvas-wrapper.color-layer-mode,
-.canvas-wrapper.color-layer-mode .upper-canvas { cursor: none !important; }
-
-/* ── Drag-to-reorder ─────────────────────────────────────────────────────── */
-.drag-handle {
-    position: absolute;
-    top: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 1px 8px;
-    background: rgba(255,255,255,0.93);
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 12px;
-    color: #888;
-    cursor: grab;
-    opacity: 0;
-    transition: opacity 0.15s;
-    user-select: none;
-    z-index: 15;
-    white-space: nowrap;
-    line-height: 1.6;
-}
-.canvas-wrapper:hover .drag-handle { opacity: 1; }
-.canvas-wrapper.drag-source { opacity: 0.35; }
-
-#brushCursorRing {
-    position: fixed;
-    pointer-events: none;
-    border-radius: 50%;
-    border: 1.5px solid rgba(255,255,255,0.85);
-    box-shadow: 0 0 0 1px rgba(0,0,0,0.7);
-    display: none;
-    transform: translate(-50%, -50%);
-    z-index: 9999;
-}
-#designEraserCursor {
-    position: fixed;
-    pointer-events: none;
-    box-sizing: border-box;
-    border-radius: 50%;
-    border: 1.5px solid rgba(255,255,255,0.9);
-    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.75);
-    transform: translate(-50%, -50%);
-    z-index: 99999;
-}
-#designEraserInner {
-    position: absolute;
-    border-radius: 50%;
-    border: 1px dashed rgba(255,255,255,0.65);
-    box-sizing: border-box;
-    display: none;
-}
-
-.upload-count {
-    display: inline-block;
-    font-size: 12px;
-    color: #fff;
-    background: #4a90e2;
-    border-radius: 10px;
-    padding: 2px 8px;
-    margin-right: 8px;
-    vertical-align: middle;
-    white-space: nowrap;
-}
-
-#dropZone {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    inset: 20px;
-    border: 3px dashed #d0d0d0;
-    border-radius: 14px;
-    cursor: default;
-    transition: background 0.15s, border-color 0.15s;
-    box-sizing: border-box;
-    z-index: 20;
-    background: #f0f0f0;
-}
-#dropZone.dz-hover { background: #f0f6ff; border-color: #1e5eff; }
-
-#dropZoneInner { text-align: center; pointer-events: none; user-select: none; }
-.dz-icon { font-size: 52px; color: #d0d0d0; line-height: 1; margin-bottom: 14px; }
-.dz-title { font-size: 22px; font-weight: 600; color: #bbb; margin: 0 0 8px; }
-.dz-sub   { font-size: 13px; color: #ccc; margin: 0; }
-
-#designPrompt {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    padding: 10px 20px;
-    background: #fffbee;
-    border-bottom: 1px solid #ffe99e;
-    font-size: 14px;
-    color: #666;
-    text-align: center;
-    box-sizing: border-box;
-    z-index: 20;
-}
-#designPrompt.dz-hover { background: #fff8d0; border-color: #f5c400; }
-#designPromptBtn {
-    background: none;
-    border: none;
-    color: #1e5eff;
-    cursor: pointer;
-    font-size: 14px;
-    text-decoration: underline;
-    padding: 0;
-    font-family: inherit;
-}
-
-#canvasContainer.dz-designs-hover::before {
-    content: 'Drop designs here';
-    position: fixed;
-    inset: 0;
-    background: rgba(30, 94, 255, 0.08);
-    border: 3px dashed #1e5eff;
-    border-radius: 14px;
-    z-index: 9000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    font-weight: 600;
-    color: #1e5eff;
-    pointer-events: none;
-}
-
-/* ── Context Panel — left side, always present ──────────────────────────── */
-#contextPanel {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 220px;
-    height: 100vh;
-    background: #f8f9fa;
-    border-right: 1px solid #ddd;
-    box-shadow: 2px 0 8px rgba(0,0,0,0.06);
-    z-index: 999;
-    display: flex;
-    flex-direction: column;
-    font-family: Arial, sans-serif;
-}
-
-#contextPanelHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    background: #2c3e50;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    flex-shrink: 0;
-    gap: 8px;
-    min-height: 42px;
-    box-sizing: border-box;
-}
-#contextPanelTitle {
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 12px;
-}
+    <!-- Idle overlay — shown over the dimmed sections when nothing is selected -->
+    <div class="cp-idle-msg">
+        <div class="cp-idle-icon">&#9654;</div>
+        <div>Click a mockup<br>to start editing</div>
+    </div>
+</div>
 
 
-#contextPanelBody {
-    flex: 1;
-    overflow-y: auto;
-    padding: 4px 10px 20px;
-    display: flex;
-    flex-direction: column;
-}
+<div id="brushCursorRing"></div>
+<div id="designEraserCursor" style="display:none;">
+    <div id="designEraserInner"></div>
+</div>
 
-/* Hide all sections + feedback link when nothing is selected */
-#contextPanel:not(.active) .cp-section,
-#contextPanel:not(.active) .cp-feedback {
-    display: none;
-}
+<script type="module" src="js/app.js"></script>
 
-/* Idle hint — fills the panel body when nothing is selected */
-.cp-idle-msg {
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    padding: 24px 16px;
-    text-align: center;
-    color: #c0c0c0;
-    font-size: 12px;
-    line-height: 1.7;
-    pointer-events: none;
-    gap: 6px;
-}
-#contextPanel:not(.active) .cp-idle-msg { display: flex; }
-
-.cp-idle-icon {
-    font-size: 24px;
-    opacity: 0.3;
-    transform: rotate(90deg);
-    display: block;
-    margin-bottom: 4px;
-}
-
-.cp-section {
-    padding: 8px 0;
-    border-bottom: 1px solid #e8e8e8;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-.cp-section:last-of-type { border-bottom: none; }
-
-.cp-section-title {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: #aaa;
-    padding-bottom: 1px;
-}
-
-.cp-section label {
-    font-size: 12px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    color: #444;
-    text-align: left;
-}
-.cp-section input[type="range"] { width: 100%; padding: 0; margin: 0; cursor: pointer; }
-.cp-section input[type="number"],
-.cp-section select {
-    width: 100%;
-    padding: 4px 6px;
-    font-size: 13px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-sizing: border-box;
-    background: #fff;
-}
-
-#contextPanel button {
-    display: block;
-    width: 100%;
-    padding: 6px 10px;
-    font-size: 12px;
-    text-align: left;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background 0.12s;
-    box-sizing: border-box;
-    font-family: Arial, sans-serif;
-}
-#contextPanel button:hover { background: #f0f0f0; }
-#contextPanel button:disabled { opacity: 0.4; cursor: not-allowed; }
-#contextPanel button:disabled:hover { background: #fff; }
-
-/* Clipping sub-buttons — indented secondary actions */
-#contextPanel .clip-sub-btn {
-    margin-left: 12px;
-    width: calc(100% - 12px);
-    font-size: 11px;
-    color: #555;
-    background: #f8f8f8;
-    border-color: #e0e0e0;
-    padding: 4px 8px;
-}
-#contextPanel .clip-sub-btn::before {
-    content: '↳ ';
-    opacity: 0.4;
-    font-size: 10px;
-}
-#contextPanel .clip-sub-btn:hover { background: #efefef; color: #222; }
-#contextPanel .clip-sub-btn--danger { color: #c0392b; }
-#contextPanel .clip-sub-btn--danger:hover { background: #fdf0ef; }
-
-.cp-btn-row {
-    display: flex;
-    gap: 6px;
-}
-.cp-btn-row button {
-    flex: 1;
-    text-align: center;
-}
-
-.cp-feedback {
-    font-size: 10px;
-    color: #bbb;
-    text-decoration: underline;
-    text-align: center;
-    padding-top: 10px;
-    display: block;
-}
-.cp-feedback:hover { color: #888; }
-
-/* ── Canvas text layer ─────────────────────────────────────────────────── */
-#textLayer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 0;
-    height: 0;
-    transform-origin: 0 0;
-    pointer-events: none;
-    z-index: 15;
-}
-
-/* Wrapper — transparent by default; border/bg appear on hover or edit */
-.canvas-text-box {
-    position: absolute;
-    min-width: 120px;
-    background: transparent;
-    border: 1.5px solid transparent;
-    border-radius: 6px;
-    box-shadow: none;
-    pointer-events: auto;
-    box-sizing: border-box;
-    cursor: grab;
-    user-select: none;
-    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-}
-.canvas-text-box:hover {
-    background: rgba(255,255,255,0.92);
-    border-color: #1e5eff;
-    box-shadow: 0 0 0 2px rgba(30,94,255,0.12), 0 2px 8px rgba(0,0,0,0.08);
-}
-.canvas-text-box.tb-focused {
-    background: rgba(255,255,255,0.97);
-    border-color: #1e5eff;
-    box-shadow: 0 0 0 2px rgba(30,94,255,0.18), 0 2px 8px rgba(0,0,0,0.10);
-}
-
-/* Thin grab bar at top */
-.tb-drag-bar {
-    height: 13px;
-    cursor: grab;
-    border-radius: 5px 5px 0 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.tb-drag-bar::after {
-    content: '• • •';
-    font-size: 7px;
-    color: #bbb;
-    letter-spacing: 2px;
-    line-height: 1;
-    pointer-events: none;
-}
-.tb-drag-bar:active { cursor: grabbing; }
-
-/* Inner contenteditable — text area */
-.tb-text {
-    display: block;
-    min-width: 80px;
-    min-height: 1.6em;
-    padding: 2px 10px 8px;
-    font-size: 14px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-    line-height: 1.55;
-    color: #222;
-    outline: none;
-    word-break: break-word;
-    white-space: pre-wrap;
-    box-sizing: border-box;
-    user-select: text;
-    cursor: text;
-    border-radius: 0 0 5px 5px;
-}
-.tb-text:empty::before {
-    content: 'Type here…';
-    color: #bbb;
-    pointer-events: none;
-}
-/* Click-created (no drag): grow horizontally, no wrapping */
-.canvas-text-box.tb-auto-width .tb-text {
-    white-space: nowrap;
-    word-break: normal;
-}
-
-/* Resize handles */
-.tb-resize-r {
-    position: absolute;
-    top: 6px; right: -6px; bottom: 6px;
-    width: 12px;
-    cursor: ew-resize;
-    z-index: 3;
-    border-radius: 4px;
-    opacity: 0;
-    transition: opacity 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.tb-resize-r::after {
-    content: '';
-    width: 3px; height: 20px;
-    background: #1e5eff;
-    border-radius: 2px;
-    opacity: 0.7;
-}
-.tb-resize-b {
-    position: absolute;
-    left: 6px; right: 6px; bottom: -6px;
-    height: 12px;
-    cursor: ns-resize;
-    z-index: 3;
-    border-radius: 4px;
-    opacity: 0;
-    transition: opacity 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.tb-resize-b::after {
-    content: '';
-    height: 3px; width: 20px;
-    background: #1e5eff;
-    border-radius: 2px;
-    opacity: 0.7;
-}
-.canvas-text-box:hover .tb-resize-r,
-.canvas-text-box:hover .tb-resize-b,
-.canvas-text-box.tb-focused .tb-resize-r,
-.canvas-text-box.tb-focused .tb-resize-b { opacity: 1; }
-
-/* Delete button */
-.tb-delete {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    width: 17px;
-    height: 17px;
-    background: #e74c3c;
-    color: #fff;
-    border: none;
-    border-radius: 50%;
-    font-size: 11px;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.15s;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: auto;
-    z-index: 1;
-    line-height: 1;
-}
-.canvas-text-box:hover .tb-delete { opacity: 1; }
-
-/* Floating font-size toolbar */
-.tb-font-toolbar {
-    position: fixed;
-    background: #2c3e50;
-    color: #fff;
-    border-radius: 6px;
-    padding: 4px 8px;
-    display: none;
-    align-items: center;
-    gap: 4px;
-    z-index: 10000;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.28);
-    pointer-events: auto;
-    font-size: 12px;
-    white-space: nowrap;
-}
-.tb-font-toolbar.visible { display: flex; }
-.tb-font-toolbar label { color: #ccc; font-size: 11px; margin-right: 2px; }
-.tb-font-toolbar select {
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.25);
-    color: #fff;
-    border-radius: 3px;
-    padding: 2px 5px;
-    font-size: 12px;
-    cursor: pointer;
-    outline: none;
-}
-.tb-font-toolbar select option { background: #2c3e50; color: #fff; }
+</body>
+</html>
