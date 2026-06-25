@@ -1269,7 +1269,10 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const srcW = src.width;
     const srcH = src.height;
 
+    console.log('[PERSP_DEBUG] applyPerspectiveDistortion called: top=', top, 'left=', left, 'srcW=', srcW, 'srcH=', srcH, 'LQ=', lowQuality);
+
     if(top === 0 && left === 0){
+        console.log('[PERSP_DEBUG] early-return (both zero)');
         return src;
     }
 
@@ -4252,10 +4255,14 @@ async function applyWarpToData(data, lowQuality = false){
         lowQuality
     );
 
+    console.log('[WTD_DEBUG] warpedBase.w=', warpedBaseCanvas.width, 'warped.w=', warpedCanvas.width, 'perspT=', data.perspectiveTop, 'LQ=', lowQuality);
+
     if(data.designObject){
 
+        const _preW = data.designObject.width;
         data.designObject.setElement(warpedCanvas);
         data.designObject.dirty = true;
+        console.log('[WTD_DEBUG] setElement: objW before=', _preW, 'after=', data.designObject.width, 'scaleX=', ((data.scaleX||data.scale)*data.previewScale), 'objsOnCanvas=', data.fabricCanvas.getObjects().length, 'hasDesignOnCanvas=', data.fabricCanvas.getObjects().includes(data.designObject));
 
         applyClipMaskToObject(data.designObject, data);
 
@@ -4412,7 +4419,9 @@ function updateFromSliders(event){
 // ── LQ render (runs inside rAF, at most 60×/sec) ─────────────────────────────
 function _lqRenderSliders(){
 
-    if(!activeIndices.length) return;
+    if(!activeIndices.length){ console.log('[PERSP_DEBUG] _lqRenderSliders: NO activeIndices, returning'); return; }
+
+    console.log('[PERSP_DEBUG] _lqRenderSliders: activeSliderType=', activeSliderType, 'activeIndices=', activeIndices.length, 'selectedDesigns=', selectedDesigns.size);
 
     const requiresWarp =
         activeSliderType === "warpAmount"     ||
