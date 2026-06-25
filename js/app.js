@@ -9081,6 +9081,7 @@ document.addEventListener('keydown', function(e){
 
     e.preventDefault();
     document.getElementById('resetBtn').click();
+    document.activeElement?.blur();
 });
 
 // H — toggle layer visibility in clip mode
