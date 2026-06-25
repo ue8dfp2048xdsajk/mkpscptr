@@ -1169,6 +1169,8 @@ function applyNoiseToImage(source, noisePercent){
 // original canvas unchanged when there is nothing to trim.
 function trimTransparentBorders(canvas){
 
+    if(!canvas || !canvas.getContext) return canvas;
+
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
     const px = ctx.getImageData(0, 0, width, height).data;
@@ -1269,10 +1271,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const srcW = src.width;
     const srcH = src.height;
 
-    console.log('[PERSP_DEBUG] applyPerspectiveDistortion called: top=', top, 'left=', left, 'srcW=', srcW, 'srcH=', srcH, 'LQ=', lowQuality);
-
     if(top === 0 && left === 0){
-        console.log('[PERSP_DEBUG] early-return (both zero)');
         return src;
     }
 
@@ -4166,7 +4165,7 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     // the original eraser-trimmed content and cause an apparent leftward shift.
     let adjLeft = prevLeft;
     let adjTop  = prevTop;
-    if (arcA === 0 && warpA === 0) {
+    if (arcA === 0 && warpA === 0 && arcT === 0) {
         // Cache trim of srcOriginal: only re-run getImageData when the source changes
         // (e.g. after an eraser stroke), not on every slider-drag render.
         let srcTrimmed;
@@ -4255,14 +4254,10 @@ async function applyWarpToData(data, lowQuality = false){
         lowQuality
     );
 
-    console.log('[WTD_DEBUG] warpedBase.w=', warpedBaseCanvas.width, 'warped.w=', warpedCanvas.width, 'perspT=', data.perspectiveTop, 'LQ=', lowQuality);
-
     if(data.designObject){
 
-        const _preW = data.designObject.width;
         data.designObject.setElement(warpedCanvas);
         data.designObject.dirty = true;
-        console.log('[WTD_DEBUG] setElement: objW before=', _preW, 'after=', data.designObject.width, 'scaleX=', ((data.scaleX||data.scale)*data.previewScale), 'objsOnCanvas=', data.fabricCanvas.getObjects().length, 'hasDesignOnCanvas=', data.fabricCanvas.getObjects().includes(data.designObject));
 
         applyClipMaskToObject(data.designObject, data);
 
@@ -4273,7 +4268,7 @@ async function applyWarpToData(data, lowQuality = false){
         const scY = (data.scaleY || data.scale) * data.previewScale;
         let adjX = data.x;
         let adjY = data.y;
-        const _noArcWarp = !(data.arcAmount || 0) && !(data.warpAmount || 0);
+        const _noArcWarp = !(data.arcAmount || 0) && !(data.warpAmount || 0) && !(data.arcTilt || 0);
         if (_noArcWarp) {
             // Always compute position compensation from pipelineSrc (pre-blur).
             // When blur is active, warpedBaseCanvas is padded (W + 2*pad) so
@@ -4419,9 +4414,7 @@ function updateFromSliders(event){
 // ── LQ render (runs inside rAF, at most 60×/sec) ─────────────────────────────
 function _lqRenderSliders(){
 
-    if(!activeIndices.length){ console.log('[PERSP_DEBUG] _lqRenderSliders: NO activeIndices, returning'); return; }
-
-    console.log('[PERSP_DEBUG] _lqRenderSliders: activeSliderType=', activeSliderType, 'activeIndices=', activeIndices.length, 'selectedDesigns=', selectedDesigns.size);
+    if(!activeIndices.length) return;
 
     const requiresWarp =
         activeSliderType === "warpAmount"     ||
