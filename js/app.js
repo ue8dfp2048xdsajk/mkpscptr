@@ -520,7 +520,7 @@ function _renderPattern(data, lowQuality = false){
     const mAngle = obj.angle || 0;
 
     // ── Pre-compute warp / perspective flags ─────────────────────────────────
-    const hasWarp = (data.warpAmount || 0) !== 0 || (data.arcAmount || 0) !== 0;
+    const hasWarp = (data.warpAmount || 0) !== 0 || (data.arcAmount || 0) !== 0 || (data.arcTilt || 0) !== 0;
     const hasPerspective = (data.perspectiveTop || 0) !== 0 || (data.perspectiveLeft || 0) !== 0;
 
     // Extra padding (CSS pixels) fills the arc/tilt gap at canvas edges.
@@ -577,13 +577,16 @@ function _renderPattern(data, lowQuality = false){
             // Async HQ mip via createImageBitmap (Lanczos/area-average quality).
             // Resolves quickly; triggers a second crisp render automatically.
             if (!lowQuality && typeof createImageBitmap === 'function') {
+                const mipEpoch = data._tileEpoch;
                 createImageBitmap(tileEl, {
                     resizeWidth:   physTileW * 2,
                     resizeHeight:  physTileH * 2,
                     resizeQuality: 'high',
                 }).then(bmp => {
                     // Only apply if tile/key still match (user hasn't moved on)
-                    if (data._dsKey === dsKey && data._dsSrc === tileEl) {
+                    // and the source pixels weren't mutated in place (e.g. eraser)
+                    // since this bitmap was snapshotted — tracked via _tileEpoch.
+                    if (data._dsKey === dsKey && data._dsSrc === tileEl && data._tileEpoch === mipEpoch) {
                         const hq = document.createElement('canvas');
                         hq.width  = bmp.width;
                         hq.height = bmp.height;
@@ -1427,7 +1430,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
 
     const ctx = temp.getContext("2d");
 
-    if(cylinderAmount === 0 && arcAmount === 0){
+    if(cylinderAmount === 0 && arcAmount === 0 && arcTiltAmount === 0){
 
         temp.width = img.width;
         temp.height = img.height;
@@ -1876,6 +1879,12 @@ function applyDesignEraserAt(data, pointer) {
     data._dsSrc    = null;
     data._hqCanvas = null;
     data._flipMap = null;
+    // Bump the tile epoch so any in-flight async HQ-mip (createImageBitmap) that
+    // snapshotted the pre-erase pixels is rejected on resolve. The mip guard
+    // relies on reference identity, but the eraser mutates the source canvas
+    // IN PLACE (same reference), so without an epoch a stale un-erased bitmap
+    // would pass the guard and visibly restore the erased pixels in pattern mode.
+    data._tileEpoch = (data._tileEpoch || 0) + 1;
     targets.forEach(obj => {
         obj._c_src    = null;
         obj._c_warpOk = false;

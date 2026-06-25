@@ -1,1 +1,2 @@
 - [Extra layers undo & stale index](extra-layers-undo.md) — extraDesignOriginals must be drawable (Image/canvas, never {src}); attachClipDrawing's `index` param is stale (unshift), recompute canvasData.indexOf(data).
+- [Warp/tilt gates & in-place eraser caching](warp-tilt-eraser-caching.md) — arcTilt must be in BOTH createWarpedImage early-return AND _renderPattern hasWarp; reference-identity caches break under in-place eraser mutation, use an epoch counter.
