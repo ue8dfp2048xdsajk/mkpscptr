@@ -2404,7 +2404,7 @@ function enterDesignWarpMode() {
     updateWindowBorders();
     updateLayerButtons();
 
-    document.getElementById('designWarpBtn').textContent      = 'Exit Warp';
+    document.getElementById('designWarpBtn').textContent      = 'Exit Warp (W)';
     document.getElementById('warpModeControls').style.display = 'inline-flex';
     document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = 'crosshair');
 }
@@ -2485,7 +2485,7 @@ function exitDesignWarpMode(apply) {
         });
     });
     document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = '');
-    document.getElementById('designWarpBtn').textContent      = 'Warp';
+    document.getElementById('designWarpBtn').textContent      = 'Warp Mesh (W)';
     document.getElementById('warpModeControls').style.display = 'none';
 
     if (renderResult && applyData) {
@@ -8831,7 +8831,7 @@ document.addEventListener('keydown', function(e){
 
 // only non-main design layers are selected (main design is NOT in selection).
 document.addEventListener('keydown', function(e){
-    if(e.key !== 'Backspace') return;
+    if(e.key !== 'Backspace' && e.key !== 'Delete') return;
 
     // Never fire when the user is typing in a text field or editable element.
     const tag = document.activeElement?.tagName;
@@ -9055,6 +9055,79 @@ document.addEventListener('keydown', function(e){
 
     e.preventDefault();
     toggleClipLayersHidden();
+});
+
+// W — toggle free-form mesh warp on/off
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'w') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(clipEditMode || designEraserMode) return;
+    if(!designWarpMode && !activeIndices.length) return;
+
+    e.preventDefault();
+    document.getElementById('designWarpBtn').click();
+});
+
+// F — center / fit view
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'f') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    e.preventDefault();
+    document.getElementById('centerViewBtn').click();
+});
+
+// Ctrl/Cmd+L — load progress
+document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 'l') return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    e.preventDefault();
+    document.getElementById('loadProgressBtn').click();
+});
+
+// Ctrl/Cmd+D — duplicate selected window(s)
+document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 'd') return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(clipEditMode || designEraserMode || designWarpMode) return;
+    if(!activeIndices.length) return;
+
+    e.preventDefault();
+    document.getElementById('duplicateWindowsBtn').click();
+});
+
+// Ctrl/Cmd+E — export
+document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 'e') return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(clipEditMode || designEraserMode || designWarpMode) return;
+
+    e.preventDefault();
+    document.getElementById('exportBtn').click();
 });
 
 document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{
