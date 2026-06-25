@@ -525,9 +525,13 @@ function _renderPattern(data, lowQuality = false){
 
     // Extra padding (CSS pixels) fills the arc/tilt gap at canvas edges.
     // Perspective is applied AFTER the warp crop so its strength is never amplified.
-    const arcCurveMax = Math.abs(data.arcAmount || 0) * 4;
-    const tiltMax     = Math.abs(data.arcTilt ?? 0) / 100 * H * 0.18;
-    const extraPad    = hasWarp ? Math.ceil(arcCurveMax + 2 * tiltMax) : 0;
+    // arcCurveMax: sagitta in CSS px for a circular arc of half-angle α over width W.
+    // At arcAmount=±100, α=π/2 → sagitta = W/2 (perfect semicircle).
+    const _absArcAlpha = Math.abs(data.arcAmount || 0) / 100 * (Math.PI / 2);
+    const arcCurveMax  = _absArcAlpha < 1e-6 ? 0
+        : (W / 2) * Math.tan(_absArcAlpha / 2);
+    const tiltMax      = Math.abs(data.arcTilt ?? 0) / 100 * H * 0.18;
+    const extraPad     = hasWarp ? Math.ceil(arcCurveMax + 2 * tiltMax) : 0;
 
     // Physical canvas dimensions at normal DPR (used for warp/perspective/display)
     const offW = Math.round((W + extraPad * 2) * dpr);
@@ -657,7 +661,7 @@ function _renderPattern(data, lowQuality = false){
         if(!data._patternWarpCanvas) data._patternWarpCanvas = document.createElement('canvas');
         finalCanvas = createWarpedImage(
             finalCanvas,
-            data.warpAmount, data.arcAmount * dpr, data.arcTilt ?? 0,
+            data.warpAmount, data.arcAmount, data.arcTilt ?? 0,
             data._patternWarpCanvas, lowQuality,
             PH   // referenceH in physical pixels
         );
@@ -1446,11 +1450,22 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    // pad must cover both arc displacement (max = arcAmount px at centre) and
-    // tilt displacement.  Use referenceH (original canvas H) when provided so
-    // the pad — and tiltK below — are not amplified by an enlarged tile canvas.
+    // True circular arc geometry.
+    // arcAmount (−100…+100) maps to half-angle α (−π/2…+π/2).
+    // At ±100 the design bends into a perfect semicircle (180° total sweep).
+    const absAlpha   = Math.abs(arcAmount) / 100 * (Math.PI / 2);
+    const sinAlpha   = absAlpha < 1e-6 ? absAlpha : Math.sin(absAlpha);
+    const arcR       = sinAlpha < 1e-6 ? 0 : (img.width / 2) / sinAlpha;
+    const arcCosAlpha = Math.cos(absAlpha);
+    // Sagitta = (img.width/2)*tan(α/2); at α=π/2 equals exactly img.width/2.
+    const arcSagitta = sinAlpha < 1e-6 ? 0 : arcR * (1 - arcCosAlpha);
+    const arcSign    = Math.sign(arcAmount);
+
+    // pad must cover the sagitta plus tilt displacement.
+    // Use referenceH (original canvas H) when provided so tiltK amplitude
+    // is not amplified by an enlarged tile canvas.
     const effectH = referenceH || img.height;
-    const pad = Math.abs(arcAmount) * 6
+    const pad = Math.ceil(arcSagitta)
         + Math.ceil(Math.abs(arcTiltAmount) / 100 * effectH * 0.2);
 
     temp.width = img.width + pad;
@@ -1495,9 +1510,10 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
         // bottom edges bowed inward at the sides, making arc look asymmetric.
         const verticalScale = 1.0;
 
-        const arcCurve =
-            arcAmount * 4 *
-            (1 - Math.pow(nx, 2));
+        // Circular arc: arcSign*(R*(cos(nx*α) - cos(α))).
+        // At nx=0 (centre) this equals arcSign*arcSagitta; at nx=±1 it equals 0.
+        const arcCurve = absAlpha < 1e-6 ? 0
+            : arcSign * arcR * (Math.cos(nx * absAlpha) - arcCosAlpha);
 
         const drawH = img.height * verticalScale;
 
