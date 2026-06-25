@@ -525,11 +525,9 @@ function _renderPattern(data, lowQuality = false){
 
     // Extra padding (CSS pixels) fills the arc/tilt gap at canvas edges.
     // Perspective is applied AFTER the warp crop so its strength is never amplified.
-    // arcCurveMax: sagitta in CSS px for a circular arc of half-angle α over width W.
-    // At arcAmount=±100, α=π/2 → sagitta = W/2 (perfect semicircle).
-    const _absArcAlpha = Math.abs(data.arcAmount || 0) / 100 * (Math.PI / 2);
-    const arcCurveMax  = _absArcAlpha < 1e-6 ? 0
-        : (W / 2) * Math.tan(_absArcAlpha / 2);
+    // arcCurveMax: sagitta of the true circular arc = |arcAmount|/100 * halfWidth.
+    // At arcAmount=±100 the sagitta equals W/2 (perfect semicircle over the full width).
+    const arcCurveMax  = Math.abs(data.arcAmount || 0) / 100 * (W / 2);
     const tiltMax      = Math.abs(data.arcTilt ?? 0) / 100 * H * 0.45;
     const extraPad     = hasWarp ? Math.ceil(arcCurveMax + 2 * tiltMax) : 0;
 
@@ -1450,16 +1448,14 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
 
-    // True circular arc geometry.
-    // arcAmount (−100…+100) maps to half-angle α (−π/2…+π/2).
-    // At ±100 the design bends into a perfect semicircle (180° total sweep).
-    const absAlpha   = Math.abs(arcAmount) / 100 * (Math.PI / 2);
-    const sinAlpha   = absAlpha < 1e-6 ? absAlpha : Math.sin(absAlpha);
-    const arcR       = sinAlpha < 1e-6 ? 0 : (img.width / 2) / sinAlpha;
-    const arcCosAlpha = Math.cos(absAlpha);
-    // Sagitta = (img.width/2)*tan(α/2); at α=π/2 equals exactly img.width/2.
-    const arcSagitta = sinAlpha < 1e-6 ? 0 : arcR * (1 - arcCosAlpha);
+    // True circular arc in Cartesian pixel space (chord-and-sagitta formula).
+    // sagitta h = |arcAmount|/100 * halfWidth → at ±100 the arc is a perfect semicircle.
     const arcSign    = Math.sign(arcAmount);
+    const halfW      = img.width / 2;
+    const arcSagitta = Math.abs(arcAmount) / 100 * halfW;          // h
+    // Radius: R = (halfW² + h²) / (2h).  At h→0, R→∞ (flat); at h=halfW, R=halfW (semicircle).
+    const arcR_cart  = arcSagitta < 1e-6 ? 0
+        : (halfW * halfW + arcSagitta * arcSagitta) / (2 * arcSagitta);
 
     // pad must cover arc sagitta AND the fisheye vertical balloon at the centre.
     const effectH = referenceH || img.height;
@@ -1508,10 +1504,12 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
         // bottom edges bowed inward at the sides, making arc look asymmetric.
         const verticalScale = 1.0;
 
-        // Circular arc: arcSign*(R*(cos(nx*α) - cos(α))).
-        // At nx=0 (centre) this equals arcSign*arcSagitta; at nx=±1 it equals 0.
-        const arcCurve = absAlpha < 1e-6 ? 0
-            : arcSign * arcR * (Math.cos(nx * absAlpha) - arcCosAlpha);
+        // True circular arc in Cartesian space: y(x) = h − R + √(R² − x²)
+        // x_pos is the pixel offset from the horizontal centre of the image.
+        // At x_pos=0 (centre) this equals arcSign*arcSagitta; at x_pos=±halfW it equals 0.
+        const x_pos    = nx * halfW;
+        const arcCurve = arcSagitta < 1e-6 ? 0
+            : arcSign * (arcSagitta - arcR_cart + Math.sqrt(arcR_cart * arcR_cart - x_pos * x_pos));
 
         const drawH = img.height * verticalScale;
 
