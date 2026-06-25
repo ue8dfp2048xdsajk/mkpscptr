@@ -8786,6 +8786,14 @@ document.addEventListener('keydown', function(e){
     document.getElementById('selectAllBtn').click();
 });
 
+// Ctrl/Cmd+S — save progress
+document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 's') return;
+    e.preventDefault();
+    document.getElementById('saveProgressBtn').click();
+});
+
 // Backspace — delete selected windows, or just the selected extra layers if
 // Backspace in clip mode — delete the last placed anchor point.
 document.addEventListener('keydown', function(e){
