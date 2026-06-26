@@ -534,6 +534,19 @@ body {
     z-index: 2000;
     min-width: 220px;
     text-align: left;
+    opacity: 1;
+    transform: translateY(0);
+    visibility: visible;
+    transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0s;
+}
+/* Keep popover in the rendering tree so transitions can fire */
+.export-popover[hidden] {
+    display: block !important;
+    opacity: 0;
+    transform: translateY(-5px);
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s;
 }
 .export-popover--right,
 .header-right .export-popover {
