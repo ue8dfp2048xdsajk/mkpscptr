@@ -522,6 +522,37 @@ body {
     left: auto;
     right: 0;
 }
+
+/* ── Popover inner buttons — neutral pill, matches toolbar base ─────────── */
+.export-popover button:not(.seg-btn) {
+    height: 32px;
+    padding: 0 14px;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 999px;
+    border: 1px solid #D1D5DB;
+    background: #F3F4F6;
+    color: #374151;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.13s, border-color 0.13s, color 0.13s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: 100%;
+    box-sizing: border-box;
+}
+.export-popover button:not(.seg-btn):hover {
+    background: #EEF2FF;
+    border-color: #818CF8;
+    color: #4338CA;
+}
+
+/* Spacing between stacked file-menu buttons */
+#fileMenuPopover button + button { margin-top: 6px; }
+
 .export-row {
     display: flex;
     align-items: center;
@@ -547,16 +578,18 @@ body {
     border: none;
     border-right: 1px solid #E5E7EB;
     padding: 4px 11px;
+    font-family: 'Inter', Arial, sans-serif;
     font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
     transition: background .1s;
     line-height: 1.4;
 }
 .seg-btn:last-child { border-right: none; }
 .seg-btn:hover:not(.seg-active) { background: #e5e5e5; }
-.seg-btn.seg-active { background: #4F6EF7; color: #fff; }
+.seg-btn.seg-active { background: #4F46E5; color: #fff; }
 #exportQualityRow { margin-bottom: 12px; }
-#exportQualitySlider { flex: 1; cursor: pointer; accent-color: #4F6EF7; }
+#exportQualitySlider { flex: 1; cursor: pointer; accent-color: #4F46E5; }
 #exportQualityVal {
     font-size: 12px;
     color: #444;
@@ -564,20 +597,23 @@ body {
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
+
+/* Export go button — indigo pill, primary action */
 #exportGoBtn {
-    display: block;
-    width: 100%;
-    padding: 7px 0;
-    background: #4F6EF7;
+    background: #4F46E5;
     color: #fff;
-    border: none;
-    border-radius: 5px;
-    font-size: 13px;
+    border-color: #4F46E5;
     font-weight: 600;
-    cursor: pointer;
-    transition: background .15s;
+    margin-top: 4px;
 }
-#exportGoBtn:hover { background: #3A56D4; }
+#exportGoBtn:hover {
+    background: #3730A3;
+    border-color: #3730A3;
+    color: #fff;
+}
+
+/* Export Text Boxes button — extra top margin to separate from quality row */
+#exportTextBtn { margin-top: 2px; }
 
 
 #canvasContainer {
