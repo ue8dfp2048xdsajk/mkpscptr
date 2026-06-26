@@ -20,6 +20,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     position: relative;
     gap: 8px;
 }
@@ -33,12 +34,12 @@ body {
 }
 
 .header-center {
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-wrap: wrap;
     gap: 6px;
-    white-space: nowrap;
     min-width: 0;
 }
 
