@@ -506,6 +506,10 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     // Pass the cached trimmed canvas so applyPerspectiveDistortion skips its own
     // trimTransparentBorders call. Also skip the full perspective pass when both
     // the warp canvas and perspective params are unchanged.
+    // Persistent canvases (_perspCanvas, _perspTempCanvas) are reused each call
+    // to avoid GPU memory allocation on every frame across hundreds of windows.
+    if(!obj._perspCanvas)     obj._perspCanvas     = document.createElement('canvas');
+    if(!obj._perspTempCanvas) obj._perspTempCanvas = document.createElement('canvas');
     let warped;
     if( !warpDirty          &&
         obj._c_perspT  === perspT   &&
@@ -514,7 +518,7 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
         obj._c_persp){
         warped = obj._c_persp;
     } else {
-        warped = applyPerspectiveDistortion(obj._warpCanvas, fx, lowQuality, trimmed);
+        warped = applyPerspectiveDistortion(obj._warpCanvas, fx, lowQuality, trimmed, obj._perspCanvas, obj._perspTempCanvas);
         obj._c_perspT  = perspT;
         obj._c_perspL  = perspL;
         obj._c_perspLQ = lowQuality;

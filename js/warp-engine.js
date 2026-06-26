@@ -1,5 +1,5 @@
 'use strict';
-function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preTrimmed = null){
+function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preTrimmed = null, outCanvas = null, tempCanvasArg = null){
 
     const top  = data.perspectiveTop  || 0;
     const left = data.perspectiveLeft || 0;
@@ -38,7 +38,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const wSrcW = wSrc.width;
     const wSrcH = wSrc.height;
 
-    const out = document.createElement('canvas');
+    const out = outCanvas || document.createElement('canvas');
     const ctx = out.getContext('2d');
 
     // Two-sided symmetric perspective: one edge grows to 1+|v|/100, the other
@@ -58,9 +58,10 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = lowQuality ? 'low' : 'high';
 
-    // Live-drag uses fewer slices (3× faster per pass) with no visible quality
-    // difference because perspective distortion is a smooth linear transform.
-    const horizontalSlices = lowQuality ? 60 : 180;
+    // Live-drag uses fewer slices with no visible quality difference because
+    // perspective distortion is a smooth linear transform.
+    // 30 LQ slices ≈ cylinder's ~33, 2× faster than the old 60.
+    const horizontalSlices = lowQuality ? 30 : 180;
 
     // ── Pass 1: top/bottom perspective (horizontal slices) ───────────────────
     // Mip chain keeps each slice's internal compression ≤ 2:1 on top of
@@ -103,7 +104,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
 
     if(left !== 0){
 
-        const tempCanvas = document.createElement('canvas');
+        const tempCanvas = tempCanvasArg || document.createElement('canvas');
         const tempCtx    = tempCanvas.getContext('2d');
         tempCanvas.width  = out.width;
         tempCanvas.height = out.height;
@@ -112,7 +113,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
 
         const tempMips = lowQuality ? [tempCanvas] : buildMipChain(tempCanvas);
 
-        const verticalSlices = lowQuality ? 60 : 180;
+        const verticalSlices = lowQuality ? 30 : 180;
 
         for(let x = 0; x < verticalSlices; x++){
 
