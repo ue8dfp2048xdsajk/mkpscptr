@@ -10,6 +10,7 @@ body {
     display: flex;
     flex-direction: column;
     background: #1C2333; /* fills padding-left area under context panel — prevents corner gap */
+    min-width: 800px;
 }
 
 .sticky-header {
@@ -1258,3 +1259,10 @@ body {
     outline: none;
 }
 .tb-font-toolbar select option { background: #2c3e50; color: #fff; }
+
+/* ── Small-screen safety net ────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    #canvasContainer {
+        grid-template-columns: 1fr !important;
+    }
+}
