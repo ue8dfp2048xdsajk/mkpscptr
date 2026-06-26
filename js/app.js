@@ -1655,6 +1655,13 @@ function updateDropUI(){
     dsBtn.textContent = designs.length > 0
         ? `Upload Designs (${designs.length})`
         : 'Upload Designs';
+
+    // Auto-expand sidebar when designs are first loaded
+    if (designs.length > 0 && !document.body.classList.contains('sidebar-expanded')) {
+        document.body.classList.add('sidebar-expanded');
+        const tb = document.getElementById('sidebarToggleBtn');
+        if (tb) { tb.textContent = '◀'; tb.title = 'Collapse panel'; }
+    }
 }
 
 document.getElementById('bgUploadBtn').addEventListener('click', () => {
@@ -8640,3 +8647,45 @@ document.getElementById('canvasContainer').addEventListener('input', e => {
         if(inp && inp !== e.target) inp.value = newName;
     });
 });
+
+// ── Sidebar collapse toggle ───────────────────────────────────────────────────
+(function(){
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    if (!toggleBtn) return;
+
+    function setSidebarExpanded(expanded) {
+        document.body.classList.toggle('sidebar-expanded', expanded);
+        toggleBtn.textContent = expanded ? '◀' : '▶';
+        toggleBtn.title = expanded ? 'Collapse panel' : 'Open panel';
+    }
+
+    // Start collapsed (no sidebar-expanded class on body)
+    setSidebarExpanded(false);
+
+    toggleBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        setSidebarExpanded(!document.body.classList.contains('sidebar-expanded'));
+    });
+})();
+
+// ── vpControlPanel collapse toggle ───────────────────────────────────────────
+(function(){
+    const panel      = document.getElementById('vpControlPanel');
+    const collapseBtn = document.getElementById('vpPanelCollapseBtn');
+    const teaser     = document.getElementById('vpPanelTeaser');
+    if (!panel || !collapseBtn || !teaser) return;
+
+    function setVpcHidden(hidden) {
+        panel.classList.toggle('vpc-hidden', hidden);
+        teaser.hidden = !hidden;
+    }
+
+    collapseBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        setVpcHidden(true);
+    });
+    teaser.addEventListener('click', function(e) {
+        e.stopPropagation();
+        setVpcHidden(false);
+    });
+})();

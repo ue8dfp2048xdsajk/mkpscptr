@@ -11,21 +11,26 @@ body {
     font-family: 'Inter', Arial, sans-serif;
     text-align: center;
     margin: 0;
-    padding: 0 0 0 220px; /* always-present left panel */
+    padding: 0 0 0 26px; /* collapsed sidebar width */
     display: flex;
     flex-direction: column;
-    background: #fff; /* sidebar is now light, so body fill matches */
+    background: #fff;
     min-width: 800px;
+    transition: padding-left 0.22s ease;
+}
+body.sidebar-expanded {
+    padding-left: 220px;
 }
 
 .sticky-header {
     flex-shrink: 0;
     background: #1C2333;
+    transition: margin-left 0.22s ease, width 0.22s ease;
     z-index: 1000;
     border-bottom: 1px solid #2D3748;
     padding: 6px 12px;
-    margin-left: -220px;
-    width: calc(100% + 220px);
+    margin-left: -26px;
+    width: calc(100% + 26px);
     box-sizing: border-box;
     display: flex;
     align-items: center;
@@ -33,6 +38,10 @@ body {
     flex-wrap: wrap;
     position: relative;
     gap: 8px;
+}
+body.sidebar-expanded .sticky-header {
+    margin-left: -220px;
+    width: calc(100% + 220px);
 }
 
 /* ── Header button base — light ghost on dark bar ───────────────────────── */
@@ -176,7 +185,60 @@ body {
     gap: 3px;
     backdrop-filter: blur(4px);
     user-select: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
 }
+#vpControlPanel.vpc-hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px);
+}
+
+/* Collapse button inside vpControlPanel */
+#vpPanelCollapseBtn {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 16px;
+    height: 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    color: #C4C9D4;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: color 0.12s, background 0.12s;
+}
+#vpPanelCollapseBtn:hover { color: #6B7280; background: #F3F4F6; }
+
+/* Teaser button that appears when vpControlPanel is hidden */
+#vpPanelTeaser {
+    position: fixed;
+    bottom: 60px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    background: rgba(255,255,255,0.97);
+    border: 1px solid rgba(0,0,0,0.13);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.14);
+    cursor: pointer;
+    font-size: 15px;
+    color: #6B7280;
+    z-index: 510;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    backdrop-filter: blur(4px);
+    transition: background 0.14s, color 0.14s;
+}
+#vpPanelTeaser:hover { background: #F3F4F6; color: #374151; }
+#vpPanelTeaser[hidden] { display: none; }
 
 /* Grid control rows: label tight against input */
 .vpc-grid-row {
@@ -961,9 +1023,9 @@ body {
     position: fixed;
     left: 0;
     top: 0;
-    width: 220px;
+    width: 26px; /* collapsed by default */
     height: 100vh;
-    padding-top: 45px; /* push content below the full-width sticky header */
+    padding-top: 45px;
     background: #fff;
     border-right: 1px solid #E5E7EB;
     z-index: 999;
@@ -971,9 +1033,57 @@ body {
     flex-direction: column;
     font-family: 'Inter', Arial, sans-serif;
     color: #374151;
+    transition: width 0.22s ease;
+    overflow: visible;
+}
+body.sidebar-expanded #contextPanel { width: 220px; }
+
+/* Sidebar toggle tab — always visible on right edge */
+#sidebarToggleBtn {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translate(100%, -50%);
+    width: 18px;
+    height: 52px;
+    background: #fff;
+    border: 1px solid #E5E7EB;
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    box-shadow: 3px 0 8px rgba(0,0,0,0.09);
+    cursor: pointer;
+    font-size: 9px;
+    color: #9CA3AF;
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    flex-shrink: 0;
+}
+#sidebarToggleBtn:hover {
+    background: #F3F4F6;
+    color: #4F6EF7;
+    box-shadow: 3px 0 10px rgba(0,0,0,0.14);
 }
 
 
+
+/* Sidebar body hidden when collapsed */
+#contextPanelBody {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.18s ease, visibility 0s linear 0.18s;
+}
+body.sidebar-expanded #contextPanelBody {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 0.18s ease 0.05s, visibility 0s linear 0s;
+}
 
 #contextPanelBody {
     flex: 1;
