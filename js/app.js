@@ -1819,10 +1819,12 @@ function createCanvasData(bgObj, designObj){
 
         // future masking support
         maskPaths:
-            backgroundMaskTemplates[bgObj.name]?.maskPaths || [],
+            backgroundMaskTemplates[bgObj.name]?.maskPaths
+                ?.map(path => path.map(p => ({...p}))) || [],
 
         maskPath:
-            backgroundMaskTemplates[bgObj.name]?.maskPath || null,
+            backgroundMaskTemplates[bgObj.name]?.maskPath
+                ?.map(p => ({...p})) || null,
 
         maskEnabled:
             backgroundMaskTemplates[bgObj.name]?.maskEnabled || false,
@@ -3337,10 +3339,10 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
             perspectiveLeft:       0,
             bgAdjust:              { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
             bgCrop:                { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
-            maskPaths:             backgroundMaskTemplates[file.name]?.maskPaths || [],
-            maskPath:              backgroundMaskTemplates[file.name]?.maskPath  || null,
-            maskEnabled:           backgroundMaskTemplates[file.name]?.maskEnabled || false,
-            maskType:              backgroundMaskTemplates[file.name]?.maskType   || null,
+            maskPaths:             [],
+            maskPath:              null,
+            maskEnabled:           false,
+            maskType:              null,
             extraDesignObjects:    [],
             locked:                false,
             filename:              file.name.replace(/\.[^/.]+$/, ''),
@@ -5701,8 +5703,8 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             backgroundMaskTemplates[target.bgName] = {
                 maskEnabled: true,
                 maskType: "bezier",
-                maskPaths: target.maskPaths,
-                maskPath: finalizedMask
+                maskPaths: target.maskPaths.map(path => path.map(p => ({...p}))),
+                maskPath: finalizedMask.map(p => ({...p}))
             };
 
             addClipOverlay(target);
