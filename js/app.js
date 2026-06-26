@@ -5528,6 +5528,21 @@ document.addEventListener('keydown', function(e){
     document.getElementById('duplicateWindowsBtn').click();
 });
 
+// D — duplicate selected layer
+document.addEventListener('keydown', function(e){
+    if(e.metaKey || e.ctrlKey || e.altKey) return;
+    if(e.key.toLowerCase() !== 'd') return;
+
+    const tag = document.activeElement?.tagName;
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(document.activeElement?.isContentEditable) return;
+
+    if(clipEditMode || designEraserMode || designWarpMode) return;
+
+    e.preventDefault();
+    document.getElementById('duplicateLayerBtn').click();
+});
+
 // Ctrl/Cmd+E — export
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
