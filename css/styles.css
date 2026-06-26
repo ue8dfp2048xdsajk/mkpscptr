@@ -23,7 +23,10 @@ body {
     background: #fff;
     z-index: 1000;
     border-bottom: 1px solid #E5E7EB;
-    padding: 6px 12px;
+    padding: 6px 12px 6px 232px; /* 220px sidebar + 12px original left padding */
+    margin-left: -220px;
+    width: calc(100% + 220px);
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -960,6 +963,7 @@ body {
     top: 0;
     width: 220px;
     height: 100vh;
+    padding-top: 45px; /* push content below the full-width sticky header */
     background: #1C2333;
     border-right: 1px solid #2D3748;
     z-index: 999;
