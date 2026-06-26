@@ -28,57 +28,60 @@ body {
 
 /* ── Header button base — applies to all toolbar buttons ────────────────── */
 .sticky-header button {
-    height: 30px;
-    padding: 0 12px;
+    height: 32px;
+    padding: 0 14px;
     font-family: 'Inter', Arial, sans-serif;
     font-size: 13px;
     font-weight: 500;
-    border-radius: 6px;
-    border: 1px solid #E5E7EB;
+    border-radius: 999px;
+    border: 1px solid #D1D5DB;
     background: #F3F4F6;
     color: #374151;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.13s, border-color 0.13s, color 0.13s;
+    transition: background 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
 }
 .sticky-header button:hover:not(:disabled) {
     background: #EEF2FF;
-    border-color: #4F6EF7;
-    color: #4F6EF7;
+    border-color: #818CF8;
+    color: #4338CA;
 }
 .sticky-header button:disabled {
-    opacity: 0.4;
+    opacity: 0.35;
     cursor: not-allowed;
+    filter: grayscale(0.25);
 }
 
-/* Primary action buttons — indigo */
+/* Primary action buttons — indigo accent */
 #bgUploadBtn,
 #designUploadBtn,
 #exportBtn {
     background: #4F6EF7;
     color: #fff;
-    border-color: #3A56D4;
+    border-color: #4F6EF7;
     font-weight: 600;
+    box-shadow: 0 1px 4px rgba(79, 110, 247, 0.30);
 }
 #bgUploadBtn:hover:not(:disabled),
 #designUploadBtn:hover:not(:disabled),
 #exportBtn:hover:not(:disabled) {
     background: #3A56D4;
-    border-color: #2E47C0;
+    border-color: #3A56D4;
     color: #fff;
+    box-shadow: 0 2px 8px rgba(79, 110, 247, 0.40);
 }
 
 /* Filter input in the header */
 #filterByNameInput {
-    height: 30px;
-    padding: 0 10px;
+    height: 32px;
+    padding: 0 14px;
     font-family: 'Inter', Arial, sans-serif;
     font-size: 13px;
-    border: 1px solid #E5E7EB;
-    border-radius: 6px;
+    border: 1px solid #D1D5DB;
+    border-radius: 999px;
     color: #374151;
     background: #F9FAFB;
     outline: none;
@@ -86,7 +89,7 @@ body {
     box-sizing: border-box;
 }
 #filterByNameInput:focus {
-    border-color: #4F6EF7;
+    border-color: #818CF8;
     box-shadow: 0 0 0 3px rgba(79,110,247,0.12);
     background: #fff;
 }
