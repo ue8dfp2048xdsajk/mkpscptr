@@ -193,27 +193,28 @@ body.sidebar-expanded .sticky-header {
     transform: translateY(6px);
 }
 
-/* Collapse button inside vpControlPanel */
+/* Collapse button — badge in top-right corner above the panel */
 #vpPanelCollapseBtn {
     position: absolute;
-    top: 3px;
-    right: 3px;
-    width: 16px;
-    height: 16px;
-    background: none;
-    border: none;
+    top: -9px;
+    right: -9px;
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
     cursor: pointer;
-    font-size: 13px;
+    font-size: 11px;
     line-height: 1;
-    color: #C4C9D4;
+    color: #9CA3AF;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 3px;
-    transition: color 0.12s, background 0.12s;
+    border-radius: 50%;
+    transition: color 0.12s, background 0.12s, border-color 0.12s;
 }
-#vpPanelCollapseBtn:hover { color: #6B7280; background: #F3F4F6; }
+#vpPanelCollapseBtn:hover { color: #374151; background: #F3F4F6; border-color: #D1D5DB; }
 
 /* Teaser button that appears when vpControlPanel is hidden */
 #vpPanelTeaser {
@@ -1034,16 +1035,19 @@ body.sidebar-expanded .sticky-header {
     font-family: 'Inter', Arial, sans-serif;
     color: #374151;
     transition: width 0.22s ease;
-    overflow: visible;
+    overflow: hidden;
 }
 body.sidebar-expanded #contextPanel { width: 220px; }
 
-/* Sidebar toggle tab — always visible on right edge */
+/* Hide idle message when sidebar is collapsed */
+body:not(.sidebar-expanded) .cp-idle-msg { display: none !important; }
+
+/* Sidebar toggle tab — fixed so it escapes the panel's overflow:hidden */
 #sidebarToggleBtn {
-    position: absolute;
+    position: fixed;
+    left: 26px; /* right edge of collapsed panel */
     top: 50%;
-    right: 0;
-    transform: translate(100%, -50%);
+    transform: translateY(-50%);
     width: 18px;
     height: 52px;
     background: #fff;
@@ -1060,7 +1064,7 @@ body.sidebar-expanded #contextPanel { width: 220px; }
     justify-content: center;
     padding: 0;
     line-height: 1;
-    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    transition: left 0.22s ease, background 0.15s, color 0.15s, box-shadow 0.15s;
     flex-shrink: 0;
 }
 #sidebarToggleBtn:hover {
@@ -1068,6 +1072,7 @@ body.sidebar-expanded #contextPanel { width: 220px; }
     color: #4F6EF7;
     box-shadow: 3px 0 10px rgba(0,0,0,0.14);
 }
+body.sidebar-expanded #sidebarToggleBtn { left: 220px; }
 
 
 
