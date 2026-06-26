@@ -1636,9 +1636,6 @@ function updateDropUI(){
 
     const dropZone     = document.getElementById('dropZone');
     const designPrompt = document.getElementById('designPrompt');
-    const bgCount      = document.getElementById('bgCount');
-    const designCount  = document.getElementById('designCount');
-
     if(backgrounds.length === 0){
         dropZone.style.display     = 'flex';
         designPrompt.style.display = 'none';
@@ -1650,12 +1647,14 @@ function updateDropUI(){
         designPrompt.style.display = 'none';
     }
 
-    bgCount.textContent     = backgrounds.length > 0
-        ? `${backgrounds.length} background${backgrounds.length !== 1 ? 's' : ''}`
-        : '';
-    designCount.textContent = designs.length > 0
-        ? `${designs.length} design${designs.length !== 1 ? 's' : ''}`
-        : '';
+    const bgBtn = document.getElementById('bgUploadBtn');
+    const dsBtn = document.getElementById('designUploadBtn');
+    bgBtn.textContent = backgrounds.length > 0
+        ? `Upload Backgrounds (${backgrounds.length})`
+        : 'Upload Backgrounds';
+    dsBtn.textContent = designs.length > 0
+        ? `Upload Designs (${designs.length})`
+        : 'Upload Designs';
 }
 
 document.getElementById('bgUploadBtn').addEventListener('click', () => {
