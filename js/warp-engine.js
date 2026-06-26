@@ -5,7 +5,9 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const left = data.perspectiveLeft || 0;
 
     // Trim transparent borders from the source (e.g. warp/arc padding).
-    const src  = preTrimmed || trimTransparentBorders(sourceCanvas);
+    // In LQ (live-drag) mode skip the getImageData pixel readback — it stalls
+    // the GPU pipeline and is the main cause of perspective lag vs cylinder/arc.
+    const src  = preTrimmed || (lowQuality ? sourceCanvas : trimTransparentBorders(sourceCanvas));
     const srcW = src.width;
     const srcH = src.height;
 
@@ -147,6 +149,10 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     }
 
     // ── Scale back down & trim ────────────────────────────────────────────────
+    // In LQ mode skip the output trim (another getImageData stall) — transparent
+    // padding is invisible during a live drag and the caller handles it fine.
+    if(lowQuality) return out;
+
     // Trim first at full supersampled size, then scale down to 1× so the caller
     // receives the same output dimensions as without supersampling.
     const trimmedHQ = trimTransparentBorders(out);
