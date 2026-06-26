@@ -7819,6 +7819,23 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
     // Also apply the grid immediately on page load so CSS matches _numColumns
     applyGridColumns();
+
+    // When the responsive breakpoint forces single-column layout, reflect that
+    // in the Cols input so the displayed value matches what the user actually sees.
+    const mq = window.matchMedia('(max-width: 900px)');
+    function syncColsInputToBreakpoint(e) {
+        if (e.matches) {
+            input.value = 1;
+            input.disabled = true;
+            input.title = 'Single column forced on small screens';
+        } else {
+            input.value = _numColumns;
+            input.disabled = false;
+            input.title = 'Number of columns (1\u201320)';
+        }
+    }
+    mq.addEventListener('change', syncColsInputToBreakpoint);
+    syncColsInputToBreakpoint(mq);
 })();
 
 

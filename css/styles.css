@@ -502,7 +502,7 @@ body {
 /* ── Minimap ────────────────────────────────────────────────────────────────── */
 #minimap {
     position: absolute;
-    bottom: 160px;
+    bottom: 185px;
     right: 16px;
     background: rgba(18, 18, 18, 0.75);
     border: 1px solid rgba(255,255,255,0.12);
