@@ -750,14 +750,13 @@ body {
     left: 0;
     transform-origin: 0 0;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(4, max-content);
     gap: 20px;
-    width: 100%;
+    width: max-content;
     padding: 20px;
     box-sizing: border-box;
     align-items: start;
 }
-#canvasContainer > * { min-width: 0; }
 
 .canvas-wrapper {
     position: relative;
@@ -1429,9 +1428,3 @@ body.sidebar-expanded #contextPanelBody {
 }
 .tb-font-toolbar select option { background: #2c3e50; color: #fff; }
 
-/* ── Small-screen safety net ────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-    #canvasContainer {
-        grid-template-columns: 1fr !important;
-    }
-}

@@ -7797,7 +7797,8 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
     function applyGridColumns() {
         container.style.gridTemplateColumns =
-            `repeat(${_numColumns}, minmax(0, 1fr))`;
+            `repeat(${_numColumns}, max-content)`;
+        container.style.width = 'max-content';
     }
 
     async function rebuildForColumns() {
@@ -8429,7 +8430,8 @@ function _applyLayoutFromSnapshot(layout) {
     if (colInput)  colInput.value  = _colGap;
     const container = document.getElementById('canvasContainer');
     if (container) {
-        container.style.gridTemplateColumns = `repeat(${_numColumns}, minmax(0, 1fr))`;
+        container.style.gridTemplateColumns = `repeat(${_numColumns}, max-content)`;
+        container.style.width = 'max-content';
         container.style.rowGap    = _rowGap + 'px';
         container.style.columnGap = _colGap + 'px';
     }

@@ -309,7 +309,8 @@ async function applyLayoutState(state) {
     if (colInput)  colInput.value  = _colGap;
 
     const container = document.getElementById('canvasContainer');
-    container.style.gridTemplateColumns = `repeat(${_numColumns}, minmax(0, 1fr))`;
+    container.style.gridTemplateColumns = `repeat(${_numColumns}, max-content)`;
+    container.style.width = 'max-content';
     container.style.rowGap    = _rowGap + 'px';
     container.style.columnGap = _colGap + 'px';
 
