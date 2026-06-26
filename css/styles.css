@@ -16,16 +16,11 @@ body {
     flex-direction: column;
     background: #fff;
     min-width: 800px;
-    transition: padding-left 0.22s ease;
-}
-body.sidebar-expanded {
-    padding-left: 220px;
 }
 
 .sticky-header {
     flex-shrink: 0;
     background: #1C2333;
-    transition: margin-left 0.22s ease, width 0.22s ease;
     z-index: 1000;
     border-bottom: 1px solid #2D3748;
     padding: 6px 12px;
@@ -38,10 +33,6 @@ body.sidebar-expanded {
     flex-wrap: wrap;
     position: relative;
     gap: 8px;
-}
-body.sidebar-expanded .sticky-header {
-    margin-left: -220px;
-    width: calc(100% + 220px);
 }
 
 /* ── Header button base — light ghost on dark bar ───────────────────────── */
