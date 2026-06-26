@@ -1011,6 +1011,30 @@ body {
 #contextPanel button:disabled { opacity: 0.4; cursor: not-allowed; }
 #contextPanel button:disabled:hover { background: #2D3748; }
 
+/* ── Framing (bgCrop) custom dimension row ───────────────────────────────── */
+.bgcrop-dim-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.bgcrop-dim-input {
+    width: 44px !important;
+    padding: 3px 5px !important;
+    font-size: 12px !important;
+    text-align: center !important;
+}
+
+.bgcrop-apply-btn {
+    flex: 1;
+    padding: 3px 6px;
+    font-size: 12px;
+    text-align: center;
+    display: block;
+    width: auto;
+}
+
 /* Clipping sub-buttons — indented secondary actions */
 #contextPanel .clip-sub-btn {
     margin-left: 12px;
