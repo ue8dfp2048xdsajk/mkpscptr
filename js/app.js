@@ -2090,8 +2090,9 @@ function createCanvasPreviews(){
 
                     } else {
 
-                        const start = Math.min(lastSelectedIndex, index);
-                        const end = Math.max(lastSelectedIndex, index);
+                        const lastAnchorIdx = canvasData.indexOf(lastSelectedIndex);
+                        const start = Math.min(lastAnchorIdx, index);
+                        const end = Math.max(lastAnchorIdx, index);
 
                         const range = [];
 
@@ -2122,7 +2123,7 @@ function createCanvasPreviews(){
                         }
                     });
 
-                    lastSelectedIndex = index;
+                    lastSelectedIndex = canvasData[index];
 
                 // CMD / CTRL = toggle window + its original design
                 } else if(isModifierMultiSelect){
@@ -2148,12 +2149,12 @@ function createCanvasPreviews(){
                         }
                     }
 
-                    lastSelectedIndex = index;
+                    lastSelectedIndex = canvasData[index];
 
                 // Normal click = if window already selected keep group; else single-select
                 } else {
 
-                    lastSelectedIndex = index;
+                    lastSelectedIndex = canvasData[index];
 
                     if(!activeIndices.includes(index)){
                         // Clicking an unselected window — start fresh
@@ -2176,7 +2177,7 @@ function createCanvasPreviews(){
                 }
 
                 if(e.shiftKey){
-                    lastSelectedIndex = index;
+                    lastSelectedIndex = canvasData[index];
                 }
 
                 refreshFabricHandles();
@@ -2925,8 +2926,9 @@ function _attachWrapperClickListener(wrapper, data){
             if(lastSelectedIndex === null){
                 activeIndices = [index];
             } else {
-                const start = Math.min(lastSelectedIndex, index);
-                const end   = Math.max(lastSelectedIndex, index);
+                const lastAnchorIdx = canvasData.indexOf(lastSelectedIndex);
+                const start = Math.min(lastAnchorIdx, index);
+                const end   = Math.max(lastAnchorIdx, index);
                 const range = [];
                 for(let i = start; i <= end; i++) range.push(i);
                 activeIndices = [...new Set([...activeIndices, ...range])];
@@ -2945,7 +2947,7 @@ function _attachWrapperClickListener(wrapper, data){
                     (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
                 }
             });
-            lastSelectedIndex = index;
+            lastSelectedIndex = canvasData[index];
         } else if(isModifierMultiSelect){
             if(activeIndices.includes(index)){
                 activeIndices = activeIndices.filter(i => i !== index);
@@ -2962,9 +2964,9 @@ function _attachWrapperClickListener(wrapper, data){
                     selectedDesigns.add(d.designObject);
                 }
             }
-            lastSelectedIndex = index;
+            lastSelectedIndex = canvasData[index];
         } else {
-            lastSelectedIndex = index;
+            lastSelectedIndex = canvasData[index];
             if(!activeIndices.includes(index)){
                 activeIndices = [index];
                 selectedDesigns.clear();
@@ -2982,7 +2984,7 @@ function _attachWrapperClickListener(wrapper, data){
             }
         }
 
-        if(e.shiftKey) lastSelectedIndex = index;
+        if(e.shiftKey) lastSelectedIndex = canvasData[index];
 
         refreshFabricHandles();
         updateWindowBorders();
@@ -3231,7 +3233,7 @@ async function duplicateSelectedWindows(){
 
     // Select the newly duplicated windows
     activeIndices     = newIndices;
-    lastSelectedIndex = newIndices[newIndices.length - 1] ?? null;
+    lastSelectedIndex = canvasData[newIndices[newIndices.length - 1]] ?? null;
     selectedDesigns.clear();
     activeIndices.forEach(i => {
         const d = canvasData[i];
@@ -3422,7 +3424,7 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
 
         // 8. Select the new window
         activeIndices     = [0];
-        lastSelectedIndex = 0;
+        lastSelectedIndex = canvasData[0] ?? null;
         selectedDesigns.clear();
         refreshFabricHandles();
         updateWindowBorders();
@@ -4079,9 +4081,9 @@ function _applyTransforms(data, t){
 }
 
 document.getElementById('copyTransformsBtn').addEventListener('click', () => {
-    const srcIdx = lastSelectedIndex ?? activeIndices[activeIndices.length - 1] ?? null;
-    if(srcIdx === null) return;
-    const data = canvasData[srcIdx];
+    const srcData = lastSelectedIndex ?? canvasData[activeIndices[activeIndices.length - 1]] ?? null;
+    if(srcData === null) return;
+    const data = srcData;
     if(!data) return;
     _copiedTransforms = _captureTransforms(data);
     // Visual feedback on the button
@@ -7214,8 +7216,9 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
                     } else {
 
-                        const start = Math.min(lastSelectedIndex, index);
-                        const end = Math.max(lastSelectedIndex, index);
+                        const lastAnchorIdx = canvasData.indexOf(lastSelectedIndex);
+                        const start = Math.min(lastAnchorIdx, index);
+                        const end = Math.max(lastAnchorIdx, index);
 
                         const range = [];
 
@@ -7246,7 +7249,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                         }
                     });
 
-                    lastSelectedIndex = index;
+                    lastSelectedIndex = canvasData[index];
 
                 // CMD / CTRL = toggle window + its original design
                 } else if(isModifierMultiSelect){
@@ -7272,12 +7275,12 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                         }
                     }
 
-                    lastSelectedIndex = index;
+                    lastSelectedIndex = canvasData[index];
 
                 // Normal click = if window already selected keep group; else single-select
                 } else {
 
-                    lastSelectedIndex = index;
+                    lastSelectedIndex = canvasData[index];
 
                     if(!activeIndices.includes(index)){
                         // Clicking an unselected window — start fresh
@@ -7300,7 +7303,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                 }
 
                 if(e.shiftKey){
-                    lastSelectedIndex = index;
+                    lastSelectedIndex = canvasData[index];
                 }
 
                 refreshFabricHandles();
@@ -7325,7 +7328,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             }
         }
     });
-    if(activeIndices.length) lastSelectedIndex = activeIndices[activeIndices.length - 1];
+    if(activeIndices.length) lastSelectedIndex = canvasData[activeIndices[activeIndices.length - 1]] ?? null;
     refreshFabricHandles();
     updateWindowBorders();
     updateLayerButtons();
@@ -7927,7 +7930,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
             });
 
             activeIndices = newIndices;
-            lastSelectedIndex = newIndices[newIndices.length - 1] ?? null;
+            lastSelectedIndex = canvasData[newIndices[newIndices.length - 1]] ?? null;
             selectedDesigns.clear();
             activeIndices.forEach(i => {
                 const d = canvasData[i];
@@ -8532,14 +8535,17 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         //       objects so nothing is lost — just the index changes) ────────────
         const oldCanvasData   = [...canvasData];
         const selectedDatas   = activeIndices.map(i => oldCanvasData[i]);
-        const lastSelData     = lastSelectedIndex !== null ? oldCanvasData[lastSelectedIndex] : null;
 
         const wrappers = [...container.querySelectorAll('.canvas-wrapper')];
         canvasData = wrappers.map(w => oldCanvasData.find(d => d.wrapperEl === w));
 
         // ── 3. Remap active indices to new positions ───────────────────────────
         activeIndices     = selectedDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
-        lastSelectedIndex = lastSelData ? canvasData.indexOf(lastSelData) : null;
+        // lastSelectedIndex is a data-object reference — remains valid after reorder;
+        // only clear it if the object is no longer present in canvasData.
+        if(lastSelectedIndex !== null && !canvasData.includes(lastSelectedIndex)){
+            lastSelectedIndex = null;
+        }
 
         _dragSrcWrapper = null;
         _dropTarget     = null;
