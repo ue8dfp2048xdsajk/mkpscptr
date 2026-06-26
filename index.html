@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="en">
     <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <link rel="stylesheet" href="css/styles.css" />
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -75,13 +78,7 @@
                     id="filterByNameInput"
                     type="text"
                     placeholder="Select by filename…"
-                    style="
-                        width: 160px;
-                        padding: 3px 7px;
-                        font-size: 13px;
-                        border: 1px solid #ccc;
-                        border-radius: 4px;
-                    "
+                    style="width: 160px;"
                 />
                 <button
                     id="resetBtnTop"
@@ -218,7 +215,7 @@
                     border-radius: 8px;
                     z-index: 9999;
                     font-size: 14px;
-                    font-family: Arial;
+                    font-family: 'Inter', Arial, sans-serif;
                 "
             >
                 Preparing designs...
@@ -539,7 +536,7 @@
                         >
                             Cancel
                         </button>
-                        <span style="font-size: 11px; color: #666"
+                        <span style="font-size: 11px; color: #9CA3AF"
                             >Drag grid points to warp</span
                         >
                     </span>
@@ -949,16 +946,18 @@
                             style="
                                 width: 44px;
                                 padding: 3px 5px;
-                                border: 1px solid #ccc;
+                                border: 1px solid #3D4F6A;
                                 border-radius: 4px;
                                 font-size: 12px;
                                 text-align: center;
+                                background: #2D3748;
+                                color: #F3F4F6;
                             "
                         />
                         <span
                             style="
                                 font-size: 13px;
-                                color: #666;
+                                color: #9CA3AF;
                                 font-weight: 600;
                             "
                             >:</span
@@ -973,10 +972,12 @@
                             style="
                                 width: 44px;
                                 padding: 3px 5px;
-                                border: 1px solid #ccc;
+                                border: 1px solid #3D4F6A;
                                 border-radius: 4px;
                                 font-size: 12px;
                                 text-align: center;
+                                background: #2D3748;
+                                color: #F3F4F6;
                             "
                         />
                         <button
@@ -985,9 +986,9 @@
                                 flex: 1;
                                 padding: 3px 6px;
                                 font-size: 12px;
-                                background: #26a69a;
-                                color: #fff;
-                                border: none;
+                                background: #2D3748;
+                                color: #D1D5DB;
+                                border: 1px solid #3D4F6A;
                                 border-radius: 4px;
                                 cursor: pointer;
                             "
@@ -1046,11 +1047,12 @@
                     <label
                         style="
                             display: flex;
+                            flex-direction: row;
                             align-items: center;
                             gap: 6px;
                             margin-top: 6px;
                             font-size: 12px;
-                            color: #555;
+                            color: #D1D5DB;
                             cursor: pointer;
                             user-select: none;
                         "
@@ -1062,7 +1064,7 @@
                                 width: 14px;
                                 height: 14px;
                                 cursor: pointer;
-                                accent-color: #26a69a;
+                                accent-color: #4F6EF7;
                             "
                         />
                         Attach design to background
