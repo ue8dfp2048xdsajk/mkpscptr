@@ -533,6 +533,8 @@ body {
     padding: 12px 14px 14px;
     z-index: 2000;
     min-width: 220px;
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
     text-align: left;
     opacity: 1;
     transform: translateY(0);
@@ -552,6 +554,24 @@ body {
 .header-right .export-popover {
     left: auto;
     right: 0;
+}
+
+/* On narrow viewports, detach from the trigger and pin to viewport edges
+   so neither popover can be clipped or scroll off-screen. */
+@media (max-width: 540px) {
+    .export-popover {
+        position: fixed;
+        top: 50px;
+        left: 8px;
+        right: 8px;
+        max-width: none;
+    }
+    /* Override the right-anchored variant — same fixed position */
+    .export-popover--right,
+    .header-right .export-popover {
+        left: 8px;
+        right: 8px;
+    }
 }
 
 /* ── Popover inner buttons — neutral pill, matches toolbar base ─────────── */
