@@ -360,6 +360,7 @@ body {
     justify-content: center;
     transition: background 0.12s;
     flex-shrink: 0;
+    color: #374151;
 }
 .vpc-zoom-row button:hover { background: #ddd; }
 
