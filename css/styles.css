@@ -23,7 +23,7 @@ body {
     background: #fff;
     z-index: 1000;
     border-bottom: 1px solid #E5E7EB;
-    padding: 6px 12px 6px 232px; /* 220px sidebar + 12px original left padding */
+    padding: 6px 12px;
     margin-left: -220px;
     width: calc(100% + 220px);
     box-sizing: border-box;
