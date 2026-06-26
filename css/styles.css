@@ -16,7 +16,37 @@ body {
     background: #fff;
     z-index: 1000;
     border-bottom: 1px solid #ccc;
-    padding: 10px 0;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    gap: 8px;
+}
+
+/* ── Header zones ───────────────────────────────────────────────────────── */
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
+.header-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
 }
 
 #viewportWrapper {
@@ -27,106 +57,187 @@ body {
     cursor: default;
 }
 
-.vp-zoom-controls {
+/* ── Main control panel: grid + tools (floating above zoom strip) ────────── */
+#vpControlPanel {
+    position: fixed;
+    bottom: 42px;
+    right: 16px;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid rgba(0,0,0,0.13);
+    border-radius: 10px;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.18);
+    padding: 5px 6px;
+    z-index: 510;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+    backdrop-filter: blur(4px);
+    user-select: none;
+}
+
+/* Grid control rows: label tight against input */
+.vpc-grid-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 5px;
+}
+
+.vpc-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: #666;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+}
+
+#numColsInput, #rowGapInput, #colGapInput {
+    width: 34px;
+    font-size: 11px;
+    padding: 2px 3px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.vpc-divider {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 1px 0;
+}
+
+/* Tool buttons — icon-sized squares in a horizontal row */
+.vpc-tools {
+    display: flex;
+    flex-direction: row;
+    gap: 3px;
+    justify-content: center;
+}
+
+.vpc-tools button {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 700;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    cursor: pointer;
+    background: #f0f0f0;
+    color: #555;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin-left: 10px;
-    vertical-align: middle;
+    justify-content: center;
+    transition: background 0.14s, color 0.14s;
+    line-height: 1;
+    flex-shrink: 0;
 }
-.vp-zoom-controls button {
+.vpc-tools button:hover { background: #ddd; color: #222; }
+.vpc-tools button.tool-active {
+    background: #1e5eff;
+    color: #fff;
+    border-color: #1a51d6;
+}
+
+/* Reset view — action button, not a mode toggle */
+#resetViewBtn {
+    color: #999;
+    font-size: 15px;
+}
+#resetViewBtn:hover { background: #ddd; color: #555; }
+
+/* ── Zoom + fit strip — fixed to very bottom-right corner, edge-touching ──── */
+#vpZoomPanel {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid rgba(0,0,0,0.15);
+    border-bottom: none;
+    border-right: none;
+    border-radius: 8px 0 0 0;
+    box-shadow: -2px -2px 10px rgba(0,0,0,0.12);
+    padding: 4px 8px 4px 8px;
+    z-index: 510;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    backdrop-filter: blur(4px);
+    user-select: none;
+}
+
+/* Badge in zoom panel — small muted text */
+#vpZoomPanel #windowCountBadge {
+    font-size: 9px;
+    font-weight: 500;
+    color: #888;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    text-align: center;
+    display: block !important;
+    white-space: nowrap;
+}
+#vpZoomPanel #windowCountBadge[hidden] { display: none !important; }
+
+/* Zoom − | 100% | + | ⛶ row */
+.vpc-zoom-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.vpc-zoom-row button {
     background: #f0f0f0;
     border: 1px solid #bbb;
     border-radius: 4px;
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 13px;
     line-height: 1;
     padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    transition: background 0.12s;
+    flex-shrink: 0;
 }
-.vp-zoom-controls button:hover { background: #ddd; }
+.vpc-zoom-row button:hover { background: #ddd; }
+
 #zoomLevelDisplay {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    min-width: 40px;
     text-align: center;
     color: #444;
     user-select: none;
+    cursor: pointer;
+    min-width: 36px;
 }
 #zoomLevelDisplay:hover { color: #1e5eff; }
-#centerViewBtn { width: auto; padding: 0 8px; font-size: 11px; }
 
-.vp-cols-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-left: 10px;
-    vertical-align: middle;
+/* Always show ⛶ icon — overrides any text JS sets on this button */
+#centerViewBtn {
+    font-size: 0 !important;
+    color: transparent !important;
+    overflow: hidden;
+    position: relative;
+    width: 22px;
+    height: 22px;
 }
-.vp-cols-control label {
+#centerViewBtn::before {
+    content: "⛶";
     font-size: 12px;
-    font-weight: 600;
-    color: #555;
-    user-select: none;
-}
-#numColsInput {
-    width: 44px;
-    font-size: 13px;
-    padding: 2px 4px;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    text-align: center;
-}
-
-.vp-gap-control {
-    display: inline-flex;
+    color: #444;
+    display: flex;
     align-items: center;
-    gap: 5px;
-    margin-left: 10px;
-    vertical-align: middle;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
 }
-.vp-gap-control label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #555;
-    user-select: none;
-}
-#rowGapInput, #colGapInput {
-    width: 44px;
-    font-size: 13px;
-    padding: 2px 4px;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    text-align: center;
-}
-
-.vp-tool-controls {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    margin-left: 6px;
-    vertical-align: middle;
-}
-.vp-tool-controls button {
-    font-size: 15px;
-    padding: 2px 8px;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    cursor: pointer;
-    background: #f5f5f5;
-    line-height: 1.4;
-    transition: background 0.12s;
-}
-.vp-tool-controls button:hover { background: #e0e0e0; }
-.vp-tool-controls button.tool-active {
-    background: #1e5eff;
-    color: #fff;
-    border-color: #1e5eff;
-}
+#centerViewBtn:hover::before { color: #222; }
 
 /* ── Background Adjustments ─────────────────────────────────────────────────── */
 .bg-adj-row {
@@ -302,7 +413,7 @@ body {
 /* ── Minimap ────────────────────────────────────────────────────────────────── */
 #minimap {
     position: absolute;
-    bottom: 16px;
+    bottom: 160px;
     right: 16px;
     background: rgba(18, 18, 18, 0.75);
     border: 1px solid rgba(255,255,255,0.12);
@@ -334,6 +445,11 @@ body {
     z-index: 2000;
     min-width: 220px;
     text-align: left;
+}
+.export-popover--right,
+.header-right .export-popover {
+    left: auto;
+    right: 0;
 }
 .export-row {
     display: flex;
@@ -564,10 +680,11 @@ body {
     background: #4a90e2;
     border-radius: 10px;
     padding: 2px 8px;
-    margin-right: 8px;
+    margin-right: 4px;
     vertical-align: middle;
     white-space: nowrap;
 }
+.upload-count:empty { display: none; }
 
 #dropZone {
     display: flex;
@@ -637,6 +754,19 @@ body {
 }
 
 /* ── Context Panel — left side, always present ──────────────────────────── */
+#appLogoBar {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    color: #fff;
+    background: #1a2533;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    white-space: nowrap;
+    user-select: none;
+}
+
 #contextPanel {
     position: fixed;
     left: 0;
@@ -652,27 +782,6 @@ body {
     font-family: Arial, sans-serif;
 }
 
-#contextPanelHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    background: #2c3e50;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    flex-shrink: 0;
-    gap: 8px;
-    min-height: 42px;
-    box-sizing: border-box;
-}
-#contextPanelTitle {
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 12px;
-}
 
 
 #contextPanelBody {

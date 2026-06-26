@@ -10,22 +10,43 @@
     </head>
     <body>
         <div class="sticky-header">
-            <h1>mockup scripter</h1>
-
-            <div>
-                <button id="selectAllBtn">Select All (Ctrl/Cmd+A)</button>
-                <input
-                    id="filterByNameInput"
-                    type="text"
-                    placeholder="Select by filename…"
-                    style="
-                        width: 160px;
-                        padding: 3px 7px;
-                        font-size: 13px;
-                        border: 1px solid #ccc;
-                        border-radius: 4px;
-                    "
-                />
+            <div class="header-left">
+                <span class="export-wrap">
+                    <button id="fileMenuBtn">File ▾</button>
+                    <div id="fileMenuPopover" class="export-popover" hidden>
+                        <button
+                            id="saveProgressBtn"
+                            style="width: 100%; margin-bottom: 6px"
+                        >
+                            Save Progress (Ctrl/Cmd+S)
+                        </button>
+                        <button
+                            id="loadProgressBtn"
+                            style="width: 100%; margin-bottom: 6px"
+                        >
+                            Load Progress (Ctrl/Cmd+L)
+                        </button>
+                        <input
+                            type="file"
+                            id="loadProgressInput"
+                            accept=".json"
+                            style="display: none"
+                        />
+                        <button
+                            id="clearSessionBtn"
+                            title="Remove the autosaved session so the canvas starts blank on next load"
+                            style="width: 100%"
+                        >
+                            Clear Session
+                        </button>
+                    </div>
+                </span>
+                <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">
+                    ↩ Undo
+                </button>
+                <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">
+                    ↪ Redo
+                </button>
                 <button id="bgUploadBtn">Upload Backgrounds</button>
                 <span id="bgCount" class="upload-count"></span>
                 <input
@@ -44,12 +65,22 @@
                     multiple
                     style="display: none"
                 />
-                <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">
-                    ↩ Undo (Ctrl/Cmd+Z)
-                </button>
-                <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">
-                    ↪ Redo (Ctrl/Cmd+Shift+Z)
-                </button>
+            </div>
+
+            <div class="header-center">
+                <button id="selectAllBtn">Select All (Ctrl/Cmd+A)</button>
+                <input
+                    id="filterByNameInput"
+                    type="text"
+                    placeholder="Select by filename…"
+                    style="
+                        width: 160px;
+                        padding: 3px 7px;
+                        font-size: 13px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                    "
+                />
                 <button
                     id="resetBtnTop"
                     class="lock-sensitive"
@@ -57,6 +88,9 @@
                 >
                     Reset Selected (R)
                 </button>
+            </div>
+
+            <div class="header-right">
                 <span class="export-wrap">
                     <button id="exportBtn" title="Export (Ctrl/Cmd+E)">
                         Export ▾
@@ -113,108 +147,39 @@
                         <button id="exportGoBtn">Export</button>
                     </div>
                 </span>
-                <span class="export-wrap">
-                    <button id="fileMenuBtn">File ▾</button>
-                    <div id="fileMenuPopover" class="export-popover" hidden>
-                        <button
-                            id="saveProgressBtn"
-                            style="width: 100%; margin-bottom: 6px"
-                        >
-                            Save Progress (Ctrl/Cmd+S)
-                        </button>
-                        <button
-                            id="loadProgressBtn"
-                            style="width: 100%; margin-bottom: 6px"
-                        >
-                            Load Progress (Ctrl/Cmd+L)
-                        </button>
-                        <input
-                            type="file"
-                            id="loadProgressInput"
-                            accept=".json"
-                            style="display: none"
-                        />
-                        <button
-                            id="clearSessionBtn"
-                            title="Remove the autosaved session so the canvas starts blank on next load"
-                            style="width: 100%"
-                        >
-                            Clear Session
-                        </button>
-                    </div>
-                </span>
-                <span class="vp-tool-controls">
-                    <button
-                        id="toolTextBtn"
-                        title="Text tool — click or drag to add text to the canvas"
-                    >
-                        Text (T)
-                    </button>
-                    <button
-                        id="toolSelectBtn"
-                        title="Marquee select — drag to select mockups"
-                    >
-                        Select (S)
-                    </button>
-                    <button
-                        id="toolPanBtn"
-                        title="Pan tool — drag to pan the canvas (or hold Space)"
-                    >
-                        Pan (Space)
-                    </button>
-                </span>
-                <span class="vp-zoom-controls">
+            </div>
+
+            <!-- Viewport control panels — inside .sticky-header so JS deselection guard applies -->
+            <div id="vpControlPanel">
+                <div class="vpc-grid-row">
+                    <label for="numColsInput" class="vpc-label">Cols</label>
+                    <input id="numColsInput" type="number" min="1" max="20" value="4" title="Number of columns (1–20)" />
+                </div>
+                <div class="vpc-grid-row">
+                    <label for="rowGapInput" class="vpc-label">Row gap</label>
+                    <input id="rowGapInput" type="number" min="0" max="120" value="20" title="Row gap — vertical space between mockups (px)" />
+                </div>
+                <div class="vpc-grid-row">
+                    <label for="colGapInput" class="vpc-label">Col gap</label>
+                    <input id="colGapInput" type="number" min="0" max="120" value="20" title="Col gap — horizontal space between mockups (px)" />
+                </div>
+                <div class="vpc-divider"></div>
+                <div class="vpc-tools">
+                    <button id="toolTextBtn" title="Text (T)">T</button>
+                    <button id="toolSelectBtn" title="Select (S)">↖</button>
+                    <button id="toolPanBtn" title="Pan (Space)">✋&#xFE0E;</button>
+                    <button id="resetViewBtn" title="Reset view — zoom 100%, row/col gap 20">↺</button>
+                </div>
+            </div>
+
+            <div id="vpZoomPanel">
+                <span id="windowCountBadge" class="window-count-badge" hidden></span>
+                <div class="vpc-zoom-row">
                     <button id="zoomOutBtn" title="Zoom out (Ctrl+−)">−</button>
-                    <span
-                        id="zoomLevelDisplay"
-                        title="Reset zoom (Ctrl+0)"
-                        style="cursor: pointer"
-                        >100%</span
-                    >
+                    <span id="zoomLevelDisplay" title="Reset zoom (Ctrl+0)" style="cursor: pointer">100%</span>
                     <button id="zoomInBtn" title="Zoom in (Ctrl+=)">+</button>
-                    <button
-                        id="centerViewBtn"
-                        title="Center view — fit all mockups into view"
-                    >
-                        Fit Selection (F)
-                    </button>
-                </span>
-                <span class="vp-cols-control">
-                    <label for="numColsInput">Cols</label>
-                    <input
-                        id="numColsInput"
-                        type="number"
-                        min="1"
-                        max="20"
-                        value="4"
-                        title="Number of columns (1–20)"
-                    />
-                </span>
-                <span
-                    id="windowCountBadge"
-                    class="window-count-badge"
-                    hidden
-                ></span>
-                <span class="vp-gap-control">
-                    <label for="rowGapInput">Row gap</label>
-                    <input
-                        id="rowGapInput"
-                        type="number"
-                        min="0"
-                        max="120"
-                        value="20"
-                        title="Vertical space between mockups (px)"
-                    />
-                    <label for="colGapInput">Col gap</label>
-                    <input
-                        id="colGapInput"
-                        type="number"
-                        min="0"
-                        max="120"
-                        value="20"
-                        title="Horizontal space between mockups (px)"
-                    />
-                </span>
+                    <button id="centerViewBtn" title="Fit Selection (F)"></button>
+                </div>
             </div>
         </div>
 
@@ -267,9 +232,8 @@
 
         <!-- ── Context Panel ─────────────────────────────────────────────────── -->
         <div id="contextPanel">
-            <div id="contextPanelHeader">
-                <span id="contextPanelTitle"></span>
-            </div>
+            <div id="appLogoBar">mockup scripter</div>
+
             <div id="contextPanelBody">
                 <!-- ── Layers ─────────────────────────────────────────────────────── -->
                 <div class="cp-section lock-sensitive">
