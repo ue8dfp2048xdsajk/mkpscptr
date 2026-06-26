@@ -257,42 +257,6 @@
                     >
                         Copy Layer
                     </button>
-                    <button id="editClipBtn">Edit Clipping (C)</button>
-                    <button
-                        id="addClipAreaBtn"
-                        class="clip-sub-btn"
-                        style="display: none"
-                    >
-                        Add Clipping Area
-                    </button>
-                    <button
-                        id="copyClipBtn"
-                        class="clip-sub-btn"
-                        style="display: none"
-                    >
-                        Copy Clipping
-                    </button>
-                    <button
-                        id="copyClipToSelectedBtn"
-                        class="clip-sub-btn"
-                        style="display: none"
-                    >
-                        Copy Clipping to Selected
-                    </button>
-                    <button
-                        id="deleteClipBtn"
-                        class="clip-sub-btn clip-sub-btn--danger"
-                        style="display: none"
-                    >
-                        Delete Clipping
-                    </button>
-                    <button
-                        id="hideClipLayersBtn"
-                        class="clip-sub-btn"
-                        style="display: none"
-                    >
-                        👁 Hide Layers (H)
-                    </button>
                     <button
                         id="duplicateLayerBtn"
                         disabled
@@ -307,21 +271,6 @@
                     >
                         Delete Layer
                     </button>
-                    <button
-                        id="invertColorsBtn"
-                        disabled
-                        title="Select a layer to invert its colors"
-                    >
-                        Invert Colors
-                    </button>
-                    <div class="cp-btn-row">
-                        <button id="flipHBtn" title="Flip design horizontally">
-                            ↔ Flip H
-                        </button>
-                        <button id="flipVBtn" title="Flip design vertically">
-                            ↕ Flip V
-                        </button>
-                    </div>
                     <div class="cp-btn-row">
                         <button
                             id="copyTransformsBtn"
@@ -386,6 +335,21 @@
                             <option value="luminosity">Luminosity</option>
                         </select>
                     </label>
+                    <button
+                        id="invertColorsBtn"
+                        disabled
+                        title="Select a layer to invert its colors"
+                    >
+                        Invert Colors
+                    </button>
+                    <div class="cp-btn-row">
+                        <button id="flipHBtn" title="Flip design horizontally">
+                            ↔ Flip H
+                        </button>
+                        <button id="flipVBtn" title="Flip design vertically">
+                            ↕ Flip V
+                        </button>
+                    </div>
                 </div>
 
                 <!-- ── Mockup ──────────────────────────────────────────────────────── -->
@@ -497,6 +461,7 @@
                         />
                     </label>
                     <button id="designWarpBtn">Warp Mesh (W)</button>
+
                     <span
                         id="warpModeControls"
                         style="
@@ -540,6 +505,47 @@
                             >Drag grid points to warp</span
                         >
                     </span>
+                </div>
+
+                <!-- ── Clipping ───────────────────────────────────────────────────── -->
+                <div class="cp-section lock-sensitive">
+                    <div class="cp-section-title">Clipping</div>
+                    <button id="editClipBtn">Edit Clipping (C)</button>
+                    <button
+                        id="addClipAreaBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        Add Clipping Area
+                    </button>
+                    <button
+                        id="copyClipBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        Copy Clipping
+                    </button>
+                    <button
+                        id="copyClipToSelectedBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        Copy Clipping to Selected
+                    </button>
+                    <button
+                        id="deleteClipBtn"
+                        class="clip-sub-btn clip-sub-btn--danger"
+                        style="display: none"
+                    >
+                        Delete Clipping
+                    </button>
+                    <button
+                        id="hideClipLayersBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        👁 Hide Layers (H)
+                    </button>
                 </div>
 
                 <!-- ── Painting ────────────────────────────────────────────────────── -->
