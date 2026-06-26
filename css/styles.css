@@ -1048,7 +1048,8 @@ body:not(.sidebar-expanded) .cp-idle-msg { display: none !important; }
     left: 26px; /* right edge of collapsed panel */
     top: 50%;
     transform: translateY(-50%);
-    width: 18px;
+    width: 18px !important;
+    display: flex !important;
     height: 52px;
     background: #fff;
     border: 1px solid #E5E7EB;
