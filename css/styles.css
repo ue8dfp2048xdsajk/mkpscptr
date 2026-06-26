@@ -14,15 +14,15 @@ body {
     padding: 0 0 0 220px; /* always-present left panel */
     display: flex;
     flex-direction: column;
-    background: #1C2333; /* fills padding-left area under context panel — prevents corner gap */
+    background: #fff; /* sidebar is now light, so body fill matches */
     min-width: 800px;
 }
 
 .sticky-header {
     flex-shrink: 0;
-    background: #fff;
+    background: #1C2333;
     z-index: 1000;
-    border-bottom: 1px solid #E5E7EB;
+    border-bottom: 1px solid #2D3748;
     padding: 6px 12px;
     margin-left: -220px;
     width: calc(100% + 220px);
@@ -35,7 +35,7 @@ body {
     gap: 8px;
 }
 
-/* ── Header button base — applies to all toolbar buttons ────────────────── */
+/* ── Header button base — light ghost on dark bar ───────────────────────── */
 .sticky-header button {
     height: 32px;
     padding: 0 14px;
@@ -43,9 +43,9 @@ body {
     font-size: 13px;
     font-weight: 500;
     border-radius: 999px;
-    border: 1px solid #D1D5DB;
-    background: #F3F4F6;
-    color: #374151;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.08);
+    color: #E5E7EB;
     cursor: pointer;
     white-space: nowrap;
     transition: background 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s;
@@ -54,9 +54,9 @@ body {
     gap: 5px;
 }
 .sticky-header button:hover:not(:disabled) {
-    background: #EEF2FF;
-    border-color: #818CF8;
-    color: #4338CA;
+    background: rgba(255,255,255,0.16);
+    border-color: rgba(255,255,255,0.35);
+    color: #fff;
 }
 .sticky-header button:disabled {
     opacity: 0.35;
@@ -67,9 +67,9 @@ body {
     outline: none;
 }
 .sticky-header button:focus-visible {
-    outline: 3px solid #6366F1;
+    outline: 3px solid #818CF8;
     outline-offset: 2px;
-    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.18);
+    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.25);
 }
 
 /* Primary action buttons — indigo accent */
@@ -91,30 +91,30 @@ body {
     box-shadow: 0 2px 8px rgba(79, 110, 247, 0.40);
 }
 
-/* Filter input in the header */
+/* Filter input in the header — ghost on dark bar */
 #filterByNameInput {
     height: 32px;
     padding: 0 14px;
     font-family: 'Inter', Arial, sans-serif;
     font-size: 13px;
-    border: 1px solid #D1D5DB;
+    border: 1px solid rgba(255,255,255,0.18);
     border-radius: 999px;
-    color: #374151;
-    background: #F9FAFB;
+    color: #E5E7EB;
+    background: rgba(255,255,255,0.08);
     outline: none;
-    transition: border-color 0.13s, box-shadow 0.13s;
+    transition: border-color 0.13s, box-shadow 0.13s, background 0.13s;
     box-sizing: border-box;
 }
 #filterByNameInput:focus {
-    border-color: #818CF8;
-    background: #fff;
+    border-color: rgba(255,255,255,0.40);
+    background: rgba(255,255,255,0.13);
 }
 #filterByNameInput:focus-visible {
-    outline: 3px solid #6366F1;
+    outline: 3px solid #818CF8;
     outline-offset: 2px;
-    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.18);
+    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.25);
 }
-#filterByNameInput::placeholder { color: #9CA3AF; }
+#filterByNameInput::placeholder { color: rgba(255,255,255,0.40); }
 
 /* ── Header zones ───────────────────────────────────────────────────────── */
 .header-left {
@@ -134,12 +134,12 @@ body {
     min-width: 0;
 }
 
-/* Thin vertical rule between upload buttons and select/reset buttons */
+/* Thin vertical rule between button groups */
 .header-section-div {
     display: block;
     width: 1px;
     height: 22px;
-    background: #E5E7EB;
+    background: rgba(255,255,255,0.18);
     flex-shrink: 0;
     margin: 0 2px;
 }
@@ -964,13 +964,13 @@ body {
     width: 220px;
     height: 100vh;
     padding-top: 45px; /* push content below the full-width sticky header */
-    background: #1C2333;
-    border-right: 1px solid #2D3748;
+    background: #fff;
+    border-right: 1px solid #E5E7EB;
     z-index: 999;
     display: flex;
     flex-direction: column;
     font-family: 'Inter', Arial, sans-serif;
-    color: #D1D5DB;
+    color: #374151;
 }
 
 
@@ -998,7 +998,7 @@ body {
     flex: 1;
     padding: 24px 16px;
     text-align: center;
-    color: #4B5563;
+    color: #9CA3AF;
     font-size: 12px;
     line-height: 1.7;
     pointer-events: none;
@@ -1016,7 +1016,7 @@ body {
 
 .cp-section {
     padding: 8px 0;
-    border-bottom: 1px solid #2D3748;
+    border-bottom: 1px solid #E5E7EB;
     display: flex;
     flex-direction: column;
     gap: 5px;
@@ -1038,7 +1038,7 @@ body {
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
-    color: #D1D5DB;
+    color: #374151;
     text-align: left;
 }
 .cp-section input[type="range"] { width: 100%; padding: 0; margin: 0; cursor: pointer; accent-color: #4F6EF7; }
@@ -1047,11 +1047,11 @@ body {
     width: 100%;
     padding: 4px 6px;
     font-size: 13px;
-    border: 1px solid #2D3748;
+    border: 1px solid #E5E7EB;
     border-radius: 4px;
     box-sizing: border-box;
-    background: #2D3748;
-    color: #F3F4F6;
+    background: #F9FAFB;
+    color: #374151;
 }
 
 #contextPanel button {
@@ -1060,18 +1060,18 @@ body {
     padding: 6px 10px;
     font-size: 12px;
     text-align: left;
-    background: #2D3748;
-    border: 1px solid #3D4F6A;
+    background: #F3F4F6;
+    border: 1px solid #E5E7EB;
     border-radius: 4px;
     cursor: pointer;
-    transition: background 0.12s;
+    transition: background 0.12s, border-color 0.12s;
     box-sizing: border-box;
     font-family: 'Inter', Arial, sans-serif;
-    color: #F3F4F6;
+    color: #374151;
 }
-#contextPanel button:hover { background: #3A4A62; }
+#contextPanel button:hover { background: #EEF2FF; border-color: #C7D2FE; }
 #contextPanel button:disabled { opacity: 0.4; cursor: not-allowed; }
-#contextPanel button:disabled:hover { background: #2D3748; }
+#contextPanel button:disabled:hover { background: #F3F4F6; border-color: #E5E7EB; }
 
 /* ── Framing (bgCrop) custom dimension row ───────────────────────────────── */
 .bgcrop-dim-row {
@@ -1102,9 +1102,9 @@ body {
     margin-left: 12px;
     width: calc(100% - 12px);
     font-size: 11px;
-    color: #9CA3AF;
-    background: #243040;
-    border-color: #2D3748;
+    color: #6B7280;
+    background: #F9FAFB;
+    border-color: #E5E7EB;
     padding: 4px 8px;
 }
 #contextPanel .clip-sub-btn::before {
@@ -1112,9 +1112,9 @@ body {
     opacity: 0.4;
     font-size: 10px;
 }
-#contextPanel .clip-sub-btn:hover { background: #3A4A62; color: #F3F4F6; }
-#contextPanel .clip-sub-btn--danger { color: #F87171; }
-#contextPanel .clip-sub-btn--danger:hover { background: #3B1F1F; }
+#contextPanel .clip-sub-btn:hover { background: #EEF2FF; border-color: #C7D2FE; color: #374151; }
+#contextPanel .clip-sub-btn--danger { color: #EF4444; }
+#contextPanel .clip-sub-btn--danger:hover { background: #FEF2F2; border-color: #FECACA; }
 
 .cp-btn-row {
     display: flex;
@@ -1127,13 +1127,13 @@ body {
 
 .cp-feedback {
     font-size: 10px;
-    color: #4B5563;
+    color: #9CA3AF;
     text-decoration: underline;
     text-align: center;
     padding-top: 10px;
     display: block;
 }
-.cp-feedback:hover { color: #9CA3AF; }
+.cp-feedback:hover { color: #6B7280; }
 
 /* ── Canvas text layer ─────────────────────────────────────────────────── */
 #textLayer {
