@@ -54,6 +54,14 @@ body {
     cursor: not-allowed;
     filter: grayscale(0.25);
 }
+.sticky-header button:focus {
+    outline: none;
+}
+.sticky-header button:focus-visible {
+    outline: 3px solid #6366F1;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.18);
+}
 
 /* Primary action buttons — indigo accent */
 #bgUploadBtn,
@@ -90,8 +98,12 @@ body {
 }
 #filterByNameInput:focus {
     border-color: #818CF8;
-    box-shadow: 0 0 0 3px rgba(79,110,247,0.12);
     background: #fff;
+}
+#filterByNameInput:focus-visible {
+    outline: 3px solid #6366F1;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.18);
 }
 #filterByNameInput::placeholder { color: #9CA3AF; }
 
