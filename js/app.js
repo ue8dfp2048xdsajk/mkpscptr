@@ -6572,7 +6572,7 @@ function buildSnapshot(){
             bgSrc: data.bg.src,
             bgName: data.bgName,
 
-            designSrc: data.designOriginal ? data.designOriginal.src : null,
+            designSrc: _originalToSrc(data.designOriginal),
             designName: data.designName,
 
             // Normalise position the same way scaleX/scaleY are normalised:
@@ -7103,6 +7103,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
                             fabricCanvas.add(fabricImg);
                             attachFabricEvents(data, fabricImg);
+                            applyClipMaskToObject(fabricImg, data);
 
                             resolve();
                         };
@@ -7144,8 +7145,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             data.extraDesignObjects.push(cloned);
 
                             fabricCanvas.add(cloned);
-
                             attachFabricEvents(data, cloned);
+                            applyClipMaskToObject(cloned, data);
 
                             resolve();
                         });
