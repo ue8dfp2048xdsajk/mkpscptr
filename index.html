@@ -16,15 +16,17 @@
                     <div id="fileMenuPopover" class="export-popover" hidden>
                         <button
                             id="saveProgressBtn"
+                            title="Save Progress (Ctrl/Cmd+S)"
                             style="width: 100%; margin-bottom: 6px"
                         >
-                            Save Progress (Ctrl/Cmd+S)
+                            Save Progress
                         </button>
                         <button
                             id="loadProgressBtn"
+                            title="Load Progress (Ctrl/Cmd+L)"
                             style="width: 100%; margin-bottom: 6px"
                         >
-                            Load Progress (Ctrl/Cmd+L)
+                            Load Progress
                         </button>
                         <input
                             type="file"
@@ -68,7 +70,7 @@
             </div>
 
             <div class="header-center">
-                <button id="selectAllBtn">Select All (Ctrl/Cmd+A)</button>
+                <button id="selectAllBtn" title="Select All (Ctrl/Cmd+A)">Select All</button>
                 <input
                     id="filterByNameInput"
                     type="text"
@@ -84,9 +86,9 @@
                 <button
                     id="resetBtnTop"
                     class="lock-sensitive"
-                    title="Reset selected mockups to default"
+                    title="Reset selected mockups to default (R)"
                 >
-                    Reset Selected (R)
+                    Reset Selected
                 </button>
             </div>
 
@@ -434,14 +436,14 @@
                         accept="image/*"
                         style="display: none"
                     />
-                    <button id="duplicateWindowsBtn" class="lock-sensitive">
-                        Duplicate Selected (Ctrl/Cmd+D)
+                    <button id="duplicateWindowsBtn" class="lock-sensitive" title="Duplicate Selected (Ctrl/Cmd+D)">
+                        Duplicate Selected
                     </button>
-                    <button id="deleteWindowsBtn" class="lock-sensitive">
-                        Delete Selected (Del)
+                    <button id="deleteWindowsBtn" class="lock-sensitive" title="Delete Selected (Del)">
+                        Delete Selected
                     </button>
-                    <button id="resetBtn" class="lock-sensitive">
-                        Reset Selected (R)
+                    <button id="resetBtn" class="lock-sensitive" title="Reset Selected (R)">
+                        Reset Selected
                     </button>
                 </div>
 
