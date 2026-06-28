@@ -33,46 +33,11 @@ var _sliderUndoLocked = false;   // one push per slider drag gesture
 // 'free' | 'starter' | 'pro'  — overwritten by API call in Phase 7
 var _userPlan = 'free';
 
-var _wmTileCache = null; // cached watermark tile (one tile shared across all canvases)
-
-function _getWatermarkTile() {
-    if (_wmTileCache) return _wmTileCache;
-    // Tile must be large enough so the rotated text block never clips against an edge
-    var tile = document.createElement('canvas');
-    tile.width  = 220;
-    tile.height = 120;
-    var c = tile.getContext('2d');
-
-    c.save();
-    c.translate(110, 60);
-    c.rotate(-Math.PI / 5.5); // ~32.7 degrees diagonal
-
-    c.font = 'bold 12px Arial, sans-serif';
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-
-    // Dark shadow layer — readable on light backgrounds
-    c.shadowColor   = 'rgba(0,0,0,0.55)';
-    c.shadowBlur    = 4;
-    c.shadowOffsetX = 1;
-    c.shadowOffsetY = 1;
-
-    // Line 1: brand name
-    c.fillStyle = 'rgba(255,255,255,0.62)';
-    c.fillText('MOCKUP SCRIPTER', 0, -11);
-
-    // Line 2: URL (slightly lower opacity)
-    c.fillStyle = 'rgba(255,255,255,0.50)';
-    c.fillText('mockupscripter.com', 0, 7);
-
-    c.restore();
-    _wmTileCache = tile;
-    return tile;
-}
-
 // Draw watermark over a canvas (called from after:render).
 // Applies to: all free-plan canvases with a design, AND
 //             any starred (PRO-feature) windows on the Starter plan.
+// Uses direct rotated-grid drawing (no tile repeat) so density is
+// uniform across the whole canvas with no edge-clipping gaps.
 function _drawWatermarkOnCanvas(data) {
     var isFree    = _userPlan === 'free';
     var isStarred = _userPlan === 'starter' && data.hasProEffect;
@@ -80,10 +45,53 @@ function _drawWatermarkOnCanvas(data) {
     if (!data.fabricCanvas || !data.designObject) return;
     var fc  = data.fabricCanvas;
     var ctx = fc.contextContainer;
-    var tile = _getWatermarkTile();
+    var W   = fc.width;
+    var H   = fc.height;
+
     ctx.save();
-    ctx.fillStyle = ctx.createPattern(tile, 'repeat');
-    ctx.fillRect(0, 0, fc.width, fc.height);
+
+    // Rotate the whole drawing context so all text lays out diagonally
+    ctx.translate(W / 2, H / 2);
+    ctx.rotate(-Math.PI / 5.5); // ~-32.7°
+
+    // Set text style once for all instances
+    ctx.font          = 'bold 12px Arial, sans-serif';
+    ctx.textAlign     = 'center';
+    ctx.textBaseline  = 'middle';
+    ctx.shadowColor   = 'rgba(0,0,0,0.50)';
+    ctx.shadowBlur    = 3;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+
+    // rowPitch: spacing between rows (perpendicular to text direction).
+    // Smaller = denser.  52px gives ~25% gap between rows → ~80% coverage.
+    var rowPitch = 52;
+    // colPitch: spacing between text blocks along the text direction.
+    var colPitch = 155;
+
+    var diag = Math.sqrt(W * W + H * H);
+    var rows = Math.ceil(diag / rowPitch) + 1;
+    var cols = Math.ceil(diag / colPitch) + 1;
+
+    // Draw all line-1 text first (batching same fillStyle avoids redundant GPU state changes)
+    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    for (var r = -rows; r <= rows; r++) {
+        var y   = r * rowPitch;
+        var xOff = (r & 1) ? colPitch / 2 : 0; // brick offset on odd rows
+        for (var c = -cols; c <= cols; c++) {
+            ctx.fillText('MOCKUP SCRIPTER', c * colPitch + xOff, y - 11);
+        }
+    }
+    // Draw all line-2 text
+    ctx.fillStyle = 'rgba(255,255,255,0.50)';
+    for (var r = -rows; r <= rows; r++) {
+        var y   = r * rowPitch;
+        var xOff = (r & 1) ? colPitch / 2 : 0;
+        for (var c = -cols; c <= cols; c++) {
+            ctx.fillText('mockupscripter.com', c * colPitch + xOff, y + 7);
+        }
+    }
+
     ctx.restore();
 }
 
