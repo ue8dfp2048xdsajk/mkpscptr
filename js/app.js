@@ -2214,7 +2214,7 @@ function createCanvasPreviews(){
             const index = canvasData.indexOf(data);
             if(index === -1) return;
 
-            if(suppressNextWrapperClick){
+            if(suppressNextWrapperClick && !e.shiftKey){
                 return;
             }
 
@@ -2430,6 +2430,8 @@ function attachFabricEvents(data, targetObject = null){
                         activeIndices.push(winIdx);
                     }
                 }
+                // Set shift-click anchor so a subsequent shift-click can range-select from here
+                lastSelectedIndex = data;
             } else if(isShift){
                 // Shift on design = window-select: add this window + its original design
                 if(!data.designObject._fx) data.designObject._fx = _defaultFx(data);
@@ -2455,6 +2457,8 @@ function attachFabricEvents(data, targetObject = null){
                     syncSliders();
                 }
                 // else: already selected — preserve multi-selection for group drag.
+                // Set shift-click anchor so a subsequent shift-click can range-select from here
+                if(winIdx !== -1) lastSelectedIndex = data;
                 return;
             }
 
@@ -3061,7 +3065,7 @@ function _attachWrapperClickListener(wrapper, data){
         const index = canvasData.indexOf(data);
         if(index === -1) return;
 
-        if(suppressNextWrapperClick) return;
+        if(suppressNextWrapperClick && !e.shiftKey) return;
 
         if(designEraserMode) return;
 
@@ -7457,7 +7461,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         wrapper.addEventListener('click', function(e){
 
-            if(suppressNextWrapperClick){
+            if(suppressNextWrapperClick && !e.shiftKey){
                 return;
             }
 
