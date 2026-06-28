@@ -1390,9 +1390,12 @@ document.getElementById('resetPatternBtn').addEventListener('click', () => {
         const d = canvasData[i];
         if(!d || d.locked) return;
         d.patternSettings = _defaultPattern();
-        if(d.patternMode) _renderPattern(d, false);
+        if(d.patternMode || d.patternFabricObj) _togglePatternMode(d, false);
+        _recomputeProEffect(d);
     });
-    // Sync UI
+    // Sync UI — turn off toggle and hide controls
+    document.getElementById('patternModeToggle').checked = false;
+    document.getElementById('patternControls').style.display = 'none';
     document.querySelectorAll('.pattern-type-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.type === 'grid'));
     _patternSliderDefs.forEach(([id]) => {
