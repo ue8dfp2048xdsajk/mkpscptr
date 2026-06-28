@@ -31,7 +31,12 @@
         </div>
         <script>
             if (window.matchMedia('(pointer: coarse) and (hover: none)').matches) {
-                document.getElementById('mobileOverlay').style.display = 'flex';
+                var overlay = document.getElementById('mobileOverlay');
+                overlay.style.display = 'flex';
+                overlay.style.width = window.innerWidth + 'px';
+                overlay.style.height = window.innerHeight + 'px';
+                overlay.style.top = '0';
+                overlay.style.left = '0';
             }
         </script>
         <div class="sticky-header">
