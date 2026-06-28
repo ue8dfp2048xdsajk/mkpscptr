@@ -6214,7 +6214,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 // ── Export: format + quality ───────────────────────────────────────────────────
 var _exportFormat  = 'png';   // 'png' | 'jpeg'
 var _exportQuality = 0.92;    // 0–1, only used for jpeg
-var _exportOutput  = 'file';  // 'file' | 'zip'
+var _exportOutput  = 'zip';   // 'file' | 'zip'
 
 async function exportDataToBlob(data, fmt, quality){
     fmt     = fmt     ?? _exportFormat;
@@ -6330,7 +6330,6 @@ async function exportDataToBlob(data, fmt, quality){
             indices = [...activeIndices];
         }
 
-        popover.hidden = true;
         goBtn.textContent = 'Exporting…';
         goBtn.disabled = true;
 
