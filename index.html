@@ -45,6 +45,10 @@
             }
         </script>
         <div class="sticky-header">
+            <div id="upgradePrompt" class="upgrade-prompt" style="display:none">
+                <span>🚀 <strong>Free plan</strong> — watermarks appear on canvas and export is disabled. <a href="#plans" id="upgradePromptLink">See plans</a></span>
+                <button id="upgradePromptClose" aria-label="Dismiss" class="upgrade-prompt-close">✕</button>
+            </div>
             <div class="header-left">
                 <span class="export-wrap">
                     <button id="fileMenuBtn">File ▾</button>
@@ -451,7 +455,7 @@
                 </div>
 
                 <div class="cp-section lock-sensitive">
-                    <div class="cp-section-title">Warp &amp; Perspective</div>
+                    <div class="cp-section-title">Warp &amp; Perspective <span class="pro-badge">⭐ PRO</span></div>
                     <label
                         >Cylinder Warp
                         <input
@@ -551,7 +555,7 @@
 
                 <!-- ── Clipping ───────────────────────────────────────────────────── -->
                 <div class="cp-section lock-sensitive">
-                    <div class="cp-section-title">Clipping</div>
+                    <div class="cp-section-title">Clipping <span class="pro-badge">⭐ PRO</span></div>
                     <button id="editClipBtn">Edit Clipping (C)</button>
                     <button
                         id="addClipAreaBtn"
@@ -592,7 +596,7 @@
 
                 <!-- ── Painting ────────────────────────────────────────────────────── -->
                 <div class="cp-section lock-sensitive">
-                    <div class="cp-section-title">Painting</div>
+                    <div class="cp-section-title">Painting <span class="pro-badge">⭐ PRO</span></div>
                     <button id="designEraserBtn">Eraser (E)</button>
                     <span
                         id="designEraserControls"
@@ -774,7 +778,7 @@
                             align-items: center;
                         "
                     >
-                        <span>Create Pattern (P)</span>
+                        <span>Create Pattern (P) <span class="pro-badge">⭐ PRO</span></span>
                         <label class="cp-toggle-switch">
                             <input type="checkbox" id="patternModeToggle" />
                             <span class="cp-toggle-track"
@@ -955,7 +959,7 @@
                 </div>
 
                 <div class="cp-section lock-sensitive" id="bgCropSection">
-                    <div class="cp-section-title">Framing</div>
+                    <div class="cp-section-title">Framing <span class="pro-badge">⭐ PRO</span></div>
                     <div class="bg-crop-aspect-row">
                         <button class="bg-aspect-btn" data-aspect="1">
                             1:1
@@ -1089,7 +1093,7 @@
                 </div>
 
                 <div class="cp-section lock-sensitive" id="bgAdjustSection">
-                    <div class="cp-section-title">Background Adjustments</div>
+                    <div class="cp-section-title">Background Adjustments <span class="pro-badge">⭐ PRO</span></div>
                     <div class="bg-adj-row">
                         <label>Hue</label>
                         <input

@@ -29,6 +29,87 @@ var globalRedoStack = [];
 var MAX_UNDO_HISTORY = 50;
 var _sliderUndoLocked = false;   // one push per slider drag gesture
 
+// ── Plan + Watermark System ───────────────────────────────────────────────────
+// 'free' | 'starter' | 'pro'  — overwritten by API call in Phase 7
+var _userPlan = 'free';
+
+var _wmTileCache = null; // cached watermark tile (one tile shared across all canvases)
+
+function _getWatermarkTile() {
+    if (_wmTileCache) return _wmTileCache;
+    var tile = document.createElement('canvas');
+    tile.width  = 220;
+    tile.height = 220;
+    var c = tile.getContext('2d');
+    c.save();
+    c.translate(110, 110);
+    c.rotate(-Math.PI / 4);
+    c.font = 'bold 13px Arial, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    // white text + dark drop-shadow so it shows on any background
+    c.shadowColor   = 'rgba(0,0,0,0.32)';
+    c.shadowBlur    = 3;
+    c.shadowOffsetX = 1;
+    c.shadowOffsetY = 1;
+    c.fillStyle = 'rgba(255,255,255,0.38)';
+    c.fillText('MOCKUP SCRIPTER', 0, -18);
+    c.fillText('mockupscripter.com', 0, 0);
+    c.restore();
+    _wmTileCache = tile;
+    return tile;
+}
+
+// Draw watermark over a canvas (called from after:render — no-op for paid plans)
+function _drawWatermarkOnCanvas(data) {
+    if (_userPlan !== 'free') return;
+    if (!data.fabricCanvas || !data.designObject) return;
+    var fc  = data.fabricCanvas;
+    var ctx = fc.contextContainer;
+    var tile = _getWatermarkTile();
+    ctx.save();
+    ctx.fillStyle = ctx.createPattern(tile, 'repeat');
+    ctx.fillRect(0, 0, fc.width, fc.height);
+    ctx.restore();
+}
+
+// Show / refresh the ⭐ PRO-feature badge on a canvas wrapper
+function _updateProStarBadge(data) {
+    if (!data.wrapperEl) return;
+    var existing = data.wrapperEl.querySelector('.pro-star-badge');
+    if (existing) existing.remove();
+    if (!data.hasProEffect) return;
+    var badge = document.createElement('span');
+    badge.className = 'pro-star-badge' +
+        (_userPlan === 'pro' ? ' pro-star-green' : ' pro-star-yellow');
+    badge.textContent = '⭐';
+    badge.title = _userPlan === 'pro'
+        ? 'Uses a PRO feature — exports fine on your plan'
+        : 'Uses a PRO feature — upgrade to export this window';
+    data.wrapperEl.appendChild(badge);
+}
+
+// Mark a window as using a PRO feature + refresh its badge
+function _markProEffect(data) {
+    if (!data || data.hasProEffect) return;
+    data.hasProEffect = true;
+    _updateProStarBadge(data);
+    _markDirty();
+}
+
+// Refresh all star badges (called when _userPlan changes in Phase 7)
+function _refreshAllProStarBadges() {
+    canvasData.forEach(function(d) { _updateProStarBadge(d); });
+}
+
+// Show the top upgrade prompt bar (once per session, dismissible)
+function _showUpgradePromptIfNeeded() {
+    if (_userPlan !== 'free') return;
+    if (localStorage.getItem('ms_upgrade_prompt_dismissed') === '1') return;
+    var el = document.getElementById('upgradePrompt');
+    if (el) el.style.display = 'flex';
+}
+
 var designEraserMode     = false;  // true while design-layer eraser is active
 var designEraserDown     = false;  // true while mouse button held in eraser mode
 var designEraserSize     = 30;     // eraser radius in CSS pixels (visual size on screen)
@@ -1106,6 +1187,9 @@ var _bgAdjUndoLocked = false;
     });
     el.addEventListener('mouseup', () => { _bgAdjUndoLocked = false; });
     el.addEventListener('input', _updateBgAdjust);
+    el.addEventListener('input', () => {
+        activeIndices.forEach(i => _markProEffect(canvasData[i]));
+    });
 });
 document.getElementById('bgAdjustResetBtn').addEventListener('click', () => {
     if(!activeIndices.length) return;
@@ -1124,6 +1208,9 @@ var _bgCropUndoLocked = false;
     });
     el.addEventListener('mouseup', () => { _bgCropUndoLocked = false; });
     el.addEventListener('input', _updateBgCrop);
+    el.addEventListener('input', () => {
+        activeIndices.forEach(i => _markProEffect(canvasData[i]));
+    });
 });
 
 document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
@@ -1206,6 +1293,7 @@ document.getElementById('patternModeToggle').addEventListener('change', e => {
         if(d.locked) return;
         if(!d.patternSettings) d.patternSettings = _defaultPattern();
         _togglePatternMode(d, on);
+        if(on) _markProEffect(d);
     });
     _markDirty();
 });
@@ -1547,6 +1635,8 @@ async function handleDesignFiles(files){
 
     if(!files.length) return;
 
+    _showUpgradePromptIfNeeded();
+
     designs = [];
 
     const loadingIndicator =
@@ -1822,6 +1912,8 @@ function createCanvasData(bgObj, designObj){
 
         bgAdjust: { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
         bgCrop:   { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
+
+        hasProEffect: false,
 
         // future masking support
         maskPaths:
@@ -2346,6 +2438,7 @@ function attachFabricEvents(data, targetObject = null){
                     _drawWarpPreview(ctx, secGroup.sourceCanvas, _scaledWarpPointsForGroup(secGroup));
                 }
             }
+            _drawWatermarkOnCanvas(data);
         });
 
         // Design-layer eraser mouse handlers — active only when designEraserMode is true.
@@ -2383,6 +2476,7 @@ function attachFabricEvents(data, targetObject = null){
         data.fabricCanvas.on('mouse:up', () => {
             if (designEraserMode) {
                 designEraserDown = false;
+                _markProEffect(data);
                 // When warp was active during erasing, applyDesignEraserAt only
                 // updated the display element for performance.  Now that the stroke
                 // is finished, rebuild the full pipeline from the erased source so
@@ -4269,7 +4363,12 @@ document.getElementById("designWarpBtn").addEventListener("click", () => {
         enterDesignWarpMode();
     }
 });
-document.getElementById("warpApplyBtn").addEventListener("click", () => exitDesignWarpMode(true));
+document.getElementById("warpApplyBtn").addEventListener("click", () => {
+    const _warpTarget = warpActiveData;
+    exitDesignWarpMode(true);
+    if (_warpTarget) _markProEffect(_warpTarget);
+    else activeIndices.forEach(i => _markProEffect(canvasData[i]));
+});
 document.getElementById("warpCancelBtn").addEventListener("click", () => exitDesignWarpMode(false));
 
 
@@ -4879,6 +4978,7 @@ document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
         data.maskPath    = data.maskPaths[data.maskPaths.length - 1];
         data.maskEnabled = true;
         data.maskType    = src.maskType;
+        _markProEffect(data);
 
         addClipOverlay(data);
 
@@ -5663,6 +5763,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
             target.maskEnabled = true;
             target.maskType = "bezier";
+            _markProEffect(target);
 
             if(!target.maskPaths){
                 target.maskPaths = [];
@@ -6315,6 +6416,30 @@ async function exportDataToBlob(data, fmt, quality){
     goBtn.addEventListener('click', async () => {
         if(clipEditMode){ showClipModeNotice(); return; }
 
+        // FREE users cannot export — redirect them to upgrade
+        if(_userPlan === 'free'){
+            alert('Export is not available on the Free plan.\n\nUpgrade to Starter or PRO to export your mockups.');
+            return;
+        }
+
+        // STARTER users cannot export windows that use PRO features
+        if(_userPlan === 'starter'){
+            const scopeBtn2 = document.querySelector('#exportScopeToggle .seg-active');
+            const scope2    = scopeBtn2 ? scopeBtn2.dataset.val : 'selected';
+            const checkIndices = scope2 === 'all'
+                ? canvasData.map((_, i) => i)
+                : [...activeIndices];
+            const blocked = checkIndices.filter(i => canvasData[i]?.hasProEffect);
+            if(blocked.length){
+                const ok = confirm(
+                    blocked.length + ' window(s) use PRO-only features (⭐) and will be skipped.\n\n' +
+                    'Continue exporting the remaining windows?'
+                );
+                if(!ok) return;
+                // Remove starred windows from the export scope — handled below
+            }
+        }
+
         const scopeBtn = document.querySelector('#exportScopeToggle .seg-active');
         const scope    = scopeBtn ? scopeBtn.dataset.val : 'selected';
         const ext      = _exportFormat === 'jpeg' ? 'jpg' : 'png';
@@ -6328,6 +6453,15 @@ async function exportDataToBlob(data, fmt, quality){
                 return;
             }
             indices = [...activeIndices];
+        }
+
+        // STARTER: skip PRO-starred windows (user already confirmed above)
+        if(_userPlan === 'starter'){
+            indices = indices.filter(i => !canvasData[i]?.hasProEffect);
+            if(!indices.length){
+                alert('All selected windows use PRO features. Upgrade to PRO to export them.');
+                return;
+            }
         }
 
         goBtn.textContent = 'Exporting…';
@@ -6408,6 +6542,25 @@ async function exportDataToBlob(data, fmt, quality){
 
 document.getElementById("undoBtn").addEventListener("click", () => performGlobalUndo());
 document.getElementById("redoBtn").addEventListener("click", () => performGlobalRedo());
+
+// ── Upgrade prompt (top bar) ──────────────────────────────────────────────────
+(function(){
+    var close = document.getElementById('upgradePromptClose');
+    if(close){
+        close.addEventListener('click', () => {
+            var bar = document.getElementById('upgradePrompt');
+            if(bar) bar.style.display = 'none';
+            localStorage.setItem('ms_upgrade_prompt_dismissed', '1');
+        });
+    }
+    var link = document.getElementById('upgradePromptLink');
+    if(link){
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            alert('Pricing plans coming soon!\n\nStarter: $19/mo — export unlimited mockups\nPRO: $39/mo — everything in Starter + all PRO features');
+        });
+    }
+})();
 
 
 
@@ -6642,6 +6795,7 @@ function buildSnapshot(){
             blendMode: data.blendMode ?? "normal",
             bgAdjust:  data.bgAdjust  ? { ...data.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
             bgCrop:    data.bgCrop    ? { ...data.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
+            hasProEffect: data.hasProEffect ?? false,
             patternMode: !!data.patternMode,
             patternSettings: data.patternSettings ? { ...data.patternSettings } : null,
 
@@ -6943,6 +7097,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
             filename: saved.filename,
             notes: saved.notes || '',
+            hasProEffect: saved.hasProEffect ?? false,
 
             extraDesignObjects: [],
 
@@ -6964,6 +7119,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         const wrapper = document.createElement("div");
         wrapper.className = "canvas-wrapper";
         data.wrapperEl = wrapper;
+        _updateProStarBadge(data);
 
         const canvasEl = document.createElement("canvas");
 
