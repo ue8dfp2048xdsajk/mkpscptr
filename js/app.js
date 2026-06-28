@@ -155,7 +155,6 @@ function _refreshAllProStarBadges() {
 // Show the top upgrade prompt bar (once per session, dismissible)
 function _showUpgradePromptIfNeeded() {
     if (_userPlan !== 'free') return;
-    if (localStorage.getItem('ms_upgrade_prompt_dismissed') === '1') return;
     var el = document.getElementById('upgradePrompt');
     if (el) el.style.display = 'flex';
 }
