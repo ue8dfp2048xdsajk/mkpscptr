@@ -111,6 +111,34 @@ function _markProEffect(data) {
     _markDirty();
 }
 
+// Re-evaluate all PRO effects from current window state and update badge.
+// Call this whenever an effect is removed (pattern off, reset framing, etc.)
+// so the badge disappears if no other PRO effects remain.
+function _recomputeProEffect(data) {
+    if (!data) return;
+    var pro = false;
+    if ((data.warpAmount    || 0) !== 0) pro = true;
+    if ((data.arcAmount     || 0) !== 0) pro = true;
+    if ((data.arcTilt       || 0) !== 0) pro = true;
+    if ((data.perspectiveTop  || 0) !== 0) pro = true;
+    if ((data.perspectiveLeft || 0) !== 0) pro = true;
+    if (data.patternMode)         pro = true;
+    if (data.maskEnabled)         pro = true;
+    if (data.colorLayerFabricObj) pro = true;
+    if (data.designOriginal && data.initialDesignOriginal &&
+        data.designOriginal !== data.initialDesignOriginal) pro = true;
+    if (data.bgAdjust) {
+        var a = data.bgAdjust;
+        if ((a.hue||0)!==0||(a.saturation||0)!==0||(a.brightness||0)!==0||(a.contrast||0)!==0) pro = true;
+    }
+    if (data.bgCrop) {
+        var bc = data.bgCrop;
+        if ((bc.x||0)!==0||(bc.y||0)!==0||(bc.scale||1)!==1||(bc.rotation||0)!==0||(bc.aspect||0)!==0) pro = true;
+    }
+    data.hasProEffect = pro;
+    _updateProStarBadge(data);
+}
+
 // Refresh all star badges (called when _userPlan changes in Phase 7)
 function _refreshAllProStarBadges() {
     canvasData.forEach(function(d) { _updateProStarBadge(d); });
@@ -1224,6 +1252,7 @@ document.getElementById('bgAdjustResetBtn').addEventListener('click', () => {
     bgHue.valueAsNumber = 0; bgSaturation.valueAsNumber = 0;
     bgBrightness.valueAsNumber = 0; bgContrast.valueAsNumber = 0;
     _updateBgAdjust();
+    activeIndices.forEach(i => { if(!canvasData[i]?.locked) _recomputeProEffect(canvasData[i]); });
 });
 
 // BG crop sliders
@@ -1252,6 +1281,7 @@ document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
             d.bgCrop.aspect = aspect;
             _applyBgAdjust(d);
             _updateCropOverlay(d);
+            _markProEffect(d);
         });
         document.querySelectorAll('.bg-aspect-btn').forEach(b => {
             b.classList.toggle('active', b === btn);
@@ -1275,6 +1305,7 @@ document.getElementById('bgCropCustomApply').addEventListener('click', () => {
         d.bgCrop.aspect = aspect;
         _applyBgAdjust(d);
         _updateCropOverlay(d);
+        _markProEffect(d);
     });
     document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
     _markDirty();
@@ -1294,6 +1325,7 @@ document.getElementById('bgCropResetBtn').addEventListener('click', () => {
         d.bgCrop = { x:0, y:0, scale:1, rotation:0, aspect:0 };
         _applyBgAdjust(d);
         _updateCropOverlay(d);
+        _recomputeProEffect(d);
     });
     document.querySelectorAll('.bg-aspect-btn').forEach(b => {
         b.classList.toggle('active', parseFloat(b.dataset.aspect) === 0);
@@ -1319,7 +1351,7 @@ document.getElementById('patternModeToggle').addEventListener('change', e => {
         if(d.locked) return;
         if(!d.patternSettings) d.patternSettings = _defaultPattern();
         _togglePatternMode(d, on);
-        if(on) _markProEffect(d);
+        if(on) _markProEffect(d); else _recomputeProEffect(d);
     });
     _markDirty();
 });
