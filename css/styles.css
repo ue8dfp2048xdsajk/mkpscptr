@@ -764,14 +764,11 @@ body {
     flex-direction: column;
     cursor: pointer;
     border: 2px solid transparent;
-    width: 100%;
-    max-width: 420px;
-    min-width: 0;
+    width: 300px;
     overflow: hidden;
     vertical-align: top;
     box-sizing: border-box;
     align-items: center;
-    justify-self: center;
     background: #fff;
     border-radius: 10px;
     box-shadow: 0 1px 6px rgba(0,0,0,0.09);
