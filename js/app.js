@@ -6726,6 +6726,10 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
         _applyBgAdjust(data);
         _updateCropOverlay(data);
 
+        // ── Clear PRO star (all effects were reset above) ────────────────────────
+        data.hasProEffect = false;
+        _updateProStarBadge(data);
+
         data.fabricCanvas.discardActiveObject();
         data.fabricCanvas.requestRenderAll();
     });
@@ -8583,6 +8587,10 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
 // ── Export canvas text ────────────────────────────────────────────────────────
 document.getElementById('exportTextBtn').addEventListener('click', () => {
+    if(_userPlan === 'free'){
+        alert('Exporting is not available on the Free plan.\n\nUpgrade to Starter or PRO to export your work.');
+        return;
+    }
     const sorted = [..._textBoxes]
         .filter(b => b.textEl ? b.textEl.innerText.trim() : b.content.trim())
         .sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
