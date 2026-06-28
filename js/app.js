@@ -6640,6 +6640,8 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
             alert('Pricing plans coming soon!\n\nStarter: $19/mo — export unlimited mockups\nPRO: $39/mo — everything in Starter + all PRO features');
         });
     }
+    // Show on page load (not just when design files are loaded)
+    _showUpgradePromptIfNeeded();
 })();
 
 
