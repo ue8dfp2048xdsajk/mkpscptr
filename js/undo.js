@@ -259,6 +259,9 @@ async function restoreWindowState(data, state){
     const filenameInp = data.wrapperEl?.querySelector('.filename-input');
     if(filenameInp) filenameInp.disabled = !!data.locked;
 
+    // Recompute PRO badge so it reflects the restored state
+    _recomputeProEffect(data);
+
     data.fabricCanvas.discardActiveObject();
     data.fabricCanvas.requestRenderAll();
 }
