@@ -8429,6 +8429,7 @@ function buildFullSnapshot() {
         .slice(-20);
 
     return {
+        schemaVersion: 1,
         windows:     buildSnapshot(),
         textBoxes:   _textBoxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, content: b.content })),
         viewport:    { scale: _vpScale, x: _vpX, y: _vpY },
