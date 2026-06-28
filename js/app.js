@@ -37,14 +37,14 @@ var _wmTileCache = null; // cached watermark tile (one tile shared across all ca
 
 function _getWatermarkTile() {
     if (_wmTileCache) return _wmTileCache;
-    // Smaller tile = far more repetitions across the canvas
+    // Tile must be large enough so the rotated text block never clips against an edge
     var tile = document.createElement('canvas');
-    tile.width  = 160;
-    tile.height = 72;
+    tile.width  = 220;
+    tile.height = 120;
     var c = tile.getContext('2d');
 
     c.save();
-    c.translate(80, 36);
+    c.translate(110, 60);
     c.rotate(-Math.PI / 5.5); // ~32.7 degrees diagonal
 
     c.font = 'bold 12px Arial, sans-serif';
