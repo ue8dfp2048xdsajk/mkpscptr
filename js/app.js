@@ -4948,6 +4948,7 @@ document.getElementById("deleteClipBtn").addEventListener("click", ()=>{
             });
 
         if(data.patternMode) _renderPattern(data, false);
+        _recomputeProEffect(data);
         canvas.requestRenderAll();
     });
 
