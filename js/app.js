@@ -6214,6 +6214,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 // ── Export: format + quality ───────────────────────────────────────────────────
 var _exportFormat  = 'png';   // 'png' | 'jpeg'
 var _exportQuality = 0.92;    // 0–1, only used for jpeg
+var _exportOutput  = 'file';  // 'file' | 'zip'
 
 async function exportDataToBlob(data, fmt, quality){
     fmt     = fmt     ?? _exportFormat;
@@ -6297,6 +6298,7 @@ async function exportDataToBlob(data, fmt, quality){
         });
     }
 
+    wireSegToggle('exportOutputToggle', val => { _exportOutput = val; });
     wireSegToggle('exportScopeToggle', val => { /* stored via active class */ });
     wireSegToggle('exportFormatToggle', val => {
         _exportFormat = val;
@@ -6333,33 +6335,66 @@ async function exportDataToBlob(data, fmt, quality){
         goBtn.disabled = true;
 
         try {
-            // --- Path A: File System Access API (Chrome/Edge) ---
-            if(typeof window.showDirectoryPicker === 'function'){
-                let dirHandle;
-                try{ dirHandle = await window.showDirectoryPicker(); }
-                catch(err){ return; }  // user cancelled picker — finally re-enables button
-
-                for(const index of indices){
-                    const data = canvasData[index];
+            if(_exportOutput === 'zip'){
+                // --- ZIP mode: collect all blobs → single .zip download ---
+                const zip = new JSZip();
+                const usedNames = {};
+                for(let i = 0; i < indices.length; i++){
+                    const data = canvasData[indices[i]];
+                    goBtn.textContent = 'Exporting ' + (i + 1) + ' of ' + indices.length + '…';
                     const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
-                    const fh   = await dirHandle.getFileHandle(data.filename + '.' + ext, { create: true });
-                    const wr   = await fh.createWritable();
-                    await wr.write(blob);
-                    await wr.close();
+                    let baseName = (data.filename || ('mockup_' + (i + 1)));
+                    // Deduplicate filenames within the zip
+                    let fileName = baseName + '.' + ext;
+                    if(usedNames[fileName]){
+                        usedNames[fileName]++;
+                        fileName = baseName + '_' + usedNames[fileName] + '.' + ext;
+                    } else {
+                        usedNames[fileName] = 1;
+                    }
+                    zip.file(fileName, blob);
                 }
-                alert('Exported ' + indices.length + ' file(s)!');
+                goBtn.textContent = 'Zipping…';
+                const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+                const url = URL.createObjectURL(zipBlob);
+                const a   = document.createElement('a');
+                a.href     = url;
+                a.download = 'mockups.zip';
+                a.click();
+                await new Promise(r => setTimeout(r, 200));
+                URL.revokeObjectURL(url);
             } else {
-                // --- Path B: fallback <a download> ---
-                for(const index of indices){
-                    const data = canvasData[index];
-                    const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
-                    const url  = URL.createObjectURL(blob);
-                    const a    = document.createElement('a');
-                    a.href     = url;
-                    a.download = data.filename + '.' + ext;
-                    a.click();
-                    await new Promise(r => setTimeout(r, 150));
-                    URL.revokeObjectURL(url);
+                // --- File mode ---
+                // Path A: File System Access API (Chrome/Edge) — save to folder
+                if(typeof window.showDirectoryPicker === 'function'){
+                    let dirHandle;
+                    try{ dirHandle = await window.showDirectoryPicker(); }
+                    catch(err){ return; }  // user cancelled — finally re-enables button
+
+                    for(let i = 0; i < indices.length; i++){
+                        const data = canvasData[indices[i]];
+                        goBtn.textContent = 'Exporting ' + (i + 1) + ' of ' + indices.length + '…';
+                        const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
+                        const fh   = await dirHandle.getFileHandle((data.filename || ('mockup_' + (i + 1))) + '.' + ext, { create: true });
+                        const wr   = await fh.createWritable();
+                        await wr.write(blob);
+                        await wr.close();
+                    }
+                    alert('Exported ' + indices.length + ' file(s)!');
+                } else {
+                    // Path B: fallback <a download> — one download per file
+                    for(let i = 0; i < indices.length; i++){
+                        const data = canvasData[indices[i]];
+                        goBtn.textContent = 'Exporting ' + (i + 1) + ' of ' + indices.length + '…';
+                        const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
+                        const url  = URL.createObjectURL(blob);
+                        const a    = document.createElement('a');
+                        a.href     = url;
+                        a.download = (data.filename || ('mockup_' + (i + 1))) + '.' + ext;
+                        a.click();
+                        await new Promise(r => setTimeout(r, 150));
+                        URL.revokeObjectURL(url);
+                    }
                 }
             }
         } catch(err) {

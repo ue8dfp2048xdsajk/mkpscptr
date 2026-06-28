@@ -10,6 +10,7 @@
         <title>Mockup Generator Fabric Warp</title>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+        <script src="js/jszip.min.js"></script>
     </head>
     <body>
         <div class="sticky-header">
@@ -90,6 +91,20 @@
                         Export ▾
                     </button>
                     <div id="exportPopover" class="export-popover" hidden>
+                        <div class="export-row">
+                            <span class="export-label">Output</span>
+                            <span class="export-seg" id="exportOutputToggle">
+                                <button
+                                    class="seg-btn seg-active"
+                                    data-val="file"
+                                >
+                                    File
+                                </button>
+                                <button class="seg-btn" data-val="zip">
+                                    ZIP
+                                </button>
+                            </span>
+                        </div>
                         <div class="export-row">
                             <span class="export-label">Scope</span>
                             <span class="export-seg" id="exportScopeToggle">
