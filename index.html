@@ -29,6 +29,11 @@
                 <a id="mobileOverlayUrl" href="https://mockupscripter.com">mockupscripter.com</a>
             </div>
         </div>
+        <script>
+            if (window.matchMedia('(pointer: coarse) and (hover: none)').matches) {
+                document.getElementById('mobileOverlay').style.display = 'flex';
+            }
+        </script>
         <div class="sticky-header">
             <div class="header-left">
                 <span class="export-wrap">

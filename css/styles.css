@@ -1478,6 +1478,3 @@ body.sidebar-expanded #contextPanelBody {
     padding: 9px 18px;
     word-break: break-all;
 }
-@media (max-width: 767px) {
-    #mobileOverlay { display: flex; }
-}
