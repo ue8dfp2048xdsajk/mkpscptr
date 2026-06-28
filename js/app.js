@@ -1981,12 +1981,7 @@ function createCanvasPreviews(){
             const realWidth = data.bg.width;
             const realHeight = data.bg.height;
 
-            const containerWidth = container.clientWidth;
-            const gapSpace = _colGap * (_numColumns - 1);
-            const availableWidth = containerWidth - gapSpace - 40;
-
-            const targetColumnWidth =
-                Math.max(100, Math.min(420, availableWidth / _numColumns));
+            const targetColumnWidth = 300;
 
             // Render at 1.5× the column display width so CSS zoom up to 1.5×
             // stays crisp without significant extra memory cost.
@@ -3392,10 +3387,7 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
 
         const realWidth  = bgImg.width;
         const realHeight = bgImg.height;
-        const containerWidth    = container.clientWidth;
-        const gapSpace          = _colGap * (_numColumns - 1);
-        const availableWidth    = containerWidth - gapSpace - 40;
-        const targetColumnWidth = Math.max(100, Math.min(420, availableWidth / _numColumns));
+        const targetColumnWidth = 300;
         const scaleRatio        = Math.min(1, (targetColumnWidth * 1.5) / realWidth);
         const previewWidth      = Math.round(realWidth  * scaleRatio);
         const previewHeight     = Math.round(realHeight * scaleRatio);
@@ -6970,12 +6962,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         const realWidth = bgImg.width;
 
-        const containerWidth = container.clientWidth;
-
-        const gapSpace = _colGap * (_numColumns - 1);
-        const availableWidth = containerWidth - gapSpace - 40;
-        const targetColumnWidth =
-            Math.max(100, Math.min(420, availableWidth / _numColumns));
+        const targetColumnWidth = 300;
 
         const previewScale =
             Math.min(1, (targetColumnWidth * 1.5) / realWidth);
