@@ -862,6 +862,18 @@ function updateFromSliders(event){
 
     if(event?.target?.id) activeSliderType = event.target.id;
 
+    // Mark PRO effect when a warp or perspective slider is moved to a non-zero value.
+    // (blur / noise are in _needsWarp for render reasons but are not PRO features.)
+    const _isWarpProSlider =
+        activeSliderType === "warpAmount"     ||
+        activeSliderType === "arcAmount"      ||
+        activeSliderType === "arcTilt"        ||
+        activeSliderType === "perspectiveTop" ||
+        activeSliderType === "perspectiveLeft";
+    if (_isWarpProSlider && event?.target && parseFloat(event.target.value) !== 0) {
+        activeIndices.forEach(i => _markProEffect(canvasData[i]));
+    }
+
     // Determine whether this slider type needs a warp re-render.
     const _needsWarp =
         activeSliderType === "warpAmount"     ||
