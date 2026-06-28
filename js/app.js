@@ -96,7 +96,7 @@ function _updateProStarBadge(data) {
     var badge = document.createElement('span');
     badge.className = 'pro-star-badge' +
         (_userPlan === 'pro' ? ' pro-star-green' : ' pro-star-yellow');
-    badge.textContent = '⭐';
+    badge.textContent = '⭐ PRO';
     badge.title = _userPlan === 'pro'
         ? 'Uses a PRO feature — exports fine on your plan'
         : 'Uses a PRO feature — upgrade to export this window';
