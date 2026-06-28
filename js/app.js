@@ -6324,6 +6324,12 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
     fabricCanvas.on('mouse:up', function(){
         if(!colorLayerMode) return;
+        if(isColorPainting){
+            // Mark every window that received paint strokes as a PRO window
+            activeIndices.forEach(i => {
+                if(canvasData[i] && canvasData[i].colorLayerFabricObj) _markProEffect(canvasData[i]);
+            });
+        }
         isColorPainting = false;
         lastPaintNorm   = null;
     });
