@@ -37,32 +37,46 @@ var _wmTileCache = null; // cached watermark tile (one tile shared across all ca
 
 function _getWatermarkTile() {
     if (_wmTileCache) return _wmTileCache;
+    // Smaller tile = far more repetitions across the canvas
     var tile = document.createElement('canvas');
-    tile.width  = 220;
-    tile.height = 220;
+    tile.width  = 160;
+    tile.height = 72;
     var c = tile.getContext('2d');
+
     c.save();
-    c.translate(110, 110);
-    c.rotate(-Math.PI / 4);
-    c.font = 'bold 13px Arial, sans-serif';
+    c.translate(80, 36);
+    c.rotate(-Math.PI / 5.5); // ~32.7 degrees diagonal
+
+    c.font = 'bold 12px Arial, sans-serif';
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    // white text + dark drop-shadow so it shows on any background
-    c.shadowColor   = 'rgba(0,0,0,0.32)';
-    c.shadowBlur    = 3;
+
+    // Dark shadow layer — readable on light backgrounds
+    c.shadowColor   = 'rgba(0,0,0,0.55)';
+    c.shadowBlur    = 4;
     c.shadowOffsetX = 1;
     c.shadowOffsetY = 1;
-    c.fillStyle = 'rgba(255,255,255,0.38)';
-    c.fillText('MOCKUP SCRIPTER', 0, -18);
-    c.fillText('mockupscripter.com', 0, 0);
+
+    // Line 1: brand name
+    c.fillStyle = 'rgba(255,255,255,0.62)';
+    c.fillText('MOCKUP SCRIPTER', 0, -11);
+
+    // Line 2: URL (slightly lower opacity)
+    c.fillStyle = 'rgba(255,255,255,0.50)';
+    c.fillText('mockupscripter.com', 0, 7);
+
     c.restore();
     _wmTileCache = tile;
     return tile;
 }
 
-// Draw watermark over a canvas (called from after:render — no-op for paid plans)
+// Draw watermark over a canvas (called from after:render).
+// Applies to: all free-plan canvases with a design, AND
+//             any starred (PRO-feature) windows on the Starter plan.
 function _drawWatermarkOnCanvas(data) {
-    if (_userPlan !== 'free') return;
+    var isFree    = _userPlan === 'free';
+    var isStarred = _userPlan === 'starter' && data.hasProEffect;
+    if (!isFree && !isStarred) return;
     if (!data.fabricCanvas || !data.designObject) return;
     var fc  = data.fabricCanvas;
     var ctx = fc.contextContainer;

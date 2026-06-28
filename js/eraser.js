@@ -288,7 +288,7 @@ function _applyEraserSync(primaryData, pointer) {
 }
 
 function updateEraserCursor(e) {
-    if (!designEraserMode) return;
+    if (typeof designEraserMode === 'undefined' || !designEraserMode) return;
     const cursor = document.getElementById('designEraserCursor');
     const inner  = document.getElementById('designEraserInner');
     if (!cursor) return;
