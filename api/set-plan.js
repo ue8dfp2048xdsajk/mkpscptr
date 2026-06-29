@@ -11,6 +11,19 @@ module.exports = async function handler(req, res) {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
+    const timestampHeader = req.headers['x-timestamp'];
+    if (!timestampHeader) {
+        return res.status(400).json({ ok: false, error: 'Missing X-Timestamp header' });
+    }
+    const timestamp = Number(timestampHeader);
+    if (!Number.isFinite(timestamp)) {
+        return res.status(400).json({ ok: false, error: 'Invalid X-Timestamp header' });
+    }
+    const ageSeconds = Math.abs(Math.floor(Date.now() / 1000) - timestamp);
+    if (ageSeconds > 300) {
+        return res.status(400).json({ ok: false, error: 'Request timestamp is too old or too far in the future (max 300 s)' });
+    }
+
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     const setPlanSecret = process.env.SET_PLAN_SECRET;
 

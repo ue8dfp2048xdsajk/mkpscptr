@@ -145,6 +145,7 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 curl -s -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
   -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\"}"
 ```
 
@@ -152,6 +153,62 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 **Expected body:** `{"ok":true,"userId":"<REAL_USER_ID>","plan":"pro"}`
 
 **Verify in Clerk:** Open the Clerk dashboard → Users → find `$REAL_USER_ID` → Public metadata should show `{"plan":"pro"}`.
+
+---
+
+## 10. Missing X-Timestamp header → 400
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -d '{"userId":"user_abc","plan":"pro"}'
+```
+
+**Expected:** `400`
+**Expected body:** `{"ok":false,"error":"Missing X-Timestamp header"}`
+
+**Code path:** `api/set-plan.js` — timestamp guard runs immediately after the method check, before auth, so a replayed request with no timestamp is rejected cheaply.
+
+---
+
+## 11. Stale timestamp (replay attack) → 400
+
+```bash
+# Timestamp from 10 minutes ago
+STALE_TS=$(($(date +%s) - 600))
+
+curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $STALE_TS" \
+  -d '{"userId":"user_abc","plan":"free"}'
+```
+
+**Expected:** `400`
+**Expected body:** `{"ok":false,"error":"Request timestamp is too old or too far in the future (max 300 s)"}`
+
+**Code path:** `api/set-plan.js` — `ageSeconds > 300` branch. A captured request replayed after the 5-minute window is always rejected, so a network capture cannot be used to downgrade a paid user back to `free`.
+
+---
+
+## 12. Future timestamp (clock-skew attack) → 400
+
+```bash
+# Timestamp 10 minutes in the future
+FUTURE_TS=$(($(date +%s) + 600))
+
+curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $FUTURE_TS" \
+  -d '{"userId":"user_abc","plan":"pro"}'
+```
+
+**Expected:** `400`
+**Expected body:** `{"ok":false,"error":"Request timestamp is too old or too far in the future (max 300 s)"}`
+
+**Code path:** `api/set-plan.js` — `Math.abs(...)` means the window is symmetric; a far-future timestamp is also rejected.
 
 ---
 
@@ -165,10 +222,13 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 | Plain string `!==` comparison (not constant-time) | ⚠️ Timing attack risk is negligible for an internal webhook endpoint with no retry budget, but noted |
 | CORS allowlist | ✅ Only allows `mockupscripter.com`, `*.vercel.app`, `*.replit.dev` — Stripe's server-side calls are not CORS-gated (CORS only applies to browsers) |
 | Clerk userId path-traversal | ✅ `encodeURIComponent` applied before constructing the Clerk URL |
+| Replay attack (captured request re-sent later) | ✅ `X-Timestamp` header required; requests older than 300 s are rejected with 400 |
+| Far-future timestamp bypassing the window | ✅ Window is symmetric (`Math.abs`); future timestamps beyond 300 s are also rejected |
 
-**Callers** must send the secret as:
+**Callers** must send the secret and a current Unix timestamp (seconds):
 ```
 Authorization: Bearer <SET_PLAN_SECRET>
+X-Timestamp: <Unix seconds — must be within 300 s of server time>
 ```
 The request body should contain only `userId` and `plan` — no `secret` field.
 
@@ -185,3 +245,6 @@ The request body should contain only `userId` and `plan` — no `secret` field.
 - [ ] Case 7 — missing SET_PLAN_SECRET env var → 500 (not silent)
 - [ ] Case 8 — non-existent Clerk user → 502 with clear error
 - [ ] Case 9 — valid request → 200 + Clerk metadata updated
+- [ ] Case 10 — missing X-Timestamp header → 400
+- [ ] Case 11 — stale timestamp (replay attack, >300 s old) → 400
+- [ ] Case 12 — far-future timestamp (>300 s ahead) → 400
