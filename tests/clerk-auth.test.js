@@ -118,6 +118,45 @@ describe('upgrade toast — sign-out / sign-in cycle', () => {
     // so that a subsequent sign-in by any user does not inherit the stale flag.
     // -----------------------------------------------------------------------
 
+    test('sign-out mid-poll dismisses the activating banner immediately', async () => {
+        jest.useFakeTimers();
+
+        const userA = makeUser('userA', 'free');
+        const clerkA = makeMockClerk(userA);
+
+        // session.reload never resolves — poll stays in-flight
+        clerkA.session.reload.mockReturnValue(new Promise(() => {}));
+
+        localStorage.setItem('ms_payment_pending', '1');
+
+        loadScript();
+
+        // Flush microtasks so _clerkAuthMain and tryReload fire
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        // Advance past the 30 ms setTimeout that adds the visible class
+        jest.advanceTimersByTime(50);
+
+        const bannerBefore = document.getElementById('msActivatingBanner');
+        expect(bannerBefore).not.toBeNull();
+        expect(bannerBefore.classList.contains('ms-activating-banner--visible')).toBe(true);
+
+        // User A signs out mid-poll
+        const listenerA = clerkA.getListener();
+        listenerA({ user: null });
+
+        // _dismissActivatingBanner removes the visible class synchronously
+        expect(document.getElementById('msActivatingBanner').classList.contains('ms-activating-banner--visible')).toBe(false);
+
+        // After the 350 ms removal timeout the element is gone from the DOM
+        jest.advanceTimersByTime(400);
+        expect(document.getElementById('msActivatingBanner')).toBeNull();
+
+        jest.useRealTimers();
+    });
+
     test('sign-out mid-poll clears ms_payment_pending and new user is unaffected', async () => {
         // ── Step 1: User A has a pending payment flag and starts the poll ──
         const userA = makeUser('userA', 'free');
