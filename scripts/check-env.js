@@ -26,19 +26,22 @@ const REQUIRED = [
         description: 'Clerk secret key (sk_live_... / sk_test_...). ' +
             'Missing → /api/set-plan cannot update user metadata.',
     },
-];
-
-const OPTIONAL = [
     {
         name: 'UPSTASH_REDIS_REST_URL',
-        description: 'Upstash Redis REST URL. Without this the rate limiter uses an ' +
-            'in-memory store that resets on every cold start.',
+        description: 'Upstash Redis REST URL for the nonce store. ' +
+            'Missing → nonce replay protection resets on every cold start, ' +
+            'allowing webhook replay attacks across serverless restarts.',
+        validate: (v) => v.startsWith('https://') || 'value should start with https://',
     },
     {
         name: 'UPSTASH_REDIS_REST_TOKEN',
-        description: 'Upstash Redis REST token. Required together with UPSTASH_REDIS_REST_URL.',
+        description: 'Upstash Redis REST token for the nonce store. ' +
+            'Required together with UPSTASH_REDIS_REST_URL. ' +
+            'Missing → nonce store falls back to in-memory, replay protection resets on cold starts.',
     },
 ];
+
+const OPTIONAL = [];
 
 let missing = 0;
 
