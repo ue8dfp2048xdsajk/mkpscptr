@@ -139,9 +139,11 @@
                 if (!freshUser) return;
 
                 var newPlan = (freshUser.publicMetadata && freshUser.publicMetadata.plan) || 'free';
-                if (newPlan !== planBefore || attempt >= maxAttempts) {
+                var planUpgraded = newPlan !== planBefore;
+                var alreadyUpgraded = newPlan !== 'free';
+                if (planUpgraded || alreadyUpgraded || attempt >= maxAttempts) {
                     _onClerkSignedIn(freshUser);
-                    if (newPlan !== planBefore) {
+                    if (planUpgraded || alreadyUpgraded) {
                         _showUpgradeToast(newPlan);
                     }
                 } else {
