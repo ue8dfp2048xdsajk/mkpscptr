@@ -1,10 +1,5 @@
 const crypto = require('crypto');
 
-// Tell Vercel not to pre-parse the request body — we need the raw bytes
-// to verify Stripe's HMAC signature. If Vercel parses the body first and
-// we re-stringify it, the bytes differ and the signature never matches.
-module.exports.config = { api: { bodyParser: false } };
-
 const PRICE_TO_PLAN = {
     [process.env.STRIPE_PRICE_STARTER_MONTHLY]:  'starter',
     [process.env.STRIPE_PRICE_STARTER_ANNUAL]:   'starter',
@@ -196,3 +191,8 @@ module.exports = async function handler(req, res) {
     console.log(`stripe-webhook: set plan="${plan}" for userId="${userId}"`);
     return res.status(200).json({ ok: true, userId, plan });
 };
+
+// Tell Vercel not to pre-parse the request body — we need the raw bytes
+// to verify Stripe's HMAC signature. If Vercel parses the body first and
+// we re-stringify it, the bytes differ and the signature never matches.
+module.exports.config = { api: { bodyParser: false } };
