@@ -114,19 +114,28 @@
         }
     }
 
+    var PAYMENT_PENDING_KEY = 'ms_payment_pending';
+
     function _handlePaymentSuccess() {
         var params = new URLSearchParams(window.location.search);
-        if (params.get('payment') !== 'success') return;
+        var isDirectReturn = params.get('payment') === 'success';
 
-        var cleanUrl = window.location.pathname +
-            (params.toString().replace(/payment=success&?/, '').replace(/&$/, '') ? '?' + params.toString().replace(/payment=success&?/, '').replace(/&$/, '') : '') +
-            window.location.hash;
-        history.replaceState(null, '', cleanUrl);
+        if (isDirectReturn) {
+            var cleanUrl = window.location.pathname +
+                (params.toString().replace(/payment=success&?/, '').replace(/&$/, '') ? '?' + params.toString().replace(/payment=success&?/, '').replace(/&$/, '') : '') +
+                window.location.hash;
+            history.replaceState(null, '', cleanUrl);
+
+            localStorage.setItem(PAYMENT_PENDING_KEY, '1');
+        }
+
+        var hasPendingPayment = localStorage.getItem(PAYMENT_PENDING_KEY);
+        if (!isDirectReturn && !hasPendingPayment) return;
 
         if (!window.Clerk || !window.Clerk.user) return;
 
         var planBefore = (window.Clerk.user.publicMetadata && window.Clerk.user.publicMetadata.plan) || 'free';
-        var maxAttempts = 5;
+        var maxAttempts = 22;
         var attemptDelay = 2000;
         var attempt = 0;
 
@@ -142,22 +151,39 @@
                 var newPlan = (freshUser.publicMetadata && freshUser.publicMetadata.plan) || 'free';
                 var planUpgraded = newPlan !== planBefore;
                 var alreadyUpgraded = newPlan !== 'free';
-                if (planUpgraded || alreadyUpgraded || attempt >= maxAttempts) {
+
+                if (planUpgraded || alreadyUpgraded) {
+                    localStorage.removeItem(PAYMENT_PENDING_KEY);
                     _onClerkSignedIn(freshUser);
-                    if (planUpgraded || alreadyUpgraded) {
-                        _showUpgradeToast(newPlan);
-                    }
+                    _showUpgradeToast(newPlan);
+                } else if (attempt >= maxAttempts) {
+                    _showPaymentPendingToast();
                 } else {
                     setTimeout(tryReload, attemptDelay);
                 }
             }).catch(function () {
                 if (attempt < maxAttempts) {
                     setTimeout(tryReload, attemptDelay);
+                } else {
+                    _showPaymentPendingToast();
                 }
             });
         }
 
         tryReload();
+    }
+
+    function _showPaymentPendingToast() {
+        var toast = document.createElement('div');
+        toast.className = 'ms-upgrade-toast ms-upgrade-toast--pending';
+        toast.textContent = 'Payment received — still activating your plan. Refresh in a moment if nothing changes.';
+        document.body.appendChild(toast);
+
+        setTimeout(function () { toast.classList.add('ms-upgrade-toast--visible'); }, 50);
+        setTimeout(function () {
+            toast.classList.remove('ms-upgrade-toast--visible');
+            setTimeout(function () { toast.parentNode && toast.parentNode.removeChild(toast); }, 400);
+        }, 8000);
     }
 
     function _showUpgradeToast(plan) {
