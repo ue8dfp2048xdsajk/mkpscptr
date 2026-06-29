@@ -10,15 +10,14 @@ const PRICE_TO_PLAN = {
 };
 
 async function getRawBody(req) {
-    if (req.body !== undefined) {
-        if (Buffer.isBuffer(req.body)) return req.body;
-        if (typeof req.body === 'string') return Buffer.from(req.body, 'utf8');
-        return Buffer.from(JSON.stringify(req.body), 'utf8');
-    }
     return new Promise((resolve, reject) => {
         const chunks = [];
         req.on('data', (chunk) => chunks.push(chunk));
-        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('end', () => {
+            const raw = Buffer.concat(chunks);
+            console.log(`stripe-webhook: raw body bytes=${raw.length}`);
+            resolve(raw);
+        });
         req.on('error', reject);
     });
 }
@@ -191,8 +190,3 @@ module.exports = async function handler(req, res) {
     console.log(`stripe-webhook: set plan="${plan}" for userId="${userId}"`);
     return res.status(200).json({ ok: true, userId, plan });
 };
-
-// Tell Vercel not to pre-parse the request body — we need the raw bytes
-// to verify Stripe's HMAC signature. If Vercel parses the body first and
-// we re-stringify it, the bytes differ and the signature never matches.
-module.exports.config = { api: { bodyParser: false } };
