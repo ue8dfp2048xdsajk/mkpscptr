@@ -1034,6 +1034,23 @@ body {
 }
 body.sidebar-expanded #contextPanel { width: 220px; }
 
+/* ── Sidebar resize handle ─────────────────────────────────────────────────── */
+#sidebarResizeHandle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 1002;
+    transition: background 0.15s;
+}
+body:not(.sidebar-expanded) #sidebarResizeHandle { display: none; }
+#sidebarResizeHandle:hover,
+body.sidebar-resizing #sidebarResizeHandle { background: rgba(79,110,247,0.18); }
+body.sidebar-resizing,
+body.sidebar-resizing * { cursor: col-resize !important; user-select: none !important; }
+
 /* Hide idle message when sidebar is collapsed */
 body:not(.sidebar-expanded) .cp-idle-msg { display: none !important; }
 

@@ -1829,9 +1829,13 @@ function updateDropUI(){
 
     // Auto-expand sidebar when designs are first loaded
     if (designs.length > 0 && !document.body.classList.contains('sidebar-expanded')) {
-        document.body.classList.add('sidebar-expanded');
-        const tb = document.getElementById('sidebarToggleBtn');
-        if (tb) { tb.textContent = '◀'; tb.title = 'Collapse panel'; }
+        if (window.setSidebarExpanded) {
+            window.setSidebarExpanded(true);
+        } else {
+            document.body.classList.add('sidebar-expanded');
+            const tb = document.getElementById('sidebarToggleBtn');
+            if (tb) { tb.textContent = '◀'; tb.title = 'Collapse panel'; }
+        }
     }
 }
 
@@ -9026,23 +9030,82 @@ document.getElementById('canvasContainer').addEventListener('input', e => {
     });
 });
 
-// ── Sidebar collapse toggle ───────────────────────────────────────────────────
+// ── Sidebar collapse + resize ─────────────────────────────────────────────────
 (function(){
-    const toggleBtn = document.getElementById('sidebarToggleBtn');
-    if (!toggleBtn) return;
+    const panel       = document.getElementById('contextPanel');
+    const toggleBtn   = document.getElementById('sidebarToggleBtn');
+    const resizeHandle = document.getElementById('sidebarResizeHandle');
+    if (!toggleBtn || !panel) return;
+
+    const COLLAPSED_W  = 26;
+    const MIN_W        = 180;
+    const DEFAULT_W    = 220;
+    const LS_KEY       = 'sidebarWidth';
+
+    function _savedW() {
+        const v = parseInt(localStorage.getItem(LS_KEY));
+        return (v >= MIN_W) ? v : DEFAULT_W;
+    }
+
+    function _applyW(w) {
+        panel.style.width      = w + 'px';
+        toggleBtn.style.left   = w + 'px';
+    }
+
+    function _clearW() {
+        panel.style.width    = '';
+        toggleBtn.style.left = '';
+    }
 
     function setSidebarExpanded(expanded) {
         document.body.classList.toggle('sidebar-expanded', expanded);
         toggleBtn.textContent = expanded ? '◀' : '▶';
         toggleBtn.title = expanded ? 'Collapse panel' : 'Open panel';
+        if (expanded) {
+            _applyW(_savedW());
+        } else {
+            _clearW();
+        }
     }
 
-    // Start collapsed (no sidebar-expanded class on body)
+    // Expose globally so auto-expand code can use it
+    window.setSidebarExpanded = setSidebarExpanded;
+
+    // Start collapsed
     setSidebarExpanded(false);
 
     toggleBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         setSidebarExpanded(!document.body.classList.contains('sidebar-expanded'));
+    });
+
+    // ── Drag-to-resize ────────────────────────────────────────────────────────
+    if (!resizeHandle) return;
+
+    resizeHandle.addEventListener('mousedown', function(e) {
+        if (!document.body.classList.contains('sidebar-expanded')) return;
+        e.preventDefault();
+        document.body.classList.add('sidebar-resizing');
+        panel.style.transition    = 'none';
+        toggleBtn.style.transition = 'none';
+
+        function onMove(ev) {
+            _applyW(Math.max(MIN_W, ev.clientX));
+        }
+
+        function onUp(ev) {
+            const w = Math.max(MIN_W, ev.clientX);
+            _applyW(w);
+            localStorage.setItem(LS_KEY, w);
+            document.body.classList.remove('sidebar-resizing');
+            panel.style.transition    = '';
+            toggleBtn.style.transition = '';
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup',   onUp);
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup',   onUp);
     });
 })();
 
