@@ -109,6 +109,61 @@ describe('upgrade toast — sign-out / sign-in cycle', () => {
     //    reloads (simulated by a second loadScript call) → toast fires again.
     // -----------------------------------------------------------------------
 
+    // -----------------------------------------------------------------------
+    // Unit: sign-out mid-poll clears ms_payment_pending
+    //
+    // The payment-pending poll (tryReload) is started for User A but the
+    // session.reload promise is never resolved — simulating a slow network.
+    // User A then signs out. _onClerkSignedOut must clear ms_payment_pending
+    // so that a subsequent sign-in by any user does not inherit the stale flag.
+    // -----------------------------------------------------------------------
+
+    test('sign-out mid-poll clears ms_payment_pending and new user is unaffected', async () => {
+        // ── Step 1: User A has a pending payment flag and starts the poll ──
+        const userA = makeUser('userA', 'free');
+
+        // Make session.reload return a promise that never resolves so the
+        // poll stays in-flight for the entire duration of this test.
+        let _rejectReload;
+        const stallPromise = new Promise((_res, rej) => { _rejectReload = rej; });
+        const clerkA = makeMockClerk(userA);
+        clerkA.session.reload.mockReturnValue(stallPromise);
+
+        localStorage.setItem('ms_payment_pending', '1');
+
+        loadScript();
+        await flushAsync();  // tryReload fires but session.reload never settles
+
+        // Flag must still be present because the poll hasn't resolved yet
+        expect(localStorage.getItem('ms_payment_pending')).toBe('1');
+
+        // ── Step 2: User A signs out mid-poll ─────────────────────────────
+        const listenerA = clerkA.getListener();
+        expect(listenerA).toBeDefined();
+
+        listenerA({ user: null });   // Clerk fires the signed-out event
+
+        // _onClerkSignedOut must have cleared the pending flag immediately
+        expect(localStorage.getItem('ms_payment_pending')).toBeNull();
+
+        // ── Step 3: User B signs in fresh — no pending flag, no poll ──────
+        const userB = makeUser('userB', 'free');
+        makeMockClerk(userB);
+
+        document.body.innerHTML = '<div id="clerkAuthContainer"></div>';
+        loadScript();
+        await flushAsync();
+
+        // No payment_pending flag means the activating banner must NOT appear
+        expect(document.getElementById('msActivatingBanner')).toBeNull();
+        // And no toast either
+        expect(document.body.querySelector('.ms-upgrade-toast')).toBeNull();
+
+        // Clean up the stalled promise to avoid unhandled-rejection noise
+        _rejectReload(new Error('test teardown'));
+        await Promise.resolve().catch(() => {});
+    });
+
     test('upgrade toast fires again for new user after sign-out/sign-in cycle', async () => {
         // ── Step 1: User A returns from payment page ──────────────────────
         const userA = makeUser('userA', 'pro');
