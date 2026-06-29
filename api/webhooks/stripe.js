@@ -142,11 +142,35 @@ module.exports = async function handler(req, res) {
     if (!plan || !VALID_PLANS.includes(plan)) {
         console.warn(
             `stripe-webhook: session.metadata.plan="${plan}" is missing or invalid; ` +
-            `attempting price-ID reverse-lookup for userId ${userId}`
+            `fetching session with line_items expansion for userId ${userId}`
         );
-        const lineItem = session.line_items && session.line_items.data && session.line_items.data[0];
-        const priceId = lineItem ? (lineItem.price && lineItem.price.id) : undefined;
-        plan = priceId ? PRICE_TO_PLAN[priceId] : undefined;
+        const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+        if (!stripeSecretKey) {
+            console.error('stripe-webhook: STRIPE_SECRET_KEY is not set; cannot expand line_items');
+        } else {
+            try {
+                const expandRes = await fetch(
+                    `https://api.stripe.com/v1/checkout/sessions/${session.id}?expand[]=line_items`,
+                    { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+                );
+                if (!expandRes.ok) {
+                    console.error(`stripe-webhook: Stripe session expand returned ${expandRes.status}`);
+                } else {
+                    const expandedSession = await expandRes.json();
+                    const lineItem =
+                        expandedSession.line_items &&
+                        expandedSession.line_items.data &&
+                        expandedSession.line_items.data[0];
+                    const priceId = lineItem ? (lineItem.price && lineItem.price.id) : undefined;
+                    plan = priceId ? PRICE_TO_PLAN[priceId] : undefined;
+                    if (plan) {
+                        console.log(`stripe-webhook: resolved plan="${plan}" via line_items expand`);
+                    }
+                }
+            } catch (err) {
+                console.error('stripe-webhook: failed to expand session line_items', err);
+            }
+        }
     }
 
     if (!plan || !VALID_PLANS.includes(plan)) {
