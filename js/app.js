@@ -9074,6 +9074,8 @@ async function _startCheckout(plan, period) {
                 alert('We couldn\u2019t verify your current plan \u2014 please refresh and try again.');
             } else if (data.code === 'CLERK_ERROR') {
                 alert(data.error || 'We couldn\u2019t verify your current plan \u2014 please try again.');
+            } else if (data.code === 'STRIPE_ERROR') {
+                alert(data.error || 'Our payment provider returned an error \u2014 please try again in a moment.');
             } else {
                 alert('Could not start checkout \u2014 please try again.');
             }

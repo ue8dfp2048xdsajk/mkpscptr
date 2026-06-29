@@ -116,7 +116,11 @@ module.exports = async function handler(req, res) {
 
     const stripeData = await stripeRes.json();
     if (!stripeRes.ok) {
-        return res.status(502).json({ ok: false, error: stripeData.error?.message || 'Stripe API error' });
+        return res.status(502).json({
+            ok: false,
+            code: 'STRIPE_ERROR',
+            error: stripeData.error?.message || `Stripe returned status ${stripeRes.status} — please try again.`,
+        });
     }
 
     return res.status(200).json({ ok: true, url: stripeData.url });
