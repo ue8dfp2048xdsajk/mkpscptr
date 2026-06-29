@@ -36,6 +36,28 @@ function ensureSchema() {
     return _schemaPromise;
 }
 
+// --- Local deny cache (survives backend outages) ---
+const DENY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const denyCache = new Map(); // ip -> expiresAt timestamp
+
+function denyCacheAdd(ip) {
+    denyCache.set(ip, Date.now() + DENY_CACHE_TTL);
+}
+
+function denyCacheCheck(ip) {
+    const exp = denyCache.get(ip);
+    if (exp === undefined) return false;
+    if (Date.now() > exp) {
+        denyCache.delete(ip);
+        return false;
+    }
+    return true;
+}
+
+function denyCacheRemove(ip) {
+    denyCache.delete(ip);
+}
+
 // --- In-memory fallback ---
 const failureStore = new Map();
 
@@ -178,16 +200,22 @@ async function isRateLimited(ip) {
     if (USE_REDIS) {
         try {
             const count = await redisGet(makeKey(ip));
-            return count !== null && Number(count) >= MAX_FAILURES;
+            const limited = count !== null && Number(count) >= MAX_FAILURES;
+            if (limited) denyCacheAdd(ip);
+            return limited;
         } catch (err) {
             console.error('rate-limiter: Redis read failed, falling back to PG/memory:', err.message);
+            if (denyCacheCheck(ip)) return true;
         }
     }
     if (USE_PG) {
         try {
-            return await pgIsRateLimited(ip);
+            const limited = await pgIsRateLimited(ip);
+            if (limited) denyCacheAdd(ip);
+            return limited;
         } catch (err) {
             console.error('rate-limiter: PG read failed, falling back to in-memory:', err.message);
+            if (denyCacheCheck(ip)) return true;
             return memIsRateLimited(ip);
         }
     }
@@ -221,6 +249,7 @@ async function recordFailure(ip) {
 }
 
 async function clearFailures(ip) {
+    denyCacheRemove(ip);
     if (USE_REDIS) {
         try {
             await redisDel(makeKey(ip));
