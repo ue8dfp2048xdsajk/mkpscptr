@@ -1,0 +1,17 @@
+Phase 4 — Plans Page + Stripe
+Estimated time: 5–7 days (most complex phase)
+What you're doing:
+• Build the Plans page (FREE / STARTER / PRO, monthly/annual/lifetime tabs)
+• Create Stripe Products and Prices in the Stripe dashboard (6 prices: Starter monthly, Starter annual, Starter lifetime, Pro monthly, Pro annual, Pro lifetime)
+• Create a Vercel API route: POST /api/checkout — creates a Stripe Checkout Session for the chosen plan, returns the checkout URL
+• Redirect user to Stripe's hosted checkout page
+• Create a Vercel API route: POST /api/webhooks/stripe — handles checkout.session.completed, customer.subscription.updated, customer.subscription.deleted, invoice.payment_failed
+• On successful payment: update user's plan in MongoDB, send receipt via Resend
+• Stripe webhook signature verification: stripe.webhooks.constructEvent(rawBody, sig, secret) — do not skip this
+What to be aware of:
+• Test mode first, always. Stripe has test card numbers (4242 4242 4242 4242) — use them. Do not switch to live mode until every flow works perfectly in test mode.
+• Raw body on the webhook route — add export const config = { api: { bodyParser: false } } at the top of your webhook API file. Without this Vercel parses the body and Stripe's signature check fails.
+• Idempotency — your webhook handler must check if you've already processed an event before acting on it. Store processed Stripe event IDs in MongoDB (processedEvents collection with TTL). Without this, a retry from Stripe could double-upgrade someone.
+• The Plans page is just HTML and CSS — build it as a static page first with hardcoded prices, then wire up the checkout API call. Don't try to do both at once.
+• Lifetime plans in Stripe are one-time payments (payment_intent), not subscriptions. Handle the payment_intent.succeeded webhook separately from customer.subscription.*.
+Done when: Test user can pick a plan, go through Stripe checkout with test card, land on Dashboard with correct plan badge, and your MongoDB correctly reflects their plan.
