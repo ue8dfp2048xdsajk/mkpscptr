@@ -21,6 +21,7 @@
         });
 
         _handleAuthRedirect();
+        _handlePaymentSuccess();
     }
 
     function _onClerkSignedIn(user) {
@@ -110,6 +111,64 @@
                 if (btn) btn.click();
             }, 400);
         }
+    }
+
+    function _handlePaymentSuccess() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('payment') !== 'success') return;
+
+        var cleanUrl = window.location.pathname +
+            (params.toString().replace(/payment=success&?/, '').replace(/&$/, '') ? '?' + params.toString().replace(/payment=success&?/, '').replace(/&$/, '') : '') +
+            window.location.hash;
+        history.replaceState(null, '', cleanUrl);
+
+        if (!window.Clerk || !window.Clerk.user) return;
+
+        var planBefore = (window.Clerk.user.publicMetadata && window.Clerk.user.publicMetadata.plan) || 'free';
+        var maxAttempts = 5;
+        var attemptDelay = 2000;
+        var attempt = 0;
+
+        function tryReload() {
+            attempt++;
+            var session = window.Clerk.session;
+            if (!session) return;
+
+            session.reload().then(function () {
+                var freshUser = window.Clerk.user;
+                if (!freshUser) return;
+
+                var newPlan = (freshUser.publicMetadata && freshUser.publicMetadata.plan) || 'free';
+                if (newPlan !== planBefore || attempt >= maxAttempts) {
+                    _onClerkSignedIn(freshUser);
+                    if (newPlan !== planBefore) {
+                        _showUpgradeToast(newPlan);
+                    }
+                } else {
+                    setTimeout(tryReload, attemptDelay);
+                }
+            }).catch(function () {
+                if (attempt < maxAttempts) {
+                    setTimeout(tryReload, attemptDelay);
+                }
+            });
+        }
+
+        tryReload();
+    }
+
+    function _showUpgradeToast(plan) {
+        var label = plan.charAt(0).toUpperCase() + plan.slice(1);
+        var toast = document.createElement('div');
+        toast.className = 'ms-upgrade-toast';
+        toast.textContent = 'You\'re now on the ' + label + ' plan — enjoy your new features!';
+        document.body.appendChild(toast);
+
+        setTimeout(function () { toast.classList.add('ms-upgrade-toast--visible'); }, 50);
+        setTimeout(function () {
+            toast.classList.remove('ms-upgrade-toast--visible');
+            setTimeout(function () { toast.parentNode && toast.parentNode.removeChild(toast); }, 400);
+        }, 5000);
     }
 
     if (window.__clerkSdkReady) {
