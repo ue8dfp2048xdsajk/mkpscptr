@@ -19,6 +19,14 @@
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
         <script src="js/jszip.min.js"></script>
+        <script
+            async
+            crossorigin="anonymous"
+            data-clerk-publishable-key="pk_test_aGlwLWtvYWxhLTcyLmNsZXJrLmFjY291bnRzLmRldiQ"
+            src="https://hip-koala-72.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+            type="text/javascript"
+            onload="window.__clerkSdkReady=true; window.__clerkInit && window.__clerkInit()"
+        ></script>
     </head>
     <body>
         <div id="mobileOverlay">
@@ -103,7 +111,9 @@
                 />
             </div>
 
-            <div class="header-center"></div>
+            <div class="header-center">
+                <div id="clerkAuthContainer"></div>
+            </div>
 
             <div class="header-right">
                 <button id="selectAllBtn" title="Select All (Ctrl/Cmd+A)">Select All</button>
@@ -1174,6 +1184,7 @@
         <script src="js/pattern.js"></script>
         <script src="js/background.js"></script>
         <script src="js/app.js"></script>
+        <script src="js/clerk-auth.js"></script>
 
         <!-- ── Security deterrents ──────────────────────────────────────────── -->
         <script>

@@ -6495,6 +6495,13 @@ async function exportDataToBlob(data, fmt, quality){
     goBtn.addEventListener('click', async () => {
         if(clipEditMode){ showClipModeNotice(); return; }
 
+        // Unauthenticated users must sign in before exporting
+        if (window.Clerk && !window.Clerk.user) {
+            sessionStorage.setItem('ms_redirect_after_auth', 'export');
+            window.Clerk.openSignIn();
+            return;
+        }
+
         // FREE users cannot export — redirect them to upgrade
         if(_userPlan === 'free'){
             alert('Export is not available on the Free plan.\n\nUpgrade to Starter or PRO to export your mockups.');
