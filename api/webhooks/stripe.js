@@ -68,15 +68,20 @@ module.exports = async function handler(req, res) {
     }
 
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    const setPlanSecret = process.env.SET_PLAN_SECRET;
+    const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
 
     if (!webhookSecret) {
         console.error('stripe-webhook: STRIPE_WEBHOOK_SECRET is not set');
         return res.status(500).json({ ok: false, error: 'Webhook secret not configured' });
     }
-    if (!clerkSecretKey) {
-        console.error('stripe-webhook: CLERK_SECRET_KEY is not set');
-        return res.status(500).json({ ok: false, error: 'Clerk secret not configured' });
+    if (!setPlanSecret) {
+        console.error('stripe-webhook: SET_PLAN_SECRET is not set');
+        return res.status(500).json({ ok: false, error: 'Set-plan secret not configured' });
+    }
+    if (!baseUrl) {
+        console.error('stripe-webhook: BASE_URL is not set');
+        return res.status(500).json({ ok: false, error: 'Base URL not configured' });
     }
 
     const sigHeader = req.headers['stripe-signature'];
@@ -143,30 +148,34 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'Could not determine plan from Stripe session' });
     }
 
-    const clerkUrl = `https://api.clerk.com/v1/users/${encodeURIComponent(userId)}/metadata`;
-    let clerkRes;
+    const timestamp = Math.floor(Date.now() / 1000);
+    const nonce = crypto.randomUUID();
+
+    let setPlanRes;
     try {
-        clerkRes = await fetch(clerkUrl, {
-            method: 'PATCH',
+        setPlanRes = await fetch(`${baseUrl}/api/set-plan`, {
+            method: 'POST',
             headers: {
-                Authorization: `Bearer ${clerkSecretKey}`,
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${setPlanSecret}`,
+                'X-Timestamp': String(timestamp),
+                'X-Nonce': nonce,
             },
-            body: JSON.stringify({ public_metadata: { plan } }),
+            body: JSON.stringify({ userId, plan }),
         });
     } catch (err) {
-        console.error('stripe-webhook: Clerk API fetch error', err);
-        return res.status(502).json({ ok: false, error: 'Failed to reach Clerk API' });
+        console.error('stripe-webhook: set-plan fetch error', err);
+        return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
     }
 
-    if (!clerkRes.ok) {
-        let clerkError = 'Clerk API error';
+    if (!setPlanRes.ok) {
+        let setPlanError = 'set-plan API error';
         try {
-            const clerkBody = await clerkRes.json();
-            clerkError = clerkBody?.errors?.[0]?.message || clerkError;
+            const setPlanBody = await setPlanRes.json();
+            setPlanError = setPlanBody?.error || setPlanError;
         } catch {}
-        console.error('stripe-webhook: Clerk returned', clerkRes.status, clerkError);
-        return res.status(502).json({ ok: false, error: clerkError });
+        console.error('stripe-webhook: set-plan returned', setPlanRes.status, setPlanError);
+        return res.status(502).json({ ok: false, error: setPlanError });
     }
 
     console.log(`stripe-webhook: set plan="${plan}" for userId="${userId}"`);

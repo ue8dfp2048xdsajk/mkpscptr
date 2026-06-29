@@ -146,6 +146,7 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
   -H "X-Timestamp: $(date +%s)" \
+  -H "X-Nonce: $(openssl rand -hex 16)" \
   -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\"}"
 ```
 
