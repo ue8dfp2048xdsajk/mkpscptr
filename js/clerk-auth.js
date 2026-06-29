@@ -41,6 +41,7 @@
         window._userPlan = 'free';
         sessionStorage.removeItem('ms_upgrade_toast_shown');
         localStorage.removeItem('ms_payment_pending');
+        _paymentPollingActive = false;
         _dismissActivatingBanner();
         if (typeof _refreshAllProStarBadges === 'function') _refreshAllProStarBadges();
         _renderSignInButton();
@@ -196,6 +197,11 @@
         var attempt = 0;
 
         function tryReload() {
+            if (!window.Clerk || !window.Clerk.user) {
+                _paymentPollingActive = false;
+                _dismissActivatingBanner();
+                return;
+            }
             attempt++;
             var session = window.Clerk.session;
             if (!session) return;
