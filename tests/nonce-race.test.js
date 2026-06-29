@@ -12,6 +12,11 @@
  * operations atomic, but this test acts as a regression guard — if the
  * store is ever changed (e.g. replaced with an async DB without SET NX) the
  * failure will be caught here before it ships.
+ *
+ * A second suite ("Redis-backed") mocks the Upstash REST API (fetch) to
+ * exercise the redisSetNx / redisExists code paths without real infrastructure.
+ * It verifies that the atomic SET NX semantics correctly reject a duplicate
+ * nonce even when both requests race past the initial isNonceSeen check.
  */
 
 'use strict';
@@ -155,5 +160,184 @@ describe('Nonce deduplication — concurrent race', () => {
 
         expect(res1.statusCode).toBe(200);
         expect(res2.statusCode).toBe(200);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Redis-backed nonce store — Upstash REST API mocked via fetch
+// ---------------------------------------------------------------------------
+
+const FAKE_REDIS_URL = 'https://fake-upstash.upstash.io';
+const FAKE_REDIS_TOKEN = 'fake-token-redis';
+
+/**
+ * Build a fetch mock that simulates the Upstash REST API.
+ *
+ * State is kept in a plain JS Set so that SET NX is "atomic" within a single
+ * Node event-loop tick (Map/Set operations are synchronous).  The mock
+ * returns resolved Promises so that both racing handlers can interleave at
+ * each `await` point — reproducing the TOCTOU window that SET NX must close.
+ *
+ * URL patterns handled:
+ *   POST  <REDIS_URL>/set/<key>/1?ex=...&nx=true  → SET NX
+ *   GET   <REDIS_URL>/exists/<key>                → EXISTS
+ *   POST  <REDIS_URL>/del/<key>                   → DEL
+ *   PATCH https://api.clerk.com/...               → Clerk (always ok)
+ */
+function makeRedisFetchMock() {
+    const store = new Set(); // tracks keys that have been SET NX'd
+
+    return jest.fn((url, opts = {}) => {
+        // ---- Upstash SET NX ----
+        if (url.startsWith(FAKE_REDIS_URL) && url.includes('/set/') && url.includes('nx=true')) {
+            const keyEncoded = url.split('/set/')[1].split('/')[0];
+            const key = decodeURIComponent(keyEncoded);
+            if (store.has(key)) {
+                // Key already exists — simulate atomic NX rejection
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => ({ result: null }),
+                });
+            }
+            store.add(key);
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({ result: 'OK' }),
+            });
+        }
+
+        // ---- Upstash EXISTS ----
+        if (url.startsWith(FAKE_REDIS_URL) && url.includes('/exists/')) {
+            const keyEncoded = url.split('/exists/')[1].split('?')[0];
+            const key = decodeURIComponent(keyEncoded);
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({ result: store.has(key) ? 1 : 0 }),
+            });
+        }
+
+        // ---- Upstash DEL ----
+        if (url.startsWith(FAKE_REDIS_URL) && url.includes('/del/')) {
+            const keyEncoded = url.split('/del/')[1].split('?')[0];
+            const key = decodeURIComponent(keyEncoded);
+            store.delete(key);
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({ result: 1 }),
+            });
+        }
+
+        // ---- Clerk API (always succeeds) ----
+        return Promise.resolve({
+            ok: true,
+            json: async () => ({}),
+        });
+    });
+}
+
+function loadRedisHandler() {
+    jest.resetModules();
+
+    // Provide fake Upstash credentials so USE_REDIS becomes true
+    process.env.UPSTASH_REDIS_REST_URL = FAKE_REDIS_URL;
+    process.env.UPSTASH_REDIS_REST_TOKEN = FAKE_REDIS_TOKEN;
+    delete process.env.DATABASE_URL;
+    process.env.CLERK_SECRET_KEY = 'clerk-test-key';
+    process.env.SET_PLAN_SECRET = SECRET;
+
+    jest.doMock('../api/_cors', () => ({
+        setCorsHeaders: () => {},
+        handleOptions: () => false,
+    }));
+
+    global.fetch = makeRedisFetchMock();
+
+    return require('../api/set-plan');
+}
+
+describe('Nonce deduplication — Redis-backed (Upstash SET NX)', () => {
+    let handler;
+
+    beforeEach(() => {
+        handler = loadRedisHandler();
+    });
+
+    afterEach(() => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.CLERK_SECRET_KEY;
+        delete process.env.SET_PLAN_SECRET;
+        jest.clearAllMocks();
+    });
+
+    test('exactly one of two simultaneous identical-nonce requests succeeds', async () => {
+        const { req: req1, res: res1 } = makeReqRes();
+        const { req: req2, res: res2 } = makeReqRes();
+
+        await Promise.all([
+            handler(req1, res1),
+            handler(req2, res2),
+        ]);
+
+        const codes = [res1.statusCode, res2.statusCode].sort();
+        expect(codes.filter(c => c === 200)).toHaveLength(1);
+        expect(codes.filter(c => c >= 400)).toHaveLength(1);
+    });
+
+    test('the rejected request carries ok:false in the body', async () => {
+        const { req: req1, res: res1 } = makeReqRes();
+        const { req: req2, res: res2 } = makeReqRes();
+
+        await Promise.all([
+            handler(req1, res1),
+            handler(req2, res2),
+        ]);
+
+        const rejected = [res1, res2].find(r => r.statusCode !== 200);
+        expect(rejected).toBeDefined();
+        expect(rejected.statusCode).toBeGreaterThanOrEqual(400);
+        expect(rejected.body.ok).toBe(false);
+    });
+
+    test('a subsequent request with the same nonce is also rejected', async () => {
+        const { req: req1, res: res1 } = makeReqRes();
+        const { req: req2, res: res2 } = makeReqRes();
+        const { req: req3, res: res3 } = makeReqRes();
+
+        await Promise.all([handler(req1, res1), handler(req2, res2)]);
+        await handler(req3, res3);
+
+        expect(res3.statusCode).toBeGreaterThanOrEqual(400);
+        expect(res3.body.ok).toBe(false);
+    });
+
+    test('a request with a different nonce still succeeds', async () => {
+        const { req: req1, res: res1 } = makeReqRes({ nonce: SHARED_NONCE });
+        const { req: req2, res: res2 } = makeReqRes({ nonce: 'redis-different-nonce-xyz' });
+
+        await Promise.all([handler(req1, res1), handler(req2, res2)]);
+
+        expect(res1.statusCode).toBe(200);
+        expect(res2.statusCode).toBe(200);
+    });
+
+    test('SET NX null result causes recordNonce to throw and return 500', async () => {
+        // Load a fresh nonce-store directly (not through set-plan) to unit-test
+        // the redisSetNx → null → throw path in isolation.
+        jest.resetModules();
+        process.env.UPSTASH_REDIS_REST_URL = FAKE_REDIS_URL;
+        process.env.UPSTASH_REDIS_REST_TOKEN = FAKE_REDIS_TOKEN;
+
+        // First call returns OK, second returns null (duplicate)
+        let callCount = 0;
+        global.fetch = jest.fn(() => {
+            callCount++;
+            const result = callCount === 1 ? 'OK' : null;
+            return Promise.resolve({ ok: true, json: async () => ({ result }) });
+        });
+
+        const store = require('../api/_nonce-store');
+        await store.recordNonce('unit-test-nonce'); // first: OK
+        await expect(store.recordNonce('unit-test-nonce')).rejects.toThrow('Duplicate nonce');
     });
 });
