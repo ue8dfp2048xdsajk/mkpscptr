@@ -72,10 +72,10 @@ module.exports = async function handler(req, res) {
     if (!nonce || typeof nonce !== 'string' || nonce.trim() === '') {
         return res.status(400).json({ ok: false, error: 'Missing X-Nonce header' });
     }
-    if (isNonceSeen(nonce)) {
+    if (await isNonceSeen(nonce)) {
         return res.status(400).json({ ok: false, error: 'Duplicate nonce — request already processed' });
     }
-    recordNonce(nonce);
+    await recordNonce(nonce);
 
     if (!userId || typeof userId !== 'string') {
         return res.status(400).json({ ok: false, error: 'Missing or invalid userId' });
