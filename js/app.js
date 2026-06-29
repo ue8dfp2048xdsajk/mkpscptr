@@ -8975,6 +8975,15 @@ async function _startCheckout(plan, period) {
         return;
     }
 
+    const _planRank = { free: 0, starter: 1, pro: 2 };
+    const currentPlan = (window._userPlan || 'free').toLowerCase();
+    const requestedPlan = (plan || 'free').toLowerCase();
+    if ((_planRank[currentPlan] ?? 0) >= (_planRank[requestedPlan] ?? 0) && currentPlan !== 'free') {
+        const planLabel = requestedPlan.charAt(0).toUpperCase() + requestedPlan.slice(1);
+        alert(`You\u2019re already on the ${planLabel} plan (or higher) \u2014 no need to purchase it again!`);
+        return;
+    }
+
     const clerkUserId = window.Clerk.user.id;
 
     let url;
