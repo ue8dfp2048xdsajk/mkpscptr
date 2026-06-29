@@ -36,6 +36,9 @@
         _fetchConfiguredPrices().then(function (prices) {
             _syncPlanButtons(prices);
         });
+        if (_pricesLoading) {
+            _setButtonsLoading();
+        }
     }
 
     function closePlansModal() {
@@ -68,24 +71,48 @@
             btn.dataset.period = period;
         });
 
-        _syncPlanButtons(_configuredPrices || {});
+        if (_pricesLoading) {
+            _setButtonsLoading();
+        } else {
+            _syncPlanButtons(_configuredPrices || {});
+        }
     }
 
     var _configuredPrices = null;
+    var _pricesLoading = false;
+    var _fetchPromise = null;
 
     function _fetchConfiguredPrices() {
         if (_configuredPrices !== null) return Promise.resolve(_configuredPrices);
+        if (_fetchPromise) return _fetchPromise;
+        _pricesLoading = true;
         var base = (typeof API_BASE !== 'undefined' ? API_BASE : '').replace(/\/$/, '');
-        return fetch(base + '/api/config-check')
+        _fetchPromise = fetch(base + '/api/config-check')
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
                 _configuredPrices = (data && data.prices) ? data.prices : {};
+                _pricesLoading = false;
+                _fetchPromise = null;
                 return _configuredPrices;
             })
             .catch(function () {
                 _configuredPrices = {};
+                _pricesLoading = false;
+                _fetchPromise = null;
                 return _configuredPrices;
             });
+        return _fetchPromise;
+    }
+
+    function _setButtonsLoading() {
+        document.querySelectorAll('.ms-plan-card').forEach(function (card) {
+            var btn = card.querySelector('.ms-plan-cta');
+            var cardPlan = card.dataset.plan || 'free';
+            if (!btn || cardPlan === 'free') return;
+            btn.disabled = true;
+            btn.textContent = 'Loading…';
+            btn.className = 'ms-plan-cta ms-plan-cta--loading';
+        });
     }
 
     function _syncPlanButtons(prices) {

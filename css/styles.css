@@ -1987,6 +1987,12 @@ body.sidebar-expanded #contextPanelBody {
     color: #fff;
 }
 .ms-plan-cta--pro:hover { background: #4338ca; }
+.ms-plan-cta--loading {
+    background: #f3f4f6;
+    color: #9ca3af;
+    cursor: default;
+    opacity: 0.7;
+}
 
 .ms-plans-notice {
     background: #fef9c3;
