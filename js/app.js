@@ -1073,6 +1073,12 @@ function _lqRenderSliders(){
         data.noiseAmount     = _noiseV;
         data.blendMode       = _blendV;
 
+        // If all warp/perspective sliders are back at zero, recompute the
+        // PRO flag so the badge clears if no other PRO effects remain.
+        if (_warpV === 0 && _arcV === 0 && _arcTV === 0 && _perspT === 0 && _perspL === 0) {
+            _recomputeProEffect(data);
+        }
+
         // Skip all expensive render work for off-screen windows (O(1) Set lookup).
         const wrapper = data.wrapperEl || data.fabricCanvas.lowerCanvasEl.parentElement;
         if(!_visibleWrappers.has(wrapper)) return;
@@ -1249,7 +1255,7 @@ var _bgAdjUndoLocked = false;
     el.addEventListener('mouseup', () => { _bgAdjUndoLocked = false; });
     el.addEventListener('input', _updateBgAdjust);
     el.addEventListener('input', () => {
-        activeIndices.forEach(i => _markProEffect(canvasData[i]));
+        activeIndices.forEach(i => { if(canvasData[i]) _recomputeProEffect(canvasData[i]); });
     });
 });
 document.getElementById('bgAdjustResetBtn').addEventListener('click', () => {
@@ -1271,7 +1277,7 @@ var _bgCropUndoLocked = false;
     el.addEventListener('mouseup', () => { _bgCropUndoLocked = false; });
     el.addEventListener('input', _updateBgCrop);
     el.addEventListener('input', () => {
-        activeIndices.forEach(i => _markProEffect(canvasData[i]));
+        activeIndices.forEach(i => { if(canvasData[i]) _recomputeProEffect(canvasData[i]); });
     });
 });
 
