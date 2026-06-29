@@ -188,6 +188,49 @@ describe('Rate limiter — PostgreSQL path survives cold server restart', () => 
         const rl3 = loadRateLimiter(pgMock);
         expect(await rl3.isRateLimited(ip)).toBe(true);
     });
+
+    test('window reset mid-lockout: recordFailure after window expiry starts a fresh counter', async () => {
+        const ip = '192.168.0.7';
+        const realNow = Date.now();
+
+        // --- Phase 1: build up a full lockout at t=0 ---
+        const dateSpy = jest.spyOn(Date, 'now').mockReturnValue(realNow);
+
+        const rl = loadRateLimiter(pgMock);
+        for (let i = 0; i < MAX_FAILURES; i++) {
+            await rl.recordFailure(ip);
+        }
+        expect(await rl.isRateLimited(ip)).toBe(true);
+
+        // Confirm the DB row has exactly MAX_FAILURES
+        const rowBefore = pgStore.get(ip);
+        expect(rowBefore).toBeDefined();
+        expect(rowBefore.failures).toBe(MAX_FAILURES);
+
+        // --- Phase 2: advance time past the window boundary ---
+        const futureNow = realNow + (WINDOW_SECONDS + 1) * 1000;
+        dateSpy.mockReturnValue(futureNow);
+
+        // recordFailure must detect the expired window and reset the counter to 1
+        await rl.recordFailure(ip);
+
+        const rowAfter = pgStore.get(ip);
+        expect(rowAfter).toBeDefined();
+        expect(rowAfter.failures).toBe(1);             // reset, not MAX_FAILURES + 1
+        expect(rowAfter.window_start).toBe(futureNow); // new window starts now
+
+        // Only 1 failure in the new window → not yet rate-limited
+        expect(await rl.isRateLimited(ip)).toBe(false);
+
+        // --- Phase 3: accumulate MAX_FAILURES in the new window → lockout again ---
+        for (let i = 1; i < MAX_FAILURES; i++) {
+            await rl.recordFailure(ip);
+        }
+        expect(pgStore.get(ip).failures).toBe(MAX_FAILURES);
+        expect(await rl.isRateLimited(ip)).toBe(true);
+
+        dateSpy.mockRestore();
+    });
 });
 
 // ---------------------------------------------------------------------------
