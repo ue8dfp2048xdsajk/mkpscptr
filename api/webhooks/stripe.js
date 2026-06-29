@@ -1,0 +1,174 @@
+const crypto = require('crypto');
+
+const PRICE_TO_PLAN = {
+    [process.env.STRIPE_PRICE_STARTER_MONTHLY]:  'starter',
+    [process.env.STRIPE_PRICE_STARTER_ANNUAL]:   'starter',
+    [process.env.STRIPE_PRICE_STARTER_LIFETIME]: 'starter',
+    [process.env.STRIPE_PRICE_PRO_MONTHLY]:      'pro',
+    [process.env.STRIPE_PRICE_PRO_ANNUAL]:       'pro',
+    [process.env.STRIPE_PRICE_PRO_LIFETIME]:     'pro',
+};
+
+async function getRawBody(req) {
+    if (req.body !== undefined) {
+        if (Buffer.isBuffer(req.body)) return req.body;
+        if (typeof req.body === 'string') return Buffer.from(req.body, 'utf8');
+        return Buffer.from(JSON.stringify(req.body), 'utf8');
+    }
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        req.on('data', (chunk) => chunks.push(chunk));
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', reject);
+    });
+}
+
+function verifyStripeSignature(rawBody, sigHeader, secret) {
+    const parts = sigHeader.split(',');
+    let timestamp = null;
+    const v1Sigs = [];
+    for (const part of parts) {
+        const [k, v] = part.split('=');
+        if (k === 't') timestamp = v;
+        if (k === 'v1') v1Sigs.push(v);
+    }
+    if (!timestamp || v1Sigs.length === 0) {
+        throw new Error('Invalid Stripe-Signature header format');
+    }
+
+    const ageSeconds = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp));
+    if (ageSeconds > 300) {
+        throw new Error('Stripe webhook timestamp is too old');
+    }
+
+    const signedPayload = `${timestamp}.${rawBody.toString('utf8')}`;
+    const expected = crypto
+        .createHmac('sha256', secret)
+        .update(signedPayload, 'utf8')
+        .digest('hex');
+
+    const match = v1Sigs.some((sig) => {
+        try {
+            return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
+        } catch {
+            return false;
+        }
+    });
+
+    if (!match) {
+        throw new Error('Stripe webhook signature verification failed');
+    }
+
+    return Number(timestamp);
+}
+
+module.exports = async function handler(req, res) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    }
+
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+
+    if (!webhookSecret) {
+        console.error('stripe-webhook: STRIPE_WEBHOOK_SECRET is not set');
+        return res.status(500).json({ ok: false, error: 'Webhook secret not configured' });
+    }
+    if (!clerkSecretKey) {
+        console.error('stripe-webhook: CLERK_SECRET_KEY is not set');
+        return res.status(500).json({ ok: false, error: 'Clerk secret not configured' });
+    }
+
+    const sigHeader = req.headers['stripe-signature'];
+    if (!sigHeader) {
+        return res.status(400).json({ ok: false, error: 'Missing Stripe-Signature header' });
+    }
+
+    let rawBody;
+    try {
+        rawBody = await getRawBody(req);
+    } catch (err) {
+        console.error('stripe-webhook: failed to read body', err);
+        return res.status(400).json({ ok: false, error: 'Failed to read request body' });
+    }
+
+    try {
+        verifyStripeSignature(rawBody, sigHeader, webhookSecret);
+    } catch (err) {
+        console.error('stripe-webhook: signature error:', err.message);
+        return res.status(400).json({ ok: false, error: err.message });
+    }
+
+    let event;
+    try {
+        event = JSON.parse(rawBody.toString('utf8'));
+    } catch (err) {
+        return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
+    }
+
+    if (event.type !== 'checkout.session.completed') {
+        return res.status(200).json({ ok: true, ignored: true });
+    }
+
+    const session = event.data && event.data.object;
+    if (!session) {
+        return res.status(400).json({ ok: false, error: 'Missing event data object' });
+    }
+
+    const userId = session.client_reference_id;
+    if (!userId) {
+        console.error('stripe-webhook: checkout.session.completed has no client_reference_id');
+        return res.status(400).json({ ok: false, error: 'Missing client_reference_id on session' });
+    }
+
+    const VALID_PLANS = ['starter', 'pro'];
+
+    let plan = session.metadata && session.metadata.plan;
+
+    if (!plan || !VALID_PLANS.includes(plan)) {
+        console.warn(
+            `stripe-webhook: session.metadata.plan="${plan}" is missing or invalid; ` +
+            `attempting price-ID reverse-lookup for userId ${userId}`
+        );
+        const lineItem = session.line_items && session.line_items.data && session.line_items.data[0];
+        const priceId = lineItem ? (lineItem.price && lineItem.price.id) : undefined;
+        plan = priceId ? PRICE_TO_PLAN[priceId] : undefined;
+    }
+
+    if (!plan || !VALID_PLANS.includes(plan)) {
+        console.error(
+            `stripe-webhook: could not determine plan for userId=${userId}; ` +
+            `metadata.plan="${session.metadata && session.metadata.plan}"`
+        );
+        return res.status(400).json({ ok: false, error: 'Could not determine plan from Stripe session' });
+    }
+
+    const clerkUrl = `https://api.clerk.com/v1/users/${encodeURIComponent(userId)}/metadata`;
+    let clerkRes;
+    try {
+        clerkRes = await fetch(clerkUrl, {
+            method: 'PATCH',
+            headers: {
+                Authorization: `Bearer ${clerkSecretKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ public_metadata: { plan } }),
+        });
+    } catch (err) {
+        console.error('stripe-webhook: Clerk API fetch error', err);
+        return res.status(502).json({ ok: false, error: 'Failed to reach Clerk API' });
+    }
+
+    if (!clerkRes.ok) {
+        let clerkError = 'Clerk API error';
+        try {
+            const clerkBody = await clerkRes.json();
+            clerkError = clerkBody?.errors?.[0]?.message || clerkError;
+        } catch {}
+        console.error('stripe-webhook: Clerk returned', clerkRes.status, clerkError);
+        return res.status(502).json({ ok: false, error: clerkError });
+    }
+
+    console.log(`stripe-webhook: set plan="${plan}" for userId="${userId}"`);
+    return res.status(200).json({ ok: true, userId, plan });
+};

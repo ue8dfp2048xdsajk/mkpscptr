@@ -66,6 +66,7 @@ module.exports = async function handler(req, res) {
     if (clerkUserId && typeof clerkUserId === 'string') {
         params.set('client_reference_id', clerkUserId);
     }
+    params.set('metadata[plan]', plan);
 
     let stripeRes;
     try {
