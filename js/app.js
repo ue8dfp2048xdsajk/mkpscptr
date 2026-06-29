@@ -6498,7 +6498,7 @@ async function exportDataToBlob(data, fmt, quality){
         // Unauthenticated users must sign in before exporting
         if (window.Clerk && !window.Clerk.user) {
             sessionStorage.setItem('ms_redirect_after_auth', 'export');
-            try { localStorage.setItem('mockup_autosave', JSON.stringify(buildFullSnapshot())); } catch(e){}
+            await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
             window.Clerk.openSignIn();
             return;
         }
@@ -6968,6 +6968,64 @@ function buildSnapshot(){
 
 var _autoSaveTimer = null;
 
+// ── IndexedDB autosave (no quota limit — safe for large image data URLs) ──────
+const _autosaveDB = (() => {
+    const DB_NAME = 'mockup_scripter';
+    const STORE   = 'autosave';
+
+    function _open() {
+        return new Promise((res, rej) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = e => e.target.result.createObjectStore(STORE);
+            req.onsuccess = e => res(e.target.result);
+            req.onerror   = e => rej(e.target.error);
+        });
+    }
+
+    async function get(key) {
+        try {
+            const db = await _open();
+            return new Promise((res, rej) => {
+                const req = db.transaction(STORE).objectStore(STORE).get(key);
+                req.onsuccess = () => res(req.result ?? null);
+                req.onerror   = () => rej(req.error);
+            });
+        } catch(e) {
+            try { const r = localStorage.getItem('mockup_autosave'); return r ? JSON.parse(r) : null; } catch(_) { return null; }
+        }
+    }
+
+    async function set(key, value) {
+        try {
+            const db = await _open();
+            return new Promise((res, rej) => {
+                const tx  = db.transaction(STORE, 'readwrite');
+                const req = tx.objectStore(STORE).put(value, key);
+                req.onsuccess = () => res();
+                req.onerror   = () => rej(req.error);
+            });
+        } catch(e) {
+            try { localStorage.setItem('mockup_autosave', JSON.stringify(value)); } catch(_) {}
+        }
+    }
+
+    async function del(key) {
+        try {
+            const db = await _open();
+            return new Promise((res, rej) => {
+                const tx  = db.transaction(STORE, 'readwrite');
+                const req = tx.objectStore(STORE).delete(key);
+                req.onsuccess = () => res();
+                req.onerror   = () => rej(req.error);
+            });
+        } catch(e) {
+            try { localStorage.removeItem('mockup_autosave'); } catch(_) {}
+        }
+    }
+
+    return { get, set, del };
+})();
+
 // ── Unsaved changes indicator ─────────────────────────────────────────────────
 var _unsaved = false;
 
@@ -6991,16 +7049,7 @@ function autoSaveSession(){
     clearTimeout(_autoSaveTimer);
 
     _autoSaveTimer = setTimeout(()=>{
-
-        try {
-            localStorage.setItem(
-                'mockup_autosave',
-                JSON.stringify(buildFullSnapshot())
-            );
-        } catch(e){
-            // quota exceeded or private browsing — silently skip
-        }
-
+        _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
     }, 2500);
 }
 
@@ -7027,8 +7076,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
 
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'save');
-        try { localStorage.setItem('mockup_autosave', JSON.stringify(buildFullSnapshot())); } catch(e){}
-        window.Clerk.openSignIn();
+        _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}).then(() => window.Clerk.openSignIn());
         return;
     }
     if(_userPlan === 'free'){
@@ -7693,6 +7741,7 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
 
     if(!confirm("Clear the autosaved session? The canvas will start blank on the next page load.")) return;
 
+    _autosaveDB.del('session').catch(()=>{});
     localStorage.removeItem('mockup_autosave');
 
     // Reset all state
@@ -8661,8 +8710,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 document.getElementById('exportTextBtn').addEventListener('click', () => {
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'export');
-        try { localStorage.setItem('mockup_autosave', JSON.stringify(buildFullSnapshot())); } catch(e){}
-        window.Clerk.openSignIn();
+        _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}).then(() => window.Clerk.openSignIn());
         return;
     }
     if(_userPlan === 'free'){
@@ -8748,18 +8796,9 @@ function _applyUndoHistoryFromSnapshot(history) {
 
 window.addEventListener('DOMContentLoaded', async ()=>{
 
-    const raw = localStorage.getItem('mockup_autosave');
+    const snapshot = await _autosaveDB.get('session').catch(() => null);
 
-    if(!raw) return;
-
-    let snapshot;
-
-    try {
-        snapshot = JSON.parse(raw);
-    } catch(e){
-        localStorage.removeItem('mockup_autosave');
-        return;
-    }
+    if(!snapshot) return;
 
     const isLegacy = Array.isArray(snapshot);
     const windows  = isLegacy ? snapshot : (snapshot.windows  || []);
@@ -8989,7 +9028,7 @@ document.getElementById('canvasContainer').addEventListener('input', e => {
 async function _startCheckout(plan, period) {
     if (!window.Clerk || !window.Clerk.user) {
         sessionStorage.setItem('ms_redirect_after_auth', 'home');
-        try { localStorage.setItem('mockup_autosave', JSON.stringify(buildFullSnapshot())); } catch(e){}
+        await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
         window.Clerk && window.Clerk.openSignIn();
         return;
     }
