@@ -1,3 +1,5 @@
+const { Pool } = require('pg');
+
 const NONCE_TTL_SECONDS = 300;
 
 // --- Redis (Upstash) ---
@@ -5,10 +7,35 @@ const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
 const USE_REDIS = Boolean(REDIS_URL && REDIS_TOKEN);
 
-if (!USE_REDIS) {
+// --- PostgreSQL ---
+const USE_PG = Boolean(process.env.DATABASE_URL);
+let _pool = null;
+let _pgReady = false;
+
+function getPool() {
+    if (!_pool) {
+        _pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    }
+    return _pool;
+}
+
+async function ensureSchema() {
+    if (_pgReady) return;
+    const pool = getPool();
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS nonce_seen (
+            nonce      TEXT   PRIMARY KEY,
+            expires_at BIGINT NOT NULL
+        )
+    `);
+    _pgReady = true;
+}
+
+if (!USE_REDIS && !USE_PG) {
     console.warn(
-        'nonce-store: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not set — ' +
-        'falling back to in-memory nonce store. Replay protection resets on every cold start.'
+        'nonce-store: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not set and DATABASE_URL not set — ' +
+        'falling back to in-memory nonce store. Replay protection resets on every cold start and is not ' +
+        'shared across serverless instances. Configure Redis or PostgreSQL for reliable replay protection.'
     );
 }
 
@@ -45,6 +72,46 @@ async function redisDel(key) {
     if (!res.ok) throw new Error(`Upstash DEL error: ${res.status}`);
 }
 
+// --- PostgreSQL helpers ---
+
+async function pgPruneExpired() {
+    try {
+        const pool = getPool();
+        await pool.query('DELETE FROM nonce_seen WHERE expires_at < $1', [Date.now()]);
+    } catch (err) {
+        console.error('nonce-store: PG prune failed:', err.message);
+    }
+}
+
+async function pgIsNonceSeen(nonce) {
+    await ensureSchema();
+    if (Math.random() < 0.05) pgPruneExpired();
+    const pool = getPool();
+    const { rows } = await pool.query(
+        'SELECT 1 FROM nonce_seen WHERE nonce = $1 AND expires_at > $2',
+        [nonce, Date.now()]
+    );
+    return rows.length > 0;
+}
+
+// Returns true if inserted (first time), false if nonce already existed (duplicate).
+async function pgRecordNonce(nonce) {
+    await ensureSchema();
+    const pool = getPool();
+    const expiresAt = Date.now() + NONCE_TTL_SECONDS * 1000;
+    const result = await pool.query(
+        'INSERT INTO nonce_seen (nonce, expires_at) VALUES ($1, $2) ON CONFLICT (nonce) DO NOTHING',
+        [nonce, expiresAt]
+    );
+    return result.rowCount > 0; // true = inserted, false = duplicate
+}
+
+async function pgDeleteNonce(nonce) {
+    await ensureSchema();
+    const pool = getPool();
+    await pool.query('DELETE FROM nonce_seen WHERE nonce = $1', [nonce]);
+}
+
 // --- In-memory fallback ---
 const seen = new Map();
 
@@ -63,6 +130,17 @@ async function isNonceSeen(nonce) {
             return await redisExists(makeKey(nonce));
         } catch (err) {
             console.error('nonce-store: Redis EXISTS failed, falling back to in-memory:', err.message);
+        }
+        pruneExpired();
+        return seen.has(nonce);
+    }
+    if (USE_PG) {
+        try {
+            return await pgIsNonceSeen(nonce);
+        } catch (err) {
+            console.error('nonce-store: PG isNonceSeen failed, falling back to in-memory:', err.message);
+            pruneExpired();
+            return seen.has(nonce);
         }
     }
     pruneExpired();
@@ -90,6 +168,19 @@ async function recordNonce(nonce) {
         }
         return;
     }
+    if (USE_PG) {
+        try {
+            const inserted = await pgRecordNonce(nonce);
+            if (!inserted) {
+                throw new Error('Duplicate nonce — already recorded');
+            }
+            return;
+        } catch (err) {
+            if (err.message.includes('Duplicate nonce')) throw err;
+            console.error('nonce-store: PG recordNonce failed, falling back to in-memory:', err.message);
+            // Fall through to in-memory below
+        }
+    }
     const now = Date.now();
     pruneExpired();
     if (seen.has(nonce)) {
@@ -105,6 +196,18 @@ async function deleteNonce(nonce) {
             return;
         } catch (err) {
             console.error('nonce-store: Redis DEL failed, falling back to in-memory delete:', err.message);
+        }
+        seen.delete(nonce);
+        return;
+    }
+    if (USE_PG) {
+        try {
+            await pgDeleteNonce(nonce);
+            return;
+        } catch (err) {
+            console.error('nonce-store: PG deleteNonce failed, falling back to in-memory delete:', err.message);
+            seen.delete(nonce);
+            return;
         }
     }
     seen.delete(nonce);
