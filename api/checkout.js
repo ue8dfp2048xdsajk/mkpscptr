@@ -55,7 +55,7 @@ module.exports = async function handler(req, res) {
                 headers: { Authorization: `Bearer ${clerkSecretKey}` },
             });
         } catch {
-            return res.status(502).json({ ok: false, error: 'Failed to reach Clerk API' });
+            return res.status(502).json({ ok: false, code: 'CLERK_UNREACHABLE', error: 'Failed to reach Clerk API' });
         }
 
         if (clerkRes.ok) {
