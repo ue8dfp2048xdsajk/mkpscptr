@@ -71,17 +71,24 @@ async function isNonceSeen(nonce) {
 
 async function recordNonce(nonce) {
     if (USE_REDIS) {
+        // Fail closed: if the Redis write fails for any reason we must NOT fall
+        // back to the in-memory store.  isNonceSeen() may have already read from
+        // Redis (returning false), so writing the nonce to a different store
+        // (in-memory) would leave Redis unaware of it.  A replay attempt could
+        // then succeed once Redis recovers because Redis would still show the
+        // nonce as unseen.  Returning a 500 is the safe choice: the caller can
+        // retry the full request and the nonce will not have been committed.
+        let result;
         try {
-            const result = await redisSetNx(makeKey(nonce));
-            if (result === null) {
-                throw new Error('Duplicate nonce — already recorded');
-            }
-            return;
+            result = await redisSetNx(makeKey(nonce));
         } catch (err) {
-            // Re-throw duplicate errors; only fall back on Redis connectivity failures
-            if (err.message.startsWith('Duplicate nonce')) throw err;
-            console.error('nonce-store: Redis SET NX failed, falling back to in-memory:', err.message);
+            console.error('nonce-store: Redis SET NX failed — failing closed (no in-memory fallback):', err.message);
+            throw new Error(`Redis recordNonce failed: ${err.message}`);
         }
+        if (result === null) {
+            throw new Error('Duplicate nonce — already recorded');
+        }
+        return;
     }
     const now = Date.now();
     pruneExpired();

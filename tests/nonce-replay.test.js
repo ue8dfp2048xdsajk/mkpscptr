@@ -454,25 +454,31 @@ describe('set-plan handler — nonce released after Clerk failure (in-memory fal
 });
 
 // ---------------------------------------------------------------------------
-// 6. IN-MEMORY FALLBACK WHEN REDIS IS DOWN — duplicate nonce still blocked
+// 6. REDIS COMPLETELY UNREACHABLE — recordNonce fails closed (no silent fallback)
 //
 // Scenario: Redis credentials ARE configured (USE_REDIS=true) but every Redis
-// HTTP call throws a network-level error.  The store must silently degrade to
-// the in-memory Map and still reject a replayed nonce within the same process
-// lifetime.
+// HTTP call throws a network-level error.
+//
+// isNonceSeen still falls back to in-memory (reading is safe: a false-negative
+// only means a duplicate check is missed, not that a duplicate is accepted).
+//
+// recordNonce does NOT fall back to in-memory.  If it did, isNonceSeen (which
+// read from Redis) and recordNonce (which wrote to in-memory) would use
+// different stores.  Once Redis recovers, isNonceSeen would return false for
+// the nonce that was only stored in-memory, letting a replay slip through.
+// Failing closed (500) is the safe choice: the caller can retry the full
+// request knowing the nonce was never committed anywhere.
 // ---------------------------------------------------------------------------
 
-describe('_nonce-store — in-memory fallback when Redis is unreachable (unit)', () => {
+describe('_nonce-store — Redis completely unreachable (unit)', () => {
     let isNonceSeen, recordNonce, deleteNonce;
 
     beforeEach(() => {
         jest.resetModules();
 
-        // Configure Redis credentials so USE_REDIS=true inside the module ...
         process.env.UPSTASH_REDIS_REST_URL   = 'https://unreachable-redis.example.com';
         process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
 
-        // ... but every fetch call throws a network error (Redis is down)
         global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
 
         ({ isNonceSeen, recordNonce, deleteNonce } = require('../api/_nonce-store'));
@@ -484,48 +490,34 @@ describe('_nonce-store — in-memory fallback when Redis is unreachable (unit)',
         jest.clearAllMocks();
     });
 
-    test('isNonceSeen returns false for a nonce not yet recorded (fallback)', async () => {
-        expect(await isNonceSeen('fallback-fresh-1')).toBe(false);
+    test('isNonceSeen falls back to in-memory and returns false for an unseen nonce', async () => {
+        expect(await isNonceSeen('unreachable-fresh-1')).toBe(false);
     });
 
-    test('isNonceSeen returns true after recordNonce (fallback to in-memory)', async () => {
-        const nonce = 'fallback-record-1';
-        await recordNonce(nonce);
-        expect(await isNonceSeen(nonce)).toBe(true);
+    test('recordNonce throws a network error when Redis SET NX is unreachable (fails closed)', async () => {
+        await expect(recordNonce('unreachable-record-1')).rejects.toThrow(/Redis recordNonce failed/i);
     });
 
-    test('recordNonce throws Duplicate nonce on the second call (Redis-down fallback)', async () => {
-        const nonce = 'fallback-dup-1';
-        await recordNonce(nonce);
-        await expect(recordNonce(nonce)).rejects.toThrow(/Duplicate nonce/i);
-    });
-
-    test('deleteNonce removes a nonce from in-memory so it can be re-recorded', async () => {
-        const nonce = 'fallback-delete-1';
-        await recordNonce(nonce);
-        expect(await isNonceSeen(nonce)).toBe(true);
-        await deleteNonce(nonce);
+    test('recordNonce does not silently record in in-memory: isNonceSeen stays false after a failed recordNonce', async () => {
+        const nonce = 'unreachable-no-mem-fallback';
+        await expect(recordNonce(nonce)).rejects.toThrow();
+        // isNonceSeen falls back to in-memory and should return false because
+        // recordNonce never committed the nonce anywhere.
         expect(await isNonceSeen(nonce)).toBe(false);
-        await expect(recordNonce(nonce)).resolves.toBeUndefined();
     });
 
-    test('multiple distinct nonces are each tracked independently', async () => {
-        await recordNonce('fallback-a');
-        await recordNonce('fallback-b');
-        expect(await isNonceSeen('fallback-a')).toBe(true);
-        expect(await isNonceSeen('fallback-b')).toBe(true);
-        expect(await isNonceSeen('fallback-c')).toBe(false);
+    test('deleteNonce does not throw when Redis is unreachable (falls back to in-memory no-op)', async () => {
+        await expect(deleteNonce('unreachable-del-1')).resolves.toBeUndefined();
     });
 });
 
-describe('set-plan handler — duplicate nonce rejected when Redis is unreachable (in-memory fallback)', () => {
+describe('set-plan handler — Redis completely unreachable returns 500 (fails closed)', () => {
     const SECRET = 'test-secret';
     let handler;
 
     beforeEach(() => {
         jest.resetModules();
 
-        // Redis credentials present so USE_REDIS=true, but every fetch throws
         process.env.UPSTASH_REDIS_REST_URL   = 'https://unreachable-redis.example.com';
         process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
         delete process.env.DATABASE_URL;
@@ -537,19 +529,12 @@ describe('set-plan handler — duplicate nonce rejected when Redis is unreachabl
             handleOptions:  () => false,
         }));
 
-        // All fetches fail — simulates Redis being completely unreachable.
-        // The nonce-store will catch the error and fall back to the in-memory Map.
-        // The Clerk call (a different URL) also goes through this mock, but the
-        // set-plan handler only reaches Clerk after the nonce check passes, so
-        // the first Clerk call (on the first request) will fail with a 502.
-        // To keep the test focused on nonce replay blocking, we make the mock
-        // return a successful Clerk response for non-Redis URLs so that the
-        // first request can complete with 200.
+        // All Redis fetches fail; Clerk (non-Redis URL) succeeds.
+        // recordNonce will throw before Clerk is ever called, so every
+        // request returns 500 — replay protection holds because no nonce
+        // is ever committed.
         global.fetch = jest.fn(async (url) => {
-            if (url.includes('unreachable-redis')) {
-                throw new Error('ECONNREFUSED');
-            }
-            // Clerk or any other URL — succeed
+            if (url.includes('unreachable-redis')) throw new Error('ECONNREFUSED');
             return { ok: true, json: async () => ({}) };
         });
 
@@ -564,14 +549,15 @@ describe('set-plan handler — duplicate nonce rejected when Redis is unreachabl
         jest.clearAllMocks();
     });
 
-    test('first request with a nonce succeeds despite Redis being down (200)', async () => {
+    test('request returns 500 when Redis recordNonce is unreachable (fails closed)', async () => {
         const { req, res } = makeReqRes({ nonce: 'redis-down-e2e-nonce-1' });
         await handler(req, res);
-        expect(res.statusCode).toBe(200);
-        expect(res.body.ok).toBe(true);
+        expect(res.statusCode).toBe(500);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.error).toMatch(/Failed to record nonce/i);
     });
 
-    test('second request with the same nonce is rejected even when Redis is down (400)', async () => {
+    test('a retry with the same nonce also returns 500 while Redis stays down — no replay slip-through', async () => {
         const nonce = 'redis-down-e2e-nonce-2';
         const { req: req1, res: res1 } = makeReqRes({ nonce });
         const { req: req2, res: res2 } = makeReqRes({ nonce });
@@ -579,43 +565,227 @@ describe('set-plan handler — duplicate nonce rejected when Redis is unreachabl
         await handler(req1, res1);
         await handler(req2, res2);
 
-        expect(res1.statusCode).toBe(200);
-        expect(res2.statusCode).toBe(400);
-        expect(res2.body.ok).toBe(false);
-        expect(res2.body.error).toMatch(/duplicate nonce/i);
+        // Both return 500 — neither request was processed, so no double-billing
+        // and no replay attack succeeded.
+        expect(res1.statusCode).toBe(500);
+        expect(res2.statusCode).toBe(500);
     });
 
-    test('third sequential request with the same nonce is also rejected (400)', async () => {
-        const nonce = 'redis-down-e2e-nonce-3';
-        const reqs = [
-            makeReqRes({ nonce }),
-            makeReqRes({ nonce }),
-            makeReqRes({ nonce }),
-        ];
-
-        await handler(reqs[0].req, reqs[0].res);
-        await handler(reqs[1].req, reqs[1].res);
-        await handler(reqs[2].req, reqs[2].res);
-
-        expect(reqs[0].res.statusCode).toBe(200);
-        expect(reqs[1].res.statusCode).toBe(400);
-        expect(reqs[2].res.statusCode).toBe(400);
-    });
-
-    test('a different nonce still succeeds when Redis is down (200)', async () => {
+    test('a different nonce also returns 500 while Redis is down', async () => {
         const { req: req1, res: res1 } = makeReqRes({ nonce: 'redis-down-nonce-alpha' });
         const { req: req2, res: res2 } = makeReqRes({ nonce: 'redis-down-nonce-beta' });
 
         await handler(req1, res1);
         await handler(req2, res2);
 
-        expect(res1.statusCode).toBe(200);
-        expect(res2.statusCode).toBe(200);
+        expect(res1.statusCode).toBe(500);
+        expect(res2.statusCode).toBe(500);
     });
 });
 
 // ---------------------------------------------------------------------------
-// 6. RECOVERY — nonce released after Clerk failure (Redis path)
+// 7. MID-REQUEST REDIS FAILURE — isNonceSeen succeeds, recordNonce fails
+//
+// Scenario: Redis is up when isNonceSeen (EXISTS) is called and returns false,
+// but the connection drops before recordNonce (SET NX) can complete.
+//
+// This is the window of vulnerability in a naive fallback implementation:
+// - isNonceSeen reads from Redis → "not seen"
+// - recordNonce write to Redis fails → old code fell back to in-memory
+// - Handler returned 200 (nonce only in in-memory, not in Redis)
+// - On retry: isNonceSeen reads from Redis (which recovered) → "not seen" again
+// - recordNonce writes to Redis → succeeds → second 200 for the same nonce
+//
+// The fix (fail closed): recordNonce must throw on Redis connectivity failure
+// so the handler returns 500.  The nonce is never committed anywhere, so a
+// legitimate retry (once Redis recovers) is safe and will succeed.
+// ---------------------------------------------------------------------------
+
+describe('_nonce-store — mid-request Redis failure (unit)', () => {
+    let isNonceSeen, recordNonce;
+
+    beforeEach(() => {
+        jest.resetModules();
+        process.env.UPSTASH_REDIS_REST_URL   = 'https://fake-redis.upstash.io';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+
+        // EXISTS (isNonceSeen) succeeds; SET NX (recordNonce) throws mid-flight.
+        global.fetch = jest.fn(async (url) => {
+            if (url.includes('/exists/')) {
+                return { ok: true, json: async () => ({ result: 0 }) };
+            }
+            if (url.includes('/set/')) {
+                throw new Error('ECONNRESET');
+            }
+            return { ok: true, json: async () => ({ result: null }) };
+        });
+
+        ({ isNonceSeen, recordNonce } = require('../api/_nonce-store'));
+    });
+
+    afterEach(() => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        jest.clearAllMocks();
+    });
+
+    test('isNonceSeen returns false when Redis EXISTS succeeds', async () => {
+        expect(await isNonceSeen('mid-flight-nonce-1')).toBe(false);
+    });
+
+    test('recordNonce throws when Redis SET NX fails mid-flight (fails closed)', async () => {
+        await expect(recordNonce('mid-flight-nonce-2')).rejects.toThrow(/Redis recordNonce failed/i);
+    });
+
+    test('isNonceSeen stays false after a mid-flight recordNonce failure — nonce not committed anywhere', async () => {
+        const nonce = 'mid-flight-nonce-3';
+        await expect(recordNonce(nonce)).rejects.toThrow();
+        // EXISTS still returns 0 (nonce was never written to Redis).
+        // isNonceSeen must not return true from an in-memory fallback either,
+        // because recordNonce did not commit there.
+        expect(await isNonceSeen(nonce)).toBe(false);
+    });
+});
+
+describe('set-plan handler — mid-request Redis failure returns 500, not 200', () => {
+    const SECRET = 'test-secret';
+    let handler;
+
+    beforeEach(() => {
+        jest.resetModules();
+        process.env.UPSTASH_REDIS_REST_URL   = 'https://fake-redis.upstash.io';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+        delete process.env.DATABASE_URL;
+        process.env.CLERK_SECRET_KEY = 'clerk-test-key';
+        process.env.SET_PLAN_SECRET  = SECRET;
+
+        jest.doMock('../api/_cors', () => ({
+            setCorsHeaders: () => {},
+            handleOptions:  () => false,
+        }));
+
+        handler = require('../api/set-plan');
+    });
+
+    afterEach(() => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.CLERK_SECRET_KEY;
+        delete process.env.SET_PLAN_SECRET;
+        jest.clearAllMocks();
+    });
+
+    test('returns 500 (not 200) when isNonceSeen succeeds but recordNonce fails mid-flight', async () => {
+        // EXISTS succeeds (Redis up); SET NX throws (Redis drops mid-flight).
+        global.fetch = jest.fn(async (url) => {
+            if (url.includes('fake-redis') && url.includes('/exists/'))
+                return { ok: true, json: async () => ({ result: 0 }) };
+            if (url.includes('fake-redis') && url.includes('/set/'))
+                throw new Error('ECONNRESET');
+            // Clerk — should never be reached because recordNonce throws first.
+            return { ok: true, json: async () => ({}) };
+        });
+
+        const { req, res } = makeReqRes({ nonce: 'mid-flight-e2e-nonce-1' });
+        await handler(req, res);
+
+        expect(res.statusCode).toBe(500);
+        expect(res.body.ok).toBe(false);
+        expect(res.body.error).toMatch(/Failed to record nonce/i);
+    });
+
+    test('Clerk is never called when recordNonce fails mid-flight', async () => {
+        const clerkCalls = [];
+        global.fetch = jest.fn(async (url) => {
+            if (url.includes('fake-redis') && url.includes('/exists/'))
+                return { ok: true, json: async () => ({ result: 0 }) };
+            if (url.includes('fake-redis') && url.includes('/set/'))
+                throw new Error('ECONNRESET');
+            // Other Redis ops (rate-limiter /get, /del, /incrby) — return neutral
+            // result so the rate-limiter falls back without crashing.
+            if (url.includes('fake-redis'))
+                return { ok: true, json: async () => ({ result: null }) };
+            // Only non-Redis URLs are Clerk calls.
+            clerkCalls.push(url);
+            return { ok: true, json: async () => ({}) };
+        });
+
+        const { req, res } = makeReqRes({ nonce: 'mid-flight-no-clerk-nonce' });
+        await handler(req, res);
+
+        expect(res.statusCode).toBe(500);
+        expect(clerkCalls).toHaveLength(0);
+    });
+
+    test('same nonce cannot slip through on retry after transient Redis failure', async () => {
+        // Attempt 1: isNonceSeen (EXISTS → not seen), recordNonce (SET NX → fails)
+        // → handler returns 500; nonce committed nowhere.
+        //
+        // Attempt 2: Redis recovers; isNonceSeen (EXISTS → not seen), recordNonce
+        // (SET NX → OK).  This is a LEGITIMATE retry (the original request was
+        // never processed), so it must succeed.  The nonce is now in Redis.
+        //
+        // Attempt 3: Replay attack with the same nonce; isNonceSeen → already seen
+        // → 400.  Replay protection holds.
+
+        const redisSeen = new Set();
+        let redisRecovered = false;
+
+        global.fetch = jest.fn(async (url) => {
+            if (url.includes('fake-redis')) {
+                const segments = url.split('/');
+                const op  = segments[3];
+                const raw = (segments[4] || '').split('?')[0];
+                const key = decodeURIComponent(raw);
+
+                if (op === 'exists')
+                    return { ok: true, json: async () => ({ result: redisSeen.has(key) ? 1 : 0 }) };
+
+                if (op === 'set') {
+                    if (!redisRecovered) throw new Error('ECONNRESET');
+                    if (redisSeen.has(key))
+                        return { ok: true, json: async () => ({ result: null }) };
+                    redisSeen.add(key);
+                    return { ok: true, json: async () => ({ result: 'OK' }) };
+                }
+
+                if (op === 'del') {
+                    redisSeen.delete(key);
+                    return { ok: true, json: async () => ({ result: 1 }) };
+                }
+
+                return { ok: true, json: async () => ({ result: null }) };
+            }
+            // Clerk
+            return { ok: true, json: async () => ({}) };
+        });
+
+        const nonce = 'mid-flight-retry-nonce';
+
+        // Attempt 1 — transient Redis failure → 500
+        const { req: req1, res: res1 } = makeReqRes({ nonce });
+        await handler(req1, res1);
+        expect(res1.statusCode).toBe(500);
+
+        // Redis recovers
+        redisRecovered = true;
+
+        // Attempt 2 — legitimate retry → 200
+        const { req: req2, res: res2 } = makeReqRes({ nonce });
+        await handler(req2, res2);
+        expect(res2.statusCode).toBe(200);
+        expect(res2.body.ok).toBe(true);
+
+        // Attempt 3 — replay attack → 400
+        const { req: req3, res: res3 } = makeReqRes({ nonce });
+        await handler(req3, res3);
+        expect(res3.statusCode).toBe(400);
+        expect(res3.body.error).toMatch(/duplicate nonce/i);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 8. RECOVERY — nonce released after Clerk failure (Redis path)
 // ---------------------------------------------------------------------------
 
 describe('set-plan handler — nonce released after Clerk failure (Redis path)', () => {
