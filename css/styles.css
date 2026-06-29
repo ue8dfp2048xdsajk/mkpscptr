@@ -23,15 +23,32 @@ body {
     background: #1C2333;
     z-index: 1000;
     border-bottom: 1px solid #2D3748;
-    padding: 6px 12px;
     margin-left: -26px;
     width: calc(100% + 26px);
     box-sizing: border-box;
     display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* Thin top bar — account / auth only */
+.header-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 3px 12px;
+    min-height: 32px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: rgba(0,0,0,0.18);
+}
+
+/* Main controls row */
+.header-controls-row {
+    display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 6px 12px;
     flex-wrap: wrap;
-    position: relative;
     gap: 8px;
 }
 
@@ -122,16 +139,6 @@ body {
     align-items: center;
     gap: 6px;
     flex: 0 0 auto;
-}
-
-.header-center {
-    flex: 1 1 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 6px;
-    min-width: 0;
 }
 
 /* Thin vertical rule between button groups */

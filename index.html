@@ -15,7 +15,7 @@
         <link rel="stylesheet" href="css/styles.css" />
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Mockup Generator Fabric Warp</title>
+        <title>Mockup Scriper</title>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
         <script src="js/jszip.min.js"></script>
@@ -53,10 +53,14 @@
             }
         </script>
         <div class="sticky-header">
+            <div class="header-top-row">
+                <div id="clerkAuthContainer"></div>
+            </div>
             <div id="upgradePrompt" class="upgrade-prompt" style="display:none">
                 <span>🚀 <strong>Free plan</strong> — watermarks appear on canvas and export is disabled. <a href="#plans" id="upgradePromptLink">See plans</a></span>
                 <button id="upgradePromptClose" aria-label="Dismiss" class="upgrade-prompt-close">✕</button>
             </div>
+            <div class="header-controls-row">
             <div class="header-left">
                 <span class="export-wrap">
                     <button id="fileMenuBtn">File ▾</button>
@@ -109,10 +113,6 @@
                     multiple
                     style="display: none"
                 />
-            </div>
-
-            <div class="header-center">
-                <div id="clerkAuthContainer"></div>
             </div>
 
             <div class="header-right">
@@ -201,6 +201,7 @@
                     </div>
                 </span>
             </div>
+            </div><!-- /.header-controls-row -->
 
             <!-- Viewport control panels — inside .sticky-header so JS deselection guard applies -->
             <div id="vpControlPanel">
