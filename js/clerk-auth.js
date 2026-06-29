@@ -128,6 +128,34 @@
 
     var PAYMENT_PENDING_KEY = 'ms_payment_pending';
 
+    function _showActivatingBanner() {
+        var existing = document.getElementById('msActivatingBanner');
+        if (existing) return existing;
+
+        var banner = document.createElement('div');
+        banner.id = 'msActivatingBanner';
+        banner.className = 'ms-activating-banner';
+
+        var spinner = document.createElement('span');
+        spinner.className = 'ms-activating-spinner';
+        banner.appendChild(spinner);
+
+        var text = document.createElement('span');
+        text.textContent = 'Confirming your upgrade\u2026';
+        banner.appendChild(text);
+
+        document.body.appendChild(banner);
+        setTimeout(function () { banner.classList.add('ms-activating-banner--visible'); }, 30);
+        return banner;
+    }
+
+    function _dismissActivatingBanner() {
+        var banner = document.getElementById('msActivatingBanner');
+        if (!banner) return;
+        banner.classList.remove('ms-activating-banner--visible');
+        setTimeout(function () { banner.parentNode && banner.parentNode.removeChild(banner); }, 350);
+    }
+
     function _handlePaymentSuccess() {
         var params = new URLSearchParams(window.location.search);
         var isDirectReturn = params.get('payment') === 'success';
@@ -145,6 +173,8 @@
         if (!isDirectReturn && !hasPendingPayment) return;
 
         if (!window.Clerk || !window.Clerk.user) return;
+
+        _showActivatingBanner();
 
         var planBefore = (window.Clerk.user.publicMetadata && window.Clerk.user.publicMetadata.plan) || 'free';
         var maxAttempts = 22;
@@ -166,9 +196,11 @@
 
                 if (planUpgraded || alreadyUpgraded) {
                     localStorage.removeItem(PAYMENT_PENDING_KEY);
+                    _dismissActivatingBanner();
                     _onClerkSignedIn(freshUser);
                     _showUpgradeToast(newPlan);
                 } else if (attempt >= maxAttempts) {
+                    _dismissActivatingBanner();
                     _showPaymentPendingToast();
                 } else {
                     setTimeout(tryReload, attemptDelay);
@@ -177,6 +209,7 @@
                 if (attempt < maxAttempts) {
                     setTimeout(tryReload, attemptDelay);
                 } else {
+                    _dismissActivatingBanner();
                     _showPaymentPendingToast();
                 }
             });

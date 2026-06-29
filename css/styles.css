@@ -1684,6 +1684,45 @@ body.sidebar-expanded #contextPanelBody {
     line-height: 1.45;
 }
 
+/* ── Activating banner (shown while plan upgrade is being confirmed) ─────── */
+.ms-activating-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: #312e81;
+    color: #e0e7ff;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 16px;
+    opacity: 0;
+    transform: translateY(-100%);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 99998;
+    pointer-events: none;
+}
+.ms-activating-banner--visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+.ms-activating-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(224, 231, 255, 0.35);
+    border-top-color: #e0e7ff;
+    border-radius: 50%;
+    animation: ms-spin 0.75s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes ms-spin {
+    to { transform: rotate(360deg); }
+}
+
 /* ── Plans modal ────────────────────────────────────────────────────────────── */
 .ms-plans-overlay {
     display: none;
