@@ -6643,7 +6643,7 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
     if(link){
         link.addEventListener('click', e => {
             e.preventDefault();
-            alert('Pricing plans coming soon!\n\nStarter: $19/mo — export unlimited mockups\nPRO: $39/mo — everything in Starter + all PRO features');
+            _startCheckout('starter', 'monthly');
         });
     }
 })();
@@ -8963,3 +8963,39 @@ document.getElementById('canvasContainer').addEventListener('input', e => {
         setVpcHidden(false);
     });
 })();
+
+// ── Stripe checkout helper ─────────────────────────────────────────────────────
+// Call _startCheckout(plan, period) from anywhere in the app to redirect the
+// user to Stripe's hosted checkout page.  On success Stripe sends the user back
+// to /?payment=success which triggers _handlePaymentSuccess in clerk-auth.js.
+async function _startCheckout(plan, period) {
+    if (!window.Clerk || !window.Clerk.user) {
+        sessionStorage.setItem('ms_redirect_after_auth', 'home');
+        window.Clerk && window.Clerk.openSignIn();
+        return;
+    }
+
+    const clerkUserId = window.Clerk.user.id;
+
+    let url;
+    try {
+        const resp = await fetch('/api/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan, period, clerkUserId }),
+        });
+        const data = await resp.json();
+        if (!data.ok || !data.url) {
+            console.error('Checkout error:', data.error);
+            alert('Could not start checkout — please try again.');
+            return;
+        }
+        url = data.url;
+    } catch (err) {
+        console.error('Checkout fetch failed:', err);
+        alert('Could not start checkout — please try again.');
+        return;
+    }
+
+    window.location.href = url;
+}
