@@ -2138,12 +2138,12 @@ function createCanvasPreviews(){
             });
 
             wrapper.appendChild(filenameInput);
-            _addDragHandle(wrapper);
 
             const cell = document.createElement("div");
             cell.className = "window-cell";
             cell.appendChild(wrapper);
             data.cellEl = cell;
+            _addDragHandle(wrapper, cell);
             container.appendChild(cell);
 
             const fabricCanvas = new fabric.Canvas(canvasEl, {
@@ -3070,13 +3070,18 @@ function updateLayerButtons(){
 
 
 // Reusable wrapper click handler — used by both renderBatch (inline) and duplicated windows.
-function _addDragHandle(wrapper) {
+function _addDragHandle(wrapper, cell) {
     const handle = document.createElement('div');
     handle.className = 'drag-handle';
     handle.textContent = '⠿ drag';
     handle.title = 'Drag to reorder';
-    wrapper.appendChild(handle);
-    wrapper.setAttribute('draggable', 'true');
+    if (cell) {
+        cell.appendChild(handle);
+        cell.setAttribute('draggable', 'true');
+    } else {
+        wrapper.appendChild(handle);
+        wrapper.setAttribute('draggable', 'true');
+    }
 }
 
 function _attachWrapperClickListener(wrapper, data){
@@ -3335,12 +3340,12 @@ async function duplicateSelectedWindows(){
         filenameInput.className = 'filename-input';
         filenameInput.addEventListener('input', ev => { newData.filename = ev.target.value; });
         wrapper.appendChild(filenameInput);
-        _addDragHandle(wrapper);
 
         const cell = document.createElement('div');
         cell.className = 'window-cell';
         cell.appendChild(wrapper);
         newData.cellEl = cell;
+        _addDragHandle(wrapper, cell);
 
         // Insert right after the source wrapper
         const refChild = container.children[insertAt] || null;
@@ -3559,12 +3564,12 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
         filenameInput.className = 'filename-input';
         filenameInput.addEventListener('input', ev => { newData.filename = ev.target.value; });
         wrapper.appendChild(filenameInput);
-        _addDragHandle(wrapper);
 
         const cell = document.createElement('div');
         cell.className = 'window-cell';
         cell.appendChild(wrapper);
         newData.cellEl = cell;
+        _addDragHandle(wrapper, cell);
 
         // Insert at beginning of the grid
         container.insertBefore(cell, container.firstChild);
@@ -7320,12 +7325,12 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         });
 
         wrapper.appendChild(filenameInput);
-        _addDragHandle(wrapper);
 
         const cell = document.createElement("div");
         cell.className = "window-cell";
         cell.appendChild(wrapper);
         data.cellEl = cell;
+        _addDragHandle(wrapper, cell);
         _updateProStarBadge(data);
 
         container.appendChild(cell);
@@ -8878,7 +8883,9 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     container.addEventListener('dragstart', e => {
         if(!_pendingFromHandle){ e.preventDefault(); return; }
         if(clipEditMode || colorLayerMode){ e.preventDefault(); return; }
-        const wrapper = e.target.closest('.canvas-wrapper');
+        // Handle is now in the outer .window-cell, so check both parent paths
+        const wrapper = e.target.closest('.canvas-wrapper') ||
+            e.target.closest('.window-cell')?.querySelector('.canvas-wrapper');
         if(!wrapper){ e.preventDefault(); return; }
         const srcData = canvasData.find(d => d.wrapperEl === wrapper);
         if(srcData?.locked){ e.preventDefault(); return; }
