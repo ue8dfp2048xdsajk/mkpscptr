@@ -1184,7 +1184,79 @@
         <script src="js/clip.js"></script>
         <script src="js/pattern.js"></script>
         <script src="js/background.js"></script>
+        <!-- Plans modal -->
+        <div id="plansModal" class="ms-plans-overlay" aria-hidden="true">
+            <div class="ms-plans-dialog" role="dialog" aria-labelledby="plansModalTitle">
+                <button class="ms-plans-close" id="plansModalClose" aria-label="Close">&times;</button>
+                <div class="ms-plans-header">
+                    <h2 id="plansModalTitle">Choose your plan</h2>
+                    <p class="ms-plans-subtitle">Upgrade anytime. No hidden fees.</p>
+                    <div class="ms-billing-tabs" role="tablist">
+                        <button class="ms-billing-tab active" data-period="monthly" role="tab">Monthly</button>
+                        <button class="ms-billing-tab" data-period="annual" role="tab">Annual <span class="ms-billing-save">Save 34%</span></button>
+                        <button class="ms-billing-tab" data-period="lifetime" role="tab">Lifetime</button>
+                    </div>
+                </div>
+                <div class="ms-plans-grid">
+                    <!-- Free -->
+                    <div class="ms-plan-card" data-plan="free">
+                        <div class="ms-plan-tier">Free</div>
+                        <div class="ms-plan-tagline">Get started</div>
+                        <div class="ms-plan-pricing">
+                            <span class="ms-plan-amount" data-monthly="$0" data-annual="$0" data-lifetime="$0">$0</span>
+                            <span class="ms-plan-period" data-monthly="/month" data-annual="/month" data-lifetime="">/month</span>
+                        </div>
+                        <div class="ms-plan-billing-note" data-monthly="" data-annual="" data-lifetime=""></div>
+                        <ul class="ms-plan-features">
+                            <li>Canvas compositing tools</li>
+                            <li>Upload &amp; position mockups</li>
+                            <li class="ms-feature-no">Watermarks on export</li>
+                            <li class="ms-feature-no">Export disabled</li>
+                        </ul>
+                        <button class="ms-plan-cta ms-plan-cta--current" disabled>Current plan</button>
+                    </div>
+                    <!-- Starter -->
+                    <div class="ms-plan-card" data-plan="starter">
+                        <div class="ms-plan-tier">Starter</div>
+                        <div class="ms-plan-tagline">Perfect for getting started</div>
+                        <div class="ms-plan-pricing">
+                            <span class="ms-plan-amount" data-monthly="$25" data-annual="$17" data-lifetime="$499">$25</span>
+                            <span class="ms-plan-period" data-monthly="/month" data-annual="/month" data-lifetime=" one-time">/month</span>
+                        </div>
+                        <div class="ms-plan-billing-note" data-monthly="" data-annual="billed $199/yr" data-lifetime="pay once, use forever"></div>
+                        <ul class="ms-plan-features">
+                            <li>Everything in Free</li>
+                            <li>No watermarks</li>
+                            <li>Export enabled</li>
+                            <li>All canvas tools</li>
+                        </ul>
+                        <button class="ms-plan-cta ms-plan-cta--upgrade" data-plan="starter" data-period="monthly">Upgrade to Starter</button>
+                    </div>
+                    <!-- Pro -->
+                    <div class="ms-plan-card ms-plan-card--featured" data-plan="pro">
+                        <div class="ms-plan-popular">Most Popular</div>
+                        <div class="ms-plan-tier">Pro</div>
+                        <div class="ms-plan-tagline">For power users</div>
+                        <div class="ms-plan-pricing">
+                            <span class="ms-plan-amount" data-monthly="$39" data-annual="$25" data-lifetime="$799">$39</span>
+                            <span class="ms-plan-period" data-monthly="/month" data-annual="/month" data-lifetime=" one-time">/month</span>
+                        </div>
+                        <div class="ms-plan-billing-note" data-monthly="" data-annual="billed $299/yr" data-lifetime="pay once, use forever"></div>
+                        <ul class="ms-plan-features">
+                            <li>Everything in Starter</li>
+                            <li>Pro visual effects</li>
+                            <li>Green pro star badges</li>
+                            <li>Priority support</li>
+                        </ul>
+                        <button class="ms-plan-cta ms-plan-cta--pro" data-plan="pro" data-period="monthly">Upgrade to Pro</button>
+                    </div>
+                </div>
+                <p class="ms-plans-footer">Secure checkout via Stripe &nbsp;·&nbsp; Cancel anytime &nbsp;·&nbsp; Lifetime = pay once</p>
+            </div>
+        </div>
+
         <script src="js/app.js"></script>
+        <script src="js/plans-modal.js"></script>
         <script src="js/clerk-auth.js"></script>
 
         <!-- ── Security deterrents ──────────────────────────────────────────── -->

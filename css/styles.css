@@ -1683,3 +1683,273 @@ body.sidebar-expanded #contextPanelBody {
     text-align: center;
     line-height: 1.45;
 }
+
+/* ── Plans modal ────────────────────────────────────────────────────────────── */
+.ms-plans-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,15,35,0.55);
+    backdrop-filter: blur(3px);
+    z-index: 9000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+.ms-plans-overlay--open {
+    display: flex;
+}
+.ms-plans-dialog {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+    width: 100%;
+    max-width: 880px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 48px 44px 36px;
+    position: relative;
+    box-sizing: border-box;
+}
+.ms-plans-close {
+    position: absolute;
+    top: 18px;
+    right: 20px;
+    background: #f3f4f6;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.ms-plans-close:hover { background: #e5e7eb; color: #111; }
+
+.ms-plans-header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+.ms-plans-header h2 {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0f0f23;
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+}
+.ms-plans-subtitle {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0 0 24px;
+}
+
+/* Billing tabs */
+.ms-billing-tabs {
+    display: inline-flex;
+    background: #f3f4f6;
+    border-radius: 50px;
+    padding: 4px;
+    gap: 2px;
+}
+.ms-billing-tab {
+    background: transparent;
+    border: none;
+    border-radius: 50px;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.18s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.ms-billing-tab.active {
+    background: #fff;
+    color: #4f46e5;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+}
+.ms-billing-tab:hover:not(.active) { color: #374151; }
+.ms-billing-save {
+    background: #dcfce7;
+    color: #16a34a;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 50px;
+}
+
+/* Plan grid */
+.ms-plans-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+.ms-plan-card {
+    border: 1.5px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 28px 24px 24px;
+    position: relative;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    transition: box-shadow 0.18s;
+}
+.ms-plan-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07); }
+.ms-plan-card--featured {
+    border-color: #4f46e5;
+    border-width: 2px;
+    box-shadow: 0 8px 32px rgba(79,70,229,0.12);
+}
+.ms-plan-card--featured:hover { box-shadow: 0 12px 40px rgba(79,70,229,0.18); }
+
+.ms-plan-popular {
+    position: absolute;
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #4f46e5;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 4px 14px;
+    border-radius: 50px;
+    white-space: nowrap;
+}
+.ms-plan-tier {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f0f23;
+    margin-bottom: 4px;
+}
+.ms-plan-tagline {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-bottom: 18px;
+}
+.ms-plan-pricing {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    margin-bottom: 4px;
+}
+.ms-plan-amount {
+    font-size: 36px;
+    font-weight: 800;
+    color: #0f0f23;
+    letter-spacing: -0.02em;
+}
+.ms-plan-period {
+    font-size: 14px;
+    color: #9ca3af;
+    font-weight: 500;
+}
+.ms-plan-billing-note {
+    font-size: 11px;
+    color: #9ca3af;
+    min-height: 16px;
+    margin-bottom: 20px;
+}
+.ms-plan-features {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+.ms-plan-features li {
+    font-size: 13px;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ms-plan-features li::before {
+    content: '✓';
+    font-weight: 700;
+    color: #4f46e5;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+.ms-plan-features li.ms-feature-no {
+    color: #d1d5db;
+    text-decoration: line-through;
+}
+.ms-plan-features li.ms-feature-no::before {
+    content: '✕';
+    color: #d1d5db;
+    font-weight: 400;
+}
+
+/* CTA buttons */
+.ms-plan-cta {
+    width: 100%;
+    padding: 11px 0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: all 0.18s;
+    margin-top: auto;
+}
+.ms-plan-cta--current {
+    background: #f3f4f6;
+    color: #9ca3af;
+    cursor: default;
+}
+.ms-plan-cta--upgrade {
+    background: #f0f0ff;
+    color: #4f46e5;
+    border: 1.5px solid #c7d2fe;
+}
+.ms-plan-cta--upgrade:hover { background: #e0e7ff; }
+.ms-plan-cta--pro {
+    background: #4f46e5;
+    color: #fff;
+}
+.ms-plan-cta--pro:hover { background: #4338ca; }
+
+.ms-plans-footer {
+    text-align: center;
+    font-size: 12px;
+    color: #9ca3af;
+    margin: 24px 0 0;
+}
+
+/* Upgrade button in avatar dropdown */
+.ms-avatar-upgrade-btn {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 7px 0;
+    background: #4f46e5;
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s;
+}
+.ms-avatar-upgrade-btn:hover { background: #4338ca; }
+
+@media (max-width: 680px) {
+    .ms-plans-dialog { padding: 36px 18px 24px; }
+    .ms-plans-grid { grid-template-columns: 1fr; }
+    .ms-plans-header h2 { font-size: 22px; }
+}

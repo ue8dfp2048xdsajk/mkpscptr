@@ -74,11 +74,14 @@
         var email = (user.primaryEmailAddress && user.primaryEmailAddress.emailAddress) || '';
         var planLabel = window._userPlan.charAt(0).toUpperCase() + window._userPlan.slice(1);
 
+        var showUpgradeBtn = window._userPlan === 'free' || window._userPlan === 'starter';
+
         var dropdown = document.createElement('div');
         dropdown.className = 'ms-avatar-dropdown';
         dropdown.innerHTML =
             '<div class="ms-avatar-email">' + email + '</div>' +
             '<div class="ms-avatar-plan">Plan: <strong>' + planLabel + '</strong></div>' +
+            (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
             '<button id="clerkSignOutBtn">Log Out</button>';
 
         avatar.addEventListener('click', function (e) {
@@ -93,6 +96,14 @@
         wrap.appendChild(avatar);
         wrap.appendChild(dropdown);
         container.appendChild(wrap);
+
+        var upgradeBtn = dropdown.querySelector('#clerkUpgradeBtn');
+        if (upgradeBtn) {
+            upgradeBtn.addEventListener('click', function () {
+                dropdown.classList.remove('open');
+                if (typeof openPlansModal === 'function') openPlansModal();
+            });
+        }
 
         var signOutBtn = dropdown.querySelector('#clerkSignOutBtn');
         if (signOutBtn) {

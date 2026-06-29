@@ -6643,7 +6643,7 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
     if(link){
         link.addEventListener('click', e => {
             e.preventDefault();
-            _startCheckout('starter', 'monthly');
+            if (typeof openPlansModal === 'function') openPlansModal();
         });
     }
 })();
