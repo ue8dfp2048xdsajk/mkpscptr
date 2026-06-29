@@ -7024,6 +7024,16 @@ function autoSaveSession(){
 
 document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
 
+    if(window.Clerk && !window.Clerk.user){
+        sessionStorage.setItem('ms_redirect_after_auth', 'save');
+        window.Clerk.openSignIn();
+        return;
+    }
+    if(_userPlan === 'free'){
+        if(typeof openPlansModal === 'function') openPlansModal();
+        return;
+    }
+
     const snapshot = buildFullSnapshot();
 
     const blob = new Blob(
