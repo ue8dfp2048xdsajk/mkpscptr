@@ -98,7 +98,9 @@ function _drawWatermarkOnCanvas(data) {
 // Show / refresh the ⭐ PRO-feature badge on a canvas wrapper
 function _updateProStarBadge(data) {
     if (!data.wrapperEl) return;
-    var existing = data.wrapperEl.querySelector('.pro-star-badge');
+    // Prefer the outer cell (overflow-visible) so the badge sits above the window.
+    var host = data.cellEl || data.wrapperEl;
+    var existing = host.querySelector('.pro-star-badge');
     if (existing) existing.remove();
     if (!data.hasProEffect) return;
     var badge = document.createElement('span');
@@ -108,7 +110,7 @@ function _updateProStarBadge(data) {
     badge.title = _userPlan === 'pro'
         ? 'Uses a PRO feature — exports fine on your plan'
         : 'Uses a PRO feature — upgrade to export this window';
-    data.wrapperEl.appendChild(badge);
+    host.appendChild(badge);
 }
 
 // Mark a window as using a PRO feature + refresh its badge
@@ -2138,7 +2140,11 @@ function createCanvasPreviews(){
             wrapper.appendChild(filenameInput);
             _addDragHandle(wrapper);
 
-            container.appendChild(wrapper);
+            const cell = document.createElement("div");
+            cell.className = "window-cell";
+            cell.appendChild(wrapper);
+            data.cellEl = cell;
+            container.appendChild(cell);
 
             const fabricCanvas = new fabric.Canvas(canvasEl, {
                 preserveObjectStacking: true,
@@ -3331,9 +3337,14 @@ async function duplicateSelectedWindows(){
         wrapper.appendChild(filenameInput);
         _addDragHandle(wrapper);
 
+        const cell = document.createElement('div');
+        cell.className = 'window-cell';
+        cell.appendChild(wrapper);
+        newData.cellEl = cell;
+
         // Insert right after the source wrapper
         const refChild = container.children[insertAt] || null;
-        container.insertBefore(wrapper, refChild);
+        container.insertBefore(cell, refChild);
         _visibilityObserver.observe(wrapper);
 
         // ── 4. Create Fabric canvas with same dimensions as source ────────────
@@ -3550,8 +3561,13 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
         wrapper.appendChild(filenameInput);
         _addDragHandle(wrapper);
 
+        const cell = document.createElement('div');
+        cell.className = 'window-cell';
+        cell.appendChild(wrapper);
+        newData.cellEl = cell;
+
         // Insert at beginning of the grid
-        container.insertBefore(wrapper, container.firstChild);
+        container.insertBefore(cell, container.firstChild);
 
         // 4. Create Fabric canvas + size it
         const fabricCanvas = new fabric.Canvas(canvasEl, {
@@ -7288,7 +7304,6 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         const wrapper = document.createElement("div");
         wrapper.className = "canvas-wrapper";
         data.wrapperEl = wrapper;
-        _updateProStarBadge(data);
 
         const canvasEl = document.createElement("canvas");
 
@@ -7307,7 +7322,13 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         wrapper.appendChild(filenameInput);
         _addDragHandle(wrapper);
 
-        container.appendChild(wrapper);
+        const cell = document.createElement("div");
+        cell.className = "window-cell";
+        cell.appendChild(wrapper);
+        data.cellEl = cell;
+        _updateProStarBadge(data);
+
+        container.appendChild(cell);
         _visibilityObserver.observe(wrapper);
 
         const fabricCanvas = new fabric.Canvas(canvasEl,{

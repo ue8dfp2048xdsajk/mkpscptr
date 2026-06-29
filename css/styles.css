@@ -1541,11 +1541,17 @@ body.sidebar-expanded #contextPanelBody {
     background: linear-gradient(135deg, #10b981, #059669);
 }
 
-/* ⭐ PRO pill badge on canvas wrappers that use PRO features */
+/* Outer cell that wraps each canvas-wrapper, providing a positioned
+   overflow-visible context so the PRO badge can sit above the window */
+.window-cell {
+    position: relative;
+}
+
+/* ⭐ PRO pill badge — floats above the canvas window, not over the image */
 .pro-star-badge {
     position: absolute;
-    top: 6px;
-    right: 6px;
+    bottom: calc(100% + 4px);
+    right: 0;
     display: inline-flex;
     align-items: center;
     gap: 2px;
