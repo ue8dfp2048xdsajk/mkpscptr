@@ -101,7 +101,7 @@
             });
         });
 
-        setPeriod('monthly');
+        setPeriod('annual');
     }
 
     window.openPlansModal = openPlansModal;

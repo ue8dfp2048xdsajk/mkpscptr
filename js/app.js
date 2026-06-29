@@ -6502,9 +6502,9 @@ async function exportDataToBlob(data, fmt, quality){
             return;
         }
 
-        // FREE users cannot export — redirect them to upgrade
+        // FREE users cannot export — open plans modal
         if(_userPlan === 'free'){
-            alert('Export is not available on the Free plan.\n\nUpgrade to Starter or PRO to export your mockups.');
+            if(typeof openPlansModal === 'function') openPlansModal();
             return;
         }
 
@@ -8648,7 +8648,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 // ── Export canvas text ────────────────────────────────────────────────────────
 document.getElementById('exportTextBtn').addEventListener('click', () => {
     if(_userPlan === 'free'){
-        alert('Exporting is not available on the Free plan.\n\nUpgrade to Starter or PRO to export your work.');
+        if(typeof openPlansModal === 'function') openPlansModal();
         return;
     }
     const sorted = [..._textBoxes]
