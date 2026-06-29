@@ -8996,13 +8996,17 @@ async function _startCheckout(plan, period) {
         const data = await resp.json();
         if (!data.ok || !data.url) {
             console.error('Checkout error:', data.error);
-            alert('Could not start checkout — please try again.');
+            if (resp.status === 409) {
+                alert(data.error || 'You\u2019re already subscribed to this plan \u2014 no charge has been made.');
+            } else {
+                alert('Could not start checkout \u2014 please try again.');
+            }
             return;
         }
         url = data.url;
     } catch (err) {
         console.error('Checkout fetch failed:', err);
-        alert('Could not start checkout — please try again.');
+        alert('Could not start checkout \u2014 please try again.');
         return;
     }
 

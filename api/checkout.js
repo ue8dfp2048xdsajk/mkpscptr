@@ -47,6 +47,32 @@ module.exports = async function handler(req, res) {
         });
     }
 
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (clerkUserId && typeof clerkUserId === 'string' && clerkSecretKey) {
+        let clerkRes;
+        try {
+            clerkRes = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`, {
+                headers: { Authorization: `Bearer ${clerkSecretKey}` },
+            });
+        } catch {
+            return res.status(502).json({ ok: false, error: 'Failed to reach Clerk API' });
+        }
+
+        if (clerkRes.ok) {
+            const clerkData = await clerkRes.json();
+            const currentPlan = (clerkData?.public_metadata?.plan || 'free').toLowerCase();
+            const PLAN_RANK = { free: 0, starter: 1, pro: 2 };
+            const currentRank = PLAN_RANK[currentPlan] ?? 0;
+            const requestedRank = PLAN_RANK[plan] ?? 0;
+            if (currentRank >= requestedRank && currentRank > 0) {
+                return res.status(409).json({
+                    ok: false,
+                    error: `You already have the ${currentPlan} plan. No charge has been made.`,
+                });
+            }
+        }
+    }
+
     const isLifetime = period === 'lifetime';
     const mode = isLifetime ? 'payment' : 'subscription';
 
