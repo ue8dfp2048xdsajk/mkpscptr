@@ -154,6 +154,8 @@
     "zod": "^3.21.4"
   },
   "scripts": {
+    "prebuild": "node scripts/check-env.js",
+    "build": "echo 'No frontend build step — static files served as-is.'",
     "test": "jest"
   },
   "keywords": [],

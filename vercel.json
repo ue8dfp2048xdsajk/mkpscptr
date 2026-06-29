@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "node scripts/check-env.js",
+  "buildCommand": "npm run build",
   "installCommand": "npm install --prefix api",
   "outputDirectory": ".",
   "routes": [
