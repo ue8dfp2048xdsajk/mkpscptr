@@ -9,6 +9,20 @@ SECRET=<your SET_PLAN_SECRET value>
 REAL_USER_ID=<a real Clerk userId from your dashboard>
 ```
 
+### Required environment variables
+
+All four variables below must be set in **Vercel → Project → Settings → Environment Variables** before going live.
+A missing variable causes the webhook to return 500 on every event — payments will not be activated.
+
+| Variable | Where to get it | Effect if missing |
+|---|---|---|
+| `BASE_URL` | Your production domain, e.g. `https://mockupscripter.com` (no trailing slash) | Webhook returns 500 — no user is ever upgraded after payment |
+| `STRIPE_WEBHOOK_SECRET` | Stripe dashboard → Developers → Webhooks → your endpoint → Signing secret | Webhook returns 500 — all events rejected |
+| `SET_PLAN_SECRET` | A random string you generate, e.g. `openssl rand -hex 32` | Webhook returns 500; `set-plan` endpoint also refuses all calls |
+| `CLERK_SECRET_KEY` | Clerk dashboard → API keys | `set-plan` endpoint cannot update user metadata |
+
+> **Quick validation:** after deploying, run `node scripts/check-env.js` locally (or as a Vercel build command) to confirm all required variables are present.
+
 ---
 
 ## 1. Wrong secret → 401
@@ -275,6 +289,7 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 
 | Concern | Status |
 |---|---|
+| `BASE_URL` missing → silent payment failure | ✅ Impossible — webhook returns 500 immediately (see case 15 below) |
 | Secret missing → silent pass-through | ✅ Impossible — 500 returned |
 | Secret compared before any work is done | ✅ Yes, auth check runs before Clerk call |
 | Secret in request body (visible in body-level logs) | ✅ Fixed — secret is now in `Authorization: Bearer` header, out of body logs |
@@ -295,6 +310,32 @@ The request body should contain only `userId` and `plan` — no `secret` field.
 
 ---
 
+## 15. Missing BASE_URL env var → Stripe webhook returns 500
+
+> **How to test:** In the Vercel dashboard, temporarily remove the `BASE_URL` environment variable, redeploy, and send a simulated `checkout.session.completed` event from the Stripe CLI or dashboard:
+
+```bash
+stripe trigger checkout.session.completed
+```
+
+Or send a raw POST to the webhook endpoint:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/webhooks/stripe" \
+  -H "Content-Type: application/json" \
+  -H "Stripe-Signature: t=1,v1=invalid" \
+  -d '{}'
+```
+
+**Expected:** `500`
+**Expected body:** `{"ok":false,"error":"Base URL not configured"}`
+
+**Code path:** `api/webhooks/stripe.js` — the handler checks `process.env.BASE_URL` immediately after verifying `STRIPE_WEBHOOK_SECRET` and `SET_PLAN_SECRET`. If `BASE_URL` is absent the handler returns 500 before touching the Stripe signature or the event body. Stripe will retry the event according to its retry schedule, giving you time to fix the configuration.
+
+> Restore `BASE_URL` and redeploy after confirming.
+
+---
+
 ## Checklist summary
 
 - [ ] Case 1 — wrong secret → 401
@@ -311,3 +352,4 @@ The request body should contain only `userId` and `plan` — no `secret` field.
 - [ ] Case 12 — far-future timestamp (>300 s ahead) → 400
 - [ ] Case 13 — missing X-Nonce header → 400
 - [ ] Case 14 — duplicate nonce (within-window replay) → 400
+- [ ] Case 15 — missing BASE_URL env var → Stripe webhook returns 500 (not silent)
