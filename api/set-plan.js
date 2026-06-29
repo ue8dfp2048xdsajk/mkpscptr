@@ -1,6 +1,13 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
+const { isRateLimited, recordFailure, clearFailures } = require('./_rate-limiter');
 
 const VALID_PLANS = ['free', 'starter', 'pro'];
+
+function getClientIp(req) {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) return forwarded.split(',')[0].trim();
+    return req.socket?.remoteAddress || 'unknown';
+}
 
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
@@ -9,6 +16,15 @@ module.exports = async function handler(req, res) {
 
     if (req.method !== 'POST') {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    }
+
+    const clientIp = getClientIp(req);
+
+    if (isRateLimited(clientIp)) {
+        return res.status(429).json({
+            ok: false,
+            error: 'Too many failed attempts. Please try again later.',
+        });
     }
 
     const timestampHeader = req.headers['x-timestamp'];
@@ -45,8 +61,11 @@ module.exports = async function handler(req, res) {
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
 
     if (!token || token !== setPlanSecret) {
+        recordFailure(clientIp);
         return res.status(401).json({ ok: false, error: 'Unauthorized' });
     }
+
+    clearFailures(clientIp);
 
     if (!userId || typeof userId !== 'string') {
         return res.status(400).json({ ok: false, error: 'Missing or invalid userId' });
