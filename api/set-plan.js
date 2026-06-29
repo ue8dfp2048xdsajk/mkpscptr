@@ -1,0 +1,74 @@
+const { setCorsHeaders, handleOptions } = require('./_cors');
+
+const VALID_PLANS = ['free', 'starter', 'pro'];
+
+module.exports = async function handler(req, res) {
+    setCorsHeaders(req, res);
+
+    if (handleOptions(req, res)) return;
+
+    if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    }
+
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    const setPlanSecret = process.env.SET_PLAN_SECRET;
+
+    if (!clerkSecretKey || !setPlanSecret) {
+        console.error('set-plan: missing env vars CLERK_SECRET_KEY or SET_PLAN_SECRET');
+        return res.status(500).json({ ok: false, error: 'Server misconfiguration' });
+    }
+
+    let body;
+    try {
+        body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    } catch {
+        return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
+    }
+
+    const { userId, plan, secret } = body || {};
+
+    if (!secret || secret !== setPlanSecret) {
+        return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    }
+
+    if (!userId || typeof userId !== 'string') {
+        return res.status(400).json({ ok: false, error: 'Missing or invalid userId' });
+    }
+
+    if (!plan || !VALID_PLANS.includes(plan)) {
+        return res.status(400).json({
+            ok: false,
+            error: `Invalid plan. Must be one of: ${VALID_PLANS.join(', ')}`,
+        });
+    }
+
+    const clerkUrl = `https://api.clerk.com/v1/users/${encodeURIComponent(userId)}/metadata`;
+
+    let clerkRes;
+    try {
+        clerkRes = await fetch(clerkUrl, {
+            method: 'PATCH',
+            headers: {
+                Authorization: `Bearer ${clerkSecretKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ public_metadata: { plan } }),
+        });
+    } catch (err) {
+        console.error('set-plan: Clerk API fetch error', err);
+        return res.status(502).json({ ok: false, error: 'Failed to reach Clerk API' });
+    }
+
+    if (!clerkRes.ok) {
+        let clerkError = 'Clerk API error';
+        try {
+            const clerkBody = await clerkRes.json();
+            clerkError = clerkBody?.errors?.[0]?.message || clerkError;
+        } catch {}
+        console.error('set-plan: Clerk returned', clerkRes.status, clerkError);
+        return res.status(502).json({ ok: false, error: clerkError });
+    }
+
+    return res.status(200).json({ ok: true, userId, plan });
+};
