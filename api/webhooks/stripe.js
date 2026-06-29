@@ -63,13 +63,23 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
 }
 
 module.exports = async function handler(req, res) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ ok: false, error: 'Method not allowed' });
-    }
-
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     const setPlanSecret = process.env.SET_PLAN_SECRET;
     const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
+
+    if (req.method === 'GET') {
+        const configured = {
+            STRIPE_WEBHOOK_SECRET: Boolean(webhookSecret && webhookSecret.startsWith('whsec_')),
+            SET_PLAN_SECRET: Boolean(setPlanSecret),
+            BASE_URL: Boolean(baseUrl),
+        };
+        const allOk = Object.values(configured).every(Boolean);
+        return res.status(allOk ? 200 : 503).json({ ok: allOk, configured });
+    }
+
+    if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    }
 
     if (!webhookSecret) {
         console.error('stripe-webhook: STRIPE_WEBHOOK_SECRET is not set');

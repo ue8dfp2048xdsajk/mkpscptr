@@ -11,7 +11,10 @@ const REQUIRED = [
     {
         name: 'STRIPE_WEBHOOK_SECRET',
         description: 'Stripe webhook signing secret (whsec_...). ' +
+            'Create an endpoint at https://mkpscptr.vercel.app/api/webhooks/stripe in ' +
+            'Stripe dashboard → Developers → Webhooks listening for checkout.session.completed. ' +
             'Missing → webhook refuses all incoming events with 500.',
+        validate: (v) => v.startsWith('whsec_') || 'value should start with whsec_',
     },
     {
         name: 'SET_PLAN_SECRET',
@@ -41,12 +44,21 @@ let missing = 0;
 
 console.log('Checking required environment variables...\n');
 
-for (const { name, description } of REQUIRED) {
+for (const { name, description, validate } of REQUIRED) {
     const value = process.env[name];
     if (!value || value.trim() === '') {
         console.error(`  MISSING  ${name}`);
         console.error(`           ${description}\n`);
         missing++;
+    } else if (validate) {
+        const result = validate(value.trim());
+        if (result !== true) {
+            console.error(`  INVALID  ${name}`);
+            console.error(`           ${result}\n`);
+            missing++;
+        } else {
+            console.log(`  OK       ${name}`);
+        }
     } else {
         console.log(`  OK       ${name}`);
     }
