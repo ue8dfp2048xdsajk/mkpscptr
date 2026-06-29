@@ -189,3 +189,78 @@ describe('Rate limiter — PostgreSQL path survives cold server restart', () => 
         expect(await rl3.isRateLimited(ip)).toBe(true);
     });
 });
+
+// ---------------------------------------------------------------------------
+// In-memory fallback warning emitted at module load time
+// ---------------------------------------------------------------------------
+
+describe('Rate limiter — in-memory fallback warning', () => {
+    let warnSpy;
+
+    beforeEach(() => {
+        warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+        jest.resetModules();
+        warnSpy.mockRestore();
+    });
+
+    test('emits a console.warn when neither Redis nor PG is configured', () => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+
+        jest.resetModules();
+        require('../api/_rate-limiter');
+
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        const [msg] = warnSpy.mock.calls[0];
+        expect(msg).toMatch(/in-memory|process memory/i);
+        expect(msg).toMatch(/cold start|restart/i);
+    });
+
+    test('does NOT emit the warning when Redis is configured', () => {
+        process.env.UPSTASH_REDIS_REST_URL   = 'https://mock-redis.upstash.io';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-token';
+        delete process.env.DATABASE_URL;
+
+        jest.resetModules();
+        require('../api/_rate-limiter');
+
+        expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    test('does NOT emit the warning when PostgreSQL is configured', () => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.DATABASE_URL = 'postgres://mock/db';
+
+        jest.resetModules();
+        jest.doMock('pg', () => ({ Pool: jest.fn(() => ({ query: jest.fn().mockResolvedValue({ rows: [] }) })) }));
+        require('../api/_rate-limiter');
+
+        expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    test('lockout built on in-memory counters is lost after a simulated restart', async () => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+
+        // Phase 1: accumulate MAX_FAILURES in one module instance
+        jest.resetModules();
+        const rl1 = require('../api/_rate-limiter');
+        const ip = '10.99.0.1';
+        for (let i = 0; i < MAX_FAILURES; i++) await rl1.recordFailure(ip);
+        expect(await rl1.isRateLimited(ip)).toBe(true);
+
+        // Phase 2: "restart" — fresh module load loses the counters
+        jest.resetModules();
+        const rl2 = require('../api/_rate-limiter');
+        expect(await rl2.isRateLimited(ip)).toBe(false);
+    });
+});
