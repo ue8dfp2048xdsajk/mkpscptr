@@ -160,6 +160,10 @@
     }
 
     function _showUpgradeToast(plan) {
+        var storageKey = 'ms_upgrade_toast_shown';
+        if (sessionStorage.getItem(storageKey)) return;
+        sessionStorage.setItem(storageKey, '1');
+
         var label = plan.charAt(0).toUpperCase() + plan.slice(1);
         var toast = document.createElement('div');
         toast.className = 'ms-upgrade-toast';
