@@ -15,6 +15,7 @@
         window.Clerk.addListener(function ({ user }) {
             if (user) {
                 _onClerkSignedIn(user);
+                _handlePaymentSuccess();
             } else {
                 _onClerkSignedOut();
             }
@@ -127,6 +128,7 @@
     }
 
     var PAYMENT_PENDING_KEY = 'ms_payment_pending';
+    var _paymentPollingActive = false;
 
     function _showActivatingBanner() {
         var existing = document.getElementById('msActivatingBanner');
@@ -157,6 +159,8 @@
     }
 
     function _handlePaymentSuccess() {
+        if (_paymentPollingActive) return;
+
         var params = new URLSearchParams(window.location.search);
         var isDirectReturn = params.get('payment') === 'success';
 
@@ -174,6 +178,8 @@
         if (!isDirectReturn && !storedValue) return;
 
         if (!window.Clerk || !window.Clerk.user) return;
+
+        _paymentPollingActive = true;
 
         var pendingUserId = storedValue !== '1' ? storedValue : null;
         if (pendingUserId && pendingUserId !== window.Clerk.user.id) {
