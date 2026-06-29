@@ -21,7 +21,7 @@ module.exports = async function handler(req, res) {
 
     const clientIp = getClientIp(req);
 
-    if (isRateLimited(clientIp)) {
+    if (await isRateLimited(clientIp)) {
         return res.status(429).json({
             ok: false,
             error: 'Too many failed attempts. Please try again later.',
@@ -62,11 +62,11 @@ module.exports = async function handler(req, res) {
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
 
     if (!token || token !== setPlanSecret) {
-        recordFailure(clientIp);
+        await recordFailure(clientIp);
         return res.status(401).json({ ok: false, error: 'Unauthorized' });
     }
 
-    clearFailures(clientIp);
+    await clearFailures(clientIp);
 
     const nonce = req.headers['x-nonce'];
     if (!nonce || typeof nonce !== 'string' || nonce.trim() === '') {
