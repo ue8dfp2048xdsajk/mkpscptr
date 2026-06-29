@@ -1,5 +1,6 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
 const { isRateLimited, recordFailure, clearFailures } = require('./_rate-limiter');
+const { isNonceSeen, recordNonce } = require('./_nonce-store');
 
 const VALID_PLANS = ['free', 'starter', 'pro'];
 
@@ -66,6 +67,15 @@ module.exports = async function handler(req, res) {
     }
 
     clearFailures(clientIp);
+
+    const nonce = req.headers['x-nonce'];
+    if (!nonce || typeof nonce !== 'string' || nonce.trim() === '') {
+        return res.status(400).json({ ok: false, error: 'Missing X-Nonce header' });
+    }
+    if (isNonceSeen(nonce)) {
+        return res.status(400).json({ ok: false, error: 'Duplicate nonce — request already processed' });
+    }
+    recordNonce(nonce);
 
     if (!userId || typeof userId !== 'string') {
         return res.status(400).json({ ok: false, error: 'Missing or invalid userId' });

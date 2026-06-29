@@ -212,6 +212,54 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 
 ---
 
+## 13. Missing X-Nonce header → 400
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
+  -d '{"userId":"user_abc","plan":"pro"}'
+```
+
+**Expected:** `400`
+**Expected body:** `{"ok":false,"error":"Missing X-Nonce header"}`
+
+**Code path:** `api/set-plan.js` — nonce presence check runs after auth succeeds, before any Clerk call.
+
+---
+
+## 14. Duplicate nonce (within-window replay) → 400
+
+```bash
+NONCE=$(uuidgen)  # or: openssl rand -hex 16
+
+# First request — succeeds (or fails for another reason, but the nonce is consumed)
+curl -s -X POST "$BASE_URL/api/set-plan" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
+  -H "X-Nonce: $NONCE" \
+  -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\"}"
+
+echo ""
+
+# Second request — same nonce within 300 s → must be rejected
+curl -s -X POST "$BASE_URL/api/set-plan" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
+  -H "X-Nonce: $NONCE" \
+  -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\"}"
+```
+
+**Expected (second request):** `400`
+**Expected body:** `{"ok":false,"error":"Duplicate nonce — request already processed"}`
+
+**Code path:** `api/set-plan.js` — after auth succeeds, `isNonceSeen(nonce)` checks the in-memory store (`api/_nonce-store.js`). A nonce is stored with a 300 s TTL on first use; any subsequent request carrying the same nonce within that window is rejected before the Clerk call is made. This closes the gap where a captured request could be replayed immediately (within the timestamp window).
+
+---
+
 ## Security notes
 
 | Concern | Status |
@@ -224,11 +272,13 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 | Clerk userId path-traversal | ✅ `encodeURIComponent` applied before constructing the Clerk URL |
 | Replay attack (captured request re-sent later) | ✅ `X-Timestamp` header required; requests older than 300 s are rejected with 400 |
 | Far-future timestamp bypassing the window | ✅ Window is symmetric (`Math.abs`); future timestamps beyond 300 s are also rejected |
+| Within-window replay (immediate re-send of captured request) | ✅ `X-Nonce` header required; each nonce is one-time-use with a 300 s TTL (`api/_nonce-store.js`) |
 
-**Callers** must send the secret and a current Unix timestamp (seconds):
+**Callers** must send the secret, a current Unix timestamp, and a per-request nonce:
 ```
 Authorization: Bearer <SET_PLAN_SECRET>
 X-Timestamp: <Unix seconds — must be within 300 s of server time>
+X-Nonce: <random unique string, e.g. UUID or 16 hex bytes — single use within 300 s>
 ```
 The request body should contain only `userId` and `plan` — no `secret` field.
 
@@ -248,3 +298,5 @@ The request body should contain only `userId` and `plan` — no `secret` field.
 - [ ] Case 10 — missing X-Timestamp header → 400
 - [ ] Case 11 — stale timestamp (replay attack, >300 s old) → 400
 - [ ] Case 12 — far-future timestamp (>300 s ahead) → 400
+- [ ] Case 13 — missing X-Nonce header → 400
+- [ ] Case 14 — duplicate nonce (within-window replay) → 400
