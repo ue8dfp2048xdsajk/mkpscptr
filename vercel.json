@@ -1,6 +1,7 @@
 {
   "version": 2,
   "buildCommand": null,
+  "installCommand": "npm install --prefix api",
   "outputDirectory": ".",
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
