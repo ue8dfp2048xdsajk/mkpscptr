@@ -41,7 +41,7 @@
         window._userPlan = 'free';
         sessionStorage.removeItem('ms_upgrade_toast_shown');
         localStorage.removeItem('ms_payment_pending');
-        _paymentPollingActive = false;
+        _cleanupPoll();
         _dismissActivatingBanner();
         if (typeof _refreshAllProStarBadges === 'function') _refreshAllProStarBadges();
         _renderSignInButton();
@@ -131,6 +131,19 @@
 
     var PAYMENT_PENDING_KEY = 'ms_payment_pending';
     var _paymentPollingActive = false;
+    var _pollTimerId = null;
+    var _pollStartTime = null;
+    var _pollDeadlineMs = 90000;
+    var _pollVisibilityHandler = null;
+
+    function _cleanupPoll() {
+        _paymentPollingActive = false;
+        if (_pollTimerId) { clearTimeout(_pollTimerId); _pollTimerId = null; }
+        if (_pollVisibilityHandler) {
+            document.removeEventListener('visibilitychange', _pollVisibilityHandler);
+            _pollVisibilityHandler = null;
+        }
+    }
 
     function _showActivatingBanner() {
         var existing = document.getElementById('msActivatingBanner');
@@ -186,29 +199,49 @@
         var pendingUserId = storedValue !== '1' ? storedValue : null;
         if (pendingUserId && pendingUserId !== window.Clerk.user.id) {
             localStorage.removeItem(PAYMENT_PENDING_KEY);
+            _paymentPollingActive = false;
             return;
         }
 
         _showActivatingBanner();
 
         var planBefore = (window.Clerk.user.publicMetadata && window.Clerk.user.publicMetadata.plan) || 'free';
-        var maxAttempts = 22;
         var attemptDelay = 2000;
-        var attempt = 0;
+        _pollStartTime = Date.now();
 
         function tryReload() {
+            if (!_paymentPollingActive) return;
+
             if (!window.Clerk || !window.Clerk.user) {
-                _paymentPollingActive = false;
+                _cleanupPoll();
                 _dismissActivatingBanner();
                 return;
             }
-            attempt++;
+
+            if (Date.now() - _pollStartTime >= _pollDeadlineMs) {
+                _cleanupPoll();
+                _dismissActivatingBanner();
+                _showPaymentPendingToast();
+                return;
+            }
+
+            if (document.visibilityState === 'hidden') {
+                return;
+            }
+
             var session = window.Clerk.session;
-            if (!session) return;
+            if (!session) {
+                _pollTimerId = setTimeout(tryReload, attemptDelay);
+                return;
+            }
 
             session.reload().then(function () {
                 var freshUser = window.Clerk.user;
-                if (!freshUser) return;
+                if (!freshUser) {
+                    _cleanupPoll();
+                    _dismissActivatingBanner();
+                    return;
+                }
 
                 var newPlan = (freshUser.publicMetadata && freshUser.publicMetadata.plan) || 'free';
                 var planUpgraded = newPlan !== planBefore;
@@ -216,24 +249,40 @@
 
                 if (planUpgraded || alreadyUpgraded) {
                     localStorage.removeItem(PAYMENT_PENDING_KEY);
+                    _cleanupPoll();
                     _dismissActivatingBanner();
                     _onClerkSignedIn(freshUser);
                     _showUpgradeToast(newPlan);
-                } else if (attempt >= maxAttempts) {
+                } else if (Date.now() - _pollStartTime >= _pollDeadlineMs) {
+                    _cleanupPoll();
                     _dismissActivatingBanner();
                     _showPaymentPendingToast();
                 } else {
-                    setTimeout(tryReload, attemptDelay);
+                    _pollTimerId = setTimeout(tryReload, attemptDelay);
                 }
             }).catch(function () {
-                if (attempt < maxAttempts) {
-                    setTimeout(tryReload, attemptDelay);
+                if (Date.now() - _pollStartTime < _pollDeadlineMs) {
+                    _pollTimerId = setTimeout(tryReload, attemptDelay);
                 } else {
+                    _cleanupPoll();
                     _dismissActivatingBanner();
                     _showPaymentPendingToast();
                 }
             });
         }
+
+        _pollVisibilityHandler = function () {
+            if (document.visibilityState === 'visible' && _paymentPollingActive) {
+                if (Date.now() - _pollStartTime >= _pollDeadlineMs) {
+                    _cleanupPoll();
+                    _dismissActivatingBanner();
+                    _showPaymentPendingToast();
+                    return;
+                }
+                tryReload();
+            }
+        };
+        document.addEventListener('visibilitychange', _pollVisibilityHandler);
 
         tryReload();
     }
