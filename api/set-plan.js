@@ -26,9 +26,12 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
     }
 
-    const { userId, plan, secret } = body || {};
+    const { userId, plan } = body || {};
 
-    if (!secret || secret !== setPlanSecret) {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+    if (!token || token !== setPlanSecret) {
         return res.status(401).json({ ok: false, error: 'Unauthorized' });
     }
 

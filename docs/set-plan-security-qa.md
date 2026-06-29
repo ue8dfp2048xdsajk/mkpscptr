@@ -16,17 +16,18 @@ REAL_USER_ID=<a real Clerk userId from your dashboard>
 ```bash
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
-  -d '{"userId":"user_abc","plan":"pro","secret":"WRONG_SECRET"}'
+  -H "Authorization: Bearer WRONG_SECRET" \
+  -d '{"userId":"user_abc","plan":"pro"}'
 ```
 
 **Expected:** `401`
 **Expected body:** `{"ok":false,"error":"Unauthorized"}`
 
-**Code path:** `api/set-plan.js` lines 31–33 — `secret !== setPlanSecret` triggers 401 before any Clerk call is made.
+**Code path:** `api/set-plan.js` — `token !== setPlanSecret` triggers 401 before any Clerk call is made.
 
 ---
 
-## 2. Missing secret → 401
+## 2. Missing Authorization header → 401
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
@@ -37,7 +38,7 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 **Expected:** `401`
 **Expected body:** `{"ok":false,"error":"Unauthorized"}`
 
-**Code path:** `!secret` is truthy, same branch as wrong secret.
+**Code path:** `!token` is truthy (empty string from missing header), same branch as wrong secret.
 
 ---
 
@@ -46,13 +47,14 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 ```bash
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
-  -d "{\"plan\":\"pro\",\"secret\":\"$SECRET\"}"
+  -H "Authorization: Bearer $SECRET" \
+  -d '{"plan":"pro"}'
 ```
 
 **Expected:** `400`
 **Expected body:** `{"ok":false,"error":"Missing or invalid userId"}`
 
-**Code path:** `api/set-plan.js` lines 35–37 — `!userId` check.
+**Code path:** `api/set-plan.js` — `!userId` check.
 
 ---
 
@@ -61,13 +63,14 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 ```bash
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
-  -d "{\"userId\":\"user_abc\",\"plan\":\"enterprise\",\"secret\":\"$SECRET\"}"
+  -H "Authorization: Bearer $SECRET" \
+  -d '{"userId":"user_abc","plan":"enterprise"}'
 ```
 
 **Expected:** `400`
 **Expected body:** `{"ok":false,"error":"Invalid plan. Must be one of: free, starter, pro"}`
 
-**Code path:** `api/set-plan.js` lines 39–44 — `!VALID_PLANS.includes(plan)` check.
+**Code path:** `api/set-plan.js` — `!VALID_PLANS.includes(plan)` check.
 
 ---
 
@@ -76,13 +79,14 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 ```bash
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
   -d 'NOT_JSON'
 ```
 
 **Expected:** `400`
 **Expected body:** `{"ok":false,"error":"Invalid JSON body"}`
 
-**Code path:** `api/set-plan.js` lines 23–27 — JSON.parse catch block.
+**Code path:** `api/set-plan.js` — JSON.parse catch block.
 
 ---
 
@@ -95,7 +99,7 @@ curl -s -o /dev/null -w "%{http_code}" -X GET "$BASE_URL/api/set-plan"
 **Expected:** `405`
 **Expected body:** `{"ok":false,"error":"Method not allowed"}`
 
-**Code path:** `api/set-plan.js` lines 10–12 — method check.
+**Code path:** `api/set-plan.js` — method check.
 
 ---
 
@@ -106,13 +110,14 @@ curl -s -o /dev/null -w "%{http_code}" -X GET "$BASE_URL/api/set-plan"
 ```bash
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
-  -d '{"userId":"user_abc","plan":"pro","secret":"anything"}'
+  -H "Authorization: Bearer anything" \
+  -d '{"userId":"user_abc","plan":"pro"}'
 ```
 
 **Expected:** `500`
 **Expected body:** `{"ok":false,"error":"Server misconfiguration"}`
 
-**Code path:** `api/set-plan.js` lines 17–20 — env var guard. This is NOT a silent pass-through; the endpoint refuses to process any request when the secret is absent.
+**Code path:** `api/set-plan.js` — env var guard. This is NOT a silent pass-through; the endpoint refuses to process any request when the secret is absent.
 
 > Restore the env var and redeploy after confirming.
 
@@ -123,13 +128,14 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 ```bash
 curl -s -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
-  -d "{\"userId\":\"user_DOESNOTEXIST999\",\"plan\":\"pro\",\"secret\":\"$SECRET\"}"
+  -H "Authorization: Bearer $SECRET" \
+  -d '{"userId":"user_DOESNOTEXIST999","plan":"pro"}'
 ```
 
 **Expected:** `502`
 **Expected body:** Contains Clerk's own error message (e.g. `"Could not find user"` or similar). The response is never `{"ok":true}`.
 
-**Code path:** `api/set-plan.js` lines 63–71 — Clerk returns HTTP 404 for an unknown user; the endpoint reads Clerk's error text and returns 502 so the caller knows the operation failed.
+**Code path:** `api/set-plan.js` — Clerk returns HTTP 404 for an unknown user; the endpoint reads Clerk's error text and returns 502 so the caller knows the operation failed.
 
 ---
 
@@ -138,7 +144,8 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 ```bash
 curl -s -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
-  -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\",\"secret\":\"$SECRET\"}"
+  -H "Authorization: Bearer $SECRET" \
+  -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\"}"
 ```
 
 **Expected:** `200`
@@ -154,17 +161,23 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 |---|---|
 | Secret missing → silent pass-through | ✅ Impossible — 500 returned |
 | Secret compared before any work is done | ✅ Yes, auth check runs before Clerk call |
-| Secret stored in request body (not header) | ⚠️ Acceptable for server-to-server; ensure Vercel function logs are not public |
+| Secret in request body (visible in body-level logs) | ✅ Fixed — secret is now in `Authorization: Bearer` header, out of body logs |
 | Plain string `!==` comparison (not constant-time) | ⚠️ Timing attack risk is negligible for an internal webhook endpoint with no retry budget, but noted |
 | CORS allowlist | ✅ Only allows `mockupscripter.com`, `*.vercel.app`, `*.replit.dev` — Stripe's server-side calls are not CORS-gated (CORS only applies to browsers) |
 | Clerk userId path-traversal | ✅ `encodeURIComponent` applied before constructing the Clerk URL |
+
+**Callers** must send the secret as:
+```
+Authorization: Bearer <SET_PLAN_SECRET>
+```
+The request body should contain only `userId` and `plan` — no `secret` field.
 
 ---
 
 ## Checklist summary
 
 - [ ] Case 1 — wrong secret → 401
-- [ ] Case 2 — missing secret → 401
+- [ ] Case 2 — missing Authorization header → 401
 - [ ] Case 3 — missing userId → 400
 - [ ] Case 4 — invalid plan → 400
 - [ ] Case 5 — malformed JSON → 400
