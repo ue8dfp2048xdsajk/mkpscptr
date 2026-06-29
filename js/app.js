@@ -9058,6 +9058,8 @@ async function _startCheckout(plan, period) {
                 alert(data.error || 'You\u2019re already subscribed to this plan \u2014 no charge has been made.');
             } else if (data.code === 'CLERK_UNREACHABLE') {
                 alert('We couldn\u2019t verify your current plan \u2014 please refresh and try again.');
+            } else if (data.code === 'CLERK_ERROR') {
+                alert(data.error || 'We couldn\u2019t verify your current plan \u2014 please try again.');
             } else {
                 alert('Could not start checkout \u2014 please try again.');
             }

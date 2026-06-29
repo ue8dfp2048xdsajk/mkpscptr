@@ -70,6 +70,12 @@ module.exports = async function handler(req, res) {
                     error: `You already have the ${currentPlan} plan. No charge has been made.`,
                 });
             }
+        } else {
+            return res.status(502).json({
+                ok: false,
+                code: 'CLERK_ERROR',
+                error: `Could not verify your current plan (Clerk returned ${clerkRes.status}). Please try again.`,
+            });
         }
     }
 
