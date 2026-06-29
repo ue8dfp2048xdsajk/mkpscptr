@@ -2,9 +2,35 @@
 
     var currentPeriod = 'monthly';
 
-    function openPlansModal() {
+    function openPlansModal(opts) {
         var modal = document.getElementById('plansModal');
         if (!modal) return;
+
+        var notice   = document.getElementById('plansModalNotice');
+        var noticeTxt = document.getElementById('plansModalNoticeText');
+        var skipBtn  = document.getElementById('plansModalSkipBtn');
+
+        if (opts && opts.context && notice && noticeTxt) {
+            noticeTxt.textContent = opts.context;
+            notice.style.display = 'block';
+        } else if (notice) {
+            notice.style.display = 'none';
+        }
+
+        if (skipBtn) {
+            if (opts && typeof opts.onSkip === 'function') {
+                skipBtn.style.display = 'inline-block';
+                var newSkip = skipBtn.cloneNode(true);
+                skipBtn.parentNode.replaceChild(newSkip, skipBtn);
+                newSkip.addEventListener('click', function () {
+                    closePlansModal();
+                    opts.onSkip();
+                });
+            } else {
+                skipBtn.style.display = 'none';
+            }
+        }
+
         _syncPlanButtons();
         modal.classList.add('ms-plans-overlay--open');
         document.body.style.overflow = 'hidden';

@@ -6497,62 +6497,16 @@ async function exportDataToBlob(data, fmt, quality){
         qualVal.textContent = qualSlider.value + '%';
     });
 
-    // Run export
-    goBtn.addEventListener('click', async () => {
-        if(clipEditMode){ showClipModeNotice(); return; }
+    // Run the actual file export for a pre-computed list of window indices.
+    // Caller is responsible for filtering out any PRO-blocked windows beforehand.
+    async function _runExportWithIndices(indices) {
+        const ext = _exportFormat === 'jpeg' ? 'jpg' : 'png';
 
-        // Unauthenticated users must sign in before exporting
-        if (window.Clerk && !window.Clerk.user) {
-            sessionStorage.setItem('ms_redirect_after_auth', 'export');
-            await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
-            window.Clerk.openSignIn();
-            return;
-        }
-
-        // FREE users cannot export — open plans modal
-        if(_userPlan === 'free'){
-            if(typeof openPlansModal === 'function') openPlansModal();
-            return;
-        }
-
-        // STARTER users cannot export windows that use PRO features
-        if(_userPlan === 'starter'){
-            const scopeBtn2 = document.querySelector('#exportScopeToggle .seg-active');
-            const scope2    = scopeBtn2 ? scopeBtn2.dataset.val : 'selected';
-            const checkIndices = scope2 === 'all'
-                ? canvasData.map((_, i) => i)
-                : [...activeIndices];
-            const blocked = checkIndices.filter(i => canvasData[i]?.hasProEffect);
-            if(blocked.length){
-                const ok = confirm(
-                    blocked.length + ' window(s) use PRO-only features (⭐) and will be skipped.\n\n' +
-                    'Continue exporting the remaining windows?'
-                );
-                if(!ok) return;
-                // Remove starred windows from the export scope — handled below
-            }
-        }
-
-        const scopeBtn = document.querySelector('#exportScopeToggle .seg-active');
-        const scope    = scopeBtn ? scopeBtn.dataset.val : 'selected';
-        const ext      = _exportFormat === 'jpeg' ? 'jpg' : 'png';
-
-        let indices;
-        if(scope === 'all'){
-            indices = canvasData.map((_, i) => i);
-        } else {
-            if(!activeIndices.length){
-                alert('Select at least one window before exporting.');
-                return;
-            }
-            indices = [...activeIndices];
-        }
-
-        // STARTER: skip PRO-starred windows (user already confirmed above)
+        // Safety net: Starter plan — silently drop any PRO windows that slipped through
         if(_userPlan === 'starter'){
             indices = indices.filter(i => !canvasData[i]?.hasProEffect);
             if(!indices.length){
-                alert('All selected windows use PRO features. Upgrade to PRO to export them.');
+                alert('All selected windows use PRO-only features. Upgrade to PRO to export them.');
                 return;
             }
         }
@@ -6630,6 +6584,60 @@ async function exportDataToBlob(data, fmt, quality){
             goBtn.textContent = 'Export';
             goBtn.disabled = false;
         }
+    }
+
+    goBtn.addEventListener('click', async () => {
+        if(clipEditMode){ showClipModeNotice(); return; }
+
+        // Unauthenticated users must sign in before exporting
+        if (window.Clerk && !window.Clerk.user) {
+            sessionStorage.setItem('ms_redirect_after_auth', 'export');
+            await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
+            window.Clerk.openSignIn();
+            return;
+        }
+
+        // FREE users cannot export — open plans modal
+        if(_userPlan === 'free'){
+            if(typeof openPlansModal === 'function') openPlansModal();
+            return;
+        }
+
+        // Determine export scope
+        const scopeBtn = document.querySelector('#exportScopeToggle .seg-active');
+        const scope    = scopeBtn ? scopeBtn.dataset.val : 'selected';
+
+        let indices;
+        if(scope === 'all'){
+            indices = canvasData.map((_, i) => i);
+        } else {
+            if(!activeIndices.length){
+                alert('Select at least one window before exporting.');
+                return;
+            }
+            indices = [...activeIndices];
+        }
+
+        // STARTER users: show plans modal for PRO-effect windows with option to skip them
+        if(_userPlan === 'starter'){
+            const blocked    = indices.filter(i => canvasData[i]?.hasProEffect);
+            if(blocked.length){
+                const blockedSet = new Set(blocked);
+                const n = blocked.length;
+                const msg = n + ' window' + (n > 1 ? 's' : '') + ' you\'re trying to export ' +
+                    (n > 1 ? 'use' : 'uses') + ' PRO-only effects (\u2b50). ' +
+                    'Upgrade to export them, or skip those windows and continue with the rest.';
+                if(typeof openPlansModal === 'function'){
+                    openPlansModal({
+                        context: msg,
+                        onSkip: () => _runExportWithIndices(indices.filter(i => !blockedSet.has(i)))
+                    });
+                }
+                return;
+            }
+        }
+
+        await _runExportWithIndices(indices);
     });
 })();
 
