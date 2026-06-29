@@ -11,7 +11,7 @@ const USE_REDIS = Boolean(REDIS_URL && REDIS_TOKEN);
 // --- PostgreSQL ---
 const USE_PG = Boolean(process.env.DATABASE_URL);
 let _pool = null;
-let _pgReady = false;
+let _schemaPromise = null;
 
 function getPool() {
     if (!_pool) {
@@ -20,18 +20,20 @@ function getPool() {
     return _pool;
 }
 
-async function ensureSchema() {
-    if (_pgReady) return;
-    const pool = getPool();
-    await pool.query(`
+function ensureSchema() {
+    if (_schemaPromise) return _schemaPromise;
+    _schemaPromise = getPool().query(`
         CREATE TABLE IF NOT EXISTS rate_limit (
             ip          TEXT    PRIMARY KEY,
             failures    INTEGER NOT NULL DEFAULT 0,
             window_start BIGINT  NOT NULL,
             updated_at  BIGINT  NOT NULL
         )
-    `);
-    _pgReady = true;
+    `).catch(err => {
+        _schemaPromise = null;
+        throw err;
+    });
+    return _schemaPromise;
 }
 
 // --- In-memory fallback ---
