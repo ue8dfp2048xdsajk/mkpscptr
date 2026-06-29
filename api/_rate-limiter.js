@@ -37,6 +37,14 @@ async function ensureSchema() {
 // --- In-memory fallback ---
 const failureStore = new Map();
 
+if (!USE_REDIS && !USE_PG) {
+    console.warn(
+        'rate-limiter: No persistent backend configured (UPSTASH_REDIS_REST_URL/TOKEN and DATABASE_URL are all unset). ' +
+        'Rate-limit counters are stored in process memory only — they will not be shared across serverless instances ' +
+        'and will reset on every cold start. Configure Redis or PostgreSQL for reliable rate limiting in production.'
+    );
+}
+
 function makeKey(ip) {
     return `ratelimit:${ip}`;
 }
