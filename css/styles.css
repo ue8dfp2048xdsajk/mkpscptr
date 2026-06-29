@@ -1537,6 +1537,9 @@ body.sidebar-expanded #contextPanelBody {
     white-space: nowrap;
     text-transform: uppercase;
 }
+.pro-badge--green {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
 
 /* ⭐ PRO pill badge on canvas wrappers that use PRO features */
 .pro-star-badge {

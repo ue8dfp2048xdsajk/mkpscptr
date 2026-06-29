@@ -150,6 +150,11 @@ function _recomputeProEffect(data) {
 // Refresh all star badges (called when _userPlan changes in Phase 7)
 function _refreshAllProStarBadges() {
     canvasData.forEach(function(d) { _updateProStarBadge(d); });
+    // Sidebar PRO labels: green for Pro users, yellow for everyone else
+    var isPro = _userPlan === 'pro';
+    document.querySelectorAll('.pro-badge').forEach(function(el) {
+        el.classList.toggle('pro-badge--green', isPro);
+    });
 }
 
 // Show the top upgrade prompt bar (once per session, dismissible)
