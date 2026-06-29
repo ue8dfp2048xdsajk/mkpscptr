@@ -17,13 +17,14 @@ REAL_USER_ID=<a real Clerk userId from your dashboard>
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer WRONG_SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
   -d '{"userId":"user_abc","plan":"pro"}'
 ```
 
 **Expected:** `401`
 **Expected body:** `{"ok":false,"error":"Unauthorized"}`
 
-**Code path:** `api/set-plan.js` — `token !== setPlanSecret` triggers 401 before any Clerk call is made.
+**Code path:** `api/set-plan.js` — `token !== setPlanSecret` triggers 401 before any Clerk call is made. `X-Timestamp` is required to get past the timestamp gate before auth is checked.
 
 ---
 
@@ -32,13 +33,14 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 ```bash
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
+  -H "X-Timestamp: $(date +%s)" \
   -d '{"userId":"user_abc","plan":"pro"}'
 ```
 
 **Expected:** `401`
 **Expected body:** `{"ok":false,"error":"Unauthorized"}`
 
-**Code path:** `!token` is truthy (empty string from missing header), same branch as wrong secret.
+**Code path:** `!token` is truthy (empty string from missing header), same branch as wrong secret. `X-Timestamp` is required to get past the timestamp gate before auth is checked.
 
 ---
 
@@ -48,13 +50,15 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
+  -H "X-Nonce: $(openssl rand -hex 16)" \
   -d '{"plan":"pro"}'
 ```
 
 **Expected:** `400`
 **Expected body:** `{"ok":false,"error":"Missing or invalid userId"}`
 
-**Code path:** `api/set-plan.js` — `!userId` check.
+**Code path:** `api/set-plan.js` — `!userId` check. `X-Timestamp` and `X-Nonce` are required to pass the timestamp and nonce gates before body validation runs.
 
 ---
 
@@ -64,13 +68,15 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
+  -H "X-Nonce: $(openssl rand -hex 16)" \
   -d '{"userId":"user_abc","plan":"enterprise"}'
 ```
 
 **Expected:** `400`
 **Expected body:** `{"ok":false,"error":"Invalid plan. Must be one of: free, starter, pro"}`
 
-**Code path:** `api/set-plan.js` — `!VALID_PLANS.includes(plan)` check.
+**Code path:** `api/set-plan.js` — `!VALID_PLANS.includes(plan)` check. `X-Timestamp` and `X-Nonce` are required to pass the timestamp and nonce gates before body validation runs.
 
 ---
 
@@ -80,13 +86,14 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
   -d 'NOT_JSON'
 ```
 
 **Expected:** `400`
 **Expected body:** `{"ok":false,"error":"Invalid JSON body"}`
 
-**Code path:** `api/set-plan.js` — JSON.parse catch block.
+**Code path:** `api/set-plan.js` — JSON.parse catch block. JSON parsing runs before the auth and nonce checks, so only `X-Timestamp` is needed to reach it.
 
 ---
 
@@ -111,6 +118,7 @@ curl -s -o /dev/null -w "%{http_code}" -X GET "$BASE_URL/api/set-plan"
 curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer anything" \
+  -H "X-Timestamp: $(date +%s)" \
   -d '{"userId":"user_abc","plan":"pro"}'
 ```
 
@@ -129,13 +137,15 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/set-plan" \
 curl -s -X POST "$BASE_URL/api/set-plan" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
+  -H "X-Nonce: $(openssl rand -hex 16)" \
   -d '{"userId":"user_DOESNOTEXIST999","plan":"pro"}'
 ```
 
 **Expected:** `502`
 **Expected body:** Contains Clerk's own error message (e.g. `"Could not find user"` or similar). The response is never `{"ok":true}`.
 
-**Code path:** `api/set-plan.js` — Clerk returns HTTP 404 for an unknown user; the endpoint reads Clerk's error text and returns 502 so the caller knows the operation failed.
+**Code path:** `api/set-plan.js` — Clerk returns HTTP 404 for an unknown user; the endpoint reads Clerk's error text and returns 502 so the caller knows the operation failed. `X-Timestamp` and `X-Nonce` are required to reach the Clerk API call.
 
 ---
 
