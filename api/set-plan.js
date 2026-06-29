@@ -1,6 +1,6 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
 const { isRateLimited, recordFailure, clearFailures } = require('./_rate-limiter');
-const { isNonceSeen, recordNonce } = require('./_nonce-store');
+const { isNonceSeen, recordNonce, deleteNonce } = require('./_nonce-store');
 
 const VALID_PLANS = ['free', 'starter', 'pro'];
 
@@ -107,6 +107,9 @@ module.exports = async function handler(req, res) {
         });
     } catch (err) {
         console.error('set-plan: Clerk API fetch error', err);
+        try { await deleteNonce(nonce); } catch (delErr) {
+            console.error('set-plan: failed to delete nonce after Clerk fetch error', delErr);
+        }
         return res.status(502).json({ ok: false, error: 'Failed to reach Clerk API' });
     }
 
@@ -117,6 +120,9 @@ module.exports = async function handler(req, res) {
             clerkError = clerkBody?.errors?.[0]?.message || clerkError;
         } catch {}
         console.error('set-plan: Clerk returned', clerkRes.status, clerkError);
+        try { await deleteNonce(nonce); } catch (delErr) {
+            console.error('set-plan: failed to delete nonce after Clerk error response', delErr);
+        }
         return res.status(502).json({ ok: false, error: clerkError });
     }
 

@@ -37,6 +37,14 @@ async function redisExists(key) {
     return json.result === 1;
 }
 
+async function redisDel(key) {
+    const res = await fetch(`${REDIS_URL}/del/${encodeURIComponent(key)}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+    });
+    if (!res.ok) throw new Error(`Upstash DEL error: ${res.status}`);
+}
+
 // --- In-memory fallback ---
 const seen = new Map();
 
@@ -83,4 +91,16 @@ async function recordNonce(nonce) {
     seen.set(nonce, now + NONCE_TTL_SECONDS * 1000);
 }
 
-module.exports = { isNonceSeen, recordNonce };
+async function deleteNonce(nonce) {
+    if (USE_REDIS) {
+        try {
+            await redisDel(makeKey(nonce));
+            return;
+        } catch (err) {
+            console.error('nonce-store: Redis DEL failed, falling back to in-memory delete:', err.message);
+        }
+    }
+    seen.delete(nonce);
+}
+
+module.exports = { isNonceSeen, recordNonce, deleteNonce };
