@@ -26,6 +26,9 @@ const REQUIRED = [
         description: 'Clerk secret key (sk_live_... / sk_test_...). ' +
             'Missing → /api/set-plan cannot update user metadata.',
     },
+];
+
+const OPTIONAL = [
     {
         name: 'UPSTASH_REDIS_REST_URL',
         description: 'Upstash Redis REST URL for the nonce store. ' +
@@ -38,8 +41,6 @@ const REQUIRED = [
             'Missing → nonce store falls back to in-memory, replay protection resets on cold starts.',
     },
 ];
-
-const OPTIONAL = [];
 
 let missing = 0;
 
