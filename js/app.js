@@ -1346,7 +1346,27 @@ document.getElementById('bgCropResetBtn').addEventListener('click', () => {
         _applyBgAdjust(d);
         _updateCropOverlay(d);
         _recomputeProEffect(d);
+        // Restore design positions captured when Attach Design was checked
+        if(d._attachDesignSnapshot) {
+            d._attachDesignSnapshot.forEach(snap => {
+                snap.ref.set({
+                    left: snap.left, top: snap.top,
+                    scaleX: snap.scaleX, scaleY: snap.scaleY,
+                    angle: snap.angle,
+                });
+                snap.ref.setCoords();
+            });
+            d._attachDesignSnapshot = null;
+            if(d.patternMode) _renderPattern(d, false);
+            d.fabricCanvas.requestRenderAll();
+        }
     });
+    // Uncheck the Attach Design checkbox and clear its internal state
+    const attachChk = document.getElementById('bgCropAttachDesign');
+    if(attachChk && attachChk.checked) {
+        attachChk.checked = false;
+        attachChk.dispatchEvent(new Event('change'));
+    }
     document.querySelectorAll('.bg-aspect-btn').forEach(b => {
         b.classList.toggle('active', parseFloat(b.dataset.aspect) === 0);
     });

@@ -163,6 +163,26 @@ function _updateBgAdjust(){
 let _bgCropAttachDesign = false;
 document.getElementById('bgCropAttachDesign').addEventListener('change', e => {
     _bgCropAttachDesign = e.target.checked;
+    if (_bgCropAttachDesign) {
+        // Snapshot design positions so Reset can restore them
+        activeIndices.forEach(i => {
+            const d = canvasData[i];
+            if (!d || d.locked) return;
+            const allObjs = [d.designObject, ...(d.extraDesignObjects || [])].filter(Boolean);
+            d._attachDesignSnapshot = allObjs.map(obj => ({
+                ref: obj,
+                left: obj.left, top: obj.top,
+                scaleX: obj.scaleX, scaleY: obj.scaleY,
+                angle: obj.angle || 0,
+            }));
+        });
+    } else {
+        // Clear snapshots when detaching
+        activeIndices.forEach(i => {
+            const d = canvasData[i];
+            if (d) d._attachDesignSnapshot = null;
+        });
+    }
 });
 
 function _updateBgCrop(){
