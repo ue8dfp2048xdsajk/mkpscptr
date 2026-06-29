@@ -38,6 +38,7 @@
 
     function _onClerkSignedOut() {
         window._userPlan = 'free';
+        sessionStorage.removeItem('ms_upgrade_toast_shown');
         if (typeof _refreshAllProStarBadges === 'function') _refreshAllProStarBadges();
         _renderSignInButton();
     }
