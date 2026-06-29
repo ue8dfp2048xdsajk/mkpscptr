@@ -69,6 +69,7 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
         const configured = {
             STRIPE_WEBHOOK_SECRET: Boolean(webhookSecret && webhookSecret.startsWith('whsec_')),
+            STRIPE_SECRET_KEY: Boolean(process.env.STRIPE_SECRET_KEY),
             SET_PLAN_SECRET: Boolean(setPlanSecret),
             BASE_URL: Boolean(baseUrl),
         };
