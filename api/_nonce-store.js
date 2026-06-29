@@ -11,14 +11,15 @@ function pruneExpired() {
 
 async function isNonceSeen(nonce) {
     pruneExpired();
-    const now = Date.now();
-    if (seen.has(nonce)) return true;
-    seen.set(nonce, now + NONCE_TTL_MS);
-    return false;
+    return seen.has(nonce);
 }
 
-async function recordNonce(_nonce) {
-    // no-op: isNonceSeen handles recording atomically
+async function recordNonce(nonce) {
+    const now = Date.now();
+    if (seen.has(nonce)) {
+        throw new Error('Duplicate nonce — already recorded');
+    }
+    seen.set(nonce, now + NONCE_TTL_MS);
 }
 
 module.exports = { isNonceSeen, recordNonce };

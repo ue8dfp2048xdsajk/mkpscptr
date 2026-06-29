@@ -75,7 +75,12 @@ module.exports = async function handler(req, res) {
     if (await isNonceSeen(nonce)) {
         return res.status(400).json({ ok: false, error: 'Duplicate nonce — request already processed' });
     }
-    await recordNonce(nonce);
+    try {
+        await recordNonce(nonce);
+    } catch (err) {
+        console.error('set-plan: failed to record nonce', err);
+        return res.status(500).json({ ok: false, error: 'Failed to record nonce; request not processed' });
+    }
 
     if (!userId || typeof userId !== 'string') {
         return res.status(400).json({ ok: false, error: 'Missing or invalid userId' });
