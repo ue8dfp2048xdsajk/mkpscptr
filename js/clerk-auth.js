@@ -166,13 +166,20 @@
                 window.location.hash;
             history.replaceState(null, '', cleanUrl);
 
-            localStorage.setItem(PAYMENT_PENDING_KEY, '1');
+            var currentUserId = window.Clerk && window.Clerk.user && window.Clerk.user.id;
+            localStorage.setItem(PAYMENT_PENDING_KEY, currentUserId || '1');
         }
 
-        var hasPendingPayment = localStorage.getItem(PAYMENT_PENDING_KEY);
-        if (!isDirectReturn && !hasPendingPayment) return;
+        var storedValue = localStorage.getItem(PAYMENT_PENDING_KEY);
+        if (!isDirectReturn && !storedValue) return;
 
         if (!window.Clerk || !window.Clerk.user) return;
+
+        var pendingUserId = storedValue !== '1' ? storedValue : null;
+        if (pendingUserId && pendingUserId !== window.Clerk.user.id) {
+            localStorage.removeItem(PAYMENT_PENDING_KEY);
+            return;
+        }
 
         _showActivatingBanner();
 
