@@ -31,9 +31,11 @@
             }
         }
 
-        _syncPlanButtons();
         modal.classList.add('ms-plans-overlay--open');
         document.body.style.overflow = 'hidden';
+        _fetchConfiguredPrices().then(function (prices) {
+            _syncPlanButtons(prices);
+        });
     }
 
     function closePlansModal() {
@@ -65,11 +67,31 @@
         document.querySelectorAll('.ms-plan-cta[data-plan]').forEach(function (btn) {
             btn.dataset.period = period;
         });
+
+        _syncPlanButtons(_configuredPrices || {});
     }
 
-    function _syncPlanButtons() {
+    var _configuredPrices = null;
+
+    function _fetchConfiguredPrices() {
+        if (_configuredPrices !== null) return Promise.resolve(_configuredPrices);
+        var base = (typeof API_BASE !== 'undefined' ? API_BASE : '').replace(/\/$/, '');
+        return fetch(base + '/api/config-check')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                _configuredPrices = (data && data.prices) ? data.prices : {};
+                return _configuredPrices;
+            })
+            .catch(function () {
+                _configuredPrices = {};
+                return _configuredPrices;
+            });
+    }
+
+    function _syncPlanButtons(prices) {
         var plan = (window._userPlan || 'free').toLowerCase();
         var rank = { free: 0, starter: 1, pro: 2 };
+        prices = prices || _configuredPrices || {};
 
         document.querySelectorAll('.ms-plan-card').forEach(function (card) {
             var btn = card.querySelector('.ms-plan-cta');
@@ -86,6 +108,15 @@
             if ((rank[plan] || 0) >= (rank[cardPlan] || 0) && plan !== 'free') {
                 btn.textContent = plan === cardPlan ? 'Current plan' : 'Current plan';
                 btn.disabled = true;
+                btn.className = 'ms-plan-cta ms-plan-cta--current';
+                return;
+            }
+
+            var combo = cardPlan + '_' + currentPeriod;
+            var priceAvailable = Object.keys(prices).length === 0 || prices[combo] !== false;
+            if (!priceAvailable) {
+                btn.disabled = true;
+                btn.textContent = 'Not available';
                 btn.className = 'ms-plan-cta ms-plan-cta--current';
             } else {
                 btn.disabled = false;
