@@ -75,8 +75,19 @@ async function redisDel(key) {
 
 // --- PostgreSQL helpers ---
 
+async function pgPruneExpired() {
+    try {
+        const pool = getPool();
+        const cutoff = Date.now() - WINDOW_SECONDS * 1000;
+        await pool.query('DELETE FROM rate_limit WHERE window_start < $1', [cutoff]);
+    } catch (err) {
+        console.error('rate-limiter: PG prune failed:', err.message);
+    }
+}
+
 async function pgIsRateLimited(ip) {
     await ensureSchema();
+    if (Math.random() < 0.05) pgPruneExpired();
     const pool = getPool();
     const now = Date.now();
     const windowCutoff = now - WINDOW_SECONDS * 1000;
