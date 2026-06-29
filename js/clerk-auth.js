@@ -53,6 +53,7 @@
         btn.textContent = 'Sign In';
         btn.addEventListener('click', function () {
             sessionStorage.setItem('ms_redirect_after_auth', 'home');
+            try { localStorage.setItem('mockup_autosave', JSON.stringify(buildFullSnapshot())); } catch(e){}
             window.Clerk.openSignIn();
         });
         container.appendChild(btn);

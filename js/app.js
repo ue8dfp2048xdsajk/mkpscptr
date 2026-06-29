@@ -6498,6 +6498,7 @@ async function exportDataToBlob(data, fmt, quality){
         // Unauthenticated users must sign in before exporting
         if (window.Clerk && !window.Clerk.user) {
             sessionStorage.setItem('ms_redirect_after_auth', 'export');
+            try { localStorage.setItem('mockup_autosave', JSON.stringify(buildFullSnapshot())); } catch(e){}
             window.Clerk.openSignIn();
             return;
         }
@@ -7026,6 +7027,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
 
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'save');
+        try { localStorage.setItem('mockup_autosave', JSON.stringify(buildFullSnapshot())); } catch(e){}
         window.Clerk.openSignIn();
         return;
     }
@@ -8659,6 +8661,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 document.getElementById('exportTextBtn').addEventListener('click', () => {
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'export');
+        try { localStorage.setItem('mockup_autosave', JSON.stringify(buildFullSnapshot())); } catch(e){}
         window.Clerk.openSignIn();
         return;
     }
@@ -8986,6 +8989,7 @@ document.getElementById('canvasContainer').addEventListener('input', e => {
 async function _startCheckout(plan, period) {
     if (!window.Clerk || !window.Clerk.user) {
         sessionStorage.setItem('ms_redirect_after_auth', 'home');
+        try { localStorage.setItem('mockup_autosave', JSON.stringify(buildFullSnapshot())); } catch(e){}
         window.Clerk && window.Clerk.openSignIn();
         return;
     }
