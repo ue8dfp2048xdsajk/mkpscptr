@@ -8647,6 +8647,11 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
 // ── Export canvas text ────────────────────────────────────────────────────────
 document.getElementById('exportTextBtn').addEventListener('click', () => {
+    if(window.Clerk && !window.Clerk.user){
+        sessionStorage.setItem('ms_redirect_after_auth', 'export');
+        window.Clerk.openSignIn();
+        return;
+    }
     if(_userPlan === 'free'){
         if(typeof openPlansModal === 'function') openPlansModal();
         return;
