@@ -221,7 +221,118 @@ describe('Rate limiter — Redis errors fall back to in-memory gracefully', () =
 });
 
 // ---------------------------------------------------------------------------
-// 4. Integration: set-plan.js handler + rate limiter (end-to-end via real modules)
+// 4. PostgreSQL path (mocked pg Pool, no Redis)
+// ---------------------------------------------------------------------------
+
+describe('Rate limiter — PostgreSQL path (mocked pg Pool)', () => {
+    let rl;
+    let mockQuery;
+
+    beforeEach(() => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.DATABASE_URL = 'postgres://mock/db';
+
+        mockQuery = jest.fn().mockResolvedValue({ rows: [] });
+
+        jest.resetModules();
+        jest.doMock('pg', () => ({
+            Pool: jest.fn().mockImplementation(() => ({ query: mockQuery })),
+        }));
+
+        rl = require('../api/_rate-limiter');
+    });
+
+    afterEach(() => {
+        delete process.env.DATABASE_URL;
+        jest.clearAllMocks();
+    });
+
+    test('pgIsRateLimited returns false when no row exists for the IP', async () => {
+        // CREATE TABLE → { rows: [] }; SELECT → { rows: [] }
+        expect(await rl.isRateLimited('5.5.5.1')).toBe(false);
+    });
+
+    test('pgIsRateLimited returns false when failures < 5 within the window', async () => {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [] }) // CREATE TABLE
+            .mockResolvedValueOnce({ rows: [{ failures: 4, window_start: Date.now() }] }); // SELECT
+        expect(await rl.isRateLimited('5.5.5.2')).toBe(false);
+    });
+
+    test('pgIsRateLimited returns true when failures >= 5 within the window', async () => {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [] }) // CREATE TABLE
+            .mockResolvedValueOnce({ rows: [{ failures: 5, window_start: Date.now() }] }); // SELECT
+        expect(await rl.isRateLimited('5.5.5.3')).toBe(true);
+    });
+
+    test('pgIsRateLimited returns false when the row is outside the 15-minute window', async () => {
+        const expiredStart = Date.now() - 16 * 60 * 1000; // 16 min ago
+        mockQuery
+            .mockResolvedValueOnce({ rows: [] }) // CREATE TABLE
+            .mockResolvedValueOnce({ rows: [{ failures: 10, window_start: expiredStart }] }); // SELECT
+        expect(await rl.isRateLimited('5.5.5.4')).toBe(false);
+    });
+
+    test('5-failure → block scenario verified via PG path', async () => {
+        // recordFailure x5: call 1 = CREATE TABLE, calls 2-6 = UPSERT (all return { rows: [] })
+        for (let i = 0; i < 5; i++) {
+            await rl.recordFailure('5.5.5.5');
+        }
+        // Now add the SELECT response: _pgReady=true so next query is the SELECT
+        mockQuery.mockResolvedValueOnce({ rows: [{ failures: 5, window_start: Date.now() }] });
+        expect(await rl.isRateLimited('5.5.5.5')).toBe(true);
+    });
+
+    test('pgRecordFailure issues an INSERT … ON CONFLICT upsert', async () => {
+        await rl.recordFailure('5.5.5.6');
+        // Calls: CREATE TABLE, UPSERT
+        expect(mockQuery).toHaveBeenCalledTimes(2);
+        const sqlCalls = mockQuery.mock.calls.map(c => c[0]);
+        expect(sqlCalls.some(q => /INSERT INTO rate_limit/i.test(q))).toBe(true);
+    });
+
+    test('pgClearFailures issues a DELETE query for the IP', async () => {
+        await rl.clearFailures('5.5.5.7');
+        // Calls: CREATE TABLE, DELETE
+        expect(mockQuery).toHaveBeenCalledTimes(2);
+        const sqlCalls = mockQuery.mock.calls.map(c => c[0]);
+        expect(sqlCalls.some(q => /DELETE FROM rate_limit WHERE ip/i.test(q))).toBe(true);
+    });
+
+    test('PG SELECT error in isRateLimited falls back to in-memory (returns false for fresh IP)', async () => {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [] })         // CREATE TABLE
+            .mockRejectedValueOnce(new Error('PG down')); // SELECT throws
+        // Falls back to in-memory which has no record → false
+        expect(await rl.isRateLimited('5.5.5.8')).toBe(false);
+    });
+
+    test('PG UPSERT error in recordFailure falls back to in-memory without throwing', async () => {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [] })         // CREATE TABLE
+            .mockRejectedValueOnce(new Error('PG down')); // UPSERT throws
+        await expect(rl.recordFailure('5.5.5.9')).resolves.toBeUndefined();
+    });
+
+    test('PG errors throughout: in-memory accumulates 5 failures and blocks', async () => {
+        // First query (CREATE TABLE) succeeds; everything after rejects
+        mockQuery
+            .mockResolvedValueOnce({ rows: [] })
+            .mockRejectedValue(new Error('PG down'));
+
+        // Each recordFailure: UPSERT throws → memRecordFailure is called
+        for (let i = 0; i < 5; i++) {
+            await rl.recordFailure('5.5.5.10');
+        }
+        // isRateLimited: SELECT throws → falls back to in-memory which has 5 failures
+        expect(await rl.isRateLimited('5.5.5.10')).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Integration: set-plan.js handler + rate limiter (end-to-end via real modules)
 // ---------------------------------------------------------------------------
 
 describe('set-plan handler — rate limiting integration (in-memory)', () => {
