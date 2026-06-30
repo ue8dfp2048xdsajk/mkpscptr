@@ -152,6 +152,12 @@
                 });
         }
 
+        window._reloadCloudProjects = _loadProjects;
+        window._openCloudProjectsUI = function () {
+            dropdown.classList.add('open');
+            _loadProjects();
+        };
+
         avatar.addEventListener('click', function (e) {
             e.stopPropagation();
             var opening = !dropdown.classList.contains('open');

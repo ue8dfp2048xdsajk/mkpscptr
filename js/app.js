@@ -7296,33 +7296,17 @@ function autoSaveSession(){
 
 // ── Open from cloud (File menu) ───────────────────────────────────────────────
 (()=>{
-    const openCloudBtn   = document.getElementById('openCloudBtn');
-    const openCloudRow   = document.getElementById('openCloudRow');
-    const openCloudInput = document.getElementById('openCloudInput');
-    const openCloudGoBtn = document.getElementById('openCloudGoBtn');
-    if (!openCloudBtn || !openCloudRow) return;
+    const openCloudBtn = document.getElementById('openCloudBtn');
+    if (!openCloudBtn) return;
 
     openCloudBtn.addEventListener('click', e => {
         e.stopPropagation();
-        openCloudRow.hidden = !openCloudRow.hidden;
-        if (!openCloudRow.hidden) openCloudInput && openCloudInput.focus();
+        const filePopover = document.getElementById('fileMenuPopover');
+        if (filePopover) filePopover.hidden = true;
+        if (typeof window._openCloudProjectsUI === 'function') {
+            window._openCloudProjectsUI();
+        }
     });
-
-    if (openCloudGoBtn && openCloudInput) {
-        openCloudGoBtn.addEventListener('click', () => {
-            const uuid = openCloudInput.value.trim();
-            if (!uuid) return;
-            const filePopover = document.getElementById('fileMenuPopover');
-            if (filePopover) filePopover.hidden = true;
-            openCloudRow.hidden = true;
-            openCloudInput.value = '';
-            _loadProjectByUuid(uuid);
-        });
-        openCloudInput.addEventListener('keydown', e => {
-            if (e.key === 'Enter') openCloudGoBtn.click();
-        });
-        openCloudInput.addEventListener('click', e => e.stopPropagation());
-    }
 })();
 
 function _updateSaveNewBtn() {
@@ -7358,6 +7342,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
     if(result.ok){
         _markClean();
         _showSaveToast('Project saved ✓');
+        if (typeof window._reloadCloudProjects === 'function') window._reloadCloudProjects();
     } else if(result.error === 'upgrade_required'){
         if(typeof openPlansModal === 'function') openPlansModal();
     } else {
@@ -7381,6 +7366,7 @@ document.getElementById('saveNewBtn').addEventListener('click', async () => {
     if(result.ok){
         _markClean();
         _showSaveToast('Saved as new project ✓');
+        if (typeof window._reloadCloudProjects === 'function') window._reloadCloudProjects();
     } else {
         _showSaveToast(result.error || 'Save failed — try again', true);
     }
