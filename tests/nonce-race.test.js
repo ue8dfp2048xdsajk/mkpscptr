@@ -21,6 +21,8 @@
 
 'use strict';
 
+const { FAKE_REDIS_URL, FAKE_REDIS_TOKEN, makeRedisFetchMock } = require('./_helpers/upstash-mock');
+
 const SECRET = 'test-secret';
 const SHARED_NONCE = 'race-test-nonce-abc123';
 
@@ -166,74 +168,6 @@ describe('Nonce deduplication — concurrent race', () => {
 // ---------------------------------------------------------------------------
 // Redis-backed nonce store — Upstash REST API mocked via fetch
 // ---------------------------------------------------------------------------
-
-const FAKE_REDIS_URL = 'https://fake-upstash.upstash.io';
-const FAKE_REDIS_TOKEN = 'fake-token-redis';
-
-/**
- * Build a fetch mock that simulates the Upstash REST API.
- *
- * State is kept in a plain JS Set so that SET NX is "atomic" within a single
- * Node event-loop tick (Map/Set operations are synchronous).  The mock
- * returns resolved Promises so that both racing handlers can interleave at
- * each `await` point — reproducing the TOCTOU window that SET NX must close.
- *
- * URL patterns handled:
- *   POST  <REDIS_URL>/set/<key>/1?ex=...&nx=true  → SET NX
- *   GET   <REDIS_URL>/exists/<key>                → EXISTS
- *   POST  <REDIS_URL>/del/<key>                   → DEL
- *   PATCH https://api.clerk.com/...               → Clerk (always ok)
- */
-function makeRedisFetchMock() {
-    const store = new Set(); // tracks keys that have been SET NX'd
-
-    return jest.fn((url, opts = {}) => {
-        // ---- Upstash SET NX ----
-        if (url.startsWith(FAKE_REDIS_URL) && url.includes('/set/') && url.includes('nx=true')) {
-            const keyEncoded = url.split('/set/')[1].split('/')[0];
-            const key = decodeURIComponent(keyEncoded);
-            if (store.has(key)) {
-                // Key already exists — simulate atomic NX rejection
-                return Promise.resolve({
-                    ok: true,
-                    json: async () => ({ result: null }),
-                });
-            }
-            store.add(key);
-            return Promise.resolve({
-                ok: true,
-                json: async () => ({ result: 'OK' }),
-            });
-        }
-
-        // ---- Upstash EXISTS ----
-        if (url.startsWith(FAKE_REDIS_URL) && url.includes('/exists/')) {
-            const keyEncoded = url.split('/exists/')[1].split('?')[0];
-            const key = decodeURIComponent(keyEncoded);
-            return Promise.resolve({
-                ok: true,
-                json: async () => ({ result: store.has(key) ? 1 : 0 }),
-            });
-        }
-
-        // ---- Upstash DEL ----
-        if (url.startsWith(FAKE_REDIS_URL) && url.includes('/del/')) {
-            const keyEncoded = url.split('/del/')[1].split('?')[0];
-            const key = decodeURIComponent(keyEncoded);
-            store.delete(key);
-            return Promise.resolve({
-                ok: true,
-                json: async () => ({ result: 1 }),
-            });
-        }
-
-        // ---- Clerk API (always succeeds) ----
-        return Promise.resolve({
-            ok: true,
-            json: async () => ({}),
-        });
-    });
-}
 
 function loadRedisHandler() {
     jest.resetModules();

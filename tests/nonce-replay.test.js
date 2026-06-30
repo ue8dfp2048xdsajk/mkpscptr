@@ -15,6 +15,8 @@
 
 'use strict';
 
+const { FAKE_REDIS_URL, FAKE_REDIS_TOKEN, makeUpstashFetch } = require('./_helpers/upstash-mock');
+
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
@@ -42,50 +44,6 @@ function makeReqRes({ nonce, plan = 'pro' } = {}) {
     };
 
     return { req, res };
-}
-
-/**
- * Build a stateful Upstash REST fetch mock.
- *
- * Upstash REST URL shapes we care about:
- *   SET NX  → POST  {base}/set/{encodedKey}/1?ex={ttl}&nx=true
- *   EXISTS  → GET   {base}/exists/{encodedKey}
- *
- * The key is always at path-segment index 4 (0-based after the empty string
- * produced by the leading slash):
- *   ['https:', '', 'host', 'set'|'exists', '{encodedKey}', ...]
- *
- * Any other URL (e.g. rate-limiter /get, /del, /incrby) returns {result:null}
- * so the rate-limiter falls back to in-memory without throwing.
- */
-function makeUpstashFetch(seen = new Set()) {
-    return jest.fn(async (url) => {
-        const segments = url.split('/');
-        const op  = segments[3];              // 'set', 'exists', 'del', 'get', …
-        const raw = (segments[4] || '').split('?')[0];
-        const key = decodeURIComponent(raw);
-
-        if (op === 'set') {
-            if (seen.has(key)) {
-                return { ok: true, json: async () => ({ result: null }) };
-            }
-            seen.add(key);
-            return { ok: true, json: async () => ({ result: 'OK' }) };
-        }
-
-        if (op === 'exists') {
-            return { ok: true, json: async () => ({ result: seen.has(key) ? 1 : 0 }) };
-        }
-
-        if (op === 'del') {
-            seen.delete(key);
-            return { ok: true, json: async () => ({ result: 1 }) };
-        }
-
-        // Rate-limiter or any other Redis op — return neutral result so the
-        // caller's error handling falls back to in-memory without crashing.
-        return { ok: true, json: async () => ({ result: null }) };
-    });
 }
 
 // ---------------------------------------------------------------------------
@@ -151,8 +109,8 @@ describe('_nonce-store (Redis path) — unit', () => {
 
     beforeEach(() => {
         jest.resetModules();
-        process.env.UPSTASH_REDIS_REST_URL   = 'https://fake-redis.upstash.io';
-        process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+        process.env.UPSTASH_REDIS_REST_URL   = FAKE_REDIS_URL;
+        process.env.UPSTASH_REDIS_REST_TOKEN = FAKE_REDIS_TOKEN;
 
         global.fetch = makeUpstashFetch();
 
@@ -283,8 +241,8 @@ describe('set-plan handler — duplicate nonce rejected (Redis path)', () => {
 
     beforeEach(() => {
         jest.resetModules();
-        process.env.UPSTASH_REDIS_REST_URL   = 'https://fake-redis.upstash.io';
-        process.env.UPSTASH_REDIS_REST_TOKEN  = 'fake-token';
+        process.env.UPSTASH_REDIS_REST_URL   = FAKE_REDIS_URL;
+        process.env.UPSTASH_REDIS_REST_TOKEN  = FAKE_REDIS_TOKEN;
         delete process.env.DATABASE_URL;
         process.env.CLERK_SECRET_KEY = 'clerk-test-key';
         process.env.SET_PLAN_SECRET  = SECRET;
@@ -300,7 +258,7 @@ describe('set-plan handler — duplicate nonce rejected (Redis path)', () => {
         const upstashFetch = makeUpstashFetch(redisSeen);
 
         global.fetch = jest.fn(async (url, opts) => {
-            if (!url.includes('fake-redis')) {
+            if (!url.startsWith(FAKE_REDIS_URL)) {
                 return { ok: true, json: async () => ({}) };
             }
             return upstashFetch(url, opts);
@@ -653,8 +611,8 @@ describe('set-plan handler — mid-request Redis failure returns 500, not 200', 
 
     beforeEach(() => {
         jest.resetModules();
-        process.env.UPSTASH_REDIS_REST_URL   = 'https://fake-redis.upstash.io';
-        process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+        process.env.UPSTASH_REDIS_REST_URL   = FAKE_REDIS_URL;
+        process.env.UPSTASH_REDIS_REST_TOKEN = FAKE_REDIS_TOKEN;
         delete process.env.DATABASE_URL;
         process.env.CLERK_SECRET_KEY = 'clerk-test-key';
         process.env.SET_PLAN_SECRET  = SECRET;
@@ -678,9 +636,9 @@ describe('set-plan handler — mid-request Redis failure returns 500, not 200', 
     test('returns 500 (not 200) when isNonceSeen succeeds but recordNonce fails mid-flight', async () => {
         // EXISTS succeeds (Redis up); SET NX throws (Redis drops mid-flight).
         global.fetch = jest.fn(async (url) => {
-            if (url.includes('fake-redis') && url.includes('/exists/'))
+            if (url.startsWith(FAKE_REDIS_URL) && url.includes('/exists/'))
                 return { ok: true, json: async () => ({ result: 0 }) };
-            if (url.includes('fake-redis') && url.includes('/set/'))
+            if (url.startsWith(FAKE_REDIS_URL) && url.includes('/set/'))
                 throw new Error('ECONNRESET');
             // Clerk — should never be reached because recordNonce throws first.
             return { ok: true, json: async () => ({}) };
@@ -697,13 +655,13 @@ describe('set-plan handler — mid-request Redis failure returns 500, not 200', 
     test('Clerk is never called when recordNonce fails mid-flight', async () => {
         const clerkCalls = [];
         global.fetch = jest.fn(async (url) => {
-            if (url.includes('fake-redis') && url.includes('/exists/'))
+            if (url.startsWith(FAKE_REDIS_URL) && url.includes('/exists/'))
                 return { ok: true, json: async () => ({ result: 0 }) };
-            if (url.includes('fake-redis') && url.includes('/set/'))
+            if (url.startsWith(FAKE_REDIS_URL) && url.includes('/set/'))
                 throw new Error('ECONNRESET');
             // Other Redis ops (rate-limiter /get, /del, /incrby) — return neutral
             // result so the rate-limiter falls back without crashing.
-            if (url.includes('fake-redis'))
+            if (url.startsWith(FAKE_REDIS_URL))
                 return { ok: true, json: async () => ({ result: null }) };
             // Only non-Redis URLs are Clerk calls.
             clerkCalls.push(url);
@@ -732,7 +690,7 @@ describe('set-plan handler — mid-request Redis failure returns 500, not 200', 
         let redisRecovered = false;
 
         global.fetch = jest.fn(async (url) => {
-            if (url.includes('fake-redis')) {
+            if (url.startsWith(FAKE_REDIS_URL)) {
                 const segments = url.split('/');
                 const op  = segments[3];
                 const raw = (segments[4] || '').split('?')[0];
@@ -795,8 +753,8 @@ describe('set-plan handler — nonce released after Clerk failure (Redis path)',
 
     beforeEach(() => {
         jest.resetModules();
-        process.env.UPSTASH_REDIS_REST_URL   = 'https://fake-redis.upstash.io';
-        process.env.UPSTASH_REDIS_REST_TOKEN  = 'fake-token';
+        process.env.UPSTASH_REDIS_REST_URL   = FAKE_REDIS_URL;
+        process.env.UPSTASH_REDIS_REST_TOKEN  = FAKE_REDIS_TOKEN;
         delete process.env.DATABASE_URL;
         process.env.CLERK_SECRET_KEY = 'clerk-test-key';
         process.env.SET_PLAN_SECRET  = SECRET;
@@ -812,7 +770,7 @@ describe('set-plan handler — nonce released after Clerk failure (Redis path)',
         // clerkCallCount tracks how many times Clerk has been called
         let clerkCallCount = 0;
         global.fetch = jest.fn(async (url, opts) => {
-            if (url.includes('fake-redis')) return upstashFetch(url, opts);
+            if (url.startsWith(FAKE_REDIS_URL)) return upstashFetch(url, opts);
             // Clerk calls — controlled per-test via clerkResponses
             return global.__clerkResponse(clerkCallCount++);
         });
