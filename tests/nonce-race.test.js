@@ -341,3 +341,208 @@ describe('Nonce deduplication — Redis-backed (Upstash SET NX)', () => {
         await expect(store.recordNonce('unit-test-nonce')).rejects.toThrow('Duplicate nonce');
     });
 });
+
+// ---------------------------------------------------------------------------
+// Redis SET NX fails mid-flight — fail-closed guarantees no replay
+//
+// Scenario: Redis is configured (USE_REDIS=true), the EXISTS check succeeds
+// (returns "not seen"), but the subsequent SET NX call throws (Redis goes down
+// mid-flight, after the check but before the write commits).
+//
+// The nonce-store must NOT fall back to in-memory when USE_REDIS=true — it
+// fails closed and returns a 500 so that no nonce is silently committed to a
+// different store.  This means every request carrying the contested nonce is
+// rejected, which is the safe outcome: no replay can succeed.
+// ---------------------------------------------------------------------------
+
+describe('Nonce deduplication — Redis SET NX fails mid-flight (fail-closed, no replay bypass)', () => {
+    afterEach(() => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+        delete process.env.CLERK_SECRET_KEY;
+        delete process.env.SET_PLAN_SECRET;
+        jest.clearAllMocks();
+    });
+
+    function loadHandlerWithFetch(fetchImpl) {
+        jest.resetModules();
+        process.env.UPSTASH_REDIS_REST_URL = FAKE_REDIS_URL;
+        process.env.UPSTASH_REDIS_REST_TOKEN = FAKE_REDIS_TOKEN;
+        delete process.env.DATABASE_URL;
+        process.env.CLERK_SECRET_KEY = 'clerk-test-key';
+        process.env.SET_PLAN_SECRET = SECRET;
+        jest.doMock('../api/_cors', () => ({
+            setCorsHeaders: () => {},
+            handleOptions: () => false,
+        }));
+        global.fetch = fetchImpl;
+        return require('../api/set-plan');
+    }
+
+    test('when EXISTS succeeds but SET NX throws, both requests are blocked (fail-closed)', async () => {
+        // EXISTS always returns "not seen" so both requests pass the duplicate
+        // check; SET NX then throws to simulate Redis failing mid-flight.
+        const fetchMock = jest.fn((url) => {
+            if (url.includes('/exists/')) {
+                return Promise.resolve({ ok: true, json: async () => ({ result: 0 }) });
+            }
+            if (url.includes('/set/') && url.includes('nx=true')) {
+                return Promise.resolve({ ok: false, status: 503 }); // triggers throw in redisSetNx
+            }
+            return Promise.resolve({ ok: true, json: async () => ({}) }); // Clerk (never reached)
+        });
+
+        const handler = loadHandlerWithFetch(fetchMock);
+        const { req: req1, res: res1 } = makeReqRes();
+        const { req: req2, res: res2 } = makeReqRes();
+
+        await Promise.all([handler(req1, res1), handler(req2, res2)]);
+
+        // Fail-closed: neither request succeeds, so the duplicate cannot slip through.
+        expect(res1.statusCode).toBeGreaterThanOrEqual(400);
+        expect(res2.statusCode).toBeGreaterThanOrEqual(400);
+        expect(res1.body.ok).toBe(false);
+        expect(res2.body.ok).toBe(false);
+    });
+
+    test('when both Redis and DB are unavailable (Redis SET NX throws), no request succeeds', async () => {
+        // Both UPSTASH and DATABASE_URL are set, but both fail at runtime.
+        // Since USE_REDIS=true takes precedence, the code fails closed on the
+        // Redis SET NX error and never reaches the PG path.
+        const fetchMock = jest.fn((url) => {
+            if (url.includes('/exists/')) {
+                return Promise.resolve({ ok: true, json: async () => ({ result: 0 }) });
+            }
+            if (url.includes('/set/') && url.includes('nx=true')) {
+                return Promise.reject(new Error('Redis network timeout'));
+            }
+            return Promise.resolve({ ok: true, json: async () => ({}) });
+        });
+
+        jest.resetModules();
+        process.env.UPSTASH_REDIS_REST_URL = FAKE_REDIS_URL;
+        process.env.UPSTASH_REDIS_REST_TOKEN = FAKE_REDIS_TOKEN;
+        // DB is also "configured" but Redis is tried first and fails closed.
+        process.env.DATABASE_URL = 'postgres://fake-host/fakedb';
+        process.env.CLERK_SECRET_KEY = 'clerk-test-key';
+        process.env.SET_PLAN_SECRET = SECRET;
+        jest.doMock('../api/_cors', () => ({
+            setCorsHeaders: () => {},
+            handleOptions: () => false,
+        }));
+        jest.doMock('pg', () => ({
+            Pool: jest.fn().mockImplementation(() => ({
+                query: jest.fn().mockRejectedValue(new Error('PG connection refused')),
+            })),
+        }));
+        global.fetch = fetchMock;
+
+        const handler = require('../api/set-plan');
+        const { req: req1, res: res1 } = makeReqRes();
+        const { req: req2, res: res2 } = makeReqRes();
+
+        await Promise.all([handler(req1, res1), handler(req2, res2)]);
+
+        expect(res1.statusCode).toBeGreaterThanOrEqual(400);
+        expect(res2.statusCode).toBeGreaterThanOrEqual(400);
+        expect(res1.body.ok).toBe(false);
+        expect(res2.body.ok).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// DB unavailable — in-memory fallback blocks duplicate
+//
+// Scenario: no Redis is configured (USE_REDIS=false), PostgreSQL is configured
+// (USE_PG=true) but is unavailable at runtime.  The nonce-store falls back to
+// the in-memory Map for both isNonceSeen and recordNonce.  The first request
+// succeeds and the duplicate is correctly rejected.
+// ---------------------------------------------------------------------------
+
+describe('Nonce deduplication — DB unavailable, in-memory fallback blocks duplicate', () => {
+    afterEach(() => {
+        delete process.env.DATABASE_URL;
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.CLERK_SECRET_KEY;
+        delete process.env.SET_PLAN_SECRET;
+        jest.clearAllMocks();
+    });
+
+    test('when DB is unavailable, in-memory fallback records the nonce and rejects the duplicate', async () => {
+        jest.resetModules();
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.DATABASE_URL = 'postgres://fake-host/fakedb';
+        process.env.CLERK_SECRET_KEY = 'clerk-test-key';
+        process.env.SET_PLAN_SECRET = SECRET;
+
+        jest.doMock('../api/_cors', () => ({
+            setCorsHeaders: () => {},
+            handleOptions: () => false,
+        }));
+        jest.doMock('pg', () => ({
+            Pool: jest.fn().mockImplementation(() => ({
+                query: jest.fn().mockRejectedValue(new Error('connection refused')),
+            })),
+        }));
+
+        // Clerk always succeeds.
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({}),
+        });
+
+        const handler = require('../api/set-plan');
+
+        // First request: PG fails → in-memory records nonce → Clerk succeeds → 200.
+        const { req: req1, res: res1 } = makeReqRes();
+        await handler(req1, res1);
+        expect(res1.statusCode).toBe(200);
+
+        // Second request: same nonce → in-memory fallback sees it → 400 (duplicate blocked).
+        const { req: req2, res: res2 } = makeReqRes();
+        await handler(req2, res2);
+        expect(res2.statusCode).toBeGreaterThanOrEqual(400);
+        expect(res2.body.ok).toBe(false);
+    });
+
+    test('a third sequential request with the same nonce is also rejected by in-memory store', async () => {
+        jest.resetModules();
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        process.env.DATABASE_URL = 'postgres://fake-host/fakedb';
+        process.env.CLERK_SECRET_KEY = 'clerk-test-key';
+        process.env.SET_PLAN_SECRET = SECRET;
+
+        jest.doMock('../api/_cors', () => ({
+            setCorsHeaders: () => {},
+            handleOptions: () => false,
+        }));
+        jest.doMock('pg', () => ({
+            Pool: jest.fn().mockImplementation(() => ({
+                query: jest.fn().mockRejectedValue(new Error('connection refused')),
+            })),
+        }));
+
+        global.fetch = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({}),
+        });
+
+        const handler = require('../api/set-plan');
+
+        const { req: req1, res: res1 } = makeReqRes();
+        await handler(req1, res1);
+        expect(res1.statusCode).toBe(200);
+
+        const { req: req2, res: res2 } = makeReqRes();
+        await handler(req2, res2);
+
+        const { req: req3, res: res3 } = makeReqRes();
+        await handler(req3, res3);
+        expect(res3.statusCode).toBeGreaterThanOrEqual(400);
+        expect(res3.body.ok).toBe(false);
+    });
+});
