@@ -6,9 +6,24 @@ const PORT = 5000;
 
 app.use(express.json({ limit: '50mb' }));
 
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        console.log(`${req.method} ${req.path} → ${res.statusCode} (${Date.now() - start}ms)`);
+    });
+    next();
+});
+
 function apiHandler(handlerPath) {
     const handler = require(handlerPath);
-    return (req, res) => handler(req, res);
+    return async (req, res) => {
+        try {
+            await handler(req, res);
+        } catch (err) {
+            console.error(`[ERROR] ${req.method} ${req.path}:`, err);
+            if (!res.headersSent) res.status(500).json({ ok: false, error: 'Internal server error' });
+        }
+    };
 }
 
 app.all('/api/projects/list',   apiHandler('./api/projects/list'));
