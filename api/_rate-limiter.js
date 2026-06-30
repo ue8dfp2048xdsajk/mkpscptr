@@ -38,10 +38,18 @@ function ensureSchema() {
 
 // --- Local deny cache (survives backend outages) ---
 const DENY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-const denyCache = new Map(); // ip -> expiresAt timestamp
+const DENY_CACHE_MAX_SIZE = 10_000;    // evict oldest entry beyond this cap
+const denyCache = new Map(); // ip -> expiresAt timestamp  (insertion-order = oldest first)
 
 function denyCacheAdd(ip) {
+    // Re-insert to keep the entry at the "newest" end of the Map so that
+    // a blocked IP that keeps hammering doesn't get prematurely evicted.
+    if (denyCache.has(ip)) denyCache.delete(ip);
     denyCache.set(ip, Date.now() + DENY_CACHE_TTL);
+    // Evict the oldest entry when the cap is exceeded.
+    if (denyCache.size > DENY_CACHE_MAX_SIZE) {
+        denyCache.delete(denyCache.keys().next().value);
+    }
 }
 
 function denyCacheCheck(ip) {
