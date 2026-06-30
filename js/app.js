@@ -7495,6 +7495,8 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
         if (typeof window._reloadCloudProjects === 'function') window._reloadCloudProjects();
     } else if(result.error === 'upgrade_required'){
         if(typeof openPlansModal === 'function') openPlansModal();
+    } else if(result.error && result.error.includes('15 MB')){
+        _showSaveToast('Project too large to save — reduce unique backgrounds/designs or use fewer images', true);
     } else {
         _showSaveToast(result.error || 'Save failed — try again', true);
     }

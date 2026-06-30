@@ -112,8 +112,8 @@
 
         var plan = window._userPlan || 'free';
         var projectLimitHint =
-            plan === 'pro'     ? 'Unlimited projects · 15 MB max each' :
-            plan === 'starter' ? '1 project · 15 MB max' :
+            plan === 'pro'     ? 'Unlimited projects · backgrounds compressed on save · ~40 unique images per project' :
+            plan === 'starter' ? '1 project · backgrounds compressed · ~40 unique images' :
                                  'Cloud save requires a paid plan';
 
         dropdown.innerHTML =
