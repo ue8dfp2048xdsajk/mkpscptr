@@ -35,6 +35,17 @@
                 plan: window._userPlan
             });
         }
+        _claimAnonProject(user.id);
+    }
+
+    function _claimAnonProject(clerkUserId) {
+        var uuid = localStorage.getItem('ms_project_uuid');
+        if (!uuid) return;
+        fetch('/api/projects/claim', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uuid: uuid, clerkUserId: clerkUserId }),
+        }).catch(function () {});
     }
 
     function _onClerkSignedOut() {

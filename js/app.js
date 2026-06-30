@@ -7134,6 +7134,58 @@ function _markDirty(){
     if(!document.title.startsWith('• ')) document.title = '• ' + document.title;
 }
 
+// ── Cloud save ────────────────────────────────────────────────────────────────
+// Key stored in localStorage so refreshes re-attach to the same record.
+const _CLOUD_UUID_KEY = 'ms_project_uuid';
+
+async function _cloudSave({ isNew = false } = {}) {
+    const snapshot = buildFullSnapshot();
+
+    const clerkUserId = window.Clerk && window.Clerk.user && window.Clerk.user.id;
+    const currentUuid = isNew ? null : localStorage.getItem(_CLOUD_UUID_KEY);
+
+    let body = { snapshot };
+    if (clerkUserId)  body.clerkUserId = clerkUserId;
+    if (currentUuid)  body.uuid = currentUuid;
+
+    let res;
+    try {
+        res = await fetch('/api/projects/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+    } catch {
+        return { ok: false, error: 'Network error — check your connection' };
+    }
+
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok && data.ok) {
+        if (!isNew && data.uuid) localStorage.setItem(_CLOUD_UUID_KEY, data.uuid);
+        if (isNew  && data.uuid) localStorage.setItem(_CLOUD_UUID_KEY, data.uuid);
+        return { ok: true, uuid: data.uuid };
+    }
+
+    return { ok: false, error: data.error || 'Save failed' };
+}
+
+function _showSaveToast(message, isError = false) {
+    const existing = document.getElementById('msSaveToast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'msSaveToast';
+    toast.className = 'ms-upgrade-toast' + (isError ? ' ms-upgrade-toast--pending' : '');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('ms-upgrade-toast--visible'), 30);
+    setTimeout(() => {
+        toast.classList.remove('ms-upgrade-toast--visible');
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
+}
+
 function _markClean(){
     _unsaved = false;
     document.getElementById('saveProgressBtn')?.classList.remove('has-unsaved');
@@ -7181,7 +7233,7 @@ function _updateSaveNewBtn() {
 // Set initial state on load (plan defaults to 'free' until Clerk resolves)
 document.addEventListener('DOMContentLoaded', _updateSaveNewBtn);
 
-document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
+document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
 
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'save');
@@ -7193,39 +7245,42 @@ document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
         return;
     }
 
-    const snapshot = buildFullSnapshot();
+    const btn = document.getElementById('saveProgressBtn');
+    if(btn) btn.disabled = true;
 
-    const blob = new Blob(
-        [JSON.stringify(snapshot, null, 2)],
-        {type:'application/json'}
-    );
+    const result = await _cloudSave();
 
-    const url = URL.createObjectURL(blob);
+    if(btn) btn.disabled = false;
 
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'mockup_progress.json';
-    a.click();
-
-    URL.revokeObjectURL(url);
-    _markClean();
+    if(result.ok){
+        _markClean();
+        _showSaveToast('Project saved ✓');
+    } else if(result.error === 'upgrade_required'){
+        if(typeof openPlansModal === 'function') openPlansModal();
+    } else {
+        _showSaveToast(result.error || 'Save failed — try again', true);
+    }
 });
 
-document.getElementById('saveNewBtn').addEventListener('click', () => {
+document.getElementById('saveNewBtn').addEventListener('click', async () => {
     if (_userPlan !== 'pro') {
         if (typeof openPlansModal === 'function') openPlansModal();
         return;
     }
-    // Phase 3: will clear ms_project_uuid and POST to /api/projects/save
-    // For now, download a fresh JSON with a timestamped filename
-    const snapshot = buildFullSnapshot();
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = 'mockup_' + Date.now() + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
+
+    const btn = document.getElementById('saveNewBtn');
+    if(btn) btn.disabled = true;
+
+    const result = await _cloudSave({ isNew: true });
+
+    if(btn) btn.disabled = false;
+
+    if(result.ok){
+        _markClean();
+        _showSaveToast('Saved as new project ✓');
+    } else {
+        _showSaveToast(result.error || 'Save failed — try again', true);
+    }
 });
 
 

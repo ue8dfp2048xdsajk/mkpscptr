@@ -4,6 +4,7 @@
   "installCommand": "npm install --prefix api",
   "outputDirectory": ".",
   "routes": [
+    { "src": "/api/projects/([^/]+)", "dest": "/api/projects/[id]?id=$1" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
