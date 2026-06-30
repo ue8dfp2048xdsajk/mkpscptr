@@ -20,6 +20,9 @@
 
 'use strict';
 
+const crypto = require('crypto');
+const { EventEmitter } = require('events');
+
 function makeReqRes({ method = 'GET', headers = {}, env = {} } = {}) {
     const saved = {};
     for (const [k, v] of Object.entries(env)) {
@@ -161,5 +164,244 @@ describe('scripts/check-env.js — STRIPE_WEBHOOK_SECRET validate()', () => {
         const entry = REQUIRED.find((r) => r.name === 'STRIPE_WEBHOOK_SECRET');
         const result = entry.validate('');
         expect(typeof result).toBe('string');
+    });
+});
+
+describe('Stripe webhook retry — nonce released on Clerk 500, second attempt succeeds', () => {
+    const WEBHOOK_SECRET = 'whsec_test_retry_integration_secret';
+    const SET_PLAN_SECRET = 'retry_test_set_plan_secret';
+    const BASE_URL = 'https://mkpscptr.vercel.app';
+    const CLERK_SECRET_KEY = 'sk_test_clerk_dummy';
+
+    let webhookHandler;
+    let setPlanHandler;
+    const savedEnv = {};
+
+    beforeAll(() => {
+        jest.resetModules();
+
+        const envOverrides = {
+            STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET,
+            SET_PLAN_SECRET,
+            BASE_URL,
+            CLERK_SECRET_KEY,
+        };
+        for (const [k, v] of Object.entries(envOverrides)) {
+            savedEnv[k] = process.env[k];
+            process.env[k] = v;
+        }
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+
+        webhookHandler = require('../api/webhooks/stripe');
+        setPlanHandler = require('../api/set-plan');
+    });
+
+    afterAll(() => {
+        for (const [k, v] of Object.entries(savedEnv)) {
+            if (v === undefined) delete process.env[k];
+            else process.env[k] = v;
+        }
+    });
+
+    function buildStripeSignature(rawBodyStr) {
+        const timestamp = Math.floor(Date.now() / 1000);
+        const signedPayload = `${timestamp}.${rawBodyStr}`;
+        const hmac = crypto
+            .createHmac('sha256', WEBHOOK_SECRET)
+            .update(signedPayload, 'utf8')
+            .digest('hex');
+        return `t=${timestamp},v1=${hmac}`;
+    }
+
+    function makeStreamReq(sigHeader, bodyStr) {
+        const emitter = new EventEmitter();
+        emitter.method = 'POST';
+        emitter.headers = { 'stripe-signature': sigHeader };
+        process.nextTick(() => {
+            emitter.emit('data', Buffer.from(bodyStr, 'utf8'));
+            emitter.emit('end');
+        });
+        return emitter;
+    }
+
+    function makeRes() {
+        return {
+            _status: null,
+            _body: null,
+            status(code) { this._status = code; return this; },
+            json(body) { this._body = body; return this; },
+            setHeader() {},
+            end() {},
+        };
+    }
+
+    test('first attempt returns 502 when Clerk fails; second attempt (retry) succeeds', async () => {
+        const stripeEvent = {
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    id: 'cs_test_retry_001',
+                    client_reference_id: 'user_retry_001',
+                    metadata: { plan: 'starter' },
+                },
+            },
+        };
+        const rawBody = JSON.stringify(stripeEvent);
+
+        let clerkCallCount = 0;
+
+        const realFetch = global.fetch;
+        global.fetch = jest.fn(async (url, options) => {
+            const urlStr = String(url);
+
+            if (urlStr.includes('/api/set-plan')) {
+                const bodyStr = options && options.body ? String(options.body) : '{}';
+                const reqHeaders = {};
+                for (const [k, v] of Object.entries((options && options.headers) || {})) {
+                    reqHeaders[k.toLowerCase()] = v;
+                }
+                const setPlanReq = {
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                        authorization: reqHeaders['authorization'] || '',
+                        'x-timestamp': reqHeaders['x-timestamp'] || '',
+                        'x-nonce': reqHeaders['x-nonce'] || '',
+                    },
+                    body: bodyStr,
+                    socket: { remoteAddress: '127.0.0.1' },
+                };
+                const setPlanRes = makeRes();
+                await setPlanHandler(setPlanReq, setPlanRes);
+                const isOk = setPlanRes._status >= 200 && setPlanRes._status < 300;
+                return {
+                    ok: isOk,
+                    status: setPlanRes._status,
+                    json: async () => setPlanRes._body,
+                };
+            }
+
+            if (urlStr.includes('api.clerk.com')) {
+                clerkCallCount += 1;
+                if (clerkCallCount === 1) {
+                    return {
+                        ok: false,
+                        status: 500,
+                        json: async () => ({ errors: [{ message: 'Clerk internal server error' }] }),
+                    };
+                }
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({ id: 'user_retry_001', public_metadata: { plan: 'starter' } }),
+                };
+            }
+
+            throw new Error(`Unexpected fetch to: ${urlStr}`);
+        });
+
+        try {
+            const sig1 = buildStripeSignature(rawBody);
+            const req1 = makeStreamReq(sig1, rawBody);
+            const res1 = makeRes();
+            await webhookHandler(req1, res1);
+
+            expect(res1._status).toBe(502);
+            expect(res1._body.ok).toBe(false);
+            expect(clerkCallCount).toBe(1);
+
+            const sig2 = buildStripeSignature(rawBody);
+            const req2 = makeStreamReq(sig2, rawBody);
+            const res2 = makeRes();
+            await webhookHandler(req2, res2);
+
+            expect(res2._status).toBe(200);
+            expect(res2._body.ok).toBe(true);
+            expect(res2._body.userId).toBe('user_retry_001');
+            expect(res2._body.plan).toBe('starter');
+            expect(clerkCallCount).toBe(2);
+        } finally {
+            global.fetch = realFetch;
+        }
+    });
+
+    test('a successful delivery is idempotent — second identical event with same user/plan still succeeds via fresh nonce', async () => {
+        const stripeEvent = {
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    id: 'cs_test_idempotent_001',
+                    client_reference_id: 'user_idempotent_001',
+                    metadata: { plan: 'pro' },
+                },
+            },
+        };
+        const rawBody = JSON.stringify(stripeEvent);
+
+        let clerkCallCount = 0;
+
+        const realFetch = global.fetch;
+        global.fetch = jest.fn(async (url, options) => {
+            const urlStr = String(url);
+
+            if (urlStr.includes('/api/set-plan')) {
+                const bodyStr = options && options.body ? String(options.body) : '{}';
+                const reqHeaders = {};
+                for (const [k, v] of Object.entries((options && options.headers) || {})) {
+                    reqHeaders[k.toLowerCase()] = v;
+                }
+                const setPlanReq = {
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                        authorization: reqHeaders['authorization'] || '',
+                        'x-timestamp': reqHeaders['x-timestamp'] || '',
+                        'x-nonce': reqHeaders['x-nonce'] || '',
+                    },
+                    body: bodyStr,
+                    socket: { remoteAddress: '127.0.0.2' },
+                };
+                const setPlanRes = makeRes();
+                await setPlanHandler(setPlanReq, setPlanRes);
+                const isOk = setPlanRes._status >= 200 && setPlanRes._status < 300;
+                return {
+                    ok: isOk,
+                    status: setPlanRes._status,
+                    json: async () => setPlanRes._body,
+                };
+            }
+
+            if (urlStr.includes('api.clerk.com')) {
+                clerkCallCount += 1;
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({ id: 'user_idempotent_001', public_metadata: { plan: 'pro' } }),
+                };
+            }
+
+            throw new Error(`Unexpected fetch to: ${urlStr}`);
+        });
+
+        try {
+            const sig1 = buildStripeSignature(rawBody);
+            const req1 = makeStreamReq(sig1, rawBody);
+            const res1 = makeRes();
+            await webhookHandler(req1, res1);
+            expect(res1._status).toBe(200);
+            expect(res1._body.ok).toBe(true);
+
+            const sig2 = buildStripeSignature(rawBody);
+            const req2 = makeStreamReq(sig2, rawBody);
+            const res2 = makeRes();
+            await webhookHandler(req2, res2);
+            expect(res2._status).toBe(200);
+            expect(res2._body.ok).toBe(true);
+            expect(clerkCallCount).toBe(2);
+        } finally {
+            global.fetch = realFetch;
+        }
     });
 });
