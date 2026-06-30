@@ -26,6 +26,9 @@ module.exports = async function handler(req, res) {
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     let stripeCustomerId;
+    let userEmail;
+
+    // Step 1: get stripeCustomerId + email from Clerk
     if (clerkSecretKey) {
         try {
             const r = await fetch(
@@ -35,6 +38,38 @@ module.exports = async function handler(req, res) {
             if (r.ok) {
                 const d = await r.json();
                 stripeCustomerId = d?.public_metadata?.stripeCustomerId;
+                userEmail = d?.email_addresses?.[0]?.email_address;
+            }
+        } catch {}
+    }
+
+    // Step 2: no cached customer ID — look up by email in Stripe (existing users)
+    if (!stripeCustomerId && userEmail) {
+        try {
+            const search = await fetch(
+                `https://api.stripe.com/v1/customers/search?query=${encodeURIComponent(`email:"${userEmail}"`)}`,
+                { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+            );
+            if (search.ok) {
+                const sd = await search.json();
+                const customer = sd?.data?.[0];
+                if (customer) {
+                    stripeCustomerId = customer.id;
+                    // Cache it in Clerk so we don't need to search again
+                    if (clerkSecretKey) {
+                        fetch(
+                            `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}/metadata`,
+                            {
+                                method: 'PATCH',
+                                headers: {
+                                    Authorization: `Bearer ${clerkSecretKey}`,
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ public_metadata: { stripeCustomerId } }),
+                            }
+                        ).catch(() => {});
+                    }
+                }
             }
         } catch {}
     }
