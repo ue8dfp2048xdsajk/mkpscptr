@@ -115,12 +115,10 @@
             '</div>' +
             '<button id="clerkSignOutBtn">Log Out</button>';
 
-        var _projectsLoaded = false;
-
         function _loadProjects() {
-            if (_projectsLoaded) return;
-            _projectsLoaded = true;
             var list = dropdown.querySelector('#msProjectsList');
+            if (!list) return;
+            list.innerHTML = '<span class="ms-projects-empty">Loading…</span>';
             var session = window.Clerk && window.Clerk.session;
             var tokenPromise = session ? session.getToken() : Promise.resolve(null);
             tokenPromise.catch(function () { return null; }).then(function (token) {
