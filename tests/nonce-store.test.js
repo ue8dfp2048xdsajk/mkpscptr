@@ -106,7 +106,8 @@ describe('_nonce-store — PostgreSQL path (mocked pg Pool)', () => {
         mockQuery
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // CREATE TABLE
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // ALTER TABLE
-            .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // INSERT → 1 row inserted
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT → 1 row inserted
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // DELETE (prune expired)
         await expect(store.recordNonce('pg-new-nonce')).resolves.toBeUndefined();
     });
 
@@ -114,19 +115,22 @@ describe('_nonce-store — PostgreSQL path (mocked pg Pool)', () => {
         mockQuery
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // CREATE TABLE
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // ALTER TABLE
-            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // INSERT → 0 rows (conflict)
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // INSERT → 0 rows (conflict)
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // DELETE (prune expired)
         await expect(store.recordNonce('pg-dup-nonce')).rejects.toThrow(/Duplicate nonce/i);
     });
 
     test('duplicate nonce is rejected end-to-end via the PG path', async () => {
         // ensureSchema runs once (CREATE TABLE + ALTER TABLE); subsequent calls skip it.
-        // First recordNonce: CREATE TABLE, ALTER TABLE, INSERT (rowCount 1 → success).
-        // Second recordNonce: ensureSchema skipped (_pgReady=true), INSERT (rowCount 0 → duplicate).
+        // First recordNonce: CREATE TABLE, ALTER TABLE, INSERT (rowCount 1), DELETE prune.
+        // Second recordNonce: ensureSchema skipped (_pgReady=true), INSERT (rowCount 0), DELETE prune.
         mockQuery
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // CREATE TABLE
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // ALTER TABLE
             .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT → first nonce inserted
-            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // INSERT → duplicate
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // DELETE (prune expired)
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // INSERT → duplicate
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // DELETE (prune expired)
         await store.recordNonce('pg-e2e-dup-nonce');
         await expect(store.recordNonce('pg-e2e-dup-nonce')).rejects.toThrow(/Duplicate nonce/i);
     });
@@ -159,12 +163,65 @@ describe('_nonce-store — PostgreSQL path (mocked pg Pool)', () => {
         mockQuery
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // CREATE TABLE
             .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // ALTER TABLE
-            .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // INSERT
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // DELETE (prune expired)
         await store.recordNonce('pg-sql-check-nonce');
 
         const sqlCalls = mockQuery.mock.calls.map(c => c[0]);
         expect(sqlCalls.some(q => /INSERT INTO nonce_seen/i.test(q))).toBe(true);
         expect(sqlCalls.some(q => /ON CONFLICT.*DO NOTHING/i.test(q))).toBe(true);
+    });
+
+    test('recordNonce issues a DELETE to prune expired rows on every write', async () => {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // CREATE TABLE
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // ALTER TABLE
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // DELETE (prune expired)
+        await store.recordNonce('pg-prune-check-nonce');
+
+        const sqlCalls = mockQuery.mock.calls.map(c => c[0]);
+        expect(sqlCalls.some(q => /DELETE FROM nonce_seen WHERE expires_at/i.test(q))).toBe(true);
+    });
+
+    test('recordNonce prunes on duplicate writes too (prune fires even when INSERT is a no-op)', async () => {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // CREATE TABLE
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // ALTER TABLE
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // INSERT → conflict (0 rows)
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // DELETE (prune expired)
+        // recordNonce throws for duplicates — we only care that the prune DELETE was issued
+        await expect(store.recordNonce('pg-prune-dup-nonce')).rejects.toThrow(/Duplicate nonce/i);
+
+        const sqlCalls = mockQuery.mock.calls.map(c => c[0]);
+        expect(sqlCalls.some(q => /DELETE FROM nonce_seen WHERE expires_at/i.test(q))).toBe(true);
+    });
+
+    test('isNonceSeen does NOT issue a prune DELETE (pruning moved to write path)', async () => {
+        mockQuery
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // CREATE TABLE
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // ALTER TABLE
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // SELECT
+        await store.isNonceSeen('pg-no-prune-on-read');
+
+        const sqlCalls = mockQuery.mock.calls.map(c => c[0]);
+        expect(sqlCalls.some(q => /DELETE FROM nonce_seen WHERE expires_at/i.test(q))).toBe(false);
+    });
+
+    test('expired nonce rows are not returned by isNonceSeen (WHERE expires_at > now filters them)', async () => {
+        // Simulate: nonce was written with an expires_at in the past; the SELECT
+        // WHERE expires_at > $2 returns no rows — the nonce appears unseen even
+        // without an explicit DELETE, and the prune on the next write will clean it up.
+        mockQuery
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // CREATE TABLE
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // ALTER TABLE
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // SELECT — expired row filtered by WHERE clause
+        expect(await store.isNonceSeen('pg-expired-prune-nonce')).toBe(false);
+
+        // Confirm the SELECT used the expires_at filter (not just the nonce equality).
+        const selectCall = mockQuery.mock.calls.find(c => /SELECT/i.test(c[0]));
+        expect(selectCall).toBeDefined();
+        expect(selectCall[0]).toMatch(/expires_at/i);
     });
 
     test('deleteNonce issues a DELETE FROM nonce_seen WHERE nonce = query', async () => {

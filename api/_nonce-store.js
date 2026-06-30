@@ -116,7 +116,6 @@ async function pgPruneExpired() {
 
 async function pgIsNonceSeen(nonce) {
     await ensureSchema();
-    if (Math.random() < 0.05) pgPruneExpired();
     const pool = getPool();
     const { rows } = await pool.query(
         'SELECT 1 FROM nonce_seen WHERE nonce = $1 AND expires_at > $2',
@@ -134,6 +133,8 @@ async function pgRecordNonce(nonce, userId, plan) {
         'INSERT INTO nonce_seen (nonce, expires_at, user_id, plan) VALUES ($1, $2, $3, $4) ON CONFLICT (nonce) DO NOTHING',
         [nonce, expiresAt, userId || null, plan || null]
     );
+    // Prune expired rows on every write so expired nonces never accumulate.
+    await pgPruneExpired();
     return result.rowCount > 0; // true = inserted, false = duplicate
 }
 
