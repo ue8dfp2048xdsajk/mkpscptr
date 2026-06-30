@@ -1,9 +1,19 @@
 (function () {
 
+    var _activeSession = null;
+
+    window._clerkGetToken = function () {
+        var session = _activeSession || (window.Clerk && window.Clerk.session);
+        if (!session) return Promise.resolve(null);
+        return session.getToken().catch(function () { return null; });
+    };
+
     async function _clerkAuthMain() {
         if (!window.Clerk) return;
 
         await window.Clerk.load();
+
+        _activeSession = window.Clerk.session || null;
 
         const user = window.Clerk.user;
         if (user) {
@@ -12,7 +22,8 @@
             _renderSignInButton();
         }
 
-        window.Clerk.addListener(function ({ user }) {
+        window.Clerk.addListener(function ({ user, session }) {
+            _activeSession = session || null;
             if (user) {
                 _onClerkSignedIn(user);
                 _handlePaymentSuccess();
@@ -41,9 +52,7 @@
     function _claimAnonProject() {
         var uuid = localStorage.getItem('ms_project_uuid');
         if (!uuid) return;
-        var session = window.Clerk && window.Clerk.session;
-        if (!session) return;
-        session.getToken().then(function (token) {
+        window._clerkGetToken().then(function (token) {
             if (!token) return;
             fetch('/api/projects/claim', {
                 method: 'POST',
@@ -53,7 +62,7 @@
                 },
                 body: JSON.stringify({ uuid: uuid }),
             }).catch(function () {});
-        }).catch(function () {});
+        });
     }
 
     function _onClerkSignedOut() {
@@ -119,9 +128,7 @@
             var list = dropdown.querySelector('#msProjectsList');
             if (!list) return;
             list.innerHTML = '<span class="ms-projects-empty">Loading…</span>';
-            var session = window.Clerk && window.Clerk.session;
-            var tokenPromise = session ? session.getToken() : Promise.resolve(null);
-            tokenPromise.catch(function () { return null; }).then(function (token) {
+            window._clerkGetToken().then(function (token) {
                 return fetch('/api/projects/list', {
                     headers: token ? { 'Authorization': 'Bearer ' + token } : {}
                 });

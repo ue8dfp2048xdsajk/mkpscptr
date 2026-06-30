@@ -7140,6 +7140,9 @@ function _markDirty(){
 const _CLOUD_UUID_KEY = 'ms_project_uuid';
 
 async function _getClerkToken() {
+    if (typeof window._clerkGetToken === 'function') {
+        return window._clerkGetToken();
+    }
     try {
         if (window.Clerk && window.Clerk.session) {
             return await window.Clerk.session.getToken();
