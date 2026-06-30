@@ -54,6 +54,7 @@ function makeReqRes({ method = 'GET', headers = {}, env = {} } = {}) {
 
 const GOOD_ENV = {
     STRIPE_WEBHOOK_SECRET: 'whsec_test_dummy_secret_for_unit_tests',
+    STRIPE_SECRET_KEY: 'sk_test_dummy_secret_for_unit_tests',
     SET_PLAN_SECRET: 'test_set_plan_secret',
     BASE_URL: 'https://mkpscptr.vercel.app',
 };
@@ -100,6 +101,38 @@ describe('GET /api/webhooks/stripe — config health-check', () => {
         expect(res._status).toBe(503);
         expect(res._body.ok).toBe(false);
         expect(res._body.configured.STRIPE_WEBHOOK_SECRET).toBe(false);
+    });
+});
+
+describe('GET /api/webhooks/stripe — STRIPE_SECRET_KEY health-check', () => {
+    let handler;
+    beforeAll(() => {
+        jest.resetModules();
+        handler = require('../api/webhooks/stripe');
+    });
+
+    test('returns 503 + configured.STRIPE_SECRET_KEY===false when STRIPE_SECRET_KEY is missing', async () => {
+        const { req, res, restore } = makeReqRes({
+            method: 'GET',
+            env: { ...GOOD_ENV, STRIPE_SECRET_KEY: '' },
+        });
+        await handler(req, res);
+        restore();
+        expect(res._status).toBe(503);
+        expect(res._body.ok).toBe(false);
+        expect(res._body.configured.STRIPE_SECRET_KEY).toBe(false);
+    });
+
+    test('returns 200 + ok:true when all four env vars are present', async () => {
+        const { req, res, restore } = makeReqRes({ method: 'GET', env: GOOD_ENV });
+        await handler(req, res);
+        restore();
+        expect(res._status).toBe(200);
+        expect(res._body.ok).toBe(true);
+        expect(res._body.configured.STRIPE_SECRET_KEY).toBe(true);
+        expect(res._body.configured.STRIPE_WEBHOOK_SECRET).toBe(true);
+        expect(res._body.configured.SET_PLAN_SECRET).toBe(true);
+        expect(res._body.configured.BASE_URL).toBe(true);
     });
 });
 
