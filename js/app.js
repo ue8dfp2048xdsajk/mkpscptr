@@ -7207,8 +7207,8 @@ async function buildCloudSnapshot() {
         const isBg = bgSrcSet.has(src);
         const compressed = await _compressForCloud(
             src,
-            isBg ? { format: 'jpeg', quality: 0.65, maxDim: 1200 }
-                 : { format: 'png', maxDim: 1200 }
+            isBg ? { format: 'jpeg', quality: 0.50, maxDim: 900 }
+                 : { format: 'png', maxDim: 800 }
         );
         if (compressed) imageMap[key] = compressed;
         // if compression fails the key stays absent → treated as null on restore
@@ -7241,6 +7241,12 @@ async function _cloudSave({ isNew = false } = {}) {
 
     const body = { snapshot, name: _projectName || 'Untitled' };
     if (currentUuid) body.uuid = currentUuid;
+
+    // Guard against proxy/serverless upload limits (~4 MB target)
+    const _payloadBytes = new Blob([JSON.stringify(body)]).size;
+    if (_payloadBytes > 4 * 1024 * 1024) {
+        return { ok: false, error: 'payload_too_large' };
+    }
 
     const headers = { 'Content-Type': 'application/json' };
     const token = await _getClerkToken();
@@ -7641,7 +7647,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
         if (typeof window._reloadCloudProjects === 'function') window._reloadCloudProjects();
     } else if(result.error === 'upgrade_required'){
         if(typeof openPlansModal === 'function') openPlansModal();
-    } else if(result.error && result.error.includes('15 MB')){
+    } else if(result.error === 'payload_too_large' || (result.error && result.error.includes('15 MB'))){
         _showSaveToastWithAction(
             'Project too large for cloud save.',
             'Save to computer instead',
@@ -7682,7 +7688,7 @@ document.getElementById('saveNewBtn').addEventListener('click', async () => {
         _markClean();
         _showSaveToast('Saved as new project ✓');
         if (typeof window._reloadCloudProjects === 'function') window._reloadCloudProjects();
-    } else if(result.error && result.error.includes('15 MB')){
+    } else if(result.error === 'payload_too_large' || (result.error && result.error.includes('15 MB'))){
         _showSaveToastWithAction(
             'Project too large for cloud save.',
             'Save to computer instead',
