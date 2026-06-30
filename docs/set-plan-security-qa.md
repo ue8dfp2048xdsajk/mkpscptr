@@ -353,3 +353,128 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/webhooks/stripe" \
 - [ ] Case 13 — missing X-Nonce header → 400
 - [ ] Case 14 — duplicate nonce (within-window replay) → 400
 - [ ] Case 15 — missing BASE_URL env var → Stripe webhook returns 500 (not silent)
+- [ ] Case 16 — clear-nonce by value → 200 + nonce removed
+- [ ] Case 17 — clear-nonce by userId+plan → 200 + nonce removed
+- [ ] Case 18 — clear-nonce wrong secret → 401
+
+---
+
+## POST /api/clear-nonce — Admin endpoint for stuck nonces
+
+### Background
+
+`set-plan.js` deletes the nonce from the store **after a successful Clerk update** so that Stripe's webhook retry is not blocked by a "Duplicate nonce" error.  If the nonce store (Redis / PostgreSQL) is unreachable at that moment, `deleteNonce()` retries up to **3 times with exponential back-off** (100 ms → 200 ms → 400 ms).
+
+If all retries fail the nonce remains recorded and every subsequent Stripe retry is rejected with `400 Duplicate nonce — request already processed`.  The user's Clerk metadata was already updated on the first successful call, but the webhook keeps retrying and the user could appear "stuck" in Stripe's retry dashboard.
+
+`POST /api/clear-nonce` is the manual escape hatch for this situation.
+
+### Authentication
+
+Same secret as `set-plan`:
+
+```
+Authorization: Bearer <SET_PLAN_SECRET>
+```
+
+No `X-Timestamp` or `X-Nonce` headers are required (this is an admin-only internal endpoint, not exposed to Stripe).
+
+### Request body — two modes
+
+**Mode 1 — clear by nonce value** (use when the nonce appears in your server logs):
+
+```json
+{ "nonce": "<exact nonce value from X-Nonce header in the webhook log>" }
+```
+
+**Mode 2 — clear by userId + plan** (use when the nonce value is unknown):
+
+```json
+{ "userId": "<clerk userId>", "plan": "pro" }
+```
+
+The nonce store records `userId` and `plan` alongside each nonce so this lookup is possible without knowing the nonce value itself.
+
+### Response
+
+```json
+{ "ok": true, "deleted": 1 }
+```
+
+`deleted` is the count of nonces removed (0 means nothing was found for that key, which is harmless — the TTL may have already expired).
+
+### QA cases
+
+---
+
+#### Case 16. Clear a stuck nonce by value → 200
+
+```bash
+# Simulate a stuck nonce by recording one directly, then clear it.
+STUCK_NONCE=$(openssl rand -hex 16)
+
+# First, "stick" it by making a valid set-plan call (the nonce is now recorded).
+curl -s -X POST "$BASE_URL/api/set-plan" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -H "X-Timestamp: $(date +%s)" \
+  -H "X-Nonce: $STUCK_NONCE" \
+  -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\"}"
+
+echo ""
+
+# Now clear it via the admin endpoint.
+curl -s -X POST "$BASE_URL/api/clear-nonce" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -d "{\"nonce\":\"$STUCK_NONCE\"}"
+```
+
+**Expected:** `200`
+**Expected body:** `{"ok":true,"deleted":1}`
+
+**Verify:** Immediately re-send the original `set-plan` call with `$STUCK_NONCE` — it should succeed (200) rather than being rejected as a duplicate, because the nonce was cleared.
+
+---
+
+#### Case 17. Clear a stuck nonce by userId + plan → 200
+
+```bash
+curl -s -X POST "$BASE_URL/api/clear-nonce" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\"}"
+```
+
+**Expected:** `200`
+**Expected body:** `{"ok":true,"deleted":1}` (or `"deleted":0` if no unexpired nonce exists for that user+plan — also fine).
+
+**Code path:** `api/_nonce-store.js` — `deleteNonceByUserPlan()` looks up the nonce via the secondary index stored when `recordNonce()` was called in `set-plan.js`.
+
+---
+
+#### Case 18. Wrong secret → 401
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/clear-nonce" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer WRONG_SECRET" \
+  -d '{"nonce":"anything"}'
+```
+
+**Expected:** `401`
+**Expected body:** `{"ok":false,"error":"Unauthorized"}`
+
+---
+
+#### Case 19. Missing body fields → 400
+
+```bash
+curl -s -X POST "$BASE_URL/api/clear-nonce" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $SECRET" \
+  -d '{}'
+```
+
+**Expected:** `400`
+**Expected body:** `{"ok":false,"error":"Provide either {\"nonce\": \"...\"} or {\"userId\": \"...\", \"plan\": \"...\"}"}`

@@ -25,8 +25,16 @@ async function ensureSchema() {
     await pool.query(`
         CREATE TABLE IF NOT EXISTS nonce_seen (
             nonce      TEXT   PRIMARY KEY,
-            expires_at BIGINT NOT NULL
+            expires_at BIGINT NOT NULL,
+            user_id    TEXT,
+            plan       TEXT
         )
+    `);
+    // Add columns if upgrading from the old schema (idempotent).
+    await pool.query(`
+        ALTER TABLE nonce_seen
+            ADD COLUMN IF NOT EXISTS user_id TEXT,
+            ADD COLUMN IF NOT EXISTS plan     TEXT
     `);
     _pgReady = true;
 }
@@ -43,6 +51,10 @@ function makeKey(nonce) {
     return `nonce:${nonce}`;
 }
 
+function makeUserPlanKey(userId, plan) {
+    return `nonce_user:${userId}:${plan}`;
+}
+
 // SET key 1 EX <ttl> NX  — returns "OK" if inserted, null if key already existed
 async function redisSetNx(key) {
     const url = `${REDIS_URL}/set/${encodeURIComponent(key)}/1?ex=${NONCE_TTL_SECONDS}&nx=true`;
@@ -55,6 +67,24 @@ async function redisSetNx(key) {
     return json.result; // "OK" or null
 }
 
+async function redisSetEx(key, value) {
+    const url = `${REDIS_URL}/set/${encodeURIComponent(key)}/${encodeURIComponent(value)}?ex=${NONCE_TTL_SECONDS}`;
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+    });
+    if (!res.ok) throw new Error(`Upstash SET EX error: ${res.status}`);
+}
+
+async function redisGet(key) {
+    const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
+        headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+    });
+    if (!res.ok) throw new Error(`Upstash GET error: ${res.status}`);
+    const json = await res.json();
+    return json.result; // string value or null
+}
+
 async function redisExists(key) {
     const res = await fetch(`${REDIS_URL}/exists/${encodeURIComponent(key)}`, {
         headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
@@ -64,8 +94,9 @@ async function redisExists(key) {
     return json.result === 1;
 }
 
-async function redisDel(key) {
-    const res = await fetch(`${REDIS_URL}/del/${encodeURIComponent(key)}`, {
+async function redisDel(...keys) {
+    const encodedKeys = keys.map(k => encodeURIComponent(k)).join('/');
+    const res = await fetch(`${REDIS_URL}/del/${encodedKeys}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
     });
@@ -95,13 +126,13 @@ async function pgIsNonceSeen(nonce) {
 }
 
 // Returns true if inserted (first time), false if nonce already existed (duplicate).
-async function pgRecordNonce(nonce) {
+async function pgRecordNonce(nonce, userId, plan) {
     await ensureSchema();
     const pool = getPool();
     const expiresAt = Date.now() + NONCE_TTL_SECONDS * 1000;
     const result = await pool.query(
-        'INSERT INTO nonce_seen (nonce, expires_at) VALUES ($1, $2) ON CONFLICT (nonce) DO NOTHING',
-        [nonce, expiresAt]
+        'INSERT INTO nonce_seen (nonce, expires_at, user_id, plan) VALUES ($1, $2, $3, $4) ON CONFLICT (nonce) DO NOTHING',
+        [nonce, expiresAt, userId || null, plan || null]
     );
     return result.rowCount > 0; // true = inserted, false = duplicate
 }
@@ -112,14 +143,49 @@ async function pgDeleteNonce(nonce) {
     await pool.query('DELETE FROM nonce_seen WHERE nonce = $1', [nonce]);
 }
 
+async function pgDeleteNonceByUserPlan(userId, plan) {
+    await ensureSchema();
+    const pool = getPool();
+    const result = await pool.query(
+        'DELETE FROM nonce_seen WHERE user_id = $1 AND plan = $2 AND expires_at > $3 RETURNING nonce',
+        [userId, plan, Date.now()]
+    );
+    return result.rowCount;
+}
+
 // --- In-memory fallback ---
-const seen = new Map();
+const seen = new Map();         // nonce → expiresAt
+const seenMeta = new Map();     // nonce → { userId, plan }
+const seenUserPlan = new Map(); // "userId:plan" → nonce
 
 function pruneExpired() {
     const now = Date.now();
     for (const [nonce, expiresAt] of seen.entries()) {
-        if (now >= expiresAt) seen.delete(nonce);
+        if (now >= expiresAt) {
+            const meta = seenMeta.get(nonce);
+            if (meta) seenUserPlan.delete(`${meta.userId}:${meta.plan}`);
+            seenMeta.delete(nonce);
+            seen.delete(nonce);
+        }
     }
+}
+
+// --- Retry helper ---
+async function withRetry(label, fn, { attempts = 3, baseDelayMs = 100 } = {}) {
+    let lastErr;
+    for (let i = 0; i < attempts; i++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastErr = err;
+            if (i < attempts - 1) {
+                const delay = baseDelayMs * Math.pow(2, i);
+                console.warn(`nonce-store: ${label} attempt ${i + 1} failed, retrying in ${delay}ms:`, err.message);
+                await new Promise(r => setTimeout(r, delay));
+            }
+        }
+    }
+    throw lastErr;
 }
 
 // --- Public API ---
@@ -147,7 +213,9 @@ async function isNonceSeen(nonce) {
     return seen.has(nonce);
 }
 
-async function recordNonce(nonce) {
+// userId and plan are optional metadata stored alongside the nonce so that
+// deleteNonceByUserPlan() can clear a stuck nonce without knowing its value.
+async function recordNonce(nonce, userId, plan) {
     if (USE_REDIS) {
         // Fail closed: if the Redis write fails for any reason we must NOT fall
         // back to the in-memory store.  isNonceSeen() may have already read from
@@ -166,11 +234,19 @@ async function recordNonce(nonce) {
         if (result === null) {
             throw new Error('Duplicate nonce — already recorded');
         }
+        // Store userId+plan secondary index (best-effort; non-fatal if it fails).
+        if (userId && plan) {
+            try {
+                await redisSetEx(makeUserPlanKey(userId, plan), nonce);
+            } catch (err) {
+                console.warn('nonce-store: Redis secondary index write failed (non-fatal):', err.message);
+            }
+        }
         return;
     }
     if (USE_PG) {
         try {
-            const inserted = await pgRecordNonce(nonce);
+            const inserted = await pgRecordNonce(nonce, userId, plan);
             if (!inserted) {
                 throw new Error('Duplicate nonce — already recorded');
             }
@@ -187,25 +263,32 @@ async function recordNonce(nonce) {
         throw new Error('Duplicate nonce — already recorded');
     }
     seen.set(nonce, now + NONCE_TTL_SECONDS * 1000);
+    if (userId && plan) {
+        seenMeta.set(nonce, { userId, plan });
+        seenUserPlan.set(`${userId}:${plan}`, nonce);
+    }
 }
 
+// deleteNonce retries up to 3 times with exponential backoff (100 → 200 → 400 ms)
+// before giving up.  This handles transient Redis/PG connectivity blips that would
+// otherwise leave the nonce recorded and block Stripe's next retry.
 async function deleteNonce(nonce) {
     if (USE_REDIS) {
         try {
-            await redisDel(makeKey(nonce));
+            await withRetry('Redis DEL', () => redisDel(makeKey(nonce)));
             return;
         } catch (err) {
-            console.error('nonce-store: Redis DEL failed, falling back to in-memory delete:', err.message);
+            console.error('nonce-store: Redis DEL failed after retries, falling back to in-memory delete:', err.message);
         }
         seen.delete(nonce);
         return;
     }
     if (USE_PG) {
         try {
-            await pgDeleteNonce(nonce);
+            await withRetry('PG deleteNonce', () => pgDeleteNonce(nonce));
             return;
         } catch (err) {
-            console.error('nonce-store: PG deleteNonce failed, falling back to in-memory delete:', err.message);
+            console.error('nonce-store: PG deleteNonce failed after retries, falling back to in-memory delete:', err.message);
             seen.delete(nonce);
             return;
         }
@@ -213,4 +296,41 @@ async function deleteNonce(nonce) {
     seen.delete(nonce);
 }
 
-module.exports = { isNonceSeen, recordNonce, deleteNonce };
+// deleteNonceByUserPlan finds and removes the unexpired nonce that was recorded
+// for a specific userId+plan combination.  Useful when the nonce value itself is
+// unknown (e.g. admin clearing a stuck checkout without access to webhook logs).
+// Returns the number of nonces deleted (0 if none found).
+async function deleteNonceByUserPlan(userId, plan) {
+    if (USE_REDIS) {
+        try {
+            const nonce = await withRetry('Redis GET user-plan key', () => redisGet(makeUserPlanKey(userId, plan)));
+            if (!nonce) return 0;
+            await withRetry('Redis DEL nonce + user-plan key', () =>
+                redisDel(makeKey(nonce), makeUserPlanKey(userId, plan))
+            );
+            return 1;
+        } catch (err) {
+            console.error('nonce-store: Redis deleteNonceByUserPlan failed after retries:', err.message);
+            throw err;
+        }
+    }
+    if (USE_PG) {
+        try {
+            return await withRetry('PG deleteNonceByUserPlan', () => pgDeleteNonceByUserPlan(userId, plan));
+        } catch (err) {
+            console.error('nonce-store: PG deleteNonceByUserPlan failed after retries:', err.message);
+            throw err;
+        }
+    }
+    // In-memory fallback
+    pruneExpired();
+    const key = `${userId}:${plan}`;
+    const nonce = seenUserPlan.get(key);
+    if (!nonce) return 0;
+    seen.delete(nonce);
+    seenMeta.delete(nonce);
+    seenUserPlan.delete(key);
+    return 1;
+}
+
+module.exports = { isNonceSeen, recordNonce, deleteNonce, deleteNonceByUserPlan };
