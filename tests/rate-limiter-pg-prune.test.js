@@ -9,8 +9,10 @@
  * --------
  * - Mock `pg` so Pool.query delegates to a shared in-process map (pgStore).
  * - The mock handles BOTH DELETE shapes emitted by the module:
- *     • DELETE FROM rate_limit WHERE ip = $1          (pgClearFailures)
- *     • DELETE FROM rate_limit WHERE window_start < $1 (pgPruneExpired)
+ *     • DELETE FROM rate_limit WHERE ip = $1                                  (pgClearFailures)
+ *     • DELETE … WHERE window_start < (EXTRACT(EPOCH FROM NOW()) * 1000 - $1) (pgPruneExpired)
+ *   For the prune shape $1 is the window duration in ms; the mock resolves
+ *   the cutoff as Date.now() - $1, mirroring what the DB NOW() would produce.
  * - Mock Math.random to return 0 so the 5 % gate always fires.
  * - pgPruneExpired is fire-and-forget (no await), so after calling
  *   isRateLimited we flush the microtask queue with a setImmediate promise
@@ -57,9 +59,10 @@ function makePgMock() {
                 return { rows: [] };
             }
 
-            // pgPruneExpired — DELETE FROM rate_limit WHERE window_start < $1
+            // pgPruneExpired — DELETE … WHERE window_start < (EXTRACT(EPOCH FROM NOW()) * 1000 - $1)
+            // $1 is the window duration in ms; resolve cutoff using Date.now() to mirror DB NOW().
             if (/^DELETE/i.test(s) && /window_start/i.test(s)) {
-                const cutoff = Number(params[0]);
+                const cutoff = Date.now() - Number(params[0]);
                 for (const [ip, row] of pgStore.entries()) {
                     if (row.window_start < cutoff) {
                         pgStore.delete(ip);
@@ -219,7 +222,7 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
         expect(pgStore.has(ip)).toBe(false);  // row cleaned up by prune
     });
 
-    test('DELETE query issued by prune uses window_start < cutoff (not ip =)', async () => {
+    test('DELETE query issued by prune uses DB clock (EXTRACT(EPOCH FROM NOW())) not Date.now()', async () => {
         const ip = '10.1.0.7';
         const staleStart = Date.now() - (WINDOW_SECONDS + 60) * 1000;
         pgStore.set(ip, { failures: 2, window_start: staleStart });
@@ -230,14 +233,19 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
         await rl.isRateLimited(ip);
         await flushAsync();
 
-        // Find any DELETE call that targets window_start (the prune query)
+        // Find the prune DELETE call — it must reference window_start
         const deleteCalls = pool.query.mock.calls.filter(
             ([sql]) => /^DELETE/i.test(sql.trim()) && /window_start/i.test(sql)
         );
         expect(deleteCalls.length).toBeGreaterThanOrEqual(1);
 
-        // The single parameter must be the numeric cutoff, not an IP string
-        const [, pruneParams] = deleteCalls[0];
-        expect(typeof pruneParams[0]).toBe('number');
+        const [pruneSQL, pruneParams] = deleteCalls[0];
+
+        // SQL must delegate the cutoff computation to the DB clock
+        expect(pruneSQL).toMatch(/EXTRACT\s*\(\s*EPOCH\s+FROM\s+NOW\s*\(\s*\)/i);
+
+        // $1 is the window duration in ms — a fixed positive integer, never a
+        // Unix timestamp (which would be ~13 digits and > 1 trillion).
+        expect(pruneParams[0]).toBe(WINDOW_SECONDS * 1000);
     });
 });

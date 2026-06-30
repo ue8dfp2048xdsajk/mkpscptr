@@ -110,8 +110,10 @@ async function redisDel(key) {
 async function pgPruneExpired() {
     try {
         const pool = getPool();
-        const cutoff = Date.now() - WINDOW_SECONDS * 1000;
-        await pool.query('DELETE FROM rate_limit WHERE window_start < $1', [cutoff]);
+        await pool.query(
+            'DELETE FROM rate_limit WHERE window_start < (EXTRACT(EPOCH FROM NOW()) * 1000 - $1)',
+            [WINDOW_SECONDS * 1000]
+        );
     } catch (err) {
         console.error('rate-limiter: PG prune failed:', err.message);
     }
