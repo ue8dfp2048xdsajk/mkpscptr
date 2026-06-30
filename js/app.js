@@ -7282,6 +7282,69 @@ function _showSaveToast(message, isError = false) {
     }, 4000);
 }
 
+// Toast with an action button — stays until dismissed or button clicked
+function _showSaveToastWithAction(message, btnLabel, btnFn) {
+    const existing = document.getElementById('msSaveToast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'msSaveToast';
+    toast.className = 'ms-upgrade-toast ms-upgrade-toast--pending ms-save-toast-action';
+
+    const msg = document.createElement('span');
+    msg.textContent = message;
+
+    const btn = document.createElement('button');
+    btn.className = 'ms-save-toast-btn';
+    btn.textContent = btnLabel;
+    btn.addEventListener('click', () => {
+        toast.classList.remove('ms-upgrade-toast--visible');
+        setTimeout(() => toast.remove(), 400);
+        btnFn();
+    });
+
+    const close = document.createElement('button');
+    close.className = 'ms-save-toast-close';
+    close.textContent = '✕';
+    close.addEventListener('click', () => {
+        toast.classList.remove('ms-upgrade-toast--visible');
+        setTimeout(() => toast.remove(), 400);
+    });
+
+    toast.appendChild(msg);
+    toast.appendChild(btn);
+    toast.appendChild(close);
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('ms-upgrade-toast--visible'), 30);
+}
+
+function _saveToLocalFile() {
+    const snapshot = buildFullSnapshot();
+    const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'mockup-project-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function _countUniqueImages() {
+    const seen = new Set();
+    canvasData.forEach(function (data) {
+        if (data.bg && data.bg.src && data.bg.src.startsWith('data:')) seen.add(data.bg.src);
+        const dSrc = _originalToSrc(data.designOriginal);
+        if (dSrc && dSrc.startsWith('data:')) seen.add(dSrc);
+        (data.extraDesignOriginals || []).forEach(function (orig) {
+            const s = _originalToSrc(orig);
+            if (s && s.startsWith('data:')) seen.add(s);
+        });
+    });
+    return seen.size;
+}
+
+const CLOUD_IMAGE_LIMIT = 40;
+
 function _markClean(){
     _unsaved = false;
     clearTimeout(_cloudAutoSaveTimer);
@@ -7482,6 +7545,15 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
         return;
     }
 
+    if(_countUniqueImages() >= CLOUD_IMAGE_LIMIT){
+        _showSaveToastWithAction(
+            'Too many unique images for cloud save (~40 max).',
+            'Save to computer instead',
+            _saveToLocalFile
+        );
+        return;
+    }
+
     const btn = document.getElementById('saveProgressBtn');
     if(btn) btn.disabled = true;
 
@@ -7496,7 +7568,11 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
     } else if(result.error === 'upgrade_required'){
         if(typeof openPlansModal === 'function') openPlansModal();
     } else if(result.error && result.error.includes('15 MB')){
-        _showSaveToast('Project too large to save — reduce unique backgrounds/designs or use fewer images', true);
+        _showSaveToastWithAction(
+            'Project too large for cloud save.',
+            'Save to computer instead',
+            _saveToLocalFile
+        );
     } else {
         _showSaveToast(result.error || 'Save failed — try again', true);
     }
@@ -7505,6 +7581,15 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
 document.getElementById('saveNewBtn').addEventListener('click', async () => {
     if (_userPlan !== 'pro') {
         if (typeof openPlansModal === 'function') openPlansModal();
+        return;
+    }
+
+    if(_countUniqueImages() >= CLOUD_IMAGE_LIMIT){
+        _showSaveToastWithAction(
+            'Too many unique images for cloud save (~40 max).',
+            'Save to computer instead',
+            _saveToLocalFile
+        );
         return;
     }
 
@@ -7519,6 +7604,12 @@ document.getElementById('saveNewBtn').addEventListener('click', async () => {
         _markClean();
         _showSaveToast('Saved as new project ✓');
         if (typeof window._reloadCloudProjects === 'function') window._reloadCloudProjects();
+    } else if(result.error && result.error.includes('15 MB')){
+        _showSaveToastWithAction(
+            'Project too large for cloud save.',
+            'Save to computer instead',
+            _saveToLocalFile
+        );
     } else {
         _showSaveToast(result.error || 'Save failed — try again', true);
     }
@@ -8124,15 +8215,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
 
 document.getElementById("saveLocalBtn").addEventListener("click", () => {
-    const snapshot = buildFullSnapshot();
-    const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    const ts   = new Date().toISOString().slice(0, 10);
-    a.href     = url;
-    a.download = 'mockup-project-' + ts + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
+    _saveToLocalFile();
 });
 
 document.getElementById("loadProgressBtn").addEventListener("click", ()=>{
