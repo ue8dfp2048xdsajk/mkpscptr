@@ -44,15 +44,20 @@ module.exports = async function handler(req, res) {
     }
 
     // Step 2: no cached customer ID — look up by email in Stripe (existing users)
+    // If multiple customers share the email, prefer the one with an active subscription
     if (!stripeCustomerId && userEmail) {
         try {
             const search = await fetch(
-                `https://api.stripe.com/v1/customers/search?query=${encodeURIComponent(`email:"${userEmail}"`)}`,
+                `https://api.stripe.com/v1/customers/search?query=${encodeURIComponent(`email:"${userEmail}"`)}&expand[]=data.subscriptions`,
                 { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
             );
             if (search.ok) {
                 const sd = await search.json();
-                const customer = sd?.data?.[0];
+                const customers = sd?.data || [];
+                // Prefer a customer with at least one active subscription
+                const customer =
+                    customers.find(c => c.subscriptions?.data?.some(s => s.status === 'active')) ||
+                    customers[0];
                 if (customer) {
                     stripeCustomerId = customer.id;
                     // Cache it in Clerk so we don't need to search again
