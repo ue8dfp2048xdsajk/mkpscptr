@@ -120,6 +120,7 @@
             '<div class="ms-avatar-email">' + email + '</div>' +
             '<div class="ms-avatar-plan">Plan: <strong>' + planLabel + '</strong></div>' +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
+            (!showUpgradeBtn ? '<button class="ms-avatar-billing-btn" id="clerkBillingBtn">Manage Billing</button>' : '') +
             '<div class="ms-projects-section">' +
               '<div class="ms-projects-label">My Projects</div>' +
               '<div class="ms-projects-limit">' + projectLimitHint + '</div>' +
@@ -299,6 +300,38 @@
             upgradeBtn.addEventListener('click', function () {
                 dropdown.classList.remove('open');
                 if (typeof openPlansModal === 'function') openPlansModal();
+            });
+        }
+
+        var billingBtn = dropdown.querySelector('#clerkBillingBtn');
+        if (billingBtn) {
+            billingBtn.addEventListener('click', function () {
+                billingBtn.disabled = true;
+                billingBtn.textContent = 'Loading…';
+                window._clerkGetToken().then(function (token) {
+                    return fetch('/api/billing/portal', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token,
+                        },
+                    });
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d.ok && d.url) {
+                        window.location.href = d.url;
+                    } else {
+                        alert(d.error || 'Could not open billing portal. Please try again.');
+                        billingBtn.disabled = false;
+                        billingBtn.textContent = 'Manage Billing';
+                    }
+                })
+                .catch(function () {
+                    alert('Network error. Please try again.');
+                    billingBtn.disabled = false;
+                    billingBtn.textContent = 'Manage Billing';
+                });
             });
         }
 

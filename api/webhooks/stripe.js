@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { getDb } = require('../db');
 
 const PRICE_TO_PLAN = {
     [process.env.STRIPE_PRICE_STARTER_MONTHLY]:  'starter',
@@ -8,6 +9,12 @@ const PRICE_TO_PLAN = {
     [process.env.STRIPE_PRICE_PRO_ANNUAL]:       'pro',
     [process.env.STRIPE_PRICE_PRO_LIFETIME]:     'pro',
 };
+
+const HANDLED_EVENTS = new Set([
+    'checkout.session.completed',
+    'customer.subscription.updated',
+    'customer.subscription.deleted',
+]);
 
 async function getRawBody(req) {
     return new Promise((resolve, reject) => {
@@ -34,18 +41,15 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
     if (!timestamp || v1Sigs.length === 0) {
         throw new Error('Invalid Stripe-Signature header format');
     }
-
     const ageSeconds = Math.abs(Math.floor(Date.now() / 1000) - Number(timestamp));
     if (ageSeconds > 300) {
         throw new Error('Stripe webhook timestamp is too old');
     }
-
     const signedPayload = `${timestamp}.${rawBody.toString('utf8')}`;
     const expected = crypto
         .createHmac('sha256', secret)
         .update(signedPayload, 'utf8')
         .digest('hex');
-
     const match = v1Sigs.some((sig) => {
         try {
             return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
@@ -53,17 +57,77 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
             return false;
         }
     });
-
-    if (!match) {
-        throw new Error('Stripe webhook signature verification failed');
-    }
-
+    if (!match) throw new Error('Stripe webhook signature verification failed');
     return Number(timestamp);
+}
+
+// Store stripeCustomerId → clerkUserId in MongoDB (upsert)
+async function storeCustomerMapping(stripeCustomerId, clerkUserId) {
+    try {
+        const db = await getDb();
+        await db.collection('customers').updateOne(
+            { stripeCustomerId },
+            { $set: { stripeCustomerId, clerkUserId, updatedAt: new Date() } },
+            { upsert: true }
+        );
+    } catch (err) {
+        console.error('stripe-webhook: failed to store customer mapping', err);
+    }
+}
+
+// Look up clerkUserId from stripeCustomerId via MongoDB
+async function getClerkUserIdByCustomer(stripeCustomerId) {
+    try {
+        const db = await getDb();
+        const doc = await db.collection('customers').findOne({ stripeCustomerId });
+        return doc ? doc.clerkUserId : null;
+    } catch (err) {
+        console.error('stripe-webhook: customer mapping lookup failed', err);
+        return null;
+    }
+}
+
+// Store stripeCustomerId in Clerk public_metadata (non-fatal)
+async function storeStripeCustomerInClerk(clerkUserId, stripeCustomerId, clerkSecretKey) {
+    if (!clerkSecretKey || !stripeCustomerId) return;
+    try {
+        await fetch(
+            `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}/metadata`,
+            {
+                method: 'PATCH',
+                headers: {
+                    Authorization: `Bearer ${clerkSecretKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ public_metadata: { stripeCustomerId } }),
+            }
+        );
+    } catch (err) {
+        console.error('stripe-webhook: failed to patch stripeCustomerId into Clerk', err);
+    }
+}
+
+// Call the internal set-plan endpoint
+async function callSetPlan(baseUrl, setPlanSecret, userId, plan, extraHeaders = {}) {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const nonce = crypto.randomUUID();
+    return fetch(`${baseUrl}/api/set-plan`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${setPlanSecret}`,
+            'X-Timestamp': String(timestamp),
+            'X-Nonce': nonce,
+            ...extraHeaders,
+        },
+        body: JSON.stringify({ userId, plan }),
+    });
 }
 
 module.exports = async function handler(req, res) {
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     const setPlanSecret = process.env.SET_PLAN_SECRET;
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
 
     if (req.method === 'GET') {
@@ -117,112 +181,176 @@ module.exports = async function handler(req, res) {
     let event;
     try {
         event = JSON.parse(rawBody.toString('utf8'));
-    } catch (err) {
+    } catch {
         return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
     }
 
-    if (event.type !== 'checkout.session.completed') {
+    if (!HANDLED_EVENTS.has(event.type)) {
         return res.status(200).json({ ok: true, ignored: true });
     }
 
-    const session = event.data && event.data.object;
-    if (!session) {
-        return res.status(400).json({ ok: false, error: 'Missing event data object' });
-    }
+    // ── checkout.session.completed ───────────────────────────────────────────
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data && event.data.object;
+        if (!session) {
+            return res.status(400).json({ ok: false, error: 'Missing event data object' });
+        }
 
-    const userId = session.client_reference_id;
-    if (!userId) {
-        console.error('stripe-webhook: checkout.session.completed has no client_reference_id');
-        return res.status(400).json({ ok: false, error: 'Missing client_reference_id on session' });
-    }
+        const userId = session.client_reference_id;
+        if (!userId) {
+            console.error('stripe-webhook: checkout.session.completed has no client_reference_id');
+            return res.status(400).json({ ok: false, error: 'Missing client_reference_id on session' });
+        }
 
-    const VALID_PLANS = ['starter', 'pro'];
+        const VALID_PLANS = ['starter', 'pro'];
+        let plan = session.metadata && session.metadata.plan;
 
-    let plan = session.metadata && session.metadata.plan;
-
-    if (!plan || !VALID_PLANS.includes(plan)) {
-        console.warn(
-            `stripe-webhook: session.metadata.plan="${plan}" is missing or invalid; ` +
-            `fetching session with line_items expansion for userId ${userId}`
-        );
-        const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-        if (!stripeSecretKey) {
-            console.error('stripe-webhook: STRIPE_SECRET_KEY is not set; cannot expand line_items');
-        } else {
-            try {
-                const expandRes = await fetch(
-                    `https://api.stripe.com/v1/checkout/sessions/${session.id}?expand[]=line_items`,
-                    { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
-                );
-                if (!expandRes.ok) {
-                    console.error(`stripe-webhook: Stripe session expand returned ${expandRes.status}`);
-                } else {
-                    const expandedSession = await expandRes.json();
-                    const lineItem =
-                        expandedSession.line_items &&
-                        expandedSession.line_items.data &&
-                        expandedSession.line_items.data[0];
-                    const priceId = lineItem ? (lineItem.price && lineItem.price.id) : undefined;
-                    plan = priceId ? PRICE_TO_PLAN[priceId] : undefined;
-                    if (plan) {
-                        console.log(`stripe-webhook: resolved plan="${plan}" via line_items expand`);
+        if (!plan || !VALID_PLANS.includes(plan)) {
+            console.warn(
+                `stripe-webhook: session.metadata.plan="${plan}" is missing or invalid; ` +
+                `fetching session with line_items expansion for userId ${userId}`
+            );
+            const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+            if (stripeSecretKey) {
+                try {
+                    const expandRes = await fetch(
+                        `https://api.stripe.com/v1/checkout/sessions/${session.id}?expand[]=line_items`,
+                        { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+                    );
+                    if (expandRes.ok) {
+                        const expandedSession = await expandRes.json();
+                        const lineItem = expandedSession.line_items?.data?.[0];
+                        const priceId = lineItem?.price?.id;
+                        plan = priceId ? PRICE_TO_PLAN[priceId] : undefined;
+                        if (plan) console.log(`stripe-webhook: resolved plan="${plan}" via line_items expand`);
                     }
+                } catch (err) {
+                    console.error('stripe-webhook: failed to expand session line_items', err);
                 }
-            } catch (err) {
-                console.error('stripe-webhook: failed to expand session line_items', err);
             }
         }
-    }
 
-    if (!plan || !VALID_PLANS.includes(plan)) {
-        console.error(
-            `stripe-webhook: could not determine plan for userId=${userId}; ` +
-            `metadata.plan="${session.metadata && session.metadata.plan}"`
-        );
-        return res.status(400).json({ ok: false, error: 'Could not determine plan from Stripe session' });
-    }
+        if (!plan || !VALID_PLANS.includes(plan)) {
+            console.error(
+                `stripe-webhook: could not determine plan for userId=${userId}; ` +
+                `metadata.plan="${session.metadata && session.metadata.plan}"`
+            );
+            return res.status(400).json({ ok: false, error: 'Could not determine plan from Stripe session' });
+        }
 
-    const timestamp = Math.floor(Date.now() / 1000);
-    const nonce = crypto.randomUUID();
+        // Store customer ID mapping so subscription events can look up the Clerk user
+        if (session.customer) {
+            storeCustomerMapping(session.customer, userId);
+            storeStripeCustomerInClerk(userId, session.customer, clerkSecretKey);
+        }
 
-    // Forward test hooks from the incoming request to set-plan (test mode only).
-    // ENABLE_WEBHOOK_TEST_HOOKS must be 'true' in the deployment env for this to
-    // have any effect; it is never set in production.
-    const testHookHeaders = {};
-    if (process.env.ENABLE_WEBHOOK_TEST_HOOKS === 'true' &&
-            req.headers['x-test-force-clerk-error'] === '1') {
-        testHookHeaders['X-Test-Force-Clerk-Error'] = '1';
-        console.log('stripe-webhook: [TEST HOOK] forwarding X-Test-Force-Clerk-Error to set-plan');
-    }
+        // Forward test hooks from the incoming request to set-plan (test mode only)
+        const testHookHeaders = {};
+        if (process.env.ENABLE_WEBHOOK_TEST_HOOKS === 'true' &&
+                req.headers['x-test-force-clerk-error'] === '1') {
+            testHookHeaders['X-Test-Force-Clerk-Error'] = '1';
+            console.log('stripe-webhook: [TEST HOOK] forwarding X-Test-Force-Clerk-Error to set-plan');
+        }
 
-    let setPlanRes;
-    try {
-        setPlanRes = await fetch(`${baseUrl}/api/set-plan`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${setPlanSecret}`,
-                'X-Timestamp': String(timestamp),
-                'X-Nonce': nonce,
-                ...testHookHeaders,
-            },
-            body: JSON.stringify({ userId, plan }),
-        });
-    } catch (err) {
-        console.error('stripe-webhook: set-plan fetch error', err);
-        return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
-    }
-
-    if (!setPlanRes.ok) {
-        let setPlanError = 'set-plan API error';
+        let setPlanRes;
         try {
-            const setPlanBody = await setPlanRes.json();
-            setPlanError = setPlanBody?.error || setPlanError;
-        } catch {}
-        console.error('stripe-webhook: set-plan returned', setPlanRes.status, setPlanError);
-        return res.status(502).json({ ok: false, error: setPlanError });
+            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, userId, plan, testHookHeaders);
+        } catch (err) {
+            console.error('stripe-webhook: set-plan fetch error', err);
+            return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
+        }
+
+        if (!setPlanRes.ok) {
+            let setPlanError = 'set-plan API error';
+            try {
+                const setPlanBody = await setPlanRes.json();
+                setPlanError = setPlanBody?.error || setPlanError;
+            } catch {}
+            console.error('stripe-webhook: set-plan returned', setPlanRes.status, setPlanError);
+            return res.status(502).json({ ok: false, error: setPlanError });
+        }
+
+        console.log(`stripe-webhook: set plan="${plan}" for userId="${userId}"`);
+        return res.status(200).json({ ok: true, userId, plan });
     }
 
-    console.log(`stripe-webhook: set plan="${plan}" for userId="${userId}"`);
-    return res.status(200).json({ ok: true, userId, plan });
+    // ── customer.subscription.updated ───────────────────────────────────────
+    if (event.type === 'customer.subscription.updated') {
+        const sub = event.data && event.data.object;
+        if (!sub) return res.status(400).json({ ok: false, error: 'Missing subscription object' });
+
+        const stripeCustomerId = sub.customer;
+        const status = sub.status;
+
+        const clerkUserId = await getClerkUserIdByCustomer(stripeCustomerId);
+        if (!clerkUserId) {
+            console.warn(`stripe-webhook: no Clerk user found for customer=${stripeCustomerId}`);
+            return res.status(200).json({ ok: true, ignored: true, reason: 'unknown customer' });
+        }
+
+        let newPlan;
+        if (status === 'active') {
+            const priceId = sub.items?.data?.[0]?.price?.id;
+            newPlan = priceId ? PRICE_TO_PLAN[priceId] : null;
+            if (!newPlan) {
+                console.warn(`stripe-webhook: unknown priceId=${priceId} on subscription update`);
+                return res.status(200).json({ ok: true, ignored: true, reason: 'unknown price' });
+            }
+        } else if (status === 'canceled' || status === 'unpaid') {
+            newPlan = 'free';
+        } else {
+            // past_due, paused — leave plan unchanged; subscription.deleted fires on full cancellation
+            console.log(`stripe-webhook: subscription status="${status}" — no plan change`);
+            return res.status(200).json({ ok: true, ignored: true, reason: `status=${status}` });
+        }
+
+        let setPlanRes;
+        try {
+            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, newPlan);
+        } catch (err) {
+            console.error('stripe-webhook: set-plan fetch error on subscription update', err);
+            return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
+        }
+
+        if (!setPlanRes.ok) {
+            const b = await setPlanRes.json().catch(() => ({}));
+            console.error('stripe-webhook: set-plan error on subscription update', b?.error);
+            return res.status(502).json({ ok: false, error: b?.error || 'set-plan error' });
+        }
+
+        console.log(`stripe-webhook: subscription updated — plan="${newPlan}" for userId="${clerkUserId}"`);
+        return res.status(200).json({ ok: true, clerkUserId, plan: newPlan });
+    }
+
+    // ── customer.subscription.deleted ───────────────────────────────────────
+    if (event.type === 'customer.subscription.deleted') {
+        const sub = event.data && event.data.object;
+        if (!sub) return res.status(400).json({ ok: false, error: 'Missing subscription object' });
+
+        const stripeCustomerId = sub.customer;
+        const clerkUserId = await getClerkUserIdByCustomer(stripeCustomerId);
+        if (!clerkUserId) {
+            console.warn(`stripe-webhook: no Clerk user found for customer=${stripeCustomerId} on deletion`);
+            return res.status(200).json({ ok: true, ignored: true, reason: 'unknown customer' });
+        }
+
+        let setPlanRes;
+        try {
+            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, 'free');
+        } catch (err) {
+            console.error('stripe-webhook: set-plan fetch error on subscription deletion', err);
+            return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
+        }
+
+        if (!setPlanRes.ok) {
+            const b = await setPlanRes.json().catch(() => ({}));
+            console.error('stripe-webhook: set-plan error on subscription deletion', b?.error);
+            return res.status(502).json({ ok: false, error: b?.error || 'set-plan error' });
+        }
+
+        console.log(`stripe-webhook: subscription deleted — reset to free for userId="${clerkUserId}"`);
+        return res.status(200).json({ ok: true, clerkUserId, plan: 'free' });
+    }
+
+    return res.status(200).json({ ok: true, ignored: true });
 };

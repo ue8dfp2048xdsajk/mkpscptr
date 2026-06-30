@@ -2111,6 +2111,24 @@ body.sidebar-expanded #contextPanelBody {
 }
 .ms-avatar-upgrade-btn:hover { background: #4338ca; }
 
+.ms-avatar-billing-btn {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 7px 0;
+    background: transparent;
+    color: #9ca3af;
+    border: 1px solid #374151;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: color 0.15s, border-color 0.15s;
+}
+.ms-avatar-billing-btn:hover { color: #f9fafb; border-color: #6b7280; }
+.ms-avatar-billing-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 @media (max-width: 680px) {
     .ms-plans-dialog { padding: 36px 18px 24px; }
     .ms-plans-grid { grid-template-columns: 1fr; }
