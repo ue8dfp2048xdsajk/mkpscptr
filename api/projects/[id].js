@@ -25,7 +25,7 @@ module.exports = async function handler(req, res) {
     const col = db.collection('projects');
     const project = await col.findOne(
         { uuid: id },
-        { projection: { _id: 0, snapshot: 1, schemaVersion: 1, updatedAt: 1 } }
+        { projection: { _id: 0, snapshot: 1, schemaVersion: 1, updatedAt: 1, expiresAt: 1 } }
     );
 
     if (!project) {

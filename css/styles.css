@@ -2115,3 +2115,159 @@ body.sidebar-expanded #contextPanelBody {
     .ms-plans-grid { grid-template-columns: 1fr; }
     .ms-plans-header h2 { font-size: 22px; }
 }
+
+/* ── My Projects panel (avatar dropdown) ─────────────────────────────────── */
+.ms-avatar-dropdown {
+    min-width: 240px;
+}
+
+.ms-projects-section {
+    border-top: 1px solid #2D3748;
+    border-bottom: 1px solid #2D3748;
+    margin: 8px 0;
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ms-projects-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6B7280;
+    padding: 0 4px 4px;
+}
+
+.ms-projects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.ms-projects-loading,
+.ms-projects-empty {
+    font-size: 12px;
+    color: #6B7280;
+    padding: 4px;
+    font-style: italic;
+}
+
+.ms-project-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 3px 4px;
+    border-radius: 5px;
+}
+.ms-project-row:hover {
+    background: rgba(255,255,255,0.04);
+}
+
+.ms-project-date {
+    font-size: 12px;
+    color: #9CA3AF;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ms-project-open-btn {
+    flex-shrink: 0;
+    height: 24px;
+    padding: 0 10px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'Inter', Arial, sans-serif;
+    background: #3730A3;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.ms-project-open-btn:hover { background: #4338ca; }
+
+.ms-open-uuid-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.ms-open-uuid-input {
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-family: 'Inter', Arial, sans-serif;
+    background: #0F172A;
+    color: #E2E8F0;
+    border: 1px solid #374151;
+    border-radius: 5px;
+    outline: none;
+}
+.ms-open-uuid-input:focus { border-color: #6366F1; }
+.ms-open-uuid-input::placeholder { color: #4B5563; }
+
+.ms-open-uuid-btn {
+    flex-shrink: 0;
+    height: 28px;
+    padding: 0 10px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'Inter', Arial, sans-serif;
+    background: #374151;
+    color: #E2E8F0;
+    border: 1px solid #4B5563;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.ms-open-uuid-btn:hover { background: #4B5563; }
+
+/* ── File menu — Open from cloud UUID row ────────────────────────────────── */
+.file-menu-uuid-row {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.file-menu-uuid-input {
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-family: 'Inter', Arial, sans-serif;
+    background: #F8FAFF;
+    color: #1e293b;
+    border: 1px solid #C7D2FE;
+    border-radius: 5px;
+    outline: none;
+    box-sizing: border-box;
+}
+.file-menu-uuid-input:focus { border-color: #6366F1; }
+.file-menu-uuid-input::placeholder { color: #94A3B8; }
+
+.file-menu-uuid-go {
+    flex-shrink: 0;
+    height: 28px;
+    padding: 0 10px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'Inter', Arial, sans-serif;
+    background: #4F46E5;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.file-menu-uuid-go:hover { background: #4338ca; }

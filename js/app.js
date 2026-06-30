@@ -7065,6 +7065,7 @@ function buildSnapshot(){
 
 
 var _autoSaveTimer = null;
+var _cloudAutoSaveTimer = null;
 
 // ── IndexedDB autosave (no quota limit — safe for large image data URLs) ──────
 const _autosaveDB = (() => {
@@ -7188,8 +7189,60 @@ function _showSaveToast(message, isError = false) {
 
 function _markClean(){
     _unsaved = false;
+    clearTimeout(_cloudAutoSaveTimer);
     document.getElementById('saveProgressBtn')?.classList.remove('has-unsaved');
     document.title = document.title.replace(/^• /, '');
+}
+
+async function _loadProjectByUuid(uuid) {
+    if (!uuid || typeof uuid !== 'string') return;
+
+    let res;
+    try {
+        res = await fetch('/api/projects/' + encodeURIComponent(uuid));
+    } catch {
+        _showSaveToast('Could not reach server — check your connection', true);
+        return;
+    }
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.ok) {
+        _showSaveToast(data.error || 'Project not found', true);
+        return;
+    }
+
+    let raw = data.snapshot;
+    if (typeof migrateSnapshot === 'function') raw = migrateSnapshot(raw);
+
+    if (!raw) {
+        _showSaveToast('Project data is empty or invalid', true);
+        return;
+    }
+
+    try {
+        const isLegacy = Array.isArray(raw);
+        const windows  = isLegacy ? raw : (raw.windows || []);
+        const tboxes   = isLegacy ? [] : (raw.textBoxes || []);
+
+        _applyLayoutFromSnapshot(isLegacy ? null : raw.layout);
+        await createCanvasPreviewsFromSnapshot(windows);
+        if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
+        _applyViewportFromSnapshot(isLegacy ? null : raw.viewport);
+        _applyUndoHistoryFromSnapshot(isLegacy ? null : raw.undoHistory);
+
+        syncSliders();
+        updateWindowBorders();
+        updateDropUI();
+    } catch (err) {
+        console.error('_loadProjectByUuid: restore failed', err);
+        _showSaveToast('Failed to restore project — file may be corrupted', true);
+        return;
+    }
+
+    localStorage.setItem(_CLOUD_UUID_KEY, uuid);
+    _markClean();
+    _showSaveToast('Project loaded ✓');
 }
 
 function autoSaveSession(){
@@ -7201,6 +7254,16 @@ function autoSaveSession(){
     _autoSaveTimer = setTimeout(()=>{
         _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
     }, 2500);
+
+    // Cloud backup — only when signed in and a UUID is already stored
+    clearTimeout(_cloudAutoSaveTimer);
+    _cloudAutoSaveTimer = setTimeout(()=>{
+        const signedIn = window.Clerk && window.Clerk.user;
+        const hasUuid  = !!localStorage.getItem(_CLOUD_UUID_KEY);
+        if (signedIn && hasUuid) {
+            _cloudSave().catch(()=>{});
+        }
+    }, 30000);
 }
 
 
@@ -7220,6 +7283,37 @@ function autoSaveSession(){
             filePopover.hidden = true;
         }
     });
+})();
+
+// ── Open from cloud (File menu) ───────────────────────────────────────────────
+(()=>{
+    const openCloudBtn   = document.getElementById('openCloudBtn');
+    const openCloudRow   = document.getElementById('openCloudRow');
+    const openCloudInput = document.getElementById('openCloudInput');
+    const openCloudGoBtn = document.getElementById('openCloudGoBtn');
+    if (!openCloudBtn || !openCloudRow) return;
+
+    openCloudBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        openCloudRow.hidden = !openCloudRow.hidden;
+        if (!openCloudRow.hidden) openCloudInput && openCloudInput.focus();
+    });
+
+    if (openCloudGoBtn && openCloudInput) {
+        openCloudGoBtn.addEventListener('click', () => {
+            const uuid = openCloudInput.value.trim();
+            if (!uuid) return;
+            const filePopover = document.getElementById('fileMenuPopover');
+            if (filePopover) filePopover.hidden = true;
+            openCloudRow.hidden = true;
+            openCloudInput.value = '';
+            _loadProjectByUuid(uuid);
+        });
+        openCloudInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') openCloudGoBtn.click();
+        });
+        openCloudInput.addEventListener('click', e => e.stopPropagation());
+    }
 })();
 
 function _updateSaveNewBtn() {

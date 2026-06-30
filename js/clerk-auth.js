@@ -88,20 +88,63 @@
 
         var email = (user.primaryEmailAddress && user.primaryEmailAddress.emailAddress) || '';
         var planLabel = window._userPlan.charAt(0).toUpperCase() + window._userPlan.slice(1);
-
         var showUpgradeBtn = window._userPlan === 'free' || window._userPlan === 'starter';
 
         var dropdown = document.createElement('div');
         dropdown.className = 'ms-avatar-dropdown';
+
         dropdown.innerHTML =
             '<div class="ms-avatar-email">' + email + '</div>' +
             '<div class="ms-avatar-plan">Plan: <strong>' + planLabel + '</strong></div>' +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
+            '<div class="ms-projects-section">' +
+              '<div class="ms-projects-label">My Projects</div>' +
+              '<div class="ms-projects-list" id="msProjectsList"><span class="ms-projects-loading">Loading…</span></div>' +
+              '<div class="ms-open-uuid-row">' +
+                '<input class="ms-open-uuid-input" id="msOpenUuidInput" type="text" placeholder="Open by UUID…" autocomplete="off" spellcheck="false"/>' +
+                '<button class="ms-open-uuid-btn" id="msOpenUuidBtn">Open</button>' +
+              '</div>' +
+            '</div>' +
             '<button id="clerkSignOutBtn">Log Out</button>';
+
+        var _projectsLoaded = false;
+
+        function _loadProjects() {
+            if (_projectsLoaded) return;
+            _projectsLoaded = true;
+            var list = dropdown.querySelector('#msProjectsList');
+            fetch('/api/projects/list?clerkUserId=' + encodeURIComponent(user.id))
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.ok || !data.projects || !data.projects.length) {
+                        list.innerHTML = '<span class="ms-projects-empty">No saved projects yet.</span>';
+                        return;
+                    }
+                    list.innerHTML = '';
+                    data.projects.forEach(function (p) {
+                        var date = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+                        var row = document.createElement('div');
+                        row.className = 'ms-project-row';
+                        row.innerHTML =
+                            '<span class="ms-project-date">' + date + '</span>' +
+                            '<button class="ms-project-open-btn" data-uuid="' + p.uuid + '">Open</button>';
+                        row.querySelector('.ms-project-open-btn').addEventListener('click', function () {
+                            dropdown.classList.remove('open');
+                            if (typeof _loadProjectByUuid === 'function') _loadProjectByUuid(p.uuid);
+                        });
+                        list.appendChild(row);
+                    });
+                })
+                .catch(function () {
+                    list.innerHTML = '<span class="ms-projects-empty">Could not load projects.</span>';
+                });
+        }
 
         avatar.addEventListener('click', function (e) {
             e.stopPropagation();
+            var opening = !dropdown.classList.contains('open');
             dropdown.classList.toggle('open');
+            if (opening) _loadProjects();
         });
 
         document.addEventListener('click', function () {
@@ -118,6 +161,21 @@
                 dropdown.classList.remove('open');
                 if (typeof openPlansModal === 'function') openPlansModal();
             });
+        }
+
+        var openUuidBtn = dropdown.querySelector('#msOpenUuidBtn');
+        var openUuidInput = dropdown.querySelector('#msOpenUuidInput');
+        if (openUuidBtn && openUuidInput) {
+            openUuidBtn.addEventListener('click', function () {
+                var uuid = openUuidInput.value.trim();
+                if (!uuid) return;
+                dropdown.classList.remove('open');
+                if (typeof _loadProjectByUuid === 'function') _loadProjectByUuid(uuid);
+            });
+            openUuidInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') openUuidBtn.click();
+            });
+            openUuidInput.addEventListener('click', function (e) { e.stopPropagation(); });
         }
 
         var signOutBtn = dropdown.querySelector('#clerkSignOutBtn');
