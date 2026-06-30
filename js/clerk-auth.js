@@ -128,7 +128,13 @@
             })
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
-                    if (!data.ok || !data.projects || !data.projects.length) {
+                    if (!data.ok) {
+                        list.innerHTML = '<span class="ms-projects-empty">' +
+                            (data.error === 'Not authenticated' ? 'Sign in to see projects.' : 'Could not load projects.') +
+                            '</span>';
+                        return;
+                    }
+                    if (!data.projects || !data.projects.length) {
                         list.innerHTML = '<span class="ms-projects-empty">No saved projects yet.</span>';
                         return;
                     }

@@ -80,7 +80,8 @@ module.exports = async function handler(req, res) {
 
     if (clerkUserId) {
         // Look up plan from Clerk (needed for limit enforcement)
-        let plan = 'free';
+        // When CLERK_SECRET_KEY is absent (local dev), skip enforcement and allow saves.
+        let plan = 'pro';
         if (clerkSecretKey) {
             try {
                 plan = await getClerkUserPlan(clerkUserId, clerkSecretKey) || 'free';
