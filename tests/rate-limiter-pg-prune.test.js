@@ -249,3 +249,55 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
         expect(pruneParams[0]).toBe(WINDOW_SECONDS * 1000);
     });
 });
+
+// ---------------------------------------------------------------------------
+// pgPruneExpired non-blocking — a slow/hanging prune must not delay isRateLimited
+// ---------------------------------------------------------------------------
+
+/**
+ * This describe block guards against a future refactor that accidentally adds
+ * `await` before `pgPruneExpired()` inside `pgIsRateLimited`.  If that happens,
+ * a never-resolving prune query would stall every 5th isRateLimited call
+ * indefinitely.  The test enforces a strict 50 ms wall-clock budget.
+ */
+describe('pgPruneExpired — fire-and-forget: slow prune does not block isRateLimited', () => {
+    let randomSpy;
+
+    afterEach(() => {
+        randomSpy.mockRestore();
+        delete process.env.DATABASE_URL;
+        jest.clearAllMocks();
+    });
+
+    test('isRateLimited resolves within 50 ms even when the prune query never resolves', async () => {
+        // Build a pool where:
+        //   • CREATE TABLE  → resolves immediately
+        //   • SELECT        → resolves immediately (no row → not rate-limited)
+        //   • prune DELETE  → never resolves (simulates a hanging DB connection)
+        const hangingPromise = new Promise(() => {}); // intentionally never settles
+
+        const pool = {
+            query: jest.fn((sql) => {
+                const s = sql.trim();
+                if (/CREATE TABLE/i.test(s)) return Promise.resolve({ rows: [] });
+                if (/^SELECT/i.test(s))      return Promise.resolve({ rows: [] });
+                if (/^DELETE/i.test(s) && /window_start/i.test(s)) return hangingPromise;
+                return Promise.resolve({ rows: [] });
+            }),
+        };
+
+        const pgMockSlow = { Pool: jest.fn(() => pool), _pool: pool };
+
+        // Force the 5 % gate to always fire so pgPruneExpired is always called.
+        randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+
+        const rl = loadRateLimiter(pgMockSlow);
+
+        const start = Date.now();
+        const result = await rl.isRateLimited('10.2.0.1');
+        const elapsed = Date.now() - start;
+
+        expect(result).toBe(false);          // no row → not rate-limited
+        expect(elapsed).toBeLessThan(50);    // prune must not have been awaited
+    });
+});
