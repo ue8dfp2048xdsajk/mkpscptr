@@ -7151,8 +7151,25 @@ async function _getClerkToken() {
     return null;
 }
 
+function buildCloudSnapshot() {
+    const full = buildFullSnapshot();
+    return {
+        ...full,
+        windows: full.windows.map(function (w) {
+            return Object.assign({}, w, {
+                bgSrc: null,
+                designSrc: null,
+                colorLayerDataURL: null,
+                duplicates: (w.duplicates || []).map(function (d) {
+                    return Object.assign({}, d, { src: null });
+                }),
+            });
+        }),
+    };
+}
+
 async function _cloudSave({ isNew = false } = {}) {
-    const snapshot = buildFullSnapshot();
+    const snapshot = buildCloudSnapshot();
     const currentUuid = isNew ? null : localStorage.getItem(_CLOUD_UUID_KEY);
 
     const body = { snapshot };
@@ -7413,6 +7430,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         loadingIndicator.innerText =
             `Restoring session... ${index + 1} / ${snapshot.length}`;
+
+        if (!saved.bgSrc) continue; // cloud saves strip image data; skip null-src windows
 
         const bgImg = await new Promise(resolve=>{
 

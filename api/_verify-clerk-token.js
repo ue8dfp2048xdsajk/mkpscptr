@@ -1,8 +1,9 @@
 const { createRemoteJWKSet, jwtVerify } = require('jose');
 
-const JWKS = createRemoteJWKSet(
-    new URL('https://api.clerk.com/v1/jwks')
-);
+const JWKS_URL = process.env.CLERK_JWKS_URL
+    || 'https://hip-koala-72.clerk.accounts.dev/.well-known/jwks.json';
+
+const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
 
 /**
  * Verify a Clerk session JWT from an Authorization header value
