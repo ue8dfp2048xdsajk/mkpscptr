@@ -7184,16 +7184,54 @@ function _compressForCloud(src, opts) {
 
 async function buildCloudSnapshot() {
     const full = buildFullSnapshot();
-    const compressedWindows = await Promise.all(full.windows.map(async function (w) {
-        const bgSrc    = await _compressForCloud(w.bgSrc,            { format: 'jpeg', quality: 0.65, maxDim: 1200 });
-        const designSrc = await _compressForCloud(w.designSrc,       { format: 'png',  maxDim: 1200 });
-        const colorLayer = await _compressForCloud(w.colorLayerDataURL, { format: 'png', maxDim: 1200 });
-        const duplicates = await Promise.all((w.duplicates || []).map(async function (d) {
-            return Object.assign({}, d, { src: await _compressForCloud(d.src, { format: 'png', maxDim: 1200 }) });
-        }));
-        return Object.assign({}, w, { bgSrc, designSrc, colorLayerDataURL: colorLayer, duplicates });
-    }));
-    return Object.assign({}, full, { windows: compressedWindows });
+
+    // --- Step 1: collect every unique data-URL used across all windows ---
+    const srcToKey = new Map(); // data URL → '__img_N'
+    let imgIdx = 0;
+    function _registerSrc(src) {
+        if (!src || !src.startsWith('data:')) return;
+        if (!srcToKey.has(src)) srcToKey.set(src, '__img_' + (imgIdx++));
+    }
+    for (const w of full.windows) {
+        _registerSrc(w.bgSrc);
+        _registerSrc(w.designSrc);
+        _registerSrc(w.colorLayerDataURL);
+        for (const d of (w.duplicates || [])) _registerSrc(d.src);
+    }
+
+    // --- Step 2: compress each unique image exactly once ---
+    const bgSrcSet = new Set(full.windows.map(function (w) { return w.bgSrc; }));
+    const imageMap = {};
+    for (const [src, key] of srcToKey) {
+        const isBg = bgSrcSet.has(src);
+        const compressed = await _compressForCloud(
+            src,
+            isBg ? { format: 'jpeg', quality: 0.65, maxDim: 1200 }
+                 : { format: 'png', maxDim: 1200 }
+        );
+        if (compressed) imageMap[key] = compressed;
+        // if compression fails the key stays absent → treated as null on restore
+    }
+
+    // --- Step 3: replace image data in windows with their keys ---
+    function _toKey(src) {
+        if (!src || !src.startsWith('data:')) return null;
+        const key = srcToKey.get(src);
+        return (key && imageMap[key]) ? key : null;
+    }
+
+    const compressedWindows = full.windows.map(function (w) {
+        return Object.assign({}, w, {
+            bgSrc:             _toKey(w.bgSrc),
+            designSrc:         _toKey(w.designSrc),
+            colorLayerDataURL: _toKey(w.colorLayerDataURL),
+            duplicates: (w.duplicates || []).map(function (d) {
+                return Object.assign({}, d, { src: _toKey(d.src) });
+            }),
+        });
+    });
+
+    return Object.assign({}, full, { windows: compressedWindows, imageMap });
 }
 
 async function _cloudSave({ isNew = false } = {}) {
@@ -7210,7 +7248,8 @@ async function _cloudSave({ isNew = false } = {}) {
         const wins = snapshot && snapshot.windows ? snapshot.windows.length : 0;
         const hasBg = snapshot && snapshot.windows
             ? snapshot.windows.filter(w => w.bgSrc).length : 0;
-        fetch('/api/debug/size?mb=' + sizeMB + '&windows=' + wins + '&hasBg=' + hasBg).catch(() => {});
+        const uniqueImgs = snapshot && snapshot.imageMap ? Object.keys(snapshot.imageMap).length : 0;
+        fetch('/api/debug/size?mb=' + sizeMB + '&windows=' + wins + '&hasBg=' + hasBg + '&uniqueImgs=' + uniqueImgs).catch(() => {});
     } catch (_) {}
 
     const headers = { 'Content-Type': 'application/json' };
@@ -7291,8 +7330,29 @@ async function _loadProjectByUuid(uuid) {
     let windows = isLegacy ? raw : (raw.windows || []);
     const tboxes = isLegacy ? [] : (raw.textBoxes || []);
 
-    // Cloud snapshots strip base64 image data to fit MongoDB limits.
-    // Try to restore images from the local IndexedDB autosave by matching bgName.
+    // New format: images are deduplicated into an imageMap keyed by '__img_N'.
+    // Resolve all keys back to data URLs before anything else.
+    const imageMap = (!isLegacy && raw.imageMap) ? raw.imageMap : {};
+    function _fromKey(val) {
+        if (!val) return null;
+        if (typeof val === 'string' && val.startsWith('__img_')) return imageMap[val] || null;
+        return val; // old format — already a data URL (or null)
+    }
+    if (Object.keys(imageMap).length > 0) {
+        windows = windows.map(function (w) {
+            return Object.assign({}, w, {
+                bgSrc:             _fromKey(w.bgSrc),
+                designSrc:         _fromKey(w.designSrc),
+                colorLayerDataURL: _fromKey(w.colorLayerDataURL),
+                duplicates: (w.duplicates || []).map(function (d) {
+                    return Object.assign({}, d, { src: _fromKey(d.src) });
+                }),
+            });
+        });
+    }
+
+    // Cloud snapshots may still have null images (old saves before deduplication fix).
+    // Try to restore those from local IndexedDB autosave by matching bgName.
     const hasStripped = windows.some(function (w) { return !w.bgSrc; });
     if (hasStripped) {
         try {
