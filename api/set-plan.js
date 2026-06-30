@@ -93,6 +93,18 @@ module.exports = async function handler(req, res) {
         return res.status(500).json({ ok: false, error: 'Failed to record nonce; request not processed' });
     }
 
+    // Test hook — only active when ENABLE_WEBHOOK_TEST_HOOKS=true (never set in production).
+    // Simulates a Clerk API failure AFTER the nonce has been recorded so that the
+    // deleteNonce-on-error branch is exercised by scripts/test-webhook-retry.js.
+    if (process.env.ENABLE_WEBHOOK_TEST_HOOKS === 'true' &&
+            req.headers['x-test-force-clerk-error'] === '1') {
+        console.log('set-plan: [TEST HOOK] simulating Clerk failure to exercise deleteNonce path');
+        try { await deleteNonce(nonce); } catch (delErr) {
+            console.error('set-plan: failed to delete nonce after [TEST] simulated Clerk error', delErr);
+        }
+        return res.status(502).json({ ok: false, error: '[TEST] Simulated Clerk failure' });
+    }
+
     const clerkUrl = `https://api.clerk.com/v1/users/${encodeURIComponent(userId)}/metadata`;
 
     let clerkRes;

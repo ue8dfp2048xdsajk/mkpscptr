@@ -185,6 +185,16 @@ module.exports = async function handler(req, res) {
     const timestamp = Math.floor(Date.now() / 1000);
     const nonce = crypto.randomUUID();
 
+    // Forward test hooks from the incoming request to set-plan (test mode only).
+    // ENABLE_WEBHOOK_TEST_HOOKS must be 'true' in the deployment env for this to
+    // have any effect; it is never set in production.
+    const testHookHeaders = {};
+    if (process.env.ENABLE_WEBHOOK_TEST_HOOKS === 'true' &&
+            req.headers['x-test-force-clerk-error'] === '1') {
+        testHookHeaders['X-Test-Force-Clerk-Error'] = '1';
+        console.log('stripe-webhook: [TEST HOOK] forwarding X-Test-Force-Clerk-Error to set-plan');
+    }
+
     let setPlanRes;
     try {
         setPlanRes = await fetch(`${baseUrl}/api/set-plan`, {
@@ -194,6 +204,7 @@ module.exports = async function handler(req, res) {
                 'Authorization': `Bearer ${setPlanSecret}`,
                 'X-Timestamp': String(timestamp),
                 'X-Nonce': nonce,
+                ...testHookHeaders,
             },
             body: JSON.stringify({ userId, plan }),
         });
