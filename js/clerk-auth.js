@@ -124,12 +124,40 @@
               '<div class="ms-projects-label">My Projects</div>' +
               '<div class="ms-projects-limit">' + projectLimitHint + '</div>' +
               '<div class="ms-projects-list" id="msProjectsList"><span class="ms-projects-loading">Loading…</span></div>' +
-              '<div class="ms-open-uuid-row">' +
-                '<input class="ms-open-uuid-input" id="msOpenUuidInput" type="text" placeholder="Open by UUID…" autocomplete="off" spellcheck="false"/>' +
-                '<button class="ms-open-uuid-btn" id="msOpenUuidBtn">Open</button>' +
-              '</div>' +
             '</div>' +
             '<button id="clerkSignOutBtn">Log Out</button>';
+
+        function _apiWithToken(url, opts) {
+            return window._clerkGetToken().then(function (token) {
+                var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+                if (token) headers['Authorization'] = 'Bearer ' + token;
+                return fetch(url, Object.assign({}, opts, { headers: headers }));
+            });
+        }
+
+        function _deleteProject(uuid) {
+            _apiWithToken('/api/projects/' + uuid, { method: 'DELETE' })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d.ok) {
+                        if (localStorage.getItem('ms_project_uuid') === uuid) {
+                            localStorage.removeItem('ms_project_uuid');
+                        }
+                        _loadProjects();
+                    }
+                })
+                .catch(function () {});
+        }
+
+        function _renameProject(uuid, newName) {
+            _apiWithToken('/api/projects/rename', {
+                method: 'POST',
+                body: JSON.stringify({ uuid: uuid, name: newName })
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (d) { if (d.ok) _loadProjects(); })
+                .catch(function () {});
+        }
 
         function _loadProjects() {
             var list = dropdown.querySelector('#msProjectsList');
@@ -154,16 +182,78 @@
                     }
                     list.innerHTML = '';
                     data.projects.forEach(function (p) {
+                        var name = p.name || 'Untitled';
                         var date = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+
                         var row = document.createElement('div');
                         row.className = 'ms-project-row';
-                        row.innerHTML =
-                            '<span class="ms-project-date">' + date + '</span>' +
-                            '<button class="ms-project-open-btn" data-uuid="' + p.uuid + '">Open</button>';
-                        row.querySelector('.ms-project-open-btn').addEventListener('click', function () {
+
+                        var info = document.createElement('div');
+                        info.className = 'ms-project-info';
+
+                        var nameSpan = document.createElement('span');
+                        nameSpan.className = 'ms-project-name';
+                        nameSpan.textContent = name;
+
+                        var dateSpan = document.createElement('span');
+                        dateSpan.className = 'ms-project-date';
+                        dateSpan.textContent = date;
+
+                        info.appendChild(nameSpan);
+                        info.appendChild(dateSpan);
+
+                        var openBtn = document.createElement('button');
+                        openBtn.className = 'ms-project-open-btn';
+                        openBtn.textContent = 'Open';
+
+                        var renameBtn = document.createElement('button');
+                        renameBtn.className = 'ms-project-icon-btn';
+                        renameBtn.title = 'Rename';
+                        renameBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>';
+
+                        var deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'ms-project-icon-btn ms-project-delete-btn';
+                        deleteBtn.title = 'Delete';
+                        deleteBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/></svg>';
+
+                        openBtn.addEventListener('click', function () {
                             dropdown.classList.remove('open');
                             if (typeof _loadProjectByUuid === 'function') _loadProjectByUuid(p.uuid);
                         });
+
+                        renameBtn.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            var input = document.createElement('input');
+                            input.className = 'ms-project-rename-input';
+                            input.value = nameSpan.textContent;
+                            info.replaceChild(input, nameSpan);
+                            input.focus();
+                            input.select();
+
+                            function commitRename() {
+                                var newName = input.value.trim() || 'Untitled';
+                                nameSpan.textContent = newName;
+                                info.replaceChild(nameSpan, input);
+                                _renameProject(p.uuid, newName);
+                            }
+                            input.addEventListener('blur', commitRename);
+                            input.addEventListener('keydown', function (ev) {
+                                if (ev.key === 'Enter') { ev.preventDefault(); commitRename(); }
+                                if (ev.key === 'Escape') { info.replaceChild(nameSpan, input); }
+                            });
+                            input.addEventListener('click', function (ev) { ev.stopPropagation(); });
+                        });
+
+                        deleteBtn.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            if (!confirm('Delete "' + nameSpan.textContent + '"? This cannot be undone.')) return;
+                            _deleteProject(p.uuid);
+                        });
+
+                        row.appendChild(info);
+                        row.appendChild(openBtn);
+                        row.appendChild(renameBtn);
+                        row.appendChild(deleteBtn);
                         list.appendChild(row);
                     });
                 })
@@ -185,7 +275,13 @@
             if (opening) _loadProjects();
         });
 
-        document.addEventListener('click', function () {
+        var _dropdownHovered = false;
+        dropdown.addEventListener('mouseenter', function () { _dropdownHovered = true; });
+        dropdown.addEventListener('mouseleave', function () { _dropdownHovered = false; });
+
+        document.addEventListener('click', function (e) {
+            if (_dropdownHovered) return;
+            if (wrap.contains(e.target)) return;
             dropdown.classList.remove('open');
         });
 
@@ -199,21 +295,6 @@
                 dropdown.classList.remove('open');
                 if (typeof openPlansModal === 'function') openPlansModal();
             });
-        }
-
-        var openUuidBtn = dropdown.querySelector('#msOpenUuidBtn');
-        var openUuidInput = dropdown.querySelector('#msOpenUuidInput');
-        if (openUuidBtn && openUuidInput) {
-            openUuidBtn.addEventListener('click', function () {
-                var uuid = openUuidInput.value.trim();
-                if (!uuid) return;
-                dropdown.classList.remove('open');
-                if (typeof _loadProjectByUuid === 'function') _loadProjectByUuid(uuid);
-            });
-            openUuidInput.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter') openUuidBtn.click();
-            });
-            openUuidInput.addEventListener('click', function (e) { e.stopPropagation(); });
         }
 
         var signOutBtn = dropdown.querySelector('#clerkSignOutBtn');

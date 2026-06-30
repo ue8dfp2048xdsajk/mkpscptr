@@ -7138,6 +7138,7 @@ function _markDirty(){
 // ── Cloud save ────────────────────────────────────────────────────────────────
 // Key stored in localStorage so refreshes re-attach to the same record.
 const _CLOUD_UUID_KEY = 'ms_project_uuid';
+var _projectName = '';
 
 async function _getClerkToken() {
     if (typeof window._clerkGetToken === 'function') {
@@ -7238,7 +7239,7 @@ async function _cloudSave({ isNew = false } = {}) {
     const snapshot = await buildCloudSnapshot();
     const currentUuid = isNew ? null : localStorage.getItem(_CLOUD_UUID_KEY);
 
-    const body = { snapshot };
+    const body = { snapshot, name: _projectName || 'Untitled' };
     if (currentUuid) body.uuid = currentUuid;
 
     const headers = { 'Content-Type': 'application/json' };
@@ -7264,6 +7265,71 @@ async function _cloudSave({ isNew = false } = {}) {
     }
 
     return { ok: false, error: data.error || 'Save failed' };
+}
+
+function _promptProjectName(defaultName) {
+    return new Promise(function (resolve) {
+        var existing = document.getElementById('msNamePrompt');
+        if (existing) existing.remove();
+
+        var overlay = document.createElement('div');
+        overlay.id = 'msNamePrompt';
+        overlay.className = 'ms-name-prompt-overlay';
+
+        var box = document.createElement('div');
+        box.className = 'ms-name-prompt-box';
+
+        var title = document.createElement('div');
+        title.className = 'ms-name-prompt-title';
+        title.textContent = 'Name this project';
+
+        var input = document.createElement('input');
+        input.className = 'ms-name-prompt-input';
+        input.type = 'text';
+        input.maxLength = 60;
+        input.placeholder = 'e.g. Fall Collection Mockups';
+        input.autocomplete = 'off';
+        input.spellcheck = false;
+        input.value = defaultName || '';
+
+        var actions = document.createElement('div');
+        actions.className = 'ms-name-prompt-actions';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.className = 'ms-name-prompt-cancel';
+        cancelBtn.textContent = 'Cancel';
+
+        var saveBtn = document.createElement('button');
+        saveBtn.className = 'ms-name-prompt-save';
+        saveBtn.textContent = 'Save';
+
+        actions.appendChild(cancelBtn);
+        actions.appendChild(saveBtn);
+        box.appendChild(title);
+        box.appendChild(input);
+        box.appendChild(actions);
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        setTimeout(function () { input.focus(); input.select(); }, 50);
+
+        function finish(name) {
+            overlay.remove();
+            resolve(name);
+        }
+
+        saveBtn.addEventListener('click', function () {
+            finish(input.value.trim() || 'Untitled');
+        });
+        cancelBtn.addEventListener('click', function () { finish(null); });
+        overlay.addEventListener('click', function (e) {
+            if (e.target === overlay) finish(null);
+        });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') finish(input.value.trim() || 'Untitled');
+            if (e.key === 'Escape') finish(null);
+        });
+    });
 }
 
 function _showSaveToast(message, isError = false) {
@@ -7456,6 +7522,7 @@ async function _loadProjectByUuid(uuid) {
     }
 
     localStorage.setItem(_CLOUD_UUID_KEY, uuid);
+    _projectName = raw.name || '';
     _markClean();
 
     if (missing > 0 && restorable.length === 0) {
@@ -7554,6 +7621,13 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
         return;
     }
 
+    const isFirstSave = !localStorage.getItem(_CLOUD_UUID_KEY);
+    if (isFirstSave) {
+        const name = await _promptProjectName(_projectName);
+        if (name === null) return;
+        _projectName = name;
+    }
+
     const btn = document.getElementById('saveProgressBtn');
     if(btn) btn.disabled = true;
 
@@ -7592,6 +7666,10 @@ document.getElementById('saveNewBtn').addEventListener('click', async () => {
         );
         return;
     }
+
+    const newName = await _promptProjectName('');
+    if (newName === null) return;
+    _projectName = newName;
 
     const btn = document.getElementById('saveNewBtn');
     if(btn) btn.disabled = true;
@@ -8243,6 +8321,7 @@ document.getElementById("loadProgressInput").addEventListener("change", function
         const isLegacy = Array.isArray(data);
         const snapshot = isLegacy ? data : (data.windows || []);
         const tboxes   = isLegacy ? [] : (data.textBoxes || []);
+        _projectName   = isLegacy ? '' : (data.name || '');
 
         _applyLayoutFromSnapshot(isLegacy ? null : data.layout);
         await createCanvasPreviewsFromSnapshot(snapshot);
@@ -8265,6 +8344,8 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
 
     _autosaveDB.del('session').catch(()=>{});
     localStorage.removeItem('mockup_autosave');
+    localStorage.removeItem(_CLOUD_UUID_KEY);
+    _projectName = '';
 
     // Reset all state
     canvasData = [];
@@ -9268,6 +9349,7 @@ function buildFullSnapshot() {
 
     return {
         schemaVersion: 1,
+        name:        _projectName || 'Untitled',
         windows:     buildSnapshot(),
         textBoxes:   _textBoxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, content: b.content })),
         viewport:    { scale: _vpScale, x: _vpX, y: _vpY },

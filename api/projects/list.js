@@ -33,7 +33,7 @@ module.exports = async function handler(req, res) {
     const projects = await col
         .find(
             { userId: clerkUserId },
-            { projection: { _id: 0, uuid: 1, updatedAt: 1, schemaVersion: 1 } }
+            { projection: { _id: 0, uuid: 1, name: 1, updatedAt: 1 } }
         )
         .sort({ updatedAt: -1 })
         .limit(20)

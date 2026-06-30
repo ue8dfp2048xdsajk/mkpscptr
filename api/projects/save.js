@@ -37,7 +37,7 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
     }
 
-    const { uuid, snapshot } = body || {};
+    const { uuid, snapshot, name } = body || {};
 
     if (!snapshot || typeof snapshot !== 'object') {
         return res.status(400).json({ ok: false, error: 'Missing snapshot' });
@@ -101,8 +101,9 @@ module.exports = async function handler(req, res) {
             if (existing.userId && existing.userId !== clerkUserId) {
                 return res.status(403).json({ ok: false, error: 'Not your project' });
             }
+            const nameToSet = (name || '').trim() || existing.name || 'Untitled';
             await col.updateOne({ uuid }, {
-                $set: { snapshot, updatedAt: now, userId: clerkUserId, expiresAt: null }
+                $set: { snapshot, name: nameToSet, updatedAt: now, userId: clerkUserId, expiresAt: null }
             });
             return res.status(200).json({ ok: true, uuid });
         }
@@ -126,6 +127,7 @@ module.exports = async function handler(req, res) {
             uuid: newUuid,
             userId: clerkUserId,
             plan,
+            name: (name || '').trim() || 'Untitled',
             snapshot,
             schemaVersion: snapshot.schemaVersion,
             createdAt: now,
