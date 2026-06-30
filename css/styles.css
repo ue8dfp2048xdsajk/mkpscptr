@@ -2226,6 +2226,14 @@ body.sidebar-expanded #contextPanelBody {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.ms-project-name--editable {
+    cursor: pointer;
+}
+.ms-project-name--editable:hover {
+    color: #A5B4FC;
+    text-decoration: underline;
+    text-decoration-color: rgba(165,180,252,0.4);
+}
 
 .ms-project-date {
     font-size: 10px;
@@ -2264,8 +2272,8 @@ body.sidebar-expanded #contextPanelBody {
 
 .ms-project-icon-btn {
     flex-shrink: 0;
-    width: 22px;
-    height: 22px;
+    width: 26px;
+    height: 26px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2275,14 +2283,14 @@ body.sidebar-expanded #contextPanelBody {
     cursor: pointer;
     border-radius: 4px;
     padding: 0;
-    transition: color 0.15s, background 0.15s;
+    font-size: 14px;
+    line-height: 1;
+    transition: background 0.15s;
 }
 .ms-project-icon-btn:hover {
-    color: #E5E7EB;
     background: rgba(255,255,255,0.08);
 }
 .ms-project-delete-btn:hover {
-    color: #F87171;
     background: rgba(239,68,68,0.12);
 }
 

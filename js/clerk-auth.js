@@ -192,8 +192,9 @@
                         info.className = 'ms-project-info';
 
                         var nameSpan = document.createElement('span');
-                        nameSpan.className = 'ms-project-name';
+                        nameSpan.className = 'ms-project-name ms-project-name--editable';
                         nameSpan.textContent = name;
+                        nameSpan.title = 'Click to rename';
 
                         var dateSpan = document.createElement('span');
                         dateSpan.className = 'ms-project-date';
@@ -206,22 +207,17 @@
                         openBtn.className = 'ms-project-open-btn';
                         openBtn.textContent = 'Open';
 
-                        var renameBtn = document.createElement('button');
-                        renameBtn.className = 'ms-project-icon-btn';
-                        renameBtn.title = 'Rename';
-                        renameBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/></svg>';
-
                         var deleteBtn = document.createElement('button');
                         deleteBtn.className = 'ms-project-icon-btn ms-project-delete-btn';
-                        deleteBtn.title = 'Delete';
-                        deleteBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/></svg>';
+                        deleteBtn.title = 'Delete project';
+                        deleteBtn.textContent = '🗑';
 
                         openBtn.addEventListener('click', function () {
                             dropdown.classList.remove('open');
                             if (typeof _loadProjectByUuid === 'function') _loadProjectByUuid(p.uuid);
                         });
 
-                        renameBtn.addEventListener('click', function (e) {
+                        nameSpan.addEventListener('click', function (e) {
                             e.stopPropagation();
                             var input = document.createElement('input');
                             input.className = 'ms-project-rename-input';
@@ -239,7 +235,10 @@
                             input.addEventListener('blur', commitRename);
                             input.addEventListener('keydown', function (ev) {
                                 if (ev.key === 'Enter') { ev.preventDefault(); commitRename(); }
-                                if (ev.key === 'Escape') { info.replaceChild(nameSpan, input); }
+                                if (ev.key === 'Escape') {
+                                    input.removeEventListener('blur', commitRename);
+                                    info.replaceChild(nameSpan, input);
+                                }
                             });
                             input.addEventListener('click', function (ev) { ev.stopPropagation(); });
                         });
@@ -252,7 +251,6 @@
 
                         row.appendChild(info);
                         row.appendChild(openBtn);
-                        row.appendChild(renameBtn);
                         row.appendChild(deleteBtn);
                         list.appendChild(row);
                     });
