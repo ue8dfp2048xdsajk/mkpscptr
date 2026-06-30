@@ -3,6 +3,48 @@
 
 const REQUIRED = [
     {
+        name: 'STRIPE_SECRET_KEY',
+        description: 'Stripe secret key (sk_live_... / sk_test_...). ' +
+            'Missing → /api/checkout cannot create Checkout Sessions.',
+        validate: (v) => v.startsWith('sk_') || 'value should start with sk_',
+    },
+    {
+        name: 'STRIPE_PRICE_STARTER_MONTHLY',
+        description: 'Stripe price ID for Starter monthly plan (price_...). ' +
+            'Missing → Starter monthly checkout will fail.',
+        validate: (v) => v.startsWith('price_') || 'value should start with price_',
+    },
+    {
+        name: 'STRIPE_PRICE_STARTER_ANNUAL',
+        description: 'Stripe price ID for Starter annual plan (price_...). ' +
+            'Missing → Starter annual checkout will fail.',
+        validate: (v) => v.startsWith('price_') || 'value should start with price_',
+    },
+    {
+        name: 'STRIPE_PRICE_STARTER_LIFETIME',
+        description: 'Stripe price ID for Starter lifetime plan (price_...). ' +
+            'Missing → Starter lifetime checkout will fail.',
+        validate: (v) => v.startsWith('price_') || 'value should start with price_',
+    },
+    {
+        name: 'STRIPE_PRICE_PRO_MONTHLY',
+        description: 'Stripe price ID for Pro monthly plan (price_...). ' +
+            'Missing → Pro monthly checkout will fail.',
+        validate: (v) => v.startsWith('price_') || 'value should start with price_',
+    },
+    {
+        name: 'STRIPE_PRICE_PRO_ANNUAL',
+        description: 'Stripe price ID for Pro annual plan (price_...). ' +
+            'Missing → Pro annual checkout will fail.',
+        validate: (v) => v.startsWith('price_') || 'value should start with price_',
+    },
+    {
+        name: 'STRIPE_PRICE_PRO_LIFETIME',
+        description: 'Stripe price ID for Pro lifetime plan (price_...). ' +
+            'Missing → Pro lifetime checkout will fail.',
+        validate: (v) => v.startsWith('price_') || 'value should start with price_',
+    },
+    {
         name: 'BASE_URL',
         description: 'Public root URL of the deployment (no trailing slash). ' +
             'Used by the Stripe webhook to call /api/set-plan. ' +
