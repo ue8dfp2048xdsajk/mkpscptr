@@ -8130,6 +8130,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             wrapper.classList.add('window-locked');
         }
 
+        attachClipDrawing(wrapper, fabricCanvas, data, index);
+
         wrapper.addEventListener('click', function(e){
 
             if(suppressNextWrapperClick && !e.shiftKey){
