@@ -7249,13 +7249,49 @@ async function _loadProjectByUuid(uuid) {
         return;
     }
 
-    try {
-        const isLegacy = Array.isArray(raw);
-        const windows  = isLegacy ? raw : (raw.windows || []);
-        const tboxes   = isLegacy ? [] : (raw.textBoxes || []);
+    const isLegacy = Array.isArray(raw);
+    let windows = isLegacy ? raw : (raw.windows || []);
+    const tboxes = isLegacy ? [] : (raw.textBoxes || []);
 
+    // Cloud snapshots strip base64 image data to fit MongoDB limits.
+    // Try to restore images from the local IndexedDB autosave by matching bgName.
+    const hasStripped = windows.some(function (w) { return !w.bgSrc; });
+    if (hasStripped) {
+        try {
+            const localSession = await _autosaveDB.get('session');
+            if (localSession) {
+                const localWindows = Array.isArray(localSession)
+                    ? localSession
+                    : (localSession.windows || []);
+                const localByName = {};
+                localWindows.forEach(function (lw) {
+                    if (lw.bgName && lw.bgSrc) localByName[lw.bgName] = lw;
+                });
+                windows = windows.map(function (w) {
+                    if (w.bgSrc) return w;
+                    const lw = localByName[w.bgName];
+                    if (!lw) return w;
+                    return Object.assign({}, w, {
+                        bgSrc:           lw.bgSrc   || null,
+                        designSrc:       w.designSrc || lw.designSrc || null,
+                        colorLayerDataURL: w.colorLayerDataURL || lw.colorLayerDataURL || null,
+                        duplicates: (w.duplicates || []).map(function (d, i) {
+                            if (d.src) return d;
+                            const ld = lw.duplicates && lw.duplicates[i];
+                            return Object.assign({}, d, { src: ld ? ld.src : null });
+                        }),
+                    });
+                });
+            }
+        } catch (_) {}
+    }
+
+    const restorable = windows.filter(function (w) { return !!w.bgSrc; });
+    const missing    = windows.length - restorable.length;
+
+    try {
         _applyLayoutFromSnapshot(isLegacy ? null : raw.layout);
-        await createCanvasPreviewsFromSnapshot(windows);
+        await createCanvasPreviewsFromSnapshot(restorable);
         if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
         _applyViewportFromSnapshot(isLegacy ? null : raw.viewport);
         _applyUndoHistoryFromSnapshot(isLegacy ? null : raw.undoHistory);
@@ -7271,7 +7307,14 @@ async function _loadProjectByUuid(uuid) {
 
     localStorage.setItem(_CLOUD_UUID_KEY, uuid);
     _markClean();
-    _showSaveToast('Project loaded ✓');
+
+    if (missing > 0 && restorable.length === 0) {
+        _showSaveToast('Project loaded — re-upload your images to restore the canvas', true);
+    } else if (missing > 0) {
+        _showSaveToast('Project loaded ✓ (' + missing + ' image' + (missing === 1 ? '' : 's') + ' need re-uploading on this device)');
+    } else {
+        _showSaveToast('Project loaded ✓');
+    }
 }
 
 function autoSaveSession(){
@@ -7430,8 +7473,6 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         loadingIndicator.innerText =
             `Restoring session... ${index + 1} / ${snapshot.length}`;
-
-        if (!saved.bgSrc) continue; // cloud saves strip image data; skip null-src windows
 
         const bgImg = await new Promise(resolve=>{
 
