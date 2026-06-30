@@ -1,5 +1,6 @@
 const { setCorsHeaders, handleOptions } = require('../_cors');
 const { getDb } = require('../db');
+const { verifyClerkToken } = require('../_verify-clerk-token');
 const crypto = require('crypto');
 
 const MAX_BODY_BYTES = 15 * 1024 * 1024; // 15 MB
@@ -11,16 +12,14 @@ function getClientIp(req) {
     return fwd ? fwd.split(',')[0].trim() : (req.socket?.remoteAddress || 'unknown');
 }
 
-async function verifyClerkUser(clerkUserId, clerkSecretKey) {
+async function getClerkUserPlan(clerkUserId, clerkSecretKey) {
     const res = await fetch(
         `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
         { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
     );
     if (!res.ok) return null;
     const data = await res.json();
-    return {
-        plan: (data?.public_metadata?.plan || 'free').toLowerCase(),
-    };
+    return (data?.public_metadata?.plan || 'free').toLowerCase();
 }
 
 module.exports = async function handler(req, res) {
@@ -38,7 +37,7 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
     }
 
-    const { uuid, clerkUserId, snapshot } = body || {};
+    const { uuid, snapshot } = body || {};
 
     if (!snapshot || typeof snapshot !== 'object') {
         return res.status(400).json({ ok: false, error: 'Missing snapshot' });
@@ -56,6 +55,19 @@ module.exports = async function handler(req, res) {
     const clientIp = getClientIp(req);
     const now = new Date();
 
+    // ── Authenticated save — derive user ID from verified JWT ────────────────
+    let clerkUserId = null;
+    if (req.headers.authorization) {
+        try {
+            clerkUserId = await verifyClerkToken(req.headers.authorization);
+        } catch {
+            return res.status(502).json({ ok: false, error: 'Could not verify session' });
+        }
+        if (!clerkUserId) {
+            return res.status(401).json({ ok: false, error: 'Invalid or expired session — please sign in again' });
+        }
+    }
+
     let db;
     try {
         db = await getDb();
@@ -66,19 +78,17 @@ module.exports = async function handler(req, res) {
 
     const col = db.collection('projects');
 
-    // ── Authenticated save ──────────────────────────────────────────────────
-    if (clerkUserId && clerkSecretKey) {
-        let clerkUser;
-        try {
-            clerkUser = await verifyClerkUser(clerkUserId, clerkSecretKey);
-        } catch {
-            return res.status(502).json({ ok: false, error: 'Could not reach auth server' });
-        }
-        if (!clerkUser) {
-            return res.status(401).json({ ok: false, error: 'Not authenticated' });
+    if (clerkUserId) {
+        // Look up plan from Clerk (needed for limit enforcement)
+        let plan = 'free';
+        if (clerkSecretKey) {
+            try {
+                plan = await getClerkUserPlan(clerkUserId, clerkSecretKey) || 'free';
+            } catch {
+                return res.status(502).json({ ok: false, error: 'Could not reach auth server' });
+            }
         }
 
-        const plan = clerkUser.plan;
         const PLAN_RANK = { free: 0, starter: 1, pro: 2 };
 
         // Overwrite existing project
@@ -97,12 +107,10 @@ module.exports = async function handler(req, res) {
         }
 
         // New project — check plan limits
-        if (PLAN_RANK[plan] === 0) {
-            // Free users: no save
+        if ((PLAN_RANK[plan] ?? 0) === 0) {
             return res.status(403).json({ ok: false, error: 'upgrade_required' });
         }
         if (plan === 'starter') {
-            // Starter: max 1 project — find and overwrite existing one
             const existing = await col.findOne({ userId: clerkUserId });
             if (existing) {
                 await col.updateOne({ uuid: existing.uuid }, {
@@ -112,7 +120,6 @@ module.exports = async function handler(req, res) {
             }
         }
 
-        // Pro or first Starter save: create new
         const newUuid = crypto.randomUUID();
         await col.insertOne({
             uuid: newUuid,
@@ -127,9 +134,8 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true, uuid: newUuid });
     }
 
-    // ── Anonymous save ──────────────────────────────────────────────────────
+    // ── Anonymous save ───────────────────────────────────────────────────────
     if (uuid) {
-        // Overwrite anonymous project — anyone with the UUID can update it
         const existing = await col.findOne({ uuid });
         if (!existing) {
             return res.status(404).json({ ok: false, error: 'Project not found' });

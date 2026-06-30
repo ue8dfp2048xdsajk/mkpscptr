@@ -7139,21 +7139,31 @@ function _markDirty(){
 // Key stored in localStorage so refreshes re-attach to the same record.
 const _CLOUD_UUID_KEY = 'ms_project_uuid';
 
+async function _getClerkToken() {
+    try {
+        if (window.Clerk && window.Clerk.session) {
+            return await window.Clerk.session.getToken();
+        }
+    } catch {}
+    return null;
+}
+
 async function _cloudSave({ isNew = false } = {}) {
     const snapshot = buildFullSnapshot();
-
-    const clerkUserId = window.Clerk && window.Clerk.user && window.Clerk.user.id;
     const currentUuid = isNew ? null : localStorage.getItem(_CLOUD_UUID_KEY);
 
-    let body = { snapshot };
-    if (clerkUserId)  body.clerkUserId = clerkUserId;
-    if (currentUuid)  body.uuid = currentUuid;
+    const body = { snapshot };
+    if (currentUuid) body.uuid = currentUuid;
+
+    const headers = { 'Content-Type': 'application/json' };
+    const token = await _getClerkToken();
+    if (token) headers['Authorization'] = 'Bearer ' + token;
 
     let res;
     try {
         res = await fetch('/api/projects/save', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify(body),
         });
     } catch {
@@ -7163,8 +7173,7 @@ async function _cloudSave({ isNew = false } = {}) {
     const data = await res.json().catch(() => ({}));
 
     if (res.ok && data.ok) {
-        if (!isNew && data.uuid) localStorage.setItem(_CLOUD_UUID_KEY, data.uuid);
-        if (isNew  && data.uuid) localStorage.setItem(_CLOUD_UUID_KEY, data.uuid);
+        if (data.uuid) localStorage.setItem(_CLOUD_UUID_KEY, data.uuid);
         return { ok: true, uuid: data.uuid };
     }
 

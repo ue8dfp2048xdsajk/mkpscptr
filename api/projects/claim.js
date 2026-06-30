@@ -1,17 +1,6 @@
 const { setCorsHeaders, handleOptions } = require('../_cors');
 const { getDb } = require('../db');
-
-async function verifyClerkUser(clerkUserId, clerkSecretKey) {
-    const res = await fetch(
-        `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
-        { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return {
-        plan: (data?.public_metadata?.plan || 'free').toLowerCase(),
-    };
-}
+const { verifyClerkToken } = require('../_verify-clerk-token');
 
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
@@ -21,11 +10,6 @@ module.exports = async function handler(req, res) {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
-    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    if (!clerkSecretKey) {
-        return res.status(500).json({ ok: false, error: 'Server misconfiguration' });
-    }
-
     let body;
     try {
         body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -33,23 +17,37 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
     }
 
-    const { uuid, clerkUserId } = body || {};
-
+    const { uuid } = body || {};
     if (!uuid || typeof uuid !== 'string') {
         return res.status(400).json({ ok: false, error: 'Missing uuid' });
     }
-    if (!clerkUserId || typeof clerkUserId !== 'string') {
+
+    let clerkUserId;
+    try {
+        clerkUserId = await verifyClerkToken(req.headers.authorization);
+    } catch {
+        return res.status(502).json({ ok: false, error: 'Could not verify session' });
+    }
+    if (!clerkUserId) {
         return res.status(401).json({ ok: false, error: 'Not authenticated' });
     }
 
-    let clerkUser;
-    try {
-        clerkUser = await verifyClerkUser(clerkUserId, clerkSecretKey);
-    } catch {
-        return res.status(502).json({ ok: false, error: 'Could not reach auth server' });
-    }
-    if (!clerkUser) {
-        return res.status(401).json({ ok: false, error: 'Not authenticated' });
+    // Look up plan for the claiming user
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    let plan = 'free';
+    if (clerkSecretKey) {
+        try {
+            const r = await fetch(
+                `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
+                { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
+            );
+            if (r.ok) {
+                const d = await r.json();
+                plan = (d?.public_metadata?.plan || 'free').toLowerCase();
+            }
+        } catch {
+            // non-fatal — proceed with 'free' plan label
+        }
     }
 
     let db;
@@ -76,7 +74,7 @@ module.exports = async function handler(req, res) {
     await col.updateOne({ uuid }, {
         $set: {
             userId: clerkUserId,
-            plan: clerkUser.plan,
+            plan,
             expiresAt: null,
             ip: null,
             updatedAt: new Date(),

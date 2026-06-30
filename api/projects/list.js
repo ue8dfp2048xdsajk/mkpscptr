@@ -1,13 +1,6 @@
 const { setCorsHeaders, handleOptions } = require('../_cors');
 const { getDb } = require('../db');
-
-async function verifyClerkUser(clerkUserId, clerkSecretKey) {
-    const res = await fetch(
-        `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
-        { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
-    );
-    return res.ok;
-}
+const { verifyClerkToken } = require('../_verify-clerk-token');
 
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
@@ -17,23 +10,14 @@ module.exports = async function handler(req, res) {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
-    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    if (!clerkSecretKey) {
-        return res.status(500).json({ ok: false, error: 'Server misconfiguration' });
-    }
-
-    const { clerkUserId } = req.query;
-    if (!clerkUserId || typeof clerkUserId !== 'string') {
-        return res.status(401).json({ ok: false, error: 'Not authenticated' });
-    }
-
-    let verified;
+    let clerkUserId;
     try {
-        verified = await verifyClerkUser(clerkUserId, clerkSecretKey);
+        clerkUserId = await verifyClerkToken(req.headers.authorization);
     } catch {
-        return res.status(502).json({ ok: false, error: 'Could not reach auth server' });
+        return res.status(502).json({ ok: false, error: 'Could not verify session' });
     }
-    if (!verified) {
+
+    if (!clerkUserId) {
         return res.status(401).json({ ok: false, error: 'Not authenticated' });
     }
 

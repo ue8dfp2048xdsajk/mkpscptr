@@ -35,16 +35,24 @@
                 plan: window._userPlan
             });
         }
-        _claimAnonProject(user.id);
+        _claimAnonProject();
     }
 
-    function _claimAnonProject(clerkUserId) {
+    function _claimAnonProject() {
         var uuid = localStorage.getItem('ms_project_uuid');
         if (!uuid) return;
-        fetch('/api/projects/claim', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uuid: uuid, clerkUserId: clerkUserId }),
+        var session = window.Clerk && window.Clerk.session;
+        if (!session) return;
+        session.getToken().then(function (token) {
+            if (!token) return;
+            fetch('/api/projects/claim', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + token,
+                },
+                body: JSON.stringify({ uuid: uuid }),
+            }).catch(function () {});
         }).catch(function () {});
     }
 
@@ -113,7 +121,13 @@
             if (_projectsLoaded) return;
             _projectsLoaded = true;
             var list = dropdown.querySelector('#msProjectsList');
-            fetch('/api/projects/list?clerkUserId=' + encodeURIComponent(user.id))
+            var session = window.Clerk && window.Clerk.session;
+            var tokenPromise = session ? session.getToken() : Promise.resolve(null);
+            tokenPromise.catch(function () { return null; }).then(function (token) {
+                return fetch('/api/projects/list', {
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                });
+            })
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
                     if (!data.ok || !data.projects || !data.projects.length) {

@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "jose": "^4.15.9",
     "mongodb": "^6.21.0",
     "pg": "^8.22.0"
   }
