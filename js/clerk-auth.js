@@ -155,7 +155,14 @@
                 body: JSON.stringify({ uuid: uuid, name: newName })
             })
                 .then(function (r) { return r.json(); })
-                .then(function (d) { if (d.ok) _loadProjects(); })
+                .then(function (d) {
+                    if (d.ok) {
+                        if (localStorage.getItem('ms_project_uuid') === uuid) {
+                            window._projectName = newName;
+                        }
+                        _loadProjects();
+                    }
+                })
                 .catch(function () {});
         }
 
