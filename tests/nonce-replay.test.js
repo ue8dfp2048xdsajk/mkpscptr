@@ -826,3 +826,171 @@ describe('set-plan handler — nonce released after Clerk failure (Redis path)',
         expect(res2.body.error).toMatch(/duplicate nonce/i);
     });
 });
+
+// ---------------------------------------------------------------------------
+// 9. COLD-START REPLAY GAP — in-memory nonce state lost after process restart
+//
+// Background (documented in api/_nonce-store.js):
+//   When neither Redis nor PostgreSQL is configured the nonce store lives only
+//   in the module-level Maps.  Those Maps are reset to empty on every cold
+//   start, so a nonce used by "process A" is invisible to "process B".
+//
+// We simulate a cold start by calling jest.resetModules() between phases and
+// re-requiring _nonce-store / set-plan so the module's Maps are fresh.
+//
+// Tests confirm:
+//   a) The gap exists — a nonce used before restart CAN be replayed after it
+//      (within the timestamp window) when no external store is configured.
+//   b) The timestamp window (300 s) is the outer defence — a request with an
+//      X-Timestamp older than 300 s is rejected by set-plan.js BEFORE the
+//      nonce is checked, even after a cold start.
+//   c) Redis survives cold starts — a nonce stored externally is still blocked
+//      by a freshly booted process that shares the same Redis instance.
+// ---------------------------------------------------------------------------
+
+describe('cold-start replay gap — in-memory fallback (no Redis, no PG)', () => {
+    const SECRET = 'test-secret';
+
+    afterEach(() => {
+        jest.resetModules();
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+        delete process.env.CLERK_SECRET_KEY;
+        delete process.env.SET_PLAN_SECRET;
+        jest.clearAllMocks();
+    });
+
+    function loadInMemoryHandler() {
+        jest.resetModules();
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+        process.env.CLERK_SECRET_KEY = 'clerk-test-key';
+        process.env.SET_PLAN_SECRET  = SECRET;
+        jest.doMock('../api/_cors', () => ({
+            setCorsHeaders: () => {},
+            handleOptions:  () => false,
+        }));
+        global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+        return require('../api/set-plan');
+    }
+
+    test('(a) gap demonstrated — nonce replayed after cold start succeeds within timestamp window', async () => {
+        // --- Process A: record a nonce successfully ---
+        const handler_A = loadInMemoryHandler();
+        const nonce = `cold-start-gap-nonce-${Date.now()}`;
+        const { req: reqA, res: resA } = makeReqRes({ nonce });
+        await handler_A(reqA, resA);
+        expect(resA.statusCode).toBe(200);
+
+        // --- Cold start: process B has no memory of the nonce ---
+        // Re-require the module fresh (same as a new serverless invocation).
+        const handler_B = loadInMemoryHandler();
+
+        // Replay the same nonce with a fresh (current) timestamp — still
+        // within the 300 s window, so the timestamp check passes.
+        const { req: reqB, res: resB } = makeReqRes({ nonce });
+        await handler_B(reqB, resB);
+
+        // The gap: process B did not know about the nonce → accepted the replay.
+        // This is the documented risk of the in-memory-only configuration.
+        expect(resB.statusCode).toBe(200);
+    });
+
+    test('(b) timestamp window blocks replays older than 300 s after a cold start', async () => {
+        // --- Process A: record a nonce ---
+        const handler_A = loadInMemoryHandler();
+        const nonce = `cold-start-ts-nonce-${Date.now()}`;
+        const { req: reqA, res: resA } = makeReqRes({ nonce });
+        await handler_A(reqA, resA);
+        expect(resA.statusCode).toBe(200);
+
+        // --- Cold start: process B ---
+        const handler_B = loadInMemoryHandler();
+
+        // Build a replay with a timestamp that is 301 s in the past — the
+        // timestamp window rejects it regardless of nonce state.
+        const staleTimestamp = String(Math.floor(Date.now() / 1000) - 301);
+        const req = {
+            method: 'POST',
+            headers: {
+                authorization: `Bearer ${SECRET}`,
+                'x-timestamp': staleTimestamp,
+                'x-nonce': nonce,
+                'x-forwarded-for': '10.0.0.1',
+            },
+            body: { userId: 'user_abc', plan: 'pro' },
+            socket: { remoteAddress: '10.0.0.1' },
+        };
+        let statusCode = 200;
+        const res = {
+            statusCode: null,
+            body: null,
+            status(code) { statusCode = code; return res; },
+            json(b)      { res.statusCode = statusCode; res.body = b; return res; },
+        };
+
+        await handler_B(req, res);
+
+        // Must be rejected by the timestamp guard, not by the nonce check.
+        expect(res.statusCode).toBe(400);
+        expect(res.body.error).toMatch(/timestamp/i);
+    });
+});
+
+describe('cold-start replay gap — Redis path (nonces persist across restarts)', () => {
+    const SECRET = 'test-secret';
+
+    afterEach(() => {
+        jest.resetModules();
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+        delete process.env.CLERK_SECRET_KEY;
+        delete process.env.SET_PLAN_SECRET;
+        jest.clearAllMocks();
+    });
+
+    test('(c) nonce stored in Redis is still blocked after a cold start (shared external store)', async () => {
+        // A shared Redis Set represents the external store that survives restarts.
+        const redisSeen = new Set();
+
+        function loadRedisHandler() {
+            jest.resetModules();
+            process.env.UPSTASH_REDIS_REST_URL   = FAKE_REDIS_URL;
+            process.env.UPSTASH_REDIS_REST_TOKEN = FAKE_REDIS_TOKEN;
+            delete process.env.DATABASE_URL;
+            process.env.CLERK_SECRET_KEY = 'clerk-test-key';
+            process.env.SET_PLAN_SECRET  = SECRET;
+            jest.doMock('../api/_cors', () => ({
+                setCorsHeaders: () => {},
+                handleOptions:  () => false,
+            }));
+            const upstashFetch = makeUpstashFetch(redisSeen);
+            global.fetch = jest.fn(async (url, opts) => {
+                if (url.startsWith(FAKE_REDIS_URL)) return upstashFetch(url, opts);
+                return { ok: true, json: async () => ({}) };
+            });
+            return require('../api/set-plan');
+        }
+
+        // --- Process A: record a nonce in Redis ---
+        const handler_A = loadRedisHandler();
+        const nonce = `redis-cold-start-nonce-${Date.now()}`;
+        const { req: reqA, res: resA } = makeReqRes({ nonce });
+        await handler_A(reqA, resA);
+        expect(resA.statusCode).toBe(200);
+        // Confirm the nonce landed in the shared Redis store.
+        expect(redisSeen.has(`nonce:${nonce}`)).toBe(true);
+
+        // --- Cold start: process B boots fresh, but uses the same Redis ---
+        const handler_B = loadRedisHandler();
+        const { req: reqB, res: resB } = makeReqRes({ nonce });
+        await handler_B(reqB, resB);
+
+        // Redis knows the nonce → replay is blocked even after a cold start.
+        expect(resB.statusCode).toBe(400);
+        expect(resB.body.error).toMatch(/duplicate nonce/i);
+    });
+});

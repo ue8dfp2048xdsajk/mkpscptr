@@ -154,6 +154,42 @@ async function pgDeleteNonceByUserPlan(userId, plan) {
 }
 
 // --- In-memory fallback ---
+//
+// COLD-START REPLAY GAP — READ BEFORE CHANGING THIS SECTION
+// ----------------------------------------------------------
+// The in-memory Maps below are module-level state.  They are reset to empty
+// on every process start (cold start), including serverless function cold
+// starts.  This creates a bounded replay window:
+//
+//   Attack scenario
+//   ───────────────
+//   1. Attacker obtains a valid nonce N that was used at time T.
+//   2. The serverless process restarts (cold start) before T + NONCE_TTL_SECONDS.
+//   3. The new process has no memory of N, so isNonceSeen(N) returns false.
+//   4. A replay of the original request with nonce N and timestamp T succeeds
+//      — IF the replayed request arrives before T + 300 s (the timestamp window).
+//
+//   Bounding factor
+//   ───────────────
+//   set-plan.js enforces a hard timestamp window of 300 seconds (same as
+//   NONCE_TTL_SECONDS).  Any request whose X-Timestamp is older than 300 s is
+//   rejected with 400 before the nonce is even checked.  This means:
+//
+//   • The cold-start replay window is at most 300 seconds.
+//   • After 300 s the timestamp check closes the gate regardless of nonce state.
+//
+//   Recommended mitigation
+//   ──────────────────────
+//   Configure Redis (UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN) or
+//   PostgreSQL (DATABASE_URL).  Both stores survive process restarts and are
+//   shared across serverless instances, eliminating the cold-start gap.
+//
+//   When NEITHER external store is configured (USE_REDIS=false, USE_PG=false)
+//   the module logs a warning at startup (see top of file) and this in-memory
+//   fallback is used.  The fallback is acceptable ONLY for local development
+//   or single-instance, always-on deployments where cold starts do not occur.
+//   It must NOT be relied upon in a multi-instance or serverless environment.
+//
 const seen = new Map();         // nonce → expiresAt
 const seenMeta = new Map();     // nonce → { userId, plan }
 const seenUserPlan = new Map(); // "userId:plan" → nonce
