@@ -1,3 +1,13 @@
 .vercel
 .env*
 attached_assets/
+node_modules/
+.replit
+.cache/
+.canvas/
+.config/
+.agents/
+.local/
+.upm/
+main.py
+pyproject.toml
