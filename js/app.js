@@ -7203,6 +7203,16 @@ async function _cloudSave({ isNew = false } = {}) {
     const body = { snapshot };
     if (currentUuid) body.uuid = currentUuid;
 
+    // Debug: report snapshot size to server log before sending
+    try {
+        const bodyStr = JSON.stringify(body);
+        const sizeMB = (bodyStr.length / 1024 / 1024).toFixed(2);
+        const wins = snapshot && snapshot.windows ? snapshot.windows.length : 0;
+        const hasBg = snapshot && snapshot.windows
+            ? snapshot.windows.filter(w => w.bgSrc).length : 0;
+        fetch('/api/debug/size?mb=' + sizeMB + '&windows=' + wins + '&hasBg=' + hasBg).catch(() => {});
+    } catch (_) {}
+
     const headers = { 'Content-Type': 'application/json' };
     const token = await _getClerkToken();
     if (token) headers['Authorization'] = 'Bearer ' + token;
