@@ -696,6 +696,7 @@ body {
 }
 .file-menu-pro-wrap #saveNewBtn {
     margin-top: 0;
+    padding-right: 52px;
 }
 .file-menu-pro-wrap #saveNewBtn:disabled {
     opacity: 0.55;
@@ -703,10 +704,10 @@ body {
     pointer-events: none;
 }
 .file-menu-pro-badge {
-    display: none;
+    display: inline-block;
     position: absolute;
     top: 50%;
-    right: 10px;
+    right: 8px;
     transform: translateY(-50%);
     background: linear-gradient(135deg, #f59e0b, #d97706);
     color: #fff;
@@ -719,8 +720,8 @@ body {
     white-space: nowrap;
     text-transform: uppercase;
 }
-.file-menu-pro-wrap.is-locked .file-menu-pro-badge {
-    display: inline-block;
+.file-menu-pro-badge-green {
+    background: linear-gradient(135deg, #10b981, #059669);
 }
 .file-menu-pro-tooltip {
     display: none;

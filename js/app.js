@@ -7619,12 +7619,17 @@ function autoSaveSession(){
 })();
 
 function _updateSaveNewBtn() {
-    const wrap = document.getElementById('saveNewWrap');
-    const btn  = document.getElementById('saveNewBtn');
+    const wrap  = document.getElementById('saveNewWrap');
+    const btn   = document.getElementById('saveNewBtn');
+    const badge = document.getElementById('saveNewProBadge');
     if (!wrap || !btn) return;
     const isPro = _userPlan === 'pro';
     btn.disabled = !isPro;
     wrap.classList.toggle('is-locked', !isPro);
+    if (badge) {
+        badge.textContent = '⭐ PRO';
+        badge.className = 'file-menu-pro-badge' + (isPro ? ' file-menu-pro-badge-green' : '');
+    }
 }
 // Set initial state on load (plan defaults to 'free' until Clerk resolves)
 document.addEventListener('DOMContentLoaded', _updateSaveNewBtn);
