@@ -6695,6 +6695,30 @@ async function exportDataToBlob(data, fmt, quality){
             }
         }
 
+        // Server-side export gate — verifies plan server-side so the export
+        // cannot be triggered by running the frontend code without the backend.
+        try {
+            const exportAuth = await fetch('/api/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clerkUserId: window.Clerk?.user?.id || null
+                })
+            });
+            if (!exportAuth.ok) {
+                const exportErr = await exportAuth.json().catch(() => ({}));
+                if (exportErr.error === 'upgrade_required') {
+                    if (typeof openPlansModal === 'function') openPlansModal();
+                } else {
+                    alert('Export not available — please sign in and try again.');
+                }
+                return;
+            }
+        } catch {
+            alert('Export failed — could not reach the server. Please check your connection.');
+            return;
+        }
+
         await _runExportWithIndices(indices);
     });
 })();
