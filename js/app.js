@@ -8123,6 +8123,18 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 }
 
 
+document.getElementById("saveLocalBtn").addEventListener("click", () => {
+    const snapshot = buildFullSnapshot();
+    const blob = new Blob([JSON.stringify(snapshot)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const ts   = new Date().toISOString().slice(0, 10);
+    a.href     = url;
+    a.download = 'mockup-project-' + ts + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+});
+
 document.getElementById("loadProgressBtn").addEventListener("click", ()=>{
 
     document.getElementById("loadProgressInput").click();
