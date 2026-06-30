@@ -169,7 +169,128 @@ describe('Rate limiter — Redis path (mocked fetch)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. Redis error → graceful in-memory fallback (no crash)
+// 3. Redis window-reset (time-travel past WINDOW_SECONDS)
+// ---------------------------------------------------------------------------
+
+describe('Rate limiter — Redis window-reset (time-travel past WINDOW_SECONDS)', () => {
+    let rl;
+    let mockFetch;
+    let dateSpy;
+
+    const T0 = 1_000_000_000_000; // arbitrary fixed epoch ms
+    const WINDOW_MS = 15 * 60 * 1000;
+
+    beforeEach(() => {
+        mockFetch = jest.fn();
+        global.fetch = mockFetch;
+
+        dateSpy = jest.spyOn(Date, 'now').mockReturnValue(T0);
+
+        jest.resetModules();
+        process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.upstash.io';
+        process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-token';
+        delete process.env.DATABASE_URL;
+        rl = require('../api/_rate-limiter');
+    });
+
+    afterEach(() => {
+        dateSpy.mockRestore();
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        jest.clearAllMocks();
+    });
+
+    test('first recordFailure after window expiry sends INCR+EXPIRE (counter resets to 1)', async () => {
+        // Advance time past the window — the Redis key has expired
+        dateSpy.mockReturnValue(T0 + WINDOW_MS + 1);
+
+        // INCR on a missing (expired) key starts at 1; EXPIRE resets the TTL
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ([{ result: 1 }, { result: 1 }]),
+        });
+
+        await rl.recordFailure('9.9.9.1');
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        const [url, opts] = mockFetch.mock.calls[0];
+        expect(url).toContain('/pipeline');
+        const body = JSON.parse(opts.body);
+        // Both INCR and EXPIRE must be present — EXPIRE is what makes the window reset
+        expect(body).toContainEqual(['INCR', expect.stringContaining('ratelimit:9.9.9.1')]);
+        expect(body).toContainEqual(['EXPIRE', expect.stringContaining('ratelimit:9.9.9.1'), expect.any(Number)]);
+    });
+
+    test('isRateLimited returns false immediately after window expiry when Redis key is gone', async () => {
+        dateSpy.mockReturnValue(T0 + WINDOW_MS + 1);
+
+        // Key expired → GET returns null
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ result: null }),
+        });
+
+        expect(await rl.isRateLimited('9.9.9.2')).toBe(false);
+    });
+
+    test('counter resets to 1 after expiry; isRateLimited stays false until MAX_FAILURES in new window', async () => {
+        const ip = '9.9.9.3';
+
+        // Move into the new window (old key has expired in Redis)
+        dateSpy.mockReturnValue(T0 + WINDOW_MS + 1);
+
+        // 4 failures in the new window — INCR returns 1,2,3,4 each paired with EXPIRE
+        for (let count = 1; count <= 4; count++) {
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => ([{ result: count }, { result: 1 }]),
+            });
+            await rl.recordFailure(ip);
+        }
+
+        // Counter is 4 → not yet rate-limited
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ result: '4' }),
+        });
+        expect(await rl.isRateLimited(ip)).toBe(false);
+
+        // 5th failure pushes counter to MAX_FAILURES
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ([{ result: 5 }, { result: 1 }]),
+        });
+        await rl.recordFailure(ip);
+
+        // Counter is 5 → now rate-limited
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ result: '5' }),
+        });
+        expect(await rl.isRateLimited(ip)).toBe(true);
+    });
+
+    test('every recordFailure call includes EXPIRE alongside INCR (regression guard against EXPIRE being dropped)', async () => {
+        // If EXPIRE were ever dropped from the pipeline, old failures would accumulate
+        // silently across windows. This asserts every call carries both commands.
+        const ip = '9.9.9.4';
+
+        for (let i = 1; i <= 3; i++) {
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                json: async () => ([{ result: i }, { result: 1 }]),
+            });
+            await rl.recordFailure(ip);
+
+            const lastCall = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
+            const body = JSON.parse(lastCall[1].body);
+            expect(body).toContainEqual(['EXPIRE', expect.stringContaining(`ratelimit:${ip}`), expect.any(Number)]);
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Redis error → graceful in-memory fallback (no crash)
 // ---------------------------------------------------------------------------
 
 describe('Rate limiter — Redis errors fall back to in-memory gracefully', () => {
