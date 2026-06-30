@@ -1,5 +1,0 @@
-- [Extra layers undo & stale index](extra-layers-undo.md) — extraDesignOriginals must be drawable (Image/canvas, never {src}); attachClipDrawing's `index` param is stale (unshift), recompute canvasData.indexOf(data).
-- [Warp/tilt gates & in-place eraser caching](warp-tilt-eraser-caching.md) — arcTilt must be in BOTH createWarpedImage early-return AND _renderPattern hasWarp; reference-identity caches break under in-place eraser mutation, use an epoch counter.
-- [Perspective/arcTilt silent crash fix](perspective-crash-fix.md) — trimTransparentBorders must guard against HTMLImageElement (no getContext); _noArcWarp does NOT include arcTilt (fisheye is horizontal-only, no border asymmetry).
-- [Arc warp formula — circular not parabolic](arc-formula.md) — arcAmount maps to half-angle α=arcAmount/100*π/2; R=(img.width/2)/sin(α); do NOT pass arcAmount*dpr for patterns.
-- [Fisheye replaces arc tilt](fisheye.md) — arcTilt slider is now barrel/pincushion fisheye; formula nx_dest=nx_proj*(1+k*(1-nx_proj²)), C=0.45, no extra canvas padding needed.

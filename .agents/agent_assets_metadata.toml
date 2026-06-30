@@ -1,8 +1,0 @@
-uploads = []
-generated = []
-
-[[outputs]]
-id = "e4u4eNS0B1ZgpEJlICp-B"
-uri = "file://mockupscripter.zip"
-type = "unspecified"
-title = "mockupscripter.zip — full project"
