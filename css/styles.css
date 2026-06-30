@@ -1722,6 +1722,11 @@ body.sidebar-expanded #contextPanelBody {
 .ms-avatar-plan strong {
     color: #818CF8;
 }
+.ms-avatar-cancels {
+    font-size: 11px;
+    color: #F87171;
+    padding: 1px 4px 3px;
+}
 
 #clerkSignOutBtn {
     margin-top: 6px;

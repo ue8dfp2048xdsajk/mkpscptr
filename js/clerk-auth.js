@@ -38,6 +38,7 @@
 
     function _onClerkSignedIn(user) {
         window._userPlan = (user.publicMetadata && user.publicMetadata.plan) || 'free';
+        window._subscriptionEndsAt = (user.publicMetadata && user.publicMetadata.subscriptionEndsAt) || null;
         if (typeof _refreshAllProStarBadges === 'function') _refreshAllProStarBadges();
         _renderUserAvatar(user);
         if (window.posthog) {
@@ -116,9 +117,18 @@
             plan === 'starter' ? '1 project · backgrounds compressed · ~40 unique images' :
                                  'Cloud save requires a paid plan';
 
+        var cancelLine = '';
+        if (window._subscriptionEndsAt && window._userPlan !== 'free') {
+            var endsDate = new Date(window._subscriptionEndsAt * 1000).toLocaleDateString('en-GB', {
+                day: 'numeric', month: 'short', year: 'numeric'
+            });
+            cancelLine = '<div class="ms-avatar-cancels">Cancels ' + endsDate + '</div>';
+        }
+
         dropdown.innerHTML =
             '<div class="ms-avatar-email">' + email + '</div>' +
             '<div class="ms-avatar-plan">Plan: <strong>' + planLabel + '</strong></div>' +
+            cancelLine +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
             (!showUpgradeBtn ? '<button class="ms-avatar-billing-btn" id="clerkBillingBtn">Manage Billing</button>' : '') +
             '<div class="ms-projects-section">' +

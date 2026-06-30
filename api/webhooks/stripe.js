@@ -87,9 +87,9 @@ async function getClerkUserIdByCustomer(stripeCustomerId) {
     }
 }
 
-// Store stripeCustomerId in Clerk public_metadata (non-fatal)
-async function storeStripeCustomerInClerk(clerkUserId, stripeCustomerId, clerkSecretKey) {
-    if (!clerkSecretKey || !stripeCustomerId) return;
+// Patch arbitrary fields into Clerk public_metadata (non-fatal)
+async function patchClerkPublicMetadata(clerkUserId, fields, clerkSecretKey) {
+    if (!clerkSecretKey) return;
     try {
         await fetch(
             `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}/metadata`,
@@ -99,12 +99,17 @@ async function storeStripeCustomerInClerk(clerkUserId, stripeCustomerId, clerkSe
                     Authorization: `Bearer ${clerkSecretKey}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ public_metadata: { stripeCustomerId } }),
+                body: JSON.stringify({ public_metadata: fields }),
             }
         );
     } catch (err) {
-        console.error('stripe-webhook: failed to patch stripeCustomerId into Clerk', err);
+        console.error('stripe-webhook: failed to patch Clerk metadata', err);
     }
+}
+
+// Store stripeCustomerId in Clerk public_metadata (non-fatal)
+function storeStripeCustomerInClerk(clerkUserId, stripeCustomerId, clerkSecretKey) {
+    return patchClerkPublicMetadata(clerkUserId, { stripeCustomerId }, clerkSecretKey);
 }
 
 // Call the internal set-plan endpoint
@@ -318,6 +323,12 @@ module.exports = async function handler(req, res) {
             return res.status(502).json({ ok: false, error: b?.error || 'set-plan error' });
         }
 
+        // Store or clear the cancellation date so the UI can show "Cancels on …"
+        if (clerkSecretKey) {
+            const endsAt = sub.cancel_at_period_end ? (sub.cancel_at || null) : null;
+            patchClerkPublicMetadata(clerkUserId, { subscriptionEndsAt: endsAt }, clerkSecretKey);
+        }
+
         console.log(`stripe-webhook: subscription updated — plan="${newPlan}" for userId="${clerkUserId}"`);
         return res.status(200).json({ ok: true, clerkUserId, plan: newPlan });
     }
@@ -346,6 +357,11 @@ module.exports = async function handler(req, res) {
             const b = await setPlanRes.json().catch(() => ({}));
             console.error('stripe-webhook: set-plan error on subscription deletion', b?.error);
             return res.status(502).json({ ok: false, error: b?.error || 'set-plan error' });
+        }
+
+        // Clear cancellation date on deletion
+        if (clerkSecretKey) {
+            patchClerkPublicMetadata(clerkUserId, { subscriptionEndsAt: null }, clerkSecretKey);
         }
 
         console.log(`stripe-webhook: subscription deleted — reset to free for userId="${clerkUserId}"`);
