@@ -131,6 +131,7 @@
             cancelLine +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
             (!showUpgradeBtn ? '<button class="ms-avatar-billing-btn" id="clerkBillingBtn">Manage Billing</button>' : '') +
+            '<button class="ms-avatar-settings-btn" id="clerkSettingsBtn">⚙ Account Settings</button>' +
             '<div class="ms-projects-section">' +
               '<div class="ms-projects-label">My Projects</div>' +
               '<div class="ms-projects-limit">' + projectLimitHint + '</div>' +
@@ -342,6 +343,14 @@
                     billingBtn.disabled = false;
                     billingBtn.textContent = 'Manage Billing';
                 });
+            });
+        }
+
+        var settingsBtn = dropdown.querySelector('#clerkSettingsBtn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', function () {
+                dropdown.classList.remove('open');
+                window.Clerk.openUserProfile();
             });
         }
 
