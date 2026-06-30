@@ -316,6 +316,33 @@ async function recordNonce(nonce, userId, plan) {
         return;
     }
     if (USE_PG) {
+        // POLICY: fail closed on PG write errors — do NOT fall back to in-memory.
+        //
+        // TOCTOU gap — why in-memory fallback here is unsafe
+        // ----------------------------------------------------
+        // isNonceSeen() reads from PG.  If PG comes up after that read but then
+        // goes down before this INSERT, writing the nonce to the per-instance
+        // in-memory store creates a TOCTOU split:
+        //
+        //   1. isNonceSeen()  → PG responds → false  (nonce not seen in PG)
+        //   2. pgRecordNonce() → PG goes down → throws
+        //   3. In-memory fallback records the nonce locally.
+        //   4. A concurrent serverless instance has its own empty in-memory Map,
+        //      so it will never see step 3.
+        //   5. The attacker replays the request on a different instance;
+        //      that instance checks PG (still down → in-memory fallback → false)
+        //      and then records in its own in-memory Map — replay succeeds.
+        //
+        // Failing closed (returning 500) avoids the split entirely.  The caller
+        // can retry once PG recovers; the nonce has not been committed to any
+        // store so the retry is safe.  This mirrors the Redis fail-closed policy
+        // documented above.
+        //
+        // Trade-off: while PG is fully down, every request returns 500.  This is
+        // acceptable — consistency over availability — because a successful replay
+        // attack could grant unearned plan access.  Configure Redis
+        // (UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN) as the primary store
+        // for higher availability; PG serves as the durable secondary.
         try {
             const inserted = await pgRecordNonce(nonce, userId, plan);
             if (!inserted) {
@@ -324,8 +351,8 @@ async function recordNonce(nonce, userId, plan) {
             return;
         } catch (err) {
             if (err.message.includes('Duplicate nonce')) throw err;
-            console.error('nonce-store: PG recordNonce failed, falling back to in-memory:', err.message);
-            // Fall through to in-memory below
+            console.error('nonce-store: PG recordNonce failed — failing closed (no in-memory fallback):', err.message);
+            throw new Error(`PG recordNonce failed: ${err.message}`);
         }
     }
     const now = Date.now();
