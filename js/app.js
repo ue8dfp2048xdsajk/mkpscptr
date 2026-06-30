@@ -165,6 +165,8 @@ function _refreshAllProStarBadges() {
         var upgradePrompt = document.getElementById('upgradePrompt');
         if (upgradePrompt) upgradePrompt.style.display = 'none';
     }
+    // Update Save as New button lock state
+    _updateSaveNewBtn();
 }
 
 // Show the top upgrade prompt bar (once per session, dismissible)
@@ -7168,6 +7170,17 @@ function autoSaveSession(){
     });
 })();
 
+function _updateSaveNewBtn() {
+    const wrap = document.getElementById('saveNewWrap');
+    const btn  = document.getElementById('saveNewBtn');
+    if (!wrap || !btn) return;
+    const isPro = _userPlan === 'pro';
+    btn.disabled = !isPro;
+    wrap.classList.toggle('is-locked', !isPro);
+}
+// Set initial state on load (plan defaults to 'free' until Clerk resolves)
+document.addEventListener('DOMContentLoaded', _updateSaveNewBtn);
+
 document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
 
     if(window.Clerk && !window.Clerk.user){
@@ -7196,6 +7209,23 @@ document.getElementById("saveProgressBtn").addEventListener("click", ()=>{
 
     URL.revokeObjectURL(url);
     _markClean();
+});
+
+document.getElementById('saveNewBtn').addEventListener('click', () => {
+    if (_userPlan !== 'pro') {
+        if (typeof openPlansModal === 'function') openPlansModal();
+        return;
+    }
+    // Phase 3: will clear ms_project_uuid and POST to /api/projects/save
+    // For now, download a fresh JSON with a timestamped filename
+    const snapshot = buildFullSnapshot();
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = 'mockup_' + Date.now() + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
 });
 
 

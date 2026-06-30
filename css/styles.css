@@ -688,6 +688,70 @@ body {
 /* Spacing between stacked file-menu buttons */
 #fileMenuPopover button + button { margin-top: 6px; }
 
+/* ── Save as New — PRO gate wrapper ───────────────────────────────────────── */
+.file-menu-pro-wrap {
+    position: relative;
+    display: block;
+    margin-top: 6px;
+}
+.file-menu-pro-wrap #saveNewBtn {
+    margin-top: 0;
+}
+.file-menu-pro-wrap #saveNewBtn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+.file-menu-pro-badge {
+    display: none;
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    pointer-events: none;
+    white-space: nowrap;
+    text-transform: uppercase;
+}
+.file-menu-pro-wrap.is-locked .file-menu-pro-badge {
+    display: inline-block;
+}
+.file-menu-pro-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1f2937;
+    color: #f9fafb;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    z-index: 3000;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+}
+.file-menu-pro-tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-bottom-color: #1f2937;
+}
+.file-menu-pro-wrap.is-locked:hover .file-menu-pro-tooltip {
+    display: block;
+}
+
 .export-row {
     display: flex;
     align-items: center;
