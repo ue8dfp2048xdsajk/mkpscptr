@@ -151,12 +151,20 @@ function _recomputeProEffect(data) {
 
 // Refresh all star badges (called when _userPlan changes in Phase 7)
 function _refreshAllProStarBadges() {
-    canvasData.forEach(function(d) { _updateProStarBadge(d); });
+    canvasData.forEach(function(d) {
+        _updateProStarBadge(d);
+        if (d && d.fabricCanvas) d.fabricCanvas.requestRenderAll();
+    });
     // Sidebar PRO labels: green for Pro users, yellow for everyone else
     var isPro = _userPlan === 'pro';
     document.querySelectorAll('.pro-badge').forEach(function(el) {
         el.classList.toggle('pro-badge--green', isPro);
     });
+    // Hide the upgrade prompt bar immediately when the user has a paid plan
+    if (_userPlan !== 'free') {
+        var upgradePrompt = document.getElementById('upgradePrompt');
+        if (upgradePrompt) upgradePrompt.style.display = 'none';
+    }
 }
 
 // Show the top upgrade prompt bar (once per session, dismissible)
