@@ -7716,6 +7716,8 @@ document.getElementById('saveNewBtn').addEventListener('click', async () => {
         _markClean();
         _showSaveToast('Saved as new project ✓');
         if (typeof window._reloadCloudProjects === 'function') window._reloadCloudProjects();
+    } else if(result.error === 'project_limit_reached'){
+        _showSaveToast('Project limit reached (50 max). Delete an old project to save a new one.', true);
     } else if(result.error === 'payload_too_large' || (result.error && result.error.includes('15 MB'))){
         _showSaveToastWithAction(
             'Project too large for cloud save.',

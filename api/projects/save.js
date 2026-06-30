@@ -121,6 +121,12 @@ module.exports = async function handler(req, res) {
                 return res.status(200).json({ ok: true, uuid: existing.uuid });
             }
         }
+        if (plan === 'pro') {
+            const proCount = await col.countDocuments({ userId: clerkUserId });
+            if (proCount >= 50) {
+                return res.status(403).json({ ok: false, error: 'project_limit_reached' });
+            }
+        }
 
         const newUuid = crypto.randomUUID();
         await col.insertOne({
