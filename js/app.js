@@ -7151,25 +7151,53 @@ async function _getClerkToken() {
     return null;
 }
 
-function buildCloudSnapshot() {
+// Compress a data-URL image for cloud storage.
+// Backgrounds → JPEG (no transparency needed, much smaller).
+// Designs / color layers → PNG (preserve alpha).
+// Returns null for non-data-URL inputs (blob:// URLs survive page-reload via IndexedDB).
+function _compressForCloud(src, opts) {
+    if (!src || !src.startsWith('data:')) return Promise.resolve(null);
+    var format  = (opts && opts.format)  || 'jpeg';
+    var quality = (opts && opts.quality) || 0.65;
+    var maxDim  = (opts && opts.maxDim)  || 1200;
+    return new Promise(function (resolve) {
+        var img = new Image();
+        img.onload = function () {
+            var w = img.naturalWidth, h = img.naturalHeight;
+            if (!w || !h) { resolve(null); return; }
+            if (w > maxDim || h > maxDim) {
+                var s = maxDim / Math.max(w, h);
+                w = Math.round(w * s);
+                h = Math.round(h * s);
+            }
+            var canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            if (format === 'jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); }
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/' + format, quality));
+        };
+        img.onerror = function () { resolve(null); };
+        img.src = src;
+    });
+}
+
+async function buildCloudSnapshot() {
     const full = buildFullSnapshot();
-    return {
-        ...full,
-        windows: full.windows.map(function (w) {
-            return Object.assign({}, w, {
-                bgSrc: null,
-                designSrc: null,
-                colorLayerDataURL: null,
-                duplicates: (w.duplicates || []).map(function (d) {
-                    return Object.assign({}, d, { src: null });
-                }),
-            });
-        }),
-    };
+    const compressedWindows = await Promise.all(full.windows.map(async function (w) {
+        const bgSrc    = await _compressForCloud(w.bgSrc,            { format: 'jpeg', quality: 0.65, maxDim: 1200 });
+        const designSrc = await _compressForCloud(w.designSrc,       { format: 'png',  maxDim: 1200 });
+        const colorLayer = await _compressForCloud(w.colorLayerDataURL, { format: 'png', maxDim: 1200 });
+        const duplicates = await Promise.all((w.duplicates || []).map(async function (d) {
+            return Object.assign({}, d, { src: await _compressForCloud(d.src, { format: 'png', maxDim: 1200 }) });
+        }));
+        return Object.assign({}, w, { bgSrc, designSrc, colorLayerDataURL: colorLayer, duplicates });
+    }));
+    return Object.assign({}, full, { windows: compressedWindows });
 }
 
 async function _cloudSave({ isNew = false } = {}) {
-    const snapshot = buildCloudSnapshot();
+    const snapshot = await buildCloudSnapshot();
     const currentUuid = isNew ? null : localStorage.getItem(_CLOUD_UUID_KEY);
 
     const body = { snapshot };
