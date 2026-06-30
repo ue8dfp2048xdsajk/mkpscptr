@@ -480,3 +480,324 @@ describe('Nonce deduplication — DB unavailable, in-memory fallback blocks dupl
         expect(res3.body.ok).toBe(false);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Multi-instance serverless: Redis down then recovers
+//
+// Background (documented in api/_nonce-store.js, recordNonce):
+//   In a Vercel (or similar) deployment each function invocation is an isolated
+//   process with its own in-memory nonce Map.  When Redis goes down:
+//     • isNonceSeen falls back to in-memory → returns false on every instance
+//     • recordNonce FAILS CLOSED (throws, no in-memory fallback) → 500
+//   So while Redis is down no request succeeds and no nonce is committed.
+//
+//   When Redis recovers the SET NX command is atomic on the Redis server.
+//   Even if two instances both saw isNonceSeen return false (in-memory
+//   fallback), only one SET NX can win — the other receives null (duplicate)
+//   and throws.  Replay protection therefore holds in every phase:
+//     - Redis fully down  → both instances return 500   (fail-closed)
+//     - Redis recovers    → exactly one instance wins   (SET NX atomicity)
+//
+// We simulate two separate serverless instances by loading _nonce-store twice
+// with jest.resetModules() between loads.  Each load gets its own empty
+// in-memory Map.  Both share global.fetch as the Redis proxy so we can
+// control Redis availability centrally.
+// ---------------------------------------------------------------------------
+
+describe('Multi-instance: Redis fully down — both instances fail closed', () => {
+    afterEach(() => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+        jest.clearAllMocks();
+    });
+
+    function loadFreshStore() {
+        jest.resetModules();
+        process.env.UPSTASH_REDIS_REST_URL = FAKE_REDIS_URL;
+        process.env.UPSTASH_REDIS_REST_TOKEN = FAKE_REDIS_TOKEN;
+        delete process.env.DATABASE_URL;
+        return require('../api/_nonce-store');
+    }
+
+    test('isNonceSeen falls back to in-memory (false) on both instances while Redis is down', async () => {
+        global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+
+        const storeA = loadFreshStore();
+        const storeB = loadFreshStore();
+
+        const nonce = 'multi-instance-down-nonce-1';
+
+        // Both instances: Redis EXISTS fails → in-memory fallback → false
+        const [seenA, seenB] = await Promise.all([
+            storeA.isNonceSeen(nonce),
+            storeB.isNonceSeen(nonce),
+        ]);
+
+        expect(seenA).toBe(false);
+        expect(seenB).toBe(false);
+    });
+
+    test('recordNonce on both instances throws (fail-closed) while Redis is down', async () => {
+        global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+
+        const storeA = loadFreshStore();
+        const storeB = loadFreshStore();
+
+        const nonce = 'multi-instance-down-nonce-2';
+
+        const [resultA, resultB] = await Promise.allSettled([
+            storeA.recordNonce(nonce),
+            storeB.recordNonce(nonce),
+        ]);
+
+        // Both must reject — no nonce is committed anywhere.
+        expect(resultA.status).toBe('rejected');
+        expect(resultB.status).toBe('rejected');
+        expect(resultA.reason.message).toMatch(/Redis recordNonce failed/i);
+        expect(resultB.reason.message).toMatch(/Redis recordNonce failed/i);
+    });
+
+    test('nonce is not committed to any store after both recordNonce calls fail', async () => {
+        global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+
+        const storeA = loadFreshStore();
+        const storeB = loadFreshStore();
+
+        const nonce = 'multi-instance-down-nonce-3';
+
+        // Both fail to record.
+        await Promise.allSettled([storeA.recordNonce(nonce), storeB.recordNonce(nonce)]);
+
+        // isNonceSeen still falls back to in-memory on both instances — nonce
+        // was never written anywhere, so both should return false.
+        const [seenA, seenB] = await Promise.all([
+            storeA.isNonceSeen(nonce),
+            storeB.isNonceSeen(nonce),
+        ]);
+
+        expect(seenA).toBe(false);
+        expect(seenB).toBe(false);
+    });
+});
+
+describe('Multi-instance: Redis recovers between isNonceSeen and recordNonce — SET NX atomicity blocks replay', () => {
+    afterEach(() => {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
+        jest.clearAllMocks();
+    });
+
+    function loadFreshStore() {
+        jest.resetModules();
+        process.env.UPSTASH_REDIS_REST_URL = FAKE_REDIS_URL;
+        process.env.UPSTASH_REDIS_REST_TOKEN = FAKE_REDIS_TOKEN;
+        delete process.env.DATABASE_URL;
+        return require('../api/_nonce-store');
+    }
+
+    test('exactly one of two racing recordNonce calls wins when Redis recovers mid-flight', async () => {
+        // Shared Redis state — survives the Redis-down phase (empty while down,
+        // populated atomically once up).
+        const redisSeen = new Set();
+        let redisUp = false;
+
+        // Phase 1 (Redis down): EXISTS throws → isNonceSeen falls back to in-memory.
+        // Phase 2 (Redis up):   SET NX is atomic → exactly one wins.
+        global.fetch = jest.fn(async (url) => {
+            const segments = url.split('/');
+            const op = segments[3];
+            const key = decodeURIComponent((segments[4] || '').split('?')[0]);
+
+            if (op === 'exists') {
+                if (!redisUp) throw new Error('ECONNREFUSED');
+                return { ok: true, json: async () => ({ result: redisSeen.has(key) ? 1 : 0 }) };
+            }
+
+            if (op === 'set') {
+                if (!redisUp) throw new Error('ECONNREFUSED');
+                if (redisSeen.has(key)) {
+                    return { ok: true, json: async () => ({ result: null }) };
+                }
+                redisSeen.add(key);
+                return { ok: true, json: async () => ({ result: 'OK' }) };
+            }
+
+            if (op === 'del') {
+                redisSeen.delete(key);
+                return { ok: true, json: async () => ({ result: 1 }) };
+            }
+
+            return { ok: true, json: async () => ({ result: null }) };
+        });
+
+        const storeA = loadFreshStore();
+        const storeB = loadFreshStore();
+
+        const nonce = 'multi-instance-recover-nonce-1';
+
+        // isNonceSeen while Redis is down → both fall back to in-memory → false.
+        const [seenA, seenB] = await Promise.all([
+            storeA.isNonceSeen(nonce),
+            storeB.isNonceSeen(nonce),
+        ]);
+        expect(seenA).toBe(false);
+        expect(seenB).toBe(false);
+
+        // Redis recovers.
+        redisUp = true;
+
+        // Both instances race to commit the nonce — SET NX is atomic, so exactly
+        // one must succeed and one must throw "Duplicate nonce".
+        const [resultA, resultB] = await Promise.allSettled([
+            storeA.recordNonce(nonce),
+            storeB.recordNonce(nonce),
+        ]);
+
+        const successes  = [resultA, resultB].filter(r => r.status === 'fulfilled');
+        const duplicates = [resultA, resultB].filter(
+            r => r.status === 'rejected' && /Duplicate nonce/i.test(r.reason.message)
+        );
+
+        expect(successes).toHaveLength(1);
+        expect(duplicates).toHaveLength(1);
+    });
+
+    test('after the race the nonce is visible in Redis and blocks a subsequent replay attempt', async () => {
+        const redisSeen = new Set();
+
+        global.fetch = jest.fn(async (url) => {
+            const segments = url.split('/');
+            const op = segments[3];
+            const key = decodeURIComponent((segments[4] || '').split('?')[0]);
+
+            if (op === 'exists')
+                return { ok: true, json: async () => ({ result: redisSeen.has(key) ? 1 : 0 }) };
+
+            if (op === 'set') {
+                if (redisSeen.has(key))
+                    return { ok: true, json: async () => ({ result: null }) };
+                redisSeen.add(key);
+                return { ok: true, json: async () => ({ result: 'OK' }) };
+            }
+
+            if (op === 'del') {
+                redisSeen.delete(key);
+                return { ok: true, json: async () => ({ result: 1 }) };
+            }
+
+            return { ok: true, json: async () => ({ result: null }) };
+        });
+
+        // Instance A records the nonce (simulates the instance that won the race).
+        const storeA = loadFreshStore();
+        const nonce = 'multi-instance-recover-nonce-2';
+        await storeA.recordNonce(nonce);
+
+        // Instance C represents a fresh cold start (a third serverless instance,
+        // or an attacker replaying the nonce).  It must see the nonce as already
+        // seen via Redis.
+        const storeC = loadFreshStore();
+        const seen = await storeC.isNonceSeen(nonce);
+        expect(seen).toBe(true);
+
+        // And if it tries to record, it gets "Duplicate nonce".
+        await expect(storeC.recordNonce(nonce)).rejects.toThrow(/Duplicate nonce/i);
+    });
+
+    test('two concurrent requests through the full set-plan handler — only one succeeds, no replay', async () => {
+        const redisSeen = new Set();
+        let redisUp = false;
+
+        function buildFetch() {
+            return jest.fn(async (url) => {
+                if (!url.startsWith(FAKE_REDIS_URL)) {
+                    // Clerk
+                    return { ok: true, json: async () => ({}) };
+                }
+
+                const segments = url.split('/');
+                const op  = segments[3];
+                const key = decodeURIComponent((segments[4] || '').split('?')[0]);
+
+                if (op === 'exists') {
+                    if (!redisUp) throw new Error('ECONNREFUSED');
+                    return { ok: true, json: async () => ({ result: redisSeen.has(key) ? 1 : 0 }) };
+                }
+
+                if (op === 'set') {
+                    if (!redisUp) throw new Error('ECONNREFUSED');
+                    if (redisSeen.has(key))
+                        return { ok: true, json: async () => ({ result: null }) };
+                    redisSeen.add(key);
+                    return { ok: true, json: async () => ({ result: 'OK' }) };
+                }
+
+                if (op === 'del') {
+                    redisSeen.delete(key);
+                    return { ok: true, json: async () => ({ result: 1 }) };
+                }
+
+                return { ok: true, json: async () => ({ result: null }) };
+            });
+        }
+
+        function loadFreshHandler() {
+            jest.resetModules();
+            process.env.UPSTASH_REDIS_REST_URL   = FAKE_REDIS_URL;
+            process.env.UPSTASH_REDIS_REST_TOKEN  = FAKE_REDIS_TOKEN;
+            delete process.env.DATABASE_URL;
+            process.env.CLERK_SECRET_KEY = 'clerk-test-key';
+            process.env.SET_PLAN_SECRET  = SECRET;
+            jest.doMock('../api/_cors', () => ({
+                setCorsHeaders: () => {},
+                handleOptions:  () => false,
+            }));
+            return require('../api/set-plan');
+        }
+
+        // --- Phase 1: Redis down — both instances isNonceSeen falls back to in-memory ---
+        // We simulate this by having the handler handle requests while Redis is down.
+        // Because recordNonce is fail-closed both should return 500.
+        global.fetch = buildFetch();
+
+        const handlerA = loadFreshHandler();
+        const handlerB = loadFreshHandler();
+
+        const nonce = 'multi-instance-e2e-nonce-1';
+
+        const { req: reqA1, res: resA1 } = makeReqRes({ nonce });
+        const { req: reqB1, res: resB1 } = makeReqRes({ nonce });
+
+        await Promise.all([handlerA(reqA1, resA1), handlerB(reqB1, resB1)]);
+
+        // Both fail closed — Redis down.
+        expect(resA1.statusCode).toBe(500);
+        expect(resB1.statusCode).toBe(500);
+
+        // --- Phase 2: Redis recovers — exactly one request succeeds ---
+        redisUp = true;
+
+        const { req: reqA2, res: resA2 } = makeReqRes({ nonce });
+        const { req: reqB2, res: resB2 } = makeReqRes({ nonce });
+
+        await Promise.all([handlerA(reqA2, resA2), handlerB(reqB2, resB2)]);
+
+        const codes = [resA2.statusCode, resB2.statusCode];
+        const successes  = codes.filter(c => c === 200);
+        const rejections = codes.filter(c => c >= 400);
+
+        expect(successes).toHaveLength(1);
+        expect(rejections).toHaveLength(1);
+
+        // --- Phase 3: Replay attempt — must be blocked ---
+        const { req: reqA3, res: resA3 } = makeReqRes({ nonce });
+        await handlerA(reqA3, resA3);
+        expect(resA3.statusCode).toBeGreaterThanOrEqual(400);
+        expect(resA3.body.ok).toBe(false);
+
+        delete process.env.CLERK_SECRET_KEY;
+        delete process.env.SET_PLAN_SECRET;
+    });
+});

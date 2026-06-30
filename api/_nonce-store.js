@@ -260,6 +260,41 @@ async function recordNonce(nonce, userId, plan) {
         // then succeed once Redis recovers because Redis would still show the
         // nonce as unseen.  Returning a 500 is the safe choice: the caller can
         // retry the full request and the nonce will not have been committed.
+        //
+        // MULTI-INSTANCE SERVERLESS RACE — Redis goes down then recovers
+        // ----------------------------------------------------------------
+        // In a multi-instance deployment (e.g. Vercel) two independent
+        // serverless instances can handle concurrent requests carrying the
+        // same nonce at the same time.  The timeline that appears dangerous:
+        //
+        //   1. Redis goes down.
+        //   2. Instance A: isNonceSeen → Redis fails → in-memory fallback → false.
+        //   3. Instance B: isNonceSeen → Redis fails → in-memory fallback → false.
+        //      (Each instance has its own empty in-memory Map — they cannot see
+        //       each other's state.)
+        //   4. Both instances pass the duplicate check and reach recordNonce.
+        //   5. Redis recovers.
+        //   6. Both instances call redisSetNx (SET NX) concurrently.
+        //
+        // The SET NX command is atomic on the Redis server.  Exactly one
+        // instance receives "OK" and the other receives null (duplicate).
+        // The losing instance throws "Duplicate nonce — already recorded",
+        // so only one request can ever succeed with a given nonce.
+        //
+        // If Redis is still down at step 6, redisSetNx throws and this
+        // function re-throws (fail-closed), returning a 500.  No nonce is
+        // committed to any store, so the caller can retry safely once Redis
+        // recovers and the retry will then succeed via SET NX.
+        //
+        // Trade-off acknowledged:
+        //   • While Redis is fully down every request returns 500 — safe but
+        //     disruptive.  Configuring a PostgreSQL fallback (DATABASE_URL)
+        //     provides a secondary durable store.  The PG INSERT … ON CONFLICT
+        //     DO NOTHING is also atomic (primary-key constraint), giving the
+        //     same multi-instance safety guarantee as Redis SET NX.
+        //   • The in-memory fallback intentionally has NO multi-instance
+        //     safety — it is documented as local-dev / single-instance only.
+        //     See the comment block above the `seen` Map declaration.
         let result;
         try {
             result = await redisSetNx(makeKey(nonce));
