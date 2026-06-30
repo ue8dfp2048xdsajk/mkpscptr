@@ -551,6 +551,15 @@ function syncSliders() {
 
     _syncBgAdjustDisplay();
     _syncPatternDisplay();
+
+    if(colorLayerMode && data.colorLayerFabricObj){
+        const clOpacity = data.colorLayerFabricObj.opacity ?? 1;
+        const clBlend   = data.colorLayerFabricObj.globalCompositeOperation ?? 'source-over';
+        colorLayerOpacity   = clOpacity;
+        colorLayerBlendMode = clBlend;
+        document.getElementById("colorLayerOpacityInput").value = Math.round(clOpacity * 100);
+        document.getElementById("colorLayerModeSelect").value   = clBlend;
+    }
 }
 
 
@@ -5202,6 +5211,20 @@ document.getElementById("addColorLayerBtn").addEventListener("click", ()=>{
         document.getElementById("colorLayerControls").style.display = "inline-flex";
         document.getElementById("copyColorBtn").style.display       = "block";
         document.getElementById("deleteColorBtn").style.display     = "block";
+
+        // Sync opacity/blend globals and UI inputs from the first active window
+        // that already has a color layer (e.g. a just-loaded project).  If no
+        // window has one yet, the defaults (1 / source-over) remain.
+        for(const i of activeIndices){
+            const d = canvasData[i];
+            if(d?.colorLayerFabricObj){
+                colorLayerOpacity   = d.colorLayerFabricObj.opacity ?? 1;
+                colorLayerBlendMode = d.colorLayerFabricObj.globalCompositeOperation ?? 'source-over';
+                document.getElementById("colorLayerOpacityInput").value = Math.round(colorLayerOpacity * 100);
+                document.getElementById("colorLayerModeSelect").value   = colorLayerBlendMode;
+                break;
+            }
+        }
 
         // Start global mousemove tracking for the brush cursor ring
         _startColorLayerCursorTracking();
