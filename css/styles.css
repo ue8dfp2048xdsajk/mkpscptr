@@ -2467,6 +2467,83 @@ body.sidebar-expanded #contextPanelBody {
     justify-content: flex-end;
 }
 
+/* ── Cookie consent banner ─────────────────────────────────────────────── */
+#cookieConsentBar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 99999;
+    background: #111827;
+    border-top: 1px solid #1F2937;
+    padding: 10px 20px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 12px;
+    color: #9CA3AF;
+}
+.cookie-consent-text a {
+    color: #818CF8;
+    text-decoration: none;
+}
+.cookie-consent-text a:hover { text-decoration: underline; }
+.cookie-consent-btns {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+#cookieDeclineBtn {
+    padding: 5px 14px;
+    background: transparent;
+    border: 1px solid #374151;
+    color: #9CA3AF;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'Inter', Arial, sans-serif;
+}
+#cookieDeclineBtn:hover { background: #1F2937; color: #fff; }
+#cookieAcceptBtn {
+    padding: 5px 14px;
+    background: #6366F1;
+    border: none;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: 'Inter', Arial, sans-serif;
+}
+#cookieAcceptBtn:hover { background: #4F46E5; }
+
+/* ── Footer ────────────────────────────────────────────────────────────── */
+.ms-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    height: 24px;
+    background: #0D1117;
+    border-top: 1px solid #1F2937;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 11px;
+    color: #4B5563;
+}
+.ms-footer a {
+    color: #6B7280;
+    text-decoration: none;
+}
+.ms-footer a:hover { color: #9CA3AF; }
+.ms-footer-dot { color: #374151; }
+
 .ms-name-prompt-cancel {
     background: transparent;
     border: 1px solid #374151;

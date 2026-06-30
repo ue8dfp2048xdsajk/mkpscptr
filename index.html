@@ -3,11 +3,18 @@
     <head>
         <script>
             !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="init be fc a b bs cs capture autocapture capturePagLeave alias identify set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys getNextSurveyStep onSessionId setPersonProperties".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-            posthog.init('phc_xwDdXcr9BYR7DE7WrvwNWTJuJYN3vgcQFQgtnEPUeixo', {
-                api_host: 'https://us.i.posthog.com',
-                defaults: '2026-05-30',
-                person_profiles: 'identified_only',
-            })
+            window._initPostHog = function() {
+                if (window._posthogInited) return;
+                window._posthogInited = true;
+                posthog.init('phc_xwDdXcr9BYR7DE7WrvwNWTJuJYN3vgcQFQgtnEPUeixo', {
+                    api_host: 'https://us.i.posthog.com',
+                    defaults: '2026-05-30',
+                    person_profiles: 'identified_only',
+                });
+            };
+            if (localStorage.getItem('ms_cookie_consent') === 'accepted') {
+                window._initPostHog();
+            }
         </script>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -1284,6 +1291,49 @@
         <script src="js/app.js"></script>
         <script src="js/plans-modal.js"></script>
         <script src="js/clerk-auth.js"></script>
+
+        <!-- ── Cookie consent banner ────────────────────────────────────────── -->
+        <div id="cookieConsentBar">
+            <span class="cookie-consent-text">
+                We use cookies for analytics to improve your experience.
+                <a href="/privacy.html" target="_blank">Privacy Policy</a>
+            </span>
+            <div class="cookie-consent-btns">
+                <button id="cookieDeclineBtn">Decline</button>
+                <button id="cookieAcceptBtn">Accept</button>
+            </div>
+        </div>
+
+        <!-- ── Footer ────────────────────────────────────────────────────────── -->
+        <footer class="ms-footer">
+            <a href="/privacy.html" target="_blank">Privacy Policy</a>
+            <span class="ms-footer-dot">·</span>
+            <a href="/terms.html" target="_blank">Terms of Service</a>
+            <span class="ms-footer-dot">·</span>
+            <a href="mailto:support@mockupscripter.com">Support</a>
+            <span class="ms-footer-dot">·</span>
+            <span>© 2026 Mockup Scripter</span>
+        </footer>
+
+        <!-- ── Cookie consent logic ───────────────────────────────────────────── -->
+        <script>
+            (function() {
+                var CONSENT_KEY = 'ms_cookie_consent';
+                var consent = localStorage.getItem(CONSENT_KEY);
+                if (consent !== null) return;
+                var bar = document.getElementById('cookieConsentBar');
+                bar.style.display = 'flex';
+                document.getElementById('cookieAcceptBtn').addEventListener('click', function() {
+                    localStorage.setItem(CONSENT_KEY, 'accepted');
+                    bar.style.display = 'none';
+                    window._initPostHog && window._initPostHog();
+                });
+                document.getElementById('cookieDeclineBtn').addEventListener('click', function() {
+                    localStorage.setItem(CONSENT_KEY, 'declined');
+                    bar.style.display = 'none';
+                });
+            })();
+        </script>
 
         <!-- ── Security deterrents ──────────────────────────────────────────── -->
         <script>
