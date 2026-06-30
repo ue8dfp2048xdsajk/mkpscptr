@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { getDb } = require('../db');
+const { getDb } = require('../_db');
 
 const PRICE_TO_PLAN = {
     [process.env.STRIPE_PRICE_STARTER_MONTHLY]:  'starter',

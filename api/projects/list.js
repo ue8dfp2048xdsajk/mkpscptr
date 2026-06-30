@@ -1,5 +1,5 @@
 const { setCorsHeaders, handleOptions } = require('../_cors');
-const { getDb } = require('../db');
+const { getDb } = require('../_db');
 const { verifyClerkToken } = require('../_verify-clerk-token');
 
 module.exports = async function handler(req, res) {
