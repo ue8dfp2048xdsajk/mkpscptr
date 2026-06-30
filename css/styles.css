@@ -2151,6 +2151,7 @@ body.sidebar-expanded #contextPanelBody {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    pointer-events: auto;
 }
 
 .ms-save-toast-btn {
