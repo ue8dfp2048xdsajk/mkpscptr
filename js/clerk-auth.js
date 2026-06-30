@@ -110,12 +110,19 @@
         var dropdown = document.createElement('div');
         dropdown.className = 'ms-avatar-dropdown';
 
+        var plan = window._userPlan || 'free';
+        var projectLimitHint =
+            plan === 'pro'     ? 'Unlimited projects · 15 MB max each' :
+            plan === 'starter' ? '1 project · 15 MB max' :
+                                 'Cloud save requires a paid plan';
+
         dropdown.innerHTML =
             '<div class="ms-avatar-email">' + email + '</div>' +
             '<div class="ms-avatar-plan">Plan: <strong>' + planLabel + '</strong></div>' +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
             '<div class="ms-projects-section">' +
               '<div class="ms-projects-label">My Projects</div>' +
+              '<div class="ms-projects-limit">' + projectLimitHint + '</div>' +
               '<div class="ms-projects-list" id="msProjectsList"><span class="ms-projects-loading">Loading…</span></div>' +
               '<div class="ms-open-uuid-row">' +
                 '<input class="ms-open-uuid-input" id="msOpenUuidInput" type="text" placeholder="Open by UUID…" autocomplete="off" spellcheck="false"/>' +

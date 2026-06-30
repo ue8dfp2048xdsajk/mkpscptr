@@ -9,10 +9,6 @@ app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
 app.use((req, res, next) => {
     const start = Date.now();
-    if (req.method === 'POST' || req.method === 'PUT') {
-        const cl = req.headers['content-length'];
-        if (cl) console.log(`${req.method} ${req.path} content-length: ${(parseInt(cl)/1024/1024).toFixed(2)} MB`);
-    }
     res.on('finish', () => {
         console.log(`${req.method} ${req.path} → ${res.statusCode} (${Date.now() - start}ms)`);
     });
@@ -30,11 +26,6 @@ function apiHandler(handlerPath) {
         }
     };
 }
-
-app.get('/api/debug/size', (req, res) => {
-    console.log('[SNAPSHOT SIZE DEBUG]', req.query);
-    res.json({ ok: true });
-});
 
 app.all('/api/projects/list',   apiHandler('./api/projects/list'));
 app.all('/api/projects/save',   apiHandler('./api/projects/save'));

@@ -2137,6 +2137,12 @@ body.sidebar-expanded #contextPanelBody {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: #6B7280;
+    padding: 0 4px 2px;
+}
+
+.ms-projects-limit {
+    font-size: 11px;
+    color: #4B5563;
     padding: 0 4px 4px;
 }
 
