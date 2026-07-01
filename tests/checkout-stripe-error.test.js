@@ -57,6 +57,11 @@ function makeReqRes({ body = {}, env = {}, headers = {} } = {}) {
 const GOOD_ENV = {
     STRIPE_SECRET_KEY:             'sk_test_dummy_for_checkout_tests',
     STRIPE_PRICE_STARTER_MONTHLY:  'price_test_starter_monthly',
+    // Explicitly clear CLERK_SECRET_KEY so the plan-upgrade check is skipped.
+    // These tests mock global.fetch to simulate Stripe errors; if the Clerk
+    // plan-check block ran it would intercept that fetch first and return
+    // CLERK_ERROR before the Stripe call is ever reached.
+    CLERK_SECRET_KEY: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -68,6 +73,12 @@ describe('POST /api/checkout — STRIPE_ERROR branch (server)', () => {
 
     beforeAll(() => {
         jest.resetModules();
+        // checkout.js now requires a verified Clerk user ID. Use jest.doMock
+        // (after resetModules) so the fresh require picks up the mock correctly.
+        jest.doMock('../api/_verify-clerk-token', () => ({
+            verifyClerkToken:     jest.fn().mockResolvedValue('user_test_checkout'),
+            verifyClerkTokenFull: jest.fn().mockResolvedValue(null),
+        }));
         handler = require('../api/checkout');
     });
 

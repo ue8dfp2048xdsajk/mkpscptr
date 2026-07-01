@@ -1,57 +1,38 @@
 const { setCorsHeaders, handleOptions } = require('../_cors');
 const { verifyClerkToken } = require('../_verify-clerk-token');
 
-async function resolveStripeCustomer(clerkUserId, clerkSecretKey, stripeSecretKey) {
-    let stripeCustomerId = null;
-    let userEmail = null;
+// Per-user rate limit: max 10 billing requests per minute (in-memory)
+const _billingHits = new Map();
+const BILLING_WINDOW_MS = 60_000;
+const BILLING_MAX = 10;
+function billingRateLimited(userId) {
+    const now = Date.now();
+    const cutoff = now - BILLING_WINDOW_MS;
+    const hits = (_billingHits.get(userId) || []).filter(t => t > cutoff);
+    if (hits.length >= BILLING_MAX) return true;
+    hits.push(now);
+    _billingHits.set(userId, hits);
+    return false;
+}
 
-    if (clerkSecretKey) {
-        try {
-            const r = await fetch(
-                `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
-                { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
-            );
-            if (r.ok) {
-                const d = await r.json();
-                stripeCustomerId = d?.public_metadata?.stripeCustomerId;
-                userEmail = d?.email_addresses?.[0]?.email_address;
-            }
-        } catch {}
+// Resolve the Stripe customer ID for a Clerk user from their Clerk public_metadata.
+// The stripeCustomerId is stored there by the webhook when checkout.session.completed
+// fires. We do NOT fall back to an email-based Stripe search — that lookup can
+// resolve to a different customer with the same email address, which would expose
+// another user's invoices or let them manage an unrelated subscription via the portal.
+async function resolveStripeCustomer(clerkUserId, clerkSecretKey) {
+    if (!clerkSecretKey) return null;
+    try {
+        const r = await fetch(
+            `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
+            { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
+        );
+        if (!r.ok) return null;
+        const d = await r.json();
+        return d?.public_metadata?.stripeCustomerId || null;
+    } catch {
+        return null;
     }
-
-    if (!stripeCustomerId && userEmail) {
-        try {
-            const search = await fetch(
-                `https://api.stripe.com/v1/customers/search?query=${encodeURIComponent(`email:"${userEmail}"`)}&expand[]=data.subscriptions`,
-                { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
-            );
-            if (search.ok) {
-                const sd = await search.json();
-                const customers = sd?.data || [];
-                const customer =
-                    customers.find(c => c.subscriptions?.data?.some(s => s.status === 'active')) ||
-                    customers[0];
-                if (customer) {
-                    stripeCustomerId = customer.id;
-                    if (clerkSecretKey) {
-                        fetch(
-                            `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}/metadata`,
-                            {
-                                method: 'PATCH',
-                                headers: {
-                                    Authorization: `Bearer ${clerkSecretKey}`,
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({ public_metadata: { stripeCustomerId } }),
-                            }
-                        ).catch(() => {});
-                    }
-                }
-            }
-        } catch {}
-    }
-
-    return stripeCustomerId;
 }
 
 async function handleInvoices(req, res, stripeCustomerId, stripeSecretKey) {
@@ -91,10 +72,12 @@ async function handlePortal(req, res, stripeCustomerId, stripeSecretKey) {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
-    const origin = req.headers.origin || process.env.BASE_URL || 'https://mockupscripter.com';
+    // Use server-side BASE_URL — never trust the Origin header here, as it is
+    // user-controlled and would constitute an open redirect after portal actions.
+    const baseUrl = process.env.BASE_URL || 'https://mockupscripter.com';
     const params = new URLSearchParams();
     params.set('customer', stripeCustomerId);
-    params.set('return_url', `${origin}/`);
+    params.set('return_url', `${baseUrl}/`);
 
     let portalRes;
     try {
@@ -143,8 +126,12 @@ module.exports = async function handler(req, res) {
         return res.status(401).json({ ok: false, error: 'Not authenticated' });
     }
 
+    if (billingRateLimited(clerkUserId)) {
+        return res.status(429).json({ ok: false, error: 'Too many requests. Please wait before trying again.' });
+    }
+
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    const stripeCustomerId = await resolveStripeCustomer(clerkUserId, clerkSecretKey, stripeSecretKey);
+    const stripeCustomerId = await resolveStripeCustomer(clerkUserId, clerkSecretKey);
 
     if (action === 'invoices') {
         if (!stripeCustomerId) {

@@ -62,20 +62,24 @@ module.exports = async function handler(req, res) {
         });
     }
 
-    // Verify the caller's identity from the JWT — never trust userId from the request body.
-    let clerkUserId = null;
+    // Require authentication — checkout without a verified user ID means the
+    // webhook will have no client_reference_id and cannot upgrade the plan.
+    let clerkUserId;
     try {
         clerkUserId = await verifyClerkToken(req.headers.authorization);
     } catch {
         return res.status(502).json({ ok: false, error: 'Could not verify session' });
     }
+    if (!clerkUserId) {
+        return res.status(401).json({ ok: false, error: 'Not authenticated' });
+    }
 
-    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    if (clerkUserId && checkoutRateLimited(clerkUserId)) {
+    if (checkoutRateLimited(clerkUserId)) {
         return res.status(429).json({ ok: false, error: 'Too many checkout attempts. Please wait a moment and try again.' });
     }
 
-    if (clerkUserId && clerkSecretKey) {
+    const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (clerkSecretKey) {
         let clerkRes;
         try {
             clerkRes = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`, {
@@ -109,9 +113,12 @@ module.exports = async function handler(req, res) {
     const isLifetime = period === 'lifetime';
     const mode = isLifetime ? 'payment' : 'subscription';
 
-    const origin = req.headers.origin || process.env.BASE_URL || 'https://mockupscripter.com';
-    const successUrl = `${origin}/?payment=success`;
-    const cancelUrl  = `${origin}/`;
+    // Use the server-side BASE_URL — never trust the Origin request header here,
+    // as it is user-controlled and would allow an attacker to set an arbitrary
+    // success_url/cancel_url (open redirect after real payment).
+    const baseUrl = process.env.BASE_URL || 'https://mockupscripter.com';
+    const successUrl = `${baseUrl}/?payment=success`;
+    const cancelUrl  = `${baseUrl}/`;
 
     const params = new URLSearchParams();
     params.set('mode', mode);
@@ -122,9 +129,7 @@ module.exports = async function handler(req, res) {
     if (!isLifetime) {
         params.set('allow_promotion_codes', 'true');
     }
-    if (clerkUserId && typeof clerkUserId === 'string') {
-        params.set('client_reference_id', clerkUserId);
-    }
+    params.set('client_reference_id', clerkUserId);
     params.set('metadata[plan]', plan);
 
     let stripeRes;

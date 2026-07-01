@@ -3,9 +3,11 @@ const { createRemoteJWKSet, jwtVerify } = require('jose');
 const JWKS_URL = process.env.CLERK_JWKS_URL;
 if (!JWKS_URL) {
     console.error(
-        '_verify-clerk-token: CLERK_JWKS_URL is not set. ' +
-        'All token verification will fail. Set this to your Clerk JWKS endpoint ' +
-        '(e.g. https://clerks.yourdomain.com/.well-known/jwks.json).'
+        '[FATAL] _verify-clerk-token: CLERK_JWKS_URL is not set. ' +
+        'All token verification will return null — authenticated endpoints will ' +
+        'reject all requests with 401, and checkout will block all purchases. ' +
+        'Set CLERK_JWKS_URL to your Clerk JWKS endpoint ' +
+        '(e.g. https://clerk.mockupscripter.com/.well-known/jwks.json).'
     );
 }
 
