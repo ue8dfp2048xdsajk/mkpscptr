@@ -371,13 +371,17 @@ async function recordNonce(nonce, userId, plan) {
 // deleteNonce retries up to 3 times with exponential backoff (100 → 200 → 400 ms)
 // before giving up.  This handles transient Redis/PG connectivity blips that would
 // otherwise leave the nonce recorded and block Stripe's next retry.
-async function deleteNonce(nonce) {
+async function deleteNonce(nonce, { userId, plan } = {}) {
     if (USE_REDIS) {
         try {
             await withRetry('Redis DEL', () => redisDel(makeKey(nonce)));
             return;
         } catch (err) {
-            console.error('nonce-store: Redis DEL failed after retries, falling back to in-memory delete:', err.message);
+            console.error(
+                `[ALERT] nonce-store: deleteNonce failed permanently for nonce=${nonce} userId=${userId || 'unknown'} plan=${plan || 'unknown'} — ` +
+                `the nonce is still recorded; Stripe retries will be rejected with 400 until the nonce expires or is manually cleared via POST /api/clear-nonce. ` +
+                `Last error: ${err.message}`
+            );
         }
         seen.delete(nonce);
         return;
@@ -387,7 +391,11 @@ async function deleteNonce(nonce) {
             await withRetry('PG deleteNonce', () => pgDeleteNonce(nonce));
             return;
         } catch (err) {
-            console.error('nonce-store: PG deleteNonce failed after retries, falling back to in-memory delete:', err.message);
+            console.error(
+                `[ALERT] nonce-store: deleteNonce failed permanently for nonce=${nonce} userId=${userId || 'unknown'} plan=${plan || 'unknown'} — ` +
+                `the nonce is still recorded; Stripe retries will be rejected with 400 until the nonce expires or is manually cleared via POST /api/clear-nonce. ` +
+                `Last error: ${err.message}`
+            );
             seen.delete(nonce);
             return;
         }

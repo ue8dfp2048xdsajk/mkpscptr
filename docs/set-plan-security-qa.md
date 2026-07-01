@@ -369,6 +369,36 @@ If all retries fail the nonce remains recorded and every subsequent Stripe retry
 
 `POST /api/clear-nonce` is the manual escape hatch for this situation.
 
+### Alert pattern — detecting a permanently stuck nonce
+
+When `deleteNonce()` exhausts all retries it emits a structured log line at the `error` level that begins with `[ALERT]`:
+
+```
+[ALERT] nonce-store: deleteNonce failed permanently for nonce=<value> userId=<id> plan=<plan> — the nonce is still recorded; Stripe retries will be rejected with 400 until the nonce expires or is manually cleared via POST /api/clear-nonce. Last error: <message>
+```
+
+**What to grep / alert on:** `[ALERT] nonce-store: deleteNonce failed permanently`
+
+**Datadog / Logtail / Vercel log drains:** create a log-level alert that matches the pattern above and pages on-call.  The alert fires at most once per stuck nonce, so false-positive noise is low.
+
+**Action when the alert fires:**
+1. Note the `nonce=` and `userId=` / `plan=` values from the log line.
+2. Call the clear-nonce admin endpoint to unblock future Stripe retries (see QA cases 16–17 below):
+   ```bash
+   # By nonce value (preferred — copy from the log line):
+   curl -s -X POST "$BASE_URL/api/clear-nonce" \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer $SECRET" \
+     -d '{"nonce":"<value from log>"}'
+
+   # By userId + plan (use when the nonce value is not in the log):
+   curl -s -X POST "$BASE_URL/api/clear-nonce" \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer $SECRET" \
+     -d '{"userId":"<id from log>","plan":"<plan from log>"}'
+   ```
+3. Investigate why Redis / PostgreSQL was unreachable; fix the connectivity issue so `deleteNonce()` succeeds on subsequent events.
+
 ### Authentication
 
 Same secret as `set-plan`:

@@ -99,7 +99,7 @@ module.exports = async function handler(req, res) {
     if (process.env.ENABLE_WEBHOOK_TEST_HOOKS === 'true' &&
             req.headers['x-test-force-clerk-error'] === '1') {
         console.log('set-plan: [TEST HOOK] simulating Clerk failure to exercise deleteNonce path');
-        try { await deleteNonce(nonce); } catch (delErr) {
+        try { await deleteNonce(nonce, { userId, plan }); } catch (delErr) {
             console.error('set-plan: failed to delete nonce after [TEST] simulated Clerk error', delErr);
         }
         return res.status(502).json({ ok: false, error: '[TEST] Simulated Clerk failure' });
@@ -119,7 +119,7 @@ module.exports = async function handler(req, res) {
         });
     } catch (err) {
         console.error('set-plan: Clerk API fetch error', err);
-        try { await deleteNonce(nonce); } catch (delErr) {
+        try { await deleteNonce(nonce, { userId, plan }); } catch (delErr) {
             console.error('set-plan: failed to delete nonce after Clerk fetch error', delErr);
         }
         return res.status(502).json({ ok: false, error: 'Failed to reach Clerk API' });
@@ -132,7 +132,7 @@ module.exports = async function handler(req, res) {
             clerkError = clerkBody?.errors?.[0]?.message || clerkError;
         } catch {}
         console.error('set-plan: Clerk returned', clerkRes.status, clerkError);
-        try { await deleteNonce(nonce); } catch (delErr) {
+        try { await deleteNonce(nonce, { userId, plan }); } catch (delErr) {
             console.error('set-plan: failed to delete nonce after Clerk error response', delErr);
         }
         return res.status(502).json({ ok: false, error: clerkError });
