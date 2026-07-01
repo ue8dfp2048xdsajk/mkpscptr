@@ -14,7 +14,7 @@
             min-height: 100vh;
             padding: 48px 24px 80px;
         }
-        .container { max-width: 720px; margin: 0 auto; }
+        .container { max-width: 760px; margin: 0 auto; }
         .back {
             display: inline-flex;
             align-items: center;
@@ -29,7 +29,7 @@
             font-size: 28px;
             font-weight: 700;
             color: #F9FAFB;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
         .updated {
             font-size: 13px;
@@ -37,29 +37,95 @@
             margin-bottom: 40px;
         }
         h2 {
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 15px;
+            font-weight: 700;
             color: #F9FAFB;
-            margin: 32px 0 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin: 36px 0 12px;
+            padding-top: 4px;
+            border-top: 1px solid #1F2937;
         }
-        p, li {
+        h3 {
             font-size: 14px;
-            line-height: 1.7;
+            font-weight: 600;
+            color: #E5E7EB;
+            margin: 20px 0 8px;
+        }
+        p {
+            font-size: 14px;
+            line-height: 1.75;
             color: #9CA3AF;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
         }
-        ul { padding-left: 20px; }
-        a { color: #818CF8; }
-        .placeholder {
-            background: #1F2937;
-            border: 1px dashed #374151;
-            border-radius: 8px;
-            padding: 20px;
-            font-size: 13px;
+        ul {
+            padding-left: 20px;
+            margin-bottom: 12px;
+        }
+        li {
+            font-size: 14px;
+            line-height: 1.75;
+            color: #9CA3AF;
+            margin-bottom: 6px;
+        }
+        .in-short {
+            font-style: italic;
             color: #6B7280;
-            margin: 40px 0;
-            text-align: center;
+            margin-bottom: 12px;
+            font-size: 13px;
         }
+        a { color: #818CF8; }
+        a:hover { color: #A5B4FC; }
+        .toc {
+            background: #111827;
+            border: 1px solid #1F2937;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin: 32px 0;
+        }
+        .toc h3 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6B7280;
+            margin-bottom: 12px;
+            margin-top: 0;
+        }
+        .toc ol {
+            padding-left: 20px;
+        }
+        .toc li {
+            font-size: 13px;
+            color: #818CF8;
+            margin-bottom: 4px;
+        }
+        .toc a {
+            color: #818CF8;
+            text-decoration: none;
+        }
+        .toc a:hover { text-decoration: underline; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin: 16px 0;
+        }
+        th {
+            background: #111827;
+            color: #E5E7EB;
+            font-weight: 600;
+            padding: 10px 12px;
+            text-align: left;
+            border: 1px solid #1F2937;
+        }
+        td {
+            padding: 10px 12px;
+            border: 1px solid #1F2937;
+            color: #9CA3AF;
+            vertical-align: top;
+        }
+        tr:nth-child(even) td { background: #0D1117; }
+        tr:nth-child(odd) td { background: #111827; }
         .footer {
             position: fixed;
             bottom: 0; left: 0; right: 0;
@@ -75,44 +141,263 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <a class="back" href="/">← Back to Mockup Scripter</a>
-        <h1>Privacy Policy</h1>
-        <p class="updated">Last updated: <!-- REPLACE: date --></p>
+<div class="container">
+    <a class="back" href="/">← Back to Mockup Scripter</a>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated July 01, 2026</p>
 
-        <div class="placeholder">
-            ⚠️ Replace this page with your generated Privacy Policy from
-            <a href="https://termly.io" target="_blank">Termly</a> or
-            <a href="https://www.iubenda.com" target="_blank">Iubenda</a>.
-            Paste the generated HTML content here, keeping the header and footer.
-        </div>
+    <p>This Privacy Notice for Mockup Scripter ("we," "us," or "our") describes how and why we might access, collect, store, use, and/or share ("process") your personal information when you use our services ("Services"), including when you:</p>
+    <ul>
+        <li>Visit our website at <a href="http://www.mockupscripter.com">www.mockupscripter.com</a> or any website of ours that links to this Privacy Notice</li>
+        <li>Use Mockup Scripter — a batch mockup generator which you can use to edit hundreds of product images at once and bulk export</li>
+        <li>Engage with us in other related ways, including any marketing or events</li>
+    </ul>
+    <p><strong>Questions or concerns?</strong> Reading this Privacy Notice will help you understand your privacy rights and choices. If you do not agree with our policies and practices, please do not use our Services. If you have any questions or concerns, please contact us at <a href="mailto:support@mockupscripter.com">support@mockupscripter.com</a>.</p>
 
-        <h2>1. Information We Collect</h2>
-        <p><!-- REPLACE: your data collection description --></p>
-
-        <h2>2. How We Use Your Information</h2>
-        <p><!-- REPLACE: your data usage description --></p>
-
-        <h2>3. Cookies and Analytics</h2>
-        <p>We use PostHog for product analytics. PostHog only loads after you accept cookies via our consent banner. You can decline at any time.</p>
-
-        <h2>4. Data Sharing</h2>
-        <p><!-- REPLACE: third-party sharing description --></p>
-
-        <h2>5. Data Retention</h2>
-        <p><!-- REPLACE: your retention policy --></p>
-
-        <h2>6. Your Rights</h2>
-        <p><!-- REPLACE: GDPR/CCPA rights description --></p>
-
-        <h2>7. Contact</h2>
-        <p>For privacy-related questions, contact us at <a href="mailto:support@mockupscripter.com">support@mockupscripter.com</a>.</p>
+    <div class="toc">
+        <h3>Table of Contents</h3>
+        <ol>
+            <li><a href="#s1">What Information Do We Collect?</a></li>
+            <li><a href="#s2">How Do We Process Your Information?</a></li>
+            <li><a href="#s3">What Legal Bases Do We Rely On?</a></li>
+            <li><a href="#s4">When and With Whom Do We Share Your Personal Information?</a></li>
+            <li><a href="#s5">Do We Use Cookies and Other Tracking Technologies?</a></li>
+            <li><a href="#s6">How Do We Handle Your Social Logins?</a></li>
+            <li><a href="#s7">How Long Do We Keep Your Information?</a></li>
+            <li><a href="#s8">How Do We Keep Your Information Safe?</a></li>
+            <li><a href="#s9">Do We Collect Information From Minors?</a></li>
+            <li><a href="#s10">What Are Your Privacy Rights?</a></li>
+            <li><a href="#s11">Controls for Do-Not-Track Features</a></li>
+            <li><a href="#s12">Do United States Residents Have Specific Privacy Rights?</a></li>
+            <li><a href="#s13">Do Other Regions Have Specific Privacy Rights?</a></li>
+            <li><a href="#s14">Do We Make Updates to This Notice?</a></li>
+            <li><a href="#s15">How Can You Contact Us About This Notice?</a></li>
+            <li><a href="#s16">How Can You Review, Update, or Delete the Data We Collect From You?</a></li>
+        </ol>
     </div>
 
-    <div class="footer">
-        <a href="/privacy.html">Privacy Policy</a> ·
-        <a href="/terms.html">Terms of Service</a> ·
-        <a href="mailto:support@mockupscripter.com">Support</a>
-    </div>
+    <h2 id="s1">1. What Information Do We Collect?</h2>
+    <h3>Personal information you disclose to us</h3>
+    <p class="in-short">In Short: We collect personal information that you provide to us.</p>
+    <p>We collect personal information that you voluntarily provide to us when you register on the Services, express an interest in obtaining information about us or our products and Services, when you participate in activities on the Services, or otherwise when you contact us.</p>
+    <p><strong>Personal Information Provided by You.</strong> The personal information we collect may include:</p>
+    <ul>
+        <li>Names</li>
+        <li>Email addresses</li>
+        <li>Usernames</li>
+        <li>Passwords</li>
+        <li>Contact preferences</li>
+        <li>Contact or authentication data</li>
+        <li>Debit/credit card numbers</li>
+        <li>Billing addresses</li>
+    </ul>
+    <p><strong>Sensitive Information.</strong> We do not process sensitive information.</p>
+    <p><strong>Social Media Login Data.</strong> We may provide you with the option to register with us using your existing social media account details, like your Facebook, X, or other social media account. If you choose to register in this way, we will collect certain profile information about you from the social media provider, as described in the section "HOW DO WE HANDLE YOUR SOCIAL LOGINS?" below.</p>
+    <p>All personal information that you provide to us must be true, complete, and accurate, and you must notify us of any changes to such personal information.</p>
+
+    <h3>Information automatically collected</h3>
+    <p class="in-short">In Short: Some information — such as your IP address and/or browser and device characteristics — is collected automatically when you visit our Services.</p>
+    <p>We automatically collect certain information when you visit, use, or navigate the Services. This information does not reveal your specific identity but may include device and usage information, such as your IP address, browser and device characteristics, operating system, language preferences, referring URLs, device name, country, location, and information about how and when you use our Services.</p>
+    <p>The information we collect includes:</p>
+    <ul>
+        <li><strong>Log and Usage Data.</strong> Service-related, diagnostic, usage, and performance information our servers automatically collect when you access or use our Services, including your IP address, device information, browser type, and activity in the Services (date/time stamps, pages viewed, features used, etc.).</li>
+        <li><strong>Device Data.</strong> Information about your computer, phone, tablet, or other device you use to access the Services, such as IP address, device and application identification numbers, browser type, hardware model, operating system, and system configuration information.</li>
+        <li><strong>Location Data.</strong> Information about your device's location, which can be precise or imprecise, based on your IP address. You can opt out by disabling Location settings on your device.</li>
+    </ul>
+
+    <h2 id="s2">2. How Do We Process Your Information?</h2>
+    <p class="in-short">In Short: We process your information to provide, improve, and administer our Services, communicate with you, for security and fraud prevention, and to comply with law.</p>
+    <p>We process your personal information for a variety of reasons, depending on how you interact with our Services, including to facilitate account creation and authentication, deliver Services to the user, respond to user inquiries, send administrative information, and protect our Services.</p>
+
+    <h2 id="s3">3. What Legal Bases Do We Rely On?</h2>
+    <p class="in-short">In Short: We only process your personal information when we believe it is necessary and we have a valid legal reason to do so under applicable law.</p>
+    <p>If you are located in the EU or UK, this section applies to you. The General Data Protection Regulation (GDPR) and UK GDPR require us to explain the valid legal bases we rely on when processing your personal information. We may process your information if you have given us specific permission (consent), to fulfil our contractual obligations to you, to comply with our legal obligations, or when we have a legitimate interest in doing so.</p>
+    <p>If you are located in Canada, this section applies to you. We may process your information if you have given us specific permission (express consent), or in situations where your permission can be inferred (implied consent). You can withdraw your consent at any time by contacting us.</p>
+
+    <h2 id="s4">4. When and With Whom Do We Share Your Personal Information?</h2>
+    <p class="in-short">In Short: We may share information in specific situations described in this section and/or with the following third parties.</p>
+    <p>We may need to share your personal information in the following situations:</p>
+    <ul>
+        <li><strong>Business Transfers.</strong> We may share or transfer your information in connection with, or during negotiations of, any merger, sale of company assets, financing, or acquisition of all or a portion of our business to another company.</li>
+    </ul>
+
+    <h2 id="s5">5. Do We Use Cookies and Other Tracking Technologies?</h2>
+    <p class="in-short">In Short: We may use cookies and other tracking technologies to collect and store your information.</p>
+    <p>We may use cookies and similar tracking technologies (like web beacons and pixels) to gather information when you interact with our Services. Some online tracking technologies help us maintain the security of our Services and your account, prevent crashes, fix bugs, save your preferences, and assist with basic site functions.</p>
+    <p>We also permit third parties and service providers to use online tracking technologies on our Services for analytics, including to help manage and display the Services and assist with reporting purposes. We use <strong>PostHog</strong> for product analytics, which only loads after you accept our cookie consent banner.</p>
+    <p>To the extent these online tracking technologies are deemed to be a "sale"/"sharing" under applicable US state laws, you can opt out by submitting a request as described in section 12 below.</p>
+
+    <h2 id="s6">6. How Do We Handle Your Social Logins?</h2>
+    <p class="in-short">In Short: If you choose to register or log in to our Services using a social media account, we may have access to certain information about you.</p>
+    <p>Our Services offer you the ability to register and log in using your third-party social media account details (like your Facebook or X logins). Where you choose to do this, we will receive certain profile information about you from your social media provider, such as your name, email address, and profile picture.</p>
+    <p>We will use the information we receive only for the purposes described in this Privacy Notice. Please note that we do not control, and are not responsible for, other uses of your personal information by your third-party social media provider. We recommend that you review their privacy notice to understand how they collect, use, and share your personal information.</p>
+
+    <h2 id="s7">7. How Long Do We Keep Your Information?</h2>
+    <p class="in-short">In Short: We keep your information for as long as necessary to fulfil the purposes outlined in this Privacy Notice unless otherwise required by law.</p>
+    <p>We will only keep your personal information for as long as it is necessary for the purposes set out in this Privacy Notice, unless a longer retention period is required or permitted by law. No purpose in this notice will require us keeping your personal information for longer than the period of time in which users have an account with us.</p>
+    <p>When we have no ongoing legitimate business need to process your personal information, we will either delete or anonymize such information, or securely store it and isolate it from any further processing until deletion is possible.</p>
+
+    <h2 id="s8">8. How Do We Keep Your Information Safe?</h2>
+    <p class="in-short">In Short: We aim to protect your personal information through a system of organizational and technical security measures.</p>
+    <p>We have implemented appropriate and reasonable technical and organizational security measures designed to protect the security of any personal information we process. However, no electronic transmission over the Internet or information storage technology can be guaranteed to be 100% secure. Although we will do our best to protect your personal information, transmission of personal information to and from our Services is at your own risk. You should only access the Services within a secure environment.</p>
+
+    <h2 id="s9">9. Do We Collect Information From Minors?</h2>
+    <p class="in-short">In Short: We do not knowingly collect data from or market to children under 18 years of age.</p>
+    <p>We do not knowingly collect, solicit data from, or market to children under 18 years of age, nor do we knowingly sell such personal information. By using the Services, you represent that you are at least 18 years of age. If we learn that personal information from users less than 18 years of age has been collected, we will deactivate the account and take reasonable measures to promptly delete such data from our records. If you become aware of any data we may have collected from children under age 18, please contact us at <a href="mailto:support@mockupscripter.com">support@mockupscripter.com</a>.</p>
+
+    <h2 id="s10">10. What Are Your Privacy Rights?</h2>
+    <p class="in-short">In Short: Depending on your location, you may have rights that allow you greater access to and control over your personal information.</p>
+    <p>In some regions (like the EEA, UK, Switzerland, and Canada), you have certain rights under applicable data protection laws. These may include the right (i) to request access and obtain a copy of your personal information, (ii) to request rectification or erasure, (iii) to restrict the processing of your personal information, (iv) if applicable, to data portability, and (v) not to be subject to automated decision-making. You can make such a request by contacting us using the details provided in section 15 below.</p>
+    <p>If you are located in the EEA or UK and you believe we are unlawfully processing your personal information, you have the right to complain to your Member State data protection authority or the UK data protection authority.</p>
+    <p><strong>Withdrawing your consent:</strong> If we are relying on your consent to process your personal information, you have the right to withdraw your consent at any time by contacting us using the contact details in section 15 below.</p>
+    <p><strong>Opting out of marketing communications:</strong> You can unsubscribe from our marketing and promotional communications at any time by clicking the unsubscribe link in the emails we send, or by contacting us. You will then be removed from the marketing lists. However, we may still communicate with you for service-related purposes.</p>
+
+    <h3>Account Information</h3>
+    <p>If you would at any time like to review or change the information in your account or terminate your account, you can log in to your account settings and update your user account. Upon your request to terminate your account, we will deactivate or delete your account and information from our active databases. However, we may retain some information in our files to prevent fraud, troubleshoot problems, assist with any investigations, or comply with applicable legal requirements.</p>
+    <p>If you have questions or comments about your privacy rights, you may email us at <a href="mailto:support@mockupscripter.com">support@mockupscripter.com</a>.</p>
+
+    <h2 id="s11">11. Controls for Do-Not-Track Features</h2>
+    <p>Most web browsers and some mobile operating systems include a Do-Not-Track ("DNT") feature or setting you can activate to signal your privacy preference not to have data about your online browsing activities monitored and collected. At this stage, no uniform technology standard for recognizing and implementing DNT signals has been finalized. As such, we do not currently respond to DNT browser signals or any other mechanism that automatically communicates your choice not to be tracked online. If a standard for online tracking is adopted that we must follow in the future, we will inform you in a revised version of this Privacy Notice.</p>
+
+    <h2 id="s12">12. Do United States Residents Have Specific Privacy Rights?</h2>
+    <p class="in-short">In Short: If you are a resident of certain US states, you may have specific rights regarding access to your personal information.</p>
+    <p>The table below shows the categories of personal information we have collected in the past twelve (12) months:</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th>Examples</th>
+                <th>Collected</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>A. Identifiers</td>
+                <td>Contact details such as real name, alias, postal address, telephone number, unique personal identifier, online identifier, IP address, email address, and account name</td>
+                <td>YES</td>
+            </tr>
+            <tr>
+                <td>B. Personal information (California Customer Records statute)</td>
+                <td>Name, contact information, education, employment, employment history, and financial information</td>
+                <td>YES</td>
+            </tr>
+            <tr>
+                <td>C. Protected classification characteristics</td>
+                <td>Gender, age, date of birth, race and ethnicity, national origin, marital status, and other demographic data</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>D. Commercial information</td>
+                <td>Transaction information, purchase history, financial details, and payment information</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>E. Biometric information</td>
+                <td>Fingerprints and voiceprints</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>F. Internet or other similar network activity</td>
+                <td>Browsing history, search history, online behavior, interest data, and interactions with our and other websites, applications, systems, and advertisements</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>G. Geolocation data</td>
+                <td>Device location</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>H. Audio, electronic, sensory, or similar information</td>
+                <td>Images and audio, video or call recordings created in connection with our business activities</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>I. Professional or employment-related information</td>
+                <td>Business contact details, job title, work history, and professional qualifications if you apply for a job with us</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>J. Education Information</td>
+                <td>Student records and directory information</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>K. Inferences drawn from collected personal information</td>
+                <td>Inferences drawn from any collected personal information listed above to create a profile about an individual's preferences and characteristics</td>
+                <td>No</td>
+            </tr>
+            <tr>
+                <td>L. Sensitive personal information</td>
+                <td></td>
+                <td>No</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>We may also collect other personal information outside of these categories through instances where you interact with us in person, online, or by phone or mail in the context of receiving help through our customer support channels, participation in customer surveys or contests, and facilitation in the delivery of our Services.</p>
+    <p>We will use and retain the collected personal information as needed to provide the Services: Categories A and B — for as long as the user has an account with us.</p>
+
+    <h3>Your Rights</h3>
+    <p>You have rights under certain US state data protection laws. These rights include:</p>
+    <ul>
+        <li>Right to know whether or not we are processing your personal data</li>
+        <li>Right to access your personal data</li>
+        <li>Right to correct inaccuracies in your personal data</li>
+        <li>Right to request the deletion of your personal data</li>
+        <li>Right to obtain a copy of the personal data you previously shared with us</li>
+        <li>Right to non-discrimination for exercising your rights</li>
+        <li>Right to opt out of the processing of your personal data if it is used for targeted advertising, the sale of personal data, or profiling in furtherance of decisions that produce legal or similarly significant effects</li>
+    </ul>
+
+    <h3>How to Exercise Your Rights</h3>
+    <p>To exercise these rights, you can contact us by emailing <a href="mailto:support@mockupscripter.com">support@mockupscripter.com</a>. Under certain US state data protection laws, you can designate an authorized agent to make a request on your behalf.</p>
+
+    <h3>Appeals</h3>
+    <p>Under certain US state data protection laws, if we decline to take action regarding your request, you may appeal our decision by emailing us at <a href="mailto:support@mockupscripter.com">support@mockupscripter.com</a>. We will inform you in writing of any action taken or not taken in response to the appeal. If your appeal is denied, you may submit a complaint to your state attorney general.</p>
+
+    <h3>California "Shine The Light" Law</h3>
+    <p>California Civil Code Section 1798.83 permits our users who are California residents to request and obtain from us, once a year and free of charge, information about categories of personal information (if any) we disclosed to third parties for direct marketing purposes. If you are a California resident and would like to make such a request, please submit your request in writing using the contact details in section 15 below.</p>
+
+    <h2 id="s13">13. Do Other Regions Have Specific Privacy Rights?</h2>
+    <p class="in-short">In Short: You may have additional rights based on the country you reside in.</p>
+
+    <h3>Australia and New Zealand</h3>
+    <p>We collect and process your personal information under the obligations and conditions set by Australia's Privacy Act 1988 and New Zealand's Privacy Act 2020. This Privacy Notice satisfies the notice requirements defined in both Privacy Acts.</p>
+    <p>If you do not wish to provide the personal information necessary to fulfil their applicable purpose, it may affect our ability to offer you the products or services that you want, respond to or help with your requests, manage your account with us, or confirm your identity and protect your account.</p>
+    <p>At any time, you have the right to request access to or correction of your personal information by contacting us using the details in section 15.</p>
+
+    <h3>Republic of South Africa</h3>
+    <p>At any time, you have the right to request access to or correction of your personal information by contacting us using the details in section 15. If you are unsatisfied with the manner in which we address any complaint with regard to our processing of personal information, you can contact the Information Regulator (South Africa) at:</p>
+    <ul>
+        <li>General enquiries: <a href="mailto:enquiries@inforegulator.org.za">enquiries@inforegulator.org.za</a></li>
+        <li>Complaints: <a href="mailto:PAIAComplaints@inforegulator.org.za">PAIAComplaints@inforegulator.org.za</a> &amp; <a href="mailto:POPIAComplaints@inforegulator.org.za">POPIAComplaints@inforegulator.org.za</a></li>
+    </ul>
+
+    <h2 id="s14">14. Do We Make Updates to This Notice?</h2>
+    <p class="in-short">In Short: Yes, we will update this notice as necessary to stay compliant with relevant laws.</p>
+    <p>We may update this Privacy Notice from time to time. The updated version will be indicated by an updated "Revised" date at the top of this Privacy Notice. If we make material changes to this Privacy Notice, we may notify you either by prominently posting a notice of such changes or by directly sending you a notification. We encourage you to review this Privacy Notice frequently to be informed of how we are protecting your information.</p>
+
+    <h2 id="s15">15. How Can You Contact Us About This Notice?</h2>
+    <p>If you have questions or comments about this notice, you may contact our Data Protection Officer (DPO) by email at <a href="mailto:support@mockupscripter.com">support@mockupscripter.com</a>, or by post at:</p>
+    <p>
+        Mockup Scripter<br>
+        Data Protection Officer<br>
+        71–75 Shelton Street<br>
+        Covent Garden<br>
+        London WC2H 9JQ<br>
+        England
+    </p>
+
+    <h2 id="s16">16. How Can You Review, Update, or Delete the Data We Collect From You?</h2>
+    <p>You have the right to request access to the personal information we collect from you, details about how we have processed it, correct inaccuracies, or delete your personal information. You may also have the right to withdraw your consent to our processing of your personal information. These rights may be limited in some circumstances by applicable law. To request to review, update, or delete your personal information, please contact us at <a href="mailto:support@mockupscripter.com">support@mockupscripter.com</a> or visit <a href="http://www.mockupscripter.com">www.mockupscripter.com</a>.</p>
+
+</div>
+
+<div class="footer">
+    <a href="/privacy.html">Privacy Policy</a> ·
+    <a href="/terms.html">Terms of Service</a> ·
+    <a href="mailto:support@mockupscripter.com">Support</a>
+</div>
 </body>
 </html>
