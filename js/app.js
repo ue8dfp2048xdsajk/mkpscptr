@@ -7584,15 +7584,24 @@ function autoSaveSession(){
 
     if(!canvasData.length && !_textBoxes.length) return;
 
+    // Mark the canvas as dirty (updates the UI badge/title too) so that
+    // _markClean() called later (e.g. after a project load) can suppress the
+    // pending cloud-save timer via the _unsaved guard in the callback below.
+    _markDirty();
+
     clearTimeout(_autoSaveTimer);
 
     _autoSaveTimer = setTimeout(()=>{
         _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
     }, 2500);
 
-    // Cloud backup — only when signed in and a UUID is already stored
+    // Cloud backup — only when signed in and a UUID is already stored.
+    // The callback re-checks _unsaved so that a _markClean() call (e.g. after a
+    // project load) that fires between now and the 30 s deadline suppresses the
+    // save rather than silently overwriting the freshly-loaded cloud project.
     clearTimeout(_cloudAutoSaveTimer);
     _cloudAutoSaveTimer = setTimeout(()=>{
+        if (!_unsaved) return;           // canvas was cleaned (e.g. by a load) — skip
         const signedIn = window.Clerk && window.Clerk.user;
         const hasUuid  = !!localStorage.getItem(_CLOUD_UUID_KEY);
         if (signedIn && hasUuid) {
