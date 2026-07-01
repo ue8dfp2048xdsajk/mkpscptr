@@ -50,6 +50,11 @@ module.exports = async function handler(req, res) {
             if (r.ok) {
                 const d = await r.json();
                 plan = (d?.public_metadata?.plan || 'free').toLowerCase();
+            } else {
+                // Clerk returned a non-ok HTTP status (4xx/5xx). Surface the
+                // error rather than silently claiming with plan:'free', which
+                // would write incorrect plan metadata to MongoDB.
+                return res.status(502).json({ ok: false, error: 'Could not verify plan — please try again' });
             }
         } catch {
             return res.status(502).json({ ok: false, error: 'Could not reach authentication server — please try again' });
