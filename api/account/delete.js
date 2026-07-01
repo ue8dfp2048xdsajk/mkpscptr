@@ -50,13 +50,6 @@ module.exports = async function handler(req, res) {
         console.error('account/delete: failed to look up customer record', err);
     }
 
-    try {
-        await db.collection('customers').deleteOne({ clerkUserId });
-    } catch (err) {
-        console.error('account/delete: failed to delete customer record', err);
-        return res.status(500).json({ ok: false, error: 'Failed to delete customer record' });
-    }
-
     if (stripeCustomerId) {
         const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
         if (stripeSecretKey) {
@@ -75,7 +68,16 @@ module.exports = async function handler(req, res) {
             } catch (err) {
                 console.error('account/delete: failed to reach Stripe API', err);
             }
+        } else {
+            console.error('account/delete: STRIPE_SECRET_KEY not set — skipping Stripe customer deletion for', stripeCustomerId);
         }
+    }
+
+    try {
+        await db.collection('customers').deleteOne({ clerkUserId });
+    } catch (err) {
+        console.error('account/delete: failed to delete customer record', err);
+        return res.status(500).json({ ok: false, error: 'Failed to delete customer record' });
     }
 
     let clerkRes;
