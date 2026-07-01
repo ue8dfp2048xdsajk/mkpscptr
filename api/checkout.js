@@ -82,6 +82,7 @@ module.exports = async function handler(req, res) {
     }
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    let customerEmail = null;
     if (clerkSecretKey) {
         let clerkRes;
         try {
@@ -105,6 +106,10 @@ module.exports = async function handler(req, res) {
                     error: `You already have the ${currentPlan} plan. No charge has been made.`,
                 });
             }
+            // Pre-fill the checkout form with the user's verified email so they
+            // don't have to type it, reducing abandonment and preventing a second
+            // Stripe customer being created due to a mistyped email address.
+            customerEmail = clerkData?.email_addresses?.[0]?.email_address || null;
         } else {
             return res.status(502).json({
                 ok: false,
@@ -135,6 +140,9 @@ module.exports = async function handler(req, res) {
     }
     params.set('client_reference_id', clerkUserId);
     params.set('metadata[plan]', plan);
+    if (customerEmail) {
+        params.set('customer_email', customerEmail);
+    }
 
     let stripeRes;
     try {

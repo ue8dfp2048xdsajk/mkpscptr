@@ -52,7 +52,7 @@ module.exports = async function handler(req, res) {
                 plan = (d?.public_metadata?.plan || 'free').toLowerCase();
             }
         } catch {
-            // non-fatal — proceed with 'free' plan label
+            return res.status(502).json({ ok: false, error: 'Could not reach authentication server — please try again' });
         }
     }
 

@@ -316,6 +316,15 @@ module.exports = async function handler(req, res) {
                 `stripe-webhook: could not determine plan for userId=${userId}; ` +
                 `metadata.plan="${session.metadata && session.metadata.plan}"`
             );
+            // Remove the idempotency claim so Stripe can retry this event.
+            // Without this, the next delivery sees 'duplicate_event' and is
+            // silently swallowed — the user pays but stays on the free plan.
+            try {
+                const db = await getDb();
+                await db.collection('idempotency_keys').deleteOne({ _id: event.id });
+            } catch (unclaimErr) {
+                console.error('stripe-webhook: could not un-claim event for retry', unclaimErr);
+            }
             return res.status(400).json({ ok: false, error: 'Could not determine plan from Stripe session' });
         }
 

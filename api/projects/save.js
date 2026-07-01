@@ -17,8 +17,17 @@ function hashIp(ip) {
 }
 
 function getClientIp(req) {
-    const fwd = req.headers['x-forwarded-for'];
-    return fwd ? fwd.split(',')[0].trim() : (req.socket?.remoteAddress || 'unknown');
+    // x-real-ip is set by Vercel's edge and cannot be spoofed by the client.
+    // Fall back to the rightmost value in x-forwarded-for (appended by the
+    // most-trusted proxy), NOT the leftmost (which is attacker-controlled).
+    const realIp = req.headers['x-real-ip'];
+    if (realIp && typeof realIp === 'string') return realIp.trim();
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+        const parts = forwarded.split(',');
+        return parts[parts.length - 1].trim();
+    }
+    return req.socket?.remoteAddress || 'unknown';
 }
 
 async function getClerkUserPlan(clerkUserId, clerkSecretKey) {
