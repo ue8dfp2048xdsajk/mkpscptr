@@ -20,6 +20,15 @@ async function handleConfigCheck(req, res) {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
+    const setPlanSecret = process.env.SET_PLAN_SECRET;
+    if (setPlanSecret) {
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+        if (!token || token !== setPlanSecret) {
+            return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
+    }
+
     const prices = {};
     for (const key of PRICE_KEYS) {
         const parts = key.replace('STRIPE_PRICE_', '').toLowerCase().split('_');

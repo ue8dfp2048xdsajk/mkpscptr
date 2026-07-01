@@ -610,14 +610,25 @@
     function _showPaymentPendingToast() {
         var toast = document.createElement('div');
         toast.className = 'ms-upgrade-toast ms-upgrade-toast--pending';
-        toast.textContent = 'Payment received — still activating your plan. Refresh in a moment if nothing changes.';
+
+        var msg = document.createElement('span');
+        msg.textContent = 'Payment received \u2014 still activating your plan.';
+        toast.appendChild(msg);
+
+        var reloadBtn = document.createElement('button');
+        reloadBtn.type = 'button';
+        reloadBtn.textContent = 'Reload now';
+        reloadBtn.style.cssText = 'margin-left:12px;padding:2px 10px;border:1px solid currentColor;border-radius:4px;background:transparent;color:inherit;cursor:pointer;font-size:inherit;';
+        reloadBtn.addEventListener('click', function () { window.location.reload(); });
+        toast.appendChild(reloadBtn);
+
         document.body.appendChild(toast);
 
         setTimeout(function () { toast.classList.add('ms-upgrade-toast--visible'); }, 50);
         setTimeout(function () {
             toast.classList.remove('ms-upgrade-toast--visible');
             setTimeout(function () { toast.parentNode && toast.parentNode.removeChild(toast); }, 400);
-        }, 8000);
+        }, 12000);
     }
 
     function _showUpgradeToast(plan) {

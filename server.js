@@ -38,7 +38,15 @@ app.all('/api/projects/:id', (req, res) => {
 app.all('/api/checkout',    apiHandler('./api/checkout'));
 app.all('/api/export',      apiHandler('./api/export'));
 app.all('/api/set-plan',    apiHandler('./api/set-plan'));
-app.all('/api/admin/:action', (req, res) => apiHandler('./api/admin/[action]')({ ...req, query: { ...req.query, action: req.params.action } }, res));
+app.all('/api/billing/:action', (req, res) => {
+    const h = require('./api/billing/[action]');
+    return h({ ...req, query: { ...req.query, action: req.params.action } }, res);
+});
+app.all('/api/account/delete', apiHandler('./api/account/delete'));
+app.all('/api/admin/:action', (req, res) => {
+    const h = require('./api/admin/[action]');
+    return h({ ...req, query: { ...req.query, action: req.params.action } }, res);
+});
 
 app.use(express.static('.'));
 

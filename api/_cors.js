@@ -3,19 +3,21 @@ const ALLOWED_ORIGINS = [
     'https://www.mockupscripter.com',
 ];
 
+const DEV_ORIGIN_SUFFIXES = ['.vercel.app', '.replit.dev', '.repl.co'];
+
 function setCorsHeaders(req, res) {
     const origin = req.headers.origin || '';
+    const isProduction = process.env.NODE_ENV === 'production';
+
     const allowed =
         ALLOWED_ORIGINS.includes(origin) ||
-        origin.endsWith('.vercel.app') ||
-        origin.endsWith('.replit.dev') ||
-        origin.endsWith('.repl.co');
+        (!isProduction && DEV_ORIGIN_SUFFIXES.some(s => origin.endsWith(s)));
 
     if (allowed) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     }
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Max-Age', '86400');
 }
 

@@ -1,6 +1,6 @@
 const { Pool } = require('pg');
 
-const NONCE_TTL_SECONDS = 300;
+const NONCE_TTL_SECONDS = 900; // 15 minutes — covers typical Stripe checkout session duration
 
 // --- Redis (Upstash) ---
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;

@@ -113,13 +113,23 @@ module.exports = async function handler(req, res) {
             return res.status(403).json({ ok: false, error: 'upgrade_required' });
         }
         if (plan === 'starter') {
-            const existing = await col.findOne({ userId: clerkUserId });
-            if (existing) {
-                await col.updateOne({ uuid: existing.uuid }, {
-                    $set: { snapshot, updatedAt: now }
-                });
-                return res.status(200).json({ ok: true, uuid: existing.uuid });
-            }
+            // Atomic find-or-create: avoids race where two concurrent requests
+            // both see no existing project and both insert.
+            const starterUuid = crypto.randomUUID();
+            const result = await col.findOneAndUpdate(
+                { userId: clerkUserId },
+                {
+                    $set: { snapshot, updatedAt: now, plan, userId: clerkUserId, expiresAt: null },
+                    $setOnInsert: {
+                        uuid: starterUuid,
+                        schemaVersion: snapshot.schemaVersion,
+                        createdAt: now,
+                        name: (name || '').trim() || 'Untitled',
+                    },
+                },
+                { upsert: true, returnDocument: 'after' }
+            );
+            return res.status(200).json({ ok: true, uuid: result.uuid });
         }
         if (plan === 'pro') {
             const proCount = await col.countDocuments({ userId: clerkUserId });
@@ -140,6 +150,17 @@ module.exports = async function handler(req, res) {
             updatedAt: now,
             expiresAt: null,
         });
+
+        // Post-insert guard: if two concurrent Pro requests both passed the
+        // count check, the one that pushed the total over 50 is rolled back.
+        if (plan === 'pro') {
+            const postCount = await col.countDocuments({ userId: clerkUserId });
+            if (postCount > 50) {
+                await col.deleteOne({ uuid: newUuid });
+                return res.status(403).json({ ok: false, error: 'project_limit_reached' });
+            }
+        }
+
         return res.status(200).json({ ok: true, uuid: newUuid });
     }
 
