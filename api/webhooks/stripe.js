@@ -1,6 +1,48 @@
 const crypto = require('crypto');
 const { getDb } = require('../_db');
 
+// TTL index is created once per process lifetime.
+let _idempotencyIndexEnsured = false;
+
+// Atomically claim a Stripe event ID. Returns true if this instance is the
+// first to process it, false if another invocation already handled it.
+// Uses MongoDB _id uniqueness (duplicate-key error = already processed).
+// A TTL index on processedAt auto-expires records after 4 days, which covers
+// Stripe's full retry window (up to ~3 days of retries).
+async function tryClaimStripeEvent(eventId) {
+    let db;
+    try {
+        db = await getDb();
+    } catch {
+        // If DB is unavailable, allow processing — better than silently dropping events.
+        console.warn('stripe-webhook: DB unavailable for idempotency check — processing event anyway');
+        return true;
+    }
+
+    // Lazily ensure TTL index (fire-and-forget; failure is non-fatal).
+    if (!_idempotencyIndexEnsured) {
+        _idempotencyIndexEnsured = true;
+        db.collection('idempotency_keys')
+            .createIndex({ processedAt: 1 }, { expireAfterSeconds: 345600 }) // 4 days
+            .catch(err => console.warn('stripe-webhook: TTL index creation failed (non-fatal):', err.message));
+    }
+
+    try {
+        await db.collection('idempotency_keys').insertOne({
+            _id: eventId,
+            processedAt: new Date(),
+        });
+        return true; // first time processing this event
+    } catch (err) {
+        if (err.code === 11000) {
+            return false; // duplicate — already processed
+        }
+        // Unexpected error — allow processing rather than silently dropping.
+        console.error('stripe-webhook: idempotency check error — processing event anyway:', err.message);
+        return true;
+    }
+}
+
 const PRICE_TO_PLAN = {
     [process.env.STRIPE_PRICE_STARTER_MONTHLY]:  'starter',
     [process.env.STRIPE_PRICE_STARTER_ANNUAL]:   'starter',
@@ -192,6 +234,16 @@ module.exports = async function handler(req, res) {
 
     if (!HANDLED_EVENTS.has(event.type)) {
         return res.status(200).json({ ok: true, ignored: true });
+    }
+
+    // Idempotency guard — Stripe delivers events at-least-once.
+    // tryClaimStripeEvent atomically marks this event ID as in-progress using
+    // MongoDB's _id uniqueness. A duplicate delivery returns false and is
+    // acknowledged with 200 so Stripe stops retrying.
+    const claimed = await tryClaimStripeEvent(event.id);
+    if (!claimed) {
+        console.log(`stripe-webhook: duplicate event ${event.id} (${event.type}) — already processed`);
+        return res.status(200).json({ ok: true, ignored: true, reason: 'duplicate_event' });
     }
 
     // ── checkout.session.completed ───────────────────────────────────────────

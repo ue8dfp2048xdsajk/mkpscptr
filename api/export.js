@@ -1,4 +1,5 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
+const { verifyClerkToken } = require('./_verify-clerk-token');
 
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
@@ -13,15 +14,13 @@ module.exports = async function handler(req, res) {
         return res.status(500).json({ ok: false, error: 'Server misconfiguration' });
     }
 
-    let body;
+    let clerkUserId;
     try {
-        body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        clerkUserId = await verifyClerkToken(req.headers.authorization);
     } catch {
-        return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
+        return res.status(502).json({ ok: false, error: 'Could not verify session' });
     }
-
-    const { clerkUserId } = body || {};
-    if (!clerkUserId || typeof clerkUserId !== 'string') {
+    if (!clerkUserId) {
         return res.status(401).json({ ok: false, error: 'Not authenticated' });
     }
 

@@ -6723,12 +6723,14 @@ async function exportDataToBlob(data, fmt, quality){
         // Server-side export gate — verifies plan server-side so the export
         // cannot be triggered by running the frontend code without the backend.
         try {
+            const _exportToken = window.Clerk?.session
+                ? await window.Clerk.session.getToken().catch(() => null)
+                : null;
             const exportAuth = await fetch('/api/export', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    clerkUserId: window.Clerk?.user?.id || null
-                })
+                headers: _exportToken
+                    ? { 'Authorization': 'Bearer ' + _exportToken }
+                    : {},
             });
             if (!exportAuth.ok) {
                 const exportErr = await exportAuth.json().catch(() => ({}));
