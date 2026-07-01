@@ -21,6 +21,9 @@ module.exports = async function handler(req, res) {
     if (!uuid || typeof uuid !== 'string') {
         return res.status(400).json({ ok: false, error: 'Missing uuid' });
     }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)) {
+        return res.status(400).json({ ok: false, error: 'Invalid uuid format' });
+    }
 
     let clerkUserId;
     try {

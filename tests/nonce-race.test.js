@@ -404,7 +404,7 @@ describe('Nonce deduplication — DB unavailable, in-memory fallback blocks dupl
         jest.clearAllMocks();
     });
 
-    test('when DB is unavailable, in-memory fallback records the nonce and rejects the duplicate', async () => {
+    test('when DB is unavailable, recordNonce fails closed — both requests return 5xx (no replay slip-through)', async () => {
         jest.resetModules();
         delete process.env.UPSTASH_REDIS_REST_URL;
         delete process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -430,19 +430,21 @@ describe('Nonce deduplication — DB unavailable, in-memory fallback blocks dupl
 
         const handler = require('../api/set-plan');
 
-        // First request: PG fails → in-memory records nonce → Clerk succeeds → 200.
+        // Policy: recordNonce fails closed when PG is configured but unavailable.
+        // Neither request is processed — no nonce is ever committed so no
+        // double-billing and no replay attack can succeed.
         const { req: req1, res: res1 } = makeReqRes();
         await handler(req1, res1);
-        expect(res1.statusCode).toBe(200);
+        expect(res1.statusCode).toBeGreaterThanOrEqual(500);
+        expect(res1.body.ok).toBe(false);
 
-        // Second request: same nonce → in-memory fallback sees it → 400 (duplicate blocked).
         const { req: req2, res: res2 } = makeReqRes();
         await handler(req2, res2);
-        expect(res2.statusCode).toBeGreaterThanOrEqual(400);
+        expect(res2.statusCode).toBeGreaterThanOrEqual(500);
         expect(res2.body.ok).toBe(false);
     });
 
-    test('a third sequential request with the same nonce is also rejected by in-memory store', async () => {
+    test('all sequential requests return 5xx while DB is unavailable (fail-closed on every attempt)', async () => {
         jest.resetModules();
         delete process.env.UPSTASH_REDIS_REST_URL;
         delete process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -469,14 +471,17 @@ describe('Nonce deduplication — DB unavailable, in-memory fallback blocks dupl
 
         const { req: req1, res: res1 } = makeReqRes();
         await handler(req1, res1);
-        expect(res1.statusCode).toBe(200);
+        expect(res1.statusCode).toBeGreaterThanOrEqual(500);
+        expect(res1.body.ok).toBe(false);
 
         const { req: req2, res: res2 } = makeReqRes();
         await handler(req2, res2);
+        expect(res2.statusCode).toBeGreaterThanOrEqual(500);
+        expect(res2.body.ok).toBe(false);
 
         const { req: req3, res: res3 } = makeReqRes();
         await handler(req3, res3);
-        expect(res3.statusCode).toBeGreaterThanOrEqual(400);
+        expect(res3.statusCode).toBeGreaterThanOrEqual(500);
         expect(res3.body.ok).toBe(false);
     });
 });

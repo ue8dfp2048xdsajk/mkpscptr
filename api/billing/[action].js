@@ -91,7 +91,7 @@ async function handlePortal(req, res, stripeCustomerId, stripeSecretKey) {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
-    const origin = req.headers.origin || 'https://mockupscripter.com';
+    const origin = req.headers.origin || process.env.BASE_URL || 'https://mockupscripter.com';
     const params = new URLSearchParams();
     params.set('customer', stripeCustomerId);
     params.set('return_url', `${origin}/`);

@@ -57,6 +57,7 @@ describe('_nonce-store (in-memory fallback) — unit', () => {
         jest.resetModules();
         delete process.env.UPSTASH_REDIS_REST_URL;
         delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        delete process.env.DATABASE_URL;
         ({ isNonceSeen, recordNonce, deleteNonce } = require('../api/_nonce-store'));
     });
 

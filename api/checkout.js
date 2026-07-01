@@ -1,6 +1,20 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
 const { verifyClerkToken } = require('./_verify-clerk-token');
 
+// Per-user checkout rate limit: max 5 sessions per minute (in-memory; resets on cold start)
+const _checkoutHits = new Map();
+const CHECKOUT_WINDOW_MS = 60_000;
+const CHECKOUT_MAX = 5;
+function checkoutRateLimited(userId) {
+    const now = Date.now();
+    const cutoff = now - CHECKOUT_WINDOW_MS;
+    const hits = (_checkoutHits.get(userId) || []).filter(t => t > cutoff);
+    if (hits.length >= CHECKOUT_MAX) return true;
+    hits.push(now);
+    _checkoutHits.set(userId, hits);
+    return false;
+}
+
 const PRICE_MAP = {
     starter_monthly:  process.env.STRIPE_PRICE_STARTER_MONTHLY,
     starter_annual:   process.env.STRIPE_PRICE_STARTER_ANNUAL,
@@ -57,6 +71,10 @@ module.exports = async function handler(req, res) {
     }
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
+    if (clerkUserId && checkoutRateLimited(clerkUserId)) {
+        return res.status(429).json({ ok: false, error: 'Too many checkout attempts. Please wait a moment and try again.' });
+    }
+
     if (clerkUserId && clerkSecretKey) {
         let clerkRes;
         try {
@@ -91,7 +109,7 @@ module.exports = async function handler(req, res) {
     const isLifetime = period === 'lifetime';
     const mode = isLifetime ? 'payment' : 'subscription';
 
-    const origin = req.headers.origin || 'https://mockupscripter.com';
+    const origin = req.headers.origin || process.env.BASE_URL || 'https://mockupscripter.com';
     const successUrl = `${origin}/?payment=success`;
     const cancelUrl  = `${origin}/`;
 

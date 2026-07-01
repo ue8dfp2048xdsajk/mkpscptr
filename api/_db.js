@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = process.env.MONGODB_URI;
-const DB_NAME = 'mockupscripter';
+const DB_NAME = process.env.MONGODB_DB_NAME || 'mockupscripter';
 
 if (!MONGODB_URI) {
     console.warn('api/_db.js: MONGODB_URI is not set — MongoDB calls will fail');

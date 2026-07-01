@@ -301,7 +301,7 @@ module.exports = async function handler(req, res) {
         // Store customer ID mapping so subscription events can look up the Clerk user
         if (session.customer) {
             storeCustomerMapping(session.customer, userId);
-            storeStripeCustomerInClerk(userId, session.customer, clerkSecretKey);
+            await storeStripeCustomerInClerk(userId, session.customer, clerkSecretKey);
         }
 
         // Forward test hooks from the incoming request to set-plan (test mode only)
@@ -381,7 +381,7 @@ module.exports = async function handler(req, res) {
         // Store or clear the cancellation date so the UI can show "Cancels on …"
         if (clerkSecretKey) {
             const endsAt = sub.cancel_at_period_end ? (sub.cancel_at || null) : null;
-            patchClerkPublicMetadata(clerkUserId, { subscriptionEndsAt: endsAt }, clerkSecretKey);
+            await patchClerkPublicMetadata(clerkUserId, { subscriptionEndsAt: endsAt }, clerkSecretKey);
         }
 
         console.log(`stripe-webhook: subscription updated — plan="${newPlan}" for userId="${clerkUserId}"`);
@@ -416,7 +416,7 @@ module.exports = async function handler(req, res) {
 
         // Clear cancellation date on deletion
         if (clerkSecretKey) {
-            patchClerkPublicMetadata(clerkUserId, { subscriptionEndsAt: null }, clerkSecretKey);
+            await patchClerkPublicMetadata(clerkUserId, { subscriptionEndsAt: null }, clerkSecretKey);
         }
 
         console.log(`stripe-webhook: subscription deleted — reset to free for userId="${clerkUserId}"`);

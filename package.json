@@ -174,7 +174,7 @@
       "**/tests/**/*.test.js"
     ],
     "moduleNameMapper": {
-      "^pg$": "<rootDir>/node_modules/pg"
+      "^pg$": "<rootDir>/api/node_modules/pg"
     }
   }
 }

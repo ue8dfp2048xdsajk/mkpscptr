@@ -9,7 +9,7 @@
 const { MongoClient } = require('mongodb');
 
 const uri    = process.env.MONGODB_URI;
-const dbName = 'mockupscripter';
+const dbName = process.env.MONGODB_DB_NAME || 'mockupscripter';
 
 if (!uri) {
     console.error('MONGODB_URI is not set');
@@ -19,8 +19,10 @@ if (!uri) {
 async function main() {
     const client = await MongoClient.connect(uri, { serverSelectionTimeoutMS: 8000 });
     const db     = client.db(dbName);
-    const col    = db.collection('projects');
+    const col      = db.collection('projects');
+    const custCol  = db.collection('customers');
 
+    // ── projects ─────────────────────────────────────────────────────────────
     // Unique lookup by UUID
     await col.createIndex({ uuid: 1 }, { unique: true, name: 'uuid_unique' });
 
@@ -37,6 +39,16 @@ async function main() {
     await col.createIndex({ ip: 1, createdAt: -1 }, { sparse: true, name: 'ip_created' });
 
     console.log('Indexes created successfully on', dbName, '.projects');
+
+    // ── customers ─────────────────────────────────────────────────────────────
+    // webhooks/stripe.js queries by stripeCustomerId on every subscription event
+    await custCol.createIndex({ stripeCustomerId: 1 }, { unique: true, name: 'stripeCustomerId_unique' });
+
+    // account/delete.js queries and deletes by clerkUserId
+    await custCol.createIndex({ clerkUserId: 1 }, { unique: true, name: 'clerkUserId_unique' });
+
+    console.log('Indexes created successfully on', dbName, '.customers');
+
     await client.close();
 }
 

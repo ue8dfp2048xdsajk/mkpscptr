@@ -33,14 +33,19 @@ function makeRes() {
 }
 
 function makeReq(method = 'GET') {
-    return { method, headers: {}, query: { action: 'config-check' } };
+    return {
+        method,
+        headers: { authorization: `Bearer ${process.env.SET_PLAN_SECRET || ''}` },
+        query: { action: 'config-check' },
+    };
 }
 
 function withEnv(overrides, fn) {
     const saved = {};
     const REDIS_KEYS = ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'];
     const PG_KEYS = ['DATABASE_URL'];
-    const ALL_MANAGED = [...REDIS_KEYS, ...PG_KEYS];
+    const AUTH_KEYS = ['SET_PLAN_SECRET'];
+    const ALL_MANAGED = [...REDIS_KEYS, ...PG_KEYS, ...AUTH_KEYS];
 
     for (const k of ALL_MANAGED) {
         saved[k] = process.env[k];
