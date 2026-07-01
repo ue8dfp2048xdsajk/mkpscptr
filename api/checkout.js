@@ -1,4 +1,5 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
+const { verifyClerkToken } = require('./_verify-clerk-token');
 
 const PRICE_MAP = {
     starter_monthly:  process.env.STRIPE_PRICE_STARTER_MONTHLY,
@@ -29,7 +30,7 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
     }
 
-    const { plan, period = 'monthly', clerkUserId } = body || {};
+    const { plan, period = 'monthly' } = body || {};
 
     if (!plan || !['starter', 'pro'].includes(plan)) {
         return res.status(400).json({ ok: false, error: 'plan must be "starter" or "pro"' });
@@ -47,8 +48,16 @@ module.exports = async function handler(req, res) {
         });
     }
 
+    // Verify the caller's identity from the JWT — never trust userId from the request body.
+    let clerkUserId = null;
+    try {
+        clerkUserId = await verifyClerkToken(req.headers.authorization);
+    } catch {
+        return res.status(502).json({ ok: false, error: 'Could not verify session' });
+    }
+
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    if (clerkUserId && typeof clerkUserId === 'string' && clerkSecretKey) {
+    if (clerkUserId && clerkSecretKey) {
         let clerkRes;
         try {
             clerkRes = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`, {

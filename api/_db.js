@@ -11,8 +11,15 @@ let _client = null;
 let _clientPromise = null;
 
 async function getClient() {
-    if (_client && _client.topology && _client.topology.isConnected()) {
-        return _client;
+    if (_client) {
+        try {
+            // MongoDB driver v6 removed topology.isConnected(); use a ping instead.
+            await _client.db('admin').command({ ping: 1 });
+            return _client;
+        } catch {
+            // Connection dropped — fall through to reconnect.
+            _client = null;
+        }
     }
     if (!_clientPromise) {
         _clientPromise = MongoClient.connect(MONGODB_URI, {

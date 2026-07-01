@@ -1,9 +1,15 @@
 const { createRemoteJWKSet, jwtVerify } = require('jose');
 
-const JWKS_URL = process.env.CLERK_JWKS_URL
-    || 'https://hip-koala-72.clerk.accounts.dev/.well-known/jwks.json';
+const JWKS_URL = process.env.CLERK_JWKS_URL;
+if (!JWKS_URL) {
+    console.error(
+        '_verify-clerk-token: CLERK_JWKS_URL is not set. ' +
+        'All token verification will fail. Set this to your Clerk JWKS endpoint ' +
+        '(e.g. https://clerks.yourdomain.com/.well-known/jwks.json).'
+    );
+}
 
-const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
+const JWKS = JWKS_URL ? createRemoteJWKSet(new URL(JWKS_URL)) : null;
 
 /**
  * Verify a Clerk session JWT from an Authorization header value
@@ -11,6 +17,7 @@ const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
  * if valid, or null if the token is absent / invalid / expired.
  */
 async function verifyClerkToken(authorizationHeader) {
+    if (!JWKS) return null;
     const token = (authorizationHeader || '').replace(/^Bearer\s+/i, '').trim();
     if (!token) return null;
     try {
@@ -30,6 +37,7 @@ async function verifyClerkToken(authorizationHeader) {
  * so you can avoid a second round-trip to the Clerk REST API.
  */
 async function verifyClerkTokenFull(authorizationHeader) {
+    if (!JWKS) return null;
     const token = (authorizationHeader || '').replace(/^Bearer\s+/i, '').trim();
     if (!token) return null;
     try {
