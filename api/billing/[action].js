@@ -73,7 +73,7 @@ async function handleInvoices(req, res, stripeCustomerId, stripeSecretKey) {
         return res.status(502).json({ ok: false, error: 'Failed to reach Stripe API' });
     }
 
-    const invData = await invoiceRes.json();
+    const invData = await invoiceRes.json().catch(() => ({}));
     if (!invoiceRes.ok) {
         return res.status(502).json({ ok: false, error: invData.error?.message || 'Stripe error' });
     }
@@ -117,7 +117,7 @@ async function handlePortal(req, res, stripeCustomerId, stripeSecretKey) {
         return res.status(502).json({ ok: false, error: 'Failed to reach Stripe API' });
     }
 
-    const data = await portalRes.json();
+    const data = await portalRes.json().catch(() => ({}));
     if (!portalRes.ok) {
         return res.status(502).json({ ok: false, error: data.error?.message || 'Stripe portal error' });
     }

@@ -149,7 +149,7 @@ module.exports = async function handler(req, res) {
         return res.status(502).json({ ok: false, error: 'Failed to reach Stripe API' });
     }
 
-    const stripeData = await stripeRes.json();
+    const stripeData = await stripeRes.json().catch(() => ({}));
     if (!stripeRes.ok) {
         return res.status(502).json({
             ok: false,

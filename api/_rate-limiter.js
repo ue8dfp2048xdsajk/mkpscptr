@@ -121,6 +121,7 @@ async function redisPipeline(commands) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(commands),
+        signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) throw new Error(`Upstash pipeline error: ${res.status}`);
     return res.json();
@@ -129,6 +130,7 @@ async function redisPipeline(commands) {
 async function redisGet(key) {
     const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
         headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+        signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) throw new Error(`Upstash get error: ${res.status}`);
     const json = await res.json();
@@ -139,6 +141,7 @@ async function redisDel(key) {
     const res = await fetch(`${REDIS_URL}/del/${encodeURIComponent(key)}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+        signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) throw new Error(`Upstash del error: ${res.status}`);
 }
