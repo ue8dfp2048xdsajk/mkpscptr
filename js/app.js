@@ -7167,6 +7167,19 @@ function _markDirty(){
 const _CLOUD_UUID_KEY = 'ms_project_uuid';
 var _projectName = '';
 
+function _deriveAutoProjectName() {
+    if (canvasData.length > 0) {
+        const first = canvasData[0];
+        const base = (
+            first.filename ||
+            (first.bgName && first.bgName.replace(/\.[^/.]+$/, '')) ||
+            ''
+        ).trim();
+        if (base) return base;
+    }
+    return 'Untitled project';
+}
+
 async function _getClerkToken() {
     if (typeof window._clerkGetToken === 'function') {
         return window._clerkGetToken();
@@ -7266,7 +7279,7 @@ async function _cloudSave({ isNew = false } = {}) {
     const snapshot = await buildCloudSnapshot();
     const currentUuid = isNew ? null : localStorage.getItem(_CLOUD_UUID_KEY);
 
-    const body = { snapshot, name: _projectName || 'Untitled' };
+    const body = { snapshot, name: _projectName || 'Untitled project' };
     if (currentUuid) body.uuid = currentUuid;
 
     // Guard against proxy/serverless upload limits (~4 MB target)
@@ -7661,7 +7674,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
 
     const isFirstSave = !localStorage.getItem(_CLOUD_UUID_KEY);
     if (isFirstSave) {
-        const name = await _promptProjectName(_projectName);
+        const name = await _promptProjectName(_projectName || _deriveAutoProjectName());
         if (name === null) return;
         _projectName = name;
     }
@@ -7705,7 +7718,7 @@ document.getElementById('saveNewBtn').addEventListener('click', async () => {
         return;
     }
 
-    const newName = await _promptProjectName('');
+    const newName = await _promptProjectName(_deriveAutoProjectName());
     if (newName === null) return;
     _projectName = newName;
 
@@ -9391,7 +9404,7 @@ function buildFullSnapshot() {
 
     return {
         schemaVersion: 1,
-        name:        _projectName || 'Untitled',
+        name:        _projectName || 'Untitled project',
         windows:     buildSnapshot(),
         textBoxes:   _textBoxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, content: b.content })),
         viewport:    { scale: _vpScale, x: _vpX, y: _vpY },
