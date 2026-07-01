@@ -2,6 +2,8 @@ const { setCorsHeaders, handleOptions } = require('../_cors');
 const { getDb } = require('../_db');
 const { verifyClerkToken } = require('../_verify-clerk-token');
 
+const MAX_NAME_LENGTH = 255;
+
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
     if (handleOptions(req, res)) return;
@@ -47,14 +49,27 @@ module.exports = async function handler(req, res) {
         }
         if (!userId) return res.status(401).json({ ok: false, error: 'Not authenticated' });
 
-        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        let body;
+        try {
+            body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        } catch {
+            return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
+        }
         const { name } = body || {};
 
-        const project = await col.findOne({ uuid: id }, { projection: { userId: 1 } });
+        if (name !== undefined && name !== null && typeof name !== 'string') {
+            return res.status(400).json({ ok: false, error: 'name must be a string' });
+        }
+        const trimmedName = (name || '').trim();
+        if (trimmedName.length > MAX_NAME_LENGTH) {
+            return res.status(400).json({ ok: false, error: `name must be ${MAX_NAME_LENGTH} characters or fewer` });
+        }
+
+        const project = await col.findOne({ uuid: id }, { projection: { userId: 1, name: 1 } });
         if (!project) return res.status(404).json({ ok: false, error: 'Project not found' });
         if (project.userId !== userId) return res.status(403).json({ ok: false, error: 'Not your project' });
 
-        const newName = (name || '').trim() || 'Untitled';
+        const newName = trimmedName || project.name || 'Untitled';
         await col.updateOne({ uuid: id }, { $set: { name: newName, updatedAt: new Date() } });
         return res.status(200).json({ ok: true });
     }

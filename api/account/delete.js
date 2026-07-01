@@ -2,6 +2,20 @@ const { setCorsHeaders, handleOptions } = require('../_cors');
 const { getDb } = require('../_db');
 const { verifyClerkToken } = require('../_verify-clerk-token');
 
+// Per-user rate limit: max 5 delete attempts per minute (in-memory; resets on cold start)
+const _deleteHits = new Map();
+const DELETE_WINDOW_MS = 60_000;
+const DELETE_MAX = 5;
+function deleteRateLimited(userId) {
+    const now = Date.now();
+    const cutoff = now - DELETE_WINDOW_MS;
+    const hits = (_deleteHits.get(userId) || []).filter(t => t > cutoff);
+    if (hits.length >= DELETE_MAX) return true;
+    hits.push(now);
+    _deleteHits.set(userId, hits);
+    return false;
+}
+
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
     if (handleOptions(req, res)) return;
@@ -23,6 +37,10 @@ module.exports = async function handler(req, res) {
     }
     if (!clerkUserId) {
         return res.status(401).json({ ok: false, error: 'Not authenticated' });
+    }
+
+    if (deleteRateLimited(clerkUserId)) {
+        return res.status(429).json({ ok: false, error: 'Too many requests. Please wait before trying again.' });
     }
 
     let db;

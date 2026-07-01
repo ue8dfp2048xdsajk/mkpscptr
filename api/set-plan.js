@@ -78,6 +78,9 @@ module.exports = async function handler(req, res) {
     if (!userId || typeof userId !== 'string') {
         return res.status(400).json({ ok: false, error: 'Missing or invalid userId' });
     }
+    if (!/^user_[A-Za-z0-9_]+$/.test(userId)) {
+        return res.status(400).json({ ok: false, error: 'Invalid userId format' });
+    }
 
     if (!plan || !VALID_PLANS.includes(plan)) {
         return res.status(400).json({

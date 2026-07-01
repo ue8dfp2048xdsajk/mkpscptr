@@ -300,7 +300,7 @@ module.exports = async function handler(req, res) {
 
         // Store customer ID mapping so subscription events can look up the Clerk user
         if (session.customer) {
-            storeCustomerMapping(session.customer, userId);
+            await storeCustomerMapping(session.customer, userId);
             await storeStripeCustomerInClerk(userId, session.customer, clerkSecretKey);
         }
 

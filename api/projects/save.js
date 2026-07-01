@@ -55,6 +55,14 @@ module.exports = async function handler(req, res) {
     const clientIp = getClientIp(req);
     const now = new Date();
 
+    // Validate uuid format when provided (both authenticated and anonymous overwrite paths)
+    if (uuid !== undefined && uuid !== null) {
+        if (typeof uuid !== 'string' ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)) {
+            return res.status(400).json({ ok: false, error: 'Invalid uuid format' });
+        }
+    }
+
     // ── Authenticated save — derive user ID from verified JWT ────────────────
     let clerkUserId = null;
     if (req.headers.authorization) {
