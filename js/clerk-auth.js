@@ -610,4 +610,22 @@
         window.__clerkInit = _clerkAuthMain;
     }
 
+    // Guard against bfcache restores re-showing the activating banner.
+    // When the browser restores a page from the back/forward cache, all
+    // setTimeout/setInterval handles are dead but JS variables survive.
+    // We reset poll state with _cleanupPoll() and only resume the payment
+    // flow when ms_payment_pending is still present in localStorage.
+    window.addEventListener('pageshow', function (event) {
+        if (!event.persisted) return;
+        // Dead timer handles must be cleared before any new poll can start.
+        _cleanupPoll();
+        if (localStorage.getItem(PAYMENT_PENDING_KEY)) {
+            // A genuine pending key survived — resume polling.
+            _handlePaymentSuccess();
+        } else {
+            // No pending key: dismiss any banner that was frozen mid-display.
+            _dismissActivatingBanner();
+        }
+    });
+
 })();
