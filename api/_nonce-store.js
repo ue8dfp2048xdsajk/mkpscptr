@@ -440,4 +440,22 @@ async function deleteNonceByUserPlan(userId, plan) {
     return 1;
 }
 
-module.exports = { isNonceSeen, recordNonce, deleteNonce, deleteNonceByUserPlan };
+// ---------------------------------------------------------------------------
+// Test injection helper
+// ---------------------------------------------------------------------------
+//
+// _setPgPoolForTest allows unit tests to inject a mock pool object and set
+// the _pgReady flag without mocking the pg module itself.  Only used in the
+// test environment; the function is a no-op (and not called) in production.
+//
+// Example usage in a test:
+//   const store = require('../api/_nonce-store');
+//   const mockPool = { query: jest.fn()... };
+//   store._setPgPoolForTest(mockPool, true);  // true = schema already ready
+//
+function _setPgPoolForTest(mockPool, pgReadyState) {
+    _pool = mockPool;
+    _pgReady = pgReadyState !== false;
+}
+
+module.exports = { isNonceSeen, recordNonce, deleteNonce, deleteNonceByUserPlan, _setPgPoolForTest };

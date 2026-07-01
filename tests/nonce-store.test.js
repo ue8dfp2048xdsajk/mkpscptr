@@ -1,7 +1,8 @@
 /**
  * @jest-environment node
  *
- * Tests for the PostgreSQL path in api/_nonce-store.js.
+ * Tests for the nonce store (api/_nonce-store.js) covering the PostgreSQL
+ * path, Redis path, and retry durability for deleteNonce.
  *
  * Scenarios covered:
  *  1. PG path — isNonceSeen returns false for an unseen nonce
@@ -14,6 +15,12 @@
  *  8. PG path — schema creation (CREATE TABLE IF NOT EXISTS) is issued once per module load
  *  9. PG path — pgRecordNonce issues INSERT … ON CONFLICT DO NOTHING
  * 10. PG path — pgDeleteNonce issues a DELETE query for the correct nonce
+ * 11. PG path — deleteNonce retry: transient DEL failure → retry succeeds, nonce cleaned up
+ * 12. PG path — deleteNonce retry: webhook retry admitted after cleanup
+ * 13. PG path — deleteNonce: all retries exhausted → resolves (logs alert, nonce stranded)
+ * 14. Redis path — deleteNonce retry: transient DEL failure → retry succeeds, nonce cleaned up
+ * 15. Redis path — deleteNonce retry: webhook retry admitted after cleanup
+ * 16. Redis path — deleteNonce: all retries exhausted → resolves (logs alert, nonce stranded)
  */
 
 'use strict';
@@ -45,6 +52,30 @@ function loadPgStore(queryImpl) {
     }));
 
     const store = require('../api/_nonce-store');
+    return { store, mockQuery };
+}
+
+/**
+ * Load a fresh nonce-store module for PG retry tests using _setPgPoolForTest.
+ *
+ * Unlike loadPgStore, this helper does NOT try to mock the pg module.
+ * Instead it uses the store's _setPgPoolForTest export to inject a plain
+ * mock pool object after the module is loaded.  pgReady=true skips the
+ * ensureSchema calls so the test's mockQuery sequence begins at the first
+ * real operation (e.g. the DELETE in deleteNonce).
+ *
+ * Returns { store, mockQuery }.
+ */
+function loadPgStoreWithPool(queryImpl, { pgReady = true } = {}) {
+    jest.resetModules();
+
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env.DATABASE_URL = 'postgres://mock/nonce_db';
+
+    const mockQuery = queryImpl || jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const store = require('../api/_nonce-store');
+    store._setPgPoolForTest({ query: mockQuery }, pgReady);
     return { store, mockQuery };
 }
 
@@ -402,6 +433,208 @@ describe('_nonce-store — PG path is selected when DATABASE_URL is set and Redi
 // ---------------------------------------------------------------------------
 // 4. Redis credentials present → PG path is NOT used (Redis takes priority)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// 5. deleteNonce retry durability — PG backend
+// ---------------------------------------------------------------------------
+//
+// deleteNonce wraps pgDeleteNonce in withRetry (up to 3 attempts, 100 ms
+// base back-off).  These tests verify that a transient failure on the first
+// attempt does not strand the nonce: the second attempt succeeds and the nonce
+// is cleaned up so Stripe's webhook retry can be re-admitted.
+//
+// Implementation note: these tests use loadPgStoreWithPool (which calls
+// store._setPgPoolForTest) instead of loadPgStore.  loadPgStore relies on
+// jest.doMock('pg', …) which does not survive jest.resetModules() in Jest 30,
+// causing the real pg Pool to be used and all DELETE calls to fail with
+// getaddrinfo ENOTFOUND.  _setPgPoolForTest injects a plain mock pool object
+// directly into the module after it loads, bypassing the module-mock issue.
+//
+// With pgReady=true, ensureSchema is a no-op and the mock sequence starts
+// at the first real operation (the DELETE inside pgDeleteNonce), keeping the
+// query sequences short and focused on the retry behaviour.
+
+describe('_nonce-store — deleteNonce retry durability (PG backend)', () => {
+    afterEach(() => {
+        delete process.env.DATABASE_URL;
+        jest.clearAllMocks();
+    });
+
+    test('deleteNonce succeeds after one transient PG failure (retry on second attempt)', async () => {
+        // pgReady=true → ensureSchema is a no-op; mock starts at first DELETE.
+        // Query sequence:
+        //   1. DELETE nonce — attempt 1 → transient connection error
+        //   2. DELETE nonce — attempt 2 (retry) → succeeds
+        const q = jest.fn()
+            .mockRejectedValueOnce(new Error('connection reset by peer')) // 1. DEL attempt 1
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // 2. DEL attempt 2 (retry)
+
+        const { store } = loadPgStoreWithPool(q, { pgReady: true });
+
+        // Must resolve — the retry succeeded and the nonce is cleaned up
+        await expect(store.deleteNonce('retry-nonce-pg')).resolves.toBeUndefined();
+
+        // The DELETE nonce query must have been issued exactly twice
+        const deleteCalls = q.mock.calls.filter(([sql]) =>
+            /DELETE FROM nonce_seen WHERE nonce/i.test(sql)
+        );
+        expect(deleteCalls).toHaveLength(2);
+    });
+
+    test('after deleteNonce retry success the nonce can be re-recorded (webhook retry admitted)', async () => {
+        // Full webhook retry flow (pgReady=true — schema assumed ready):
+        //   Phase 1 — first Stripe delivery: recordNonce succeeds
+        //   Phase 2 — handler work fails: deleteNonce called to release the nonce
+        //             ↳ DEL attempt 1 → transient PG error
+        //             ↳ DEL attempt 2 → succeeds (nonce removed from store)
+        //   Phase 3 — Stripe retries: second recordNonce must succeed
+        //
+        // Query sequence (no ensureSchema calls — pgReady=true):
+        //   1. INSERT nonce_seen      → rowCount 1   (first recordNonce OK)
+        //   2. DELETE WHERE expires_at               (pgPruneExpired)
+        //   3. DELETE WHERE nonce = $1 → reject      (deleteNonce attempt 1)
+        //   4. DELETE WHERE nonce = $1 → rowCount 1  (deleteNonce attempt 2)
+        //   5. INSERT nonce_seen      → rowCount 1   (second recordNonce — retry admitted)
+        //   6. DELETE WHERE expires_at               (pgPruneExpired)
+        const q = jest.fn()
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // 1. INSERT (first record)
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // 2. prune DELETE
+            .mockRejectedValueOnce(new Error('connection reset by peer')) // 3. deleteNonce attempt 1
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // 4. deleteNonce attempt 2
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // 5. INSERT (second record)
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // 6. prune DELETE
+
+        const { store } = loadPgStoreWithPool(q, { pgReady: true });
+
+        // Phase 1: first webhook delivery records the nonce
+        await expect(store.recordNonce('webhook-retry-nonce-pg')).resolves.toBeUndefined();
+
+        // Phase 2: handler fails; deleteNonce released via retry
+        await expect(store.deleteNonce('webhook-retry-nonce-pg')).resolves.toBeUndefined();
+
+        // Phase 3: Stripe retries — second recordNonce must not throw
+        await expect(store.recordNonce('webhook-retry-nonce-pg')).resolves.toBeUndefined();
+    });
+
+    test('deleteNonce resolves (logs alert) when all PG retry attempts are exhausted', async () => {
+        // All three DELETE attempts fail permanently.  deleteNonce must NOT throw:
+        // it logs an [ALERT] and returns gracefully so the caller can still
+        // respond to Stripe.  The nonce is left in the store (stranded) until TTL.
+        const q = jest.fn()
+            .mockRejectedValue(new Error('PG completely down')); // all DEL attempts
+
+        const { store } = loadPgStoreWithPool(q, { pgReady: true });
+        await expect(store.deleteNonce('stranded-nonce-pg')).resolves.toBeUndefined();
+
+        // withRetry exhausts all 3 attempts before giving up
+        const deleteCalls = q.mock.calls.filter(([sql]) =>
+            /DELETE FROM nonce_seen WHERE nonce/i.test(sql)
+        );
+        expect(deleteCalls).toHaveLength(3);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 6. deleteNonce retry durability — Redis backend
+// ---------------------------------------------------------------------------
+//
+// deleteNonce wraps redisDel in withRetry (up to 3 attempts).  These tests
+// verify the same retry-durability guarantee for the Redis (Upstash) path.
+//
+// The Redis path uses global.fetch directly (no pg module mock needed), so
+// the simpler loadRedisStore helper (jest.resetModules + env var setup) works.
+
+function loadRedisStore(fetchImpl) {
+    jest.resetModules();
+
+    process.env.UPSTASH_REDIS_REST_URL   = 'https://fake-redis.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+    delete process.env.DATABASE_URL;
+
+    const fetchMock = fetchImpl || jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ result: 'OK' }),
+    });
+    global.fetch = fetchMock;
+
+    const store = require('../api/_nonce-store');
+    return { store, fetchMock };
+}
+
+describe('_nonce-store — deleteNonce retry durability (Redis backend)', () => {
+    let originalFetch;
+
+    beforeEach(() => {
+        originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+        delete process.env.UPSTASH_REDIS_REST_URL;
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+        jest.clearAllMocks();
+    });
+
+    test('deleteNonce succeeds after one transient Redis DEL failure (retry on second attempt)', async () => {
+        // fetch call sequence for deleteNonce:
+        //   1. POST /del — non-ok 503 → redisDel throws (attempt 1)
+        //   2. POST /del — ok 200     → redisDel resolves (attempt 2 / retry)
+        const fetchMock = jest.fn()
+            .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) }) // attempt 1
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ result: 1 }) });   // attempt 2
+
+        const { store } = loadRedisStore(fetchMock);
+        await expect(store.deleteNonce('retry-nonce-redis')).resolves.toBeUndefined();
+
+        // The /del/ endpoint must have been called exactly twice (two DEL attempts)
+        const delCalls = fetchMock.mock.calls.filter(([url]) => /\/del\//i.test(url));
+        expect(delCalls).toHaveLength(2);
+    });
+
+    test('after Redis deleteNonce retry success the nonce can be re-recorded (webhook retry admitted)', async () => {
+        // Full webhook retry flow:
+        //   Phase 1 — recordNonce  → SET NX → "OK"   (first webhook attempt)
+        //   Phase 2 — deleteNonce  → DEL attempt 1 → transient 503
+        //                            DEL attempt 2 → succeeds
+        //   Phase 3 — recordNonce  → SET NX → "OK"   (Stripe retry admitted)
+        //
+        // fetch call sequence:
+        //   1. POST /set (SET NX)  → { result: "OK" }   — first recordNonce
+        //   2. POST /del           → { ok: false, 503 } — deleteNonce attempt 1
+        //   3. POST /del           → { ok: true }        — deleteNonce attempt 2
+        //   4. POST /set (SET NX)  → { result: "OK" }   — second recordNonce (retry)
+        const fetchMock = jest.fn()
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ result: 'OK' }) })  // 1. SET NX
+            .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}) })  // 2. DEL attempt 1
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ result: 1 }) })     // 3. DEL attempt 2
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ result: 'OK' }) }); // 4. SET NX retry
+
+        const { store } = loadRedisStore(fetchMock);
+
+        // Phase 1: first webhook delivery records the nonce
+        await expect(store.recordNonce('webhook-retry-nonce-redis')).resolves.toBeUndefined();
+
+        // Phase 2: handler fails; deleteNonce released via retry
+        await expect(store.deleteNonce('webhook-retry-nonce-redis')).resolves.toBeUndefined();
+
+        // Phase 3: Stripe retries — second recordNonce must not throw
+        await expect(store.recordNonce('webhook-retry-nonce-redis')).resolves.toBeUndefined();
+    });
+
+    test('deleteNonce resolves (logs alert) when all Redis retry attempts are exhausted', async () => {
+        // All three DEL attempts return 503 — nonce is stranded but deleteNonce
+        // must NOT throw; it logs [ALERT] and returns gracefully.
+        const fetchMock = jest.fn()
+            .mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
+
+        const { store } = loadRedisStore(fetchMock);
+        await expect(store.deleteNonce('stranded-nonce-redis')).resolves.toBeUndefined();
+
+        // withRetry must have exhausted all 3 DEL attempts before giving up
+        const delCalls = fetchMock.mock.calls.filter(([url]) => /\/del\//i.test(url));
+        expect(delCalls).toHaveLength(3);
+    });
+});
 
 describe('_nonce-store — Redis takes priority over PG when both are configured', () => {
     let store;
