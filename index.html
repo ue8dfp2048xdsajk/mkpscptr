@@ -207,16 +207,15 @@
             <div class="plan-card" data-plan="starter">
                 <div class="plan-name">Starter</div>
                 <div class="plan-amount" id="priceAmountStarter">
-                    <sup>$</sup><span id="starterPrice">13</span><span class="period" id="starterPeriod">/mo</span>
+                    <sup>$</sup><span id="starterPrice">16.99</span><span class="period" id="starterPeriod">/mo</span>
                 </div>
-                <p class="plan-billing-note" id="priceNoteStarter">Billed $156/year</p>
+                <p class="plan-billing-note" id="priceNoteStarter">Billed $199/year</p>
                 <div class="plan-divider"></div>
                 <ul class="plan-features">
                     <li><span class="check">✓</span> Everything in Free</li>
                     <li><span class="check">✓</span> Watermark-free exports</li>
-                    <li><span class="check">✓</span> Pattern effects</li>
-                    <li><span class="check">✓</span> Arc warp &amp; perspective</li>
-                    <li><span class="check">✓</span> Up to 5 saved projects</li>
+                    <li><span class="check">✓</span> Basic effects (opacity, blur, noise)</li>
+                    <li><span class="check">✓</span> 1 saved project</li>
                     <li><span class="check">✓</span> Email support</li>
                 </ul>
                 <a href="/app.html" class="plan-cta plan-cta-starter">Get Starter →</a>
@@ -227,17 +226,16 @@
                 <div class="plan-badge" aria-label="Most popular plan">Most Popular</div>
                 <div class="plan-name">Pro</div>
                 <div class="plan-amount" id="priceAmountPro">
-                    <sup>$</sup><span id="proPrice">25</span><span class="period" id="proPeriod">/mo</span>
+                    <sup>$</sup><span id="proPrice">24.99</span><span class="period" id="proPeriod">/mo</span>
                 </div>
-                <p class="plan-billing-note" id="priceNotePro">Billed $300/year</p>
+                <p class="plan-billing-note" id="priceNotePro">Billed $299/year</p>
                 <div class="plan-divider"></div>
                 <ul class="plan-features">
                     <li><span class="check">✓</span> Everything in Starter</li>
                     <li><span class="check">✓</span> Unlimited saved projects</li>
+                    <li><span class="check">✓</span> Patterns, warp &amp; perspective</li>
                     <li><span class="check">✓</span> Full effects suite (fisheye, all blends)</li>
-                    <li><span class="check">✓</span> Copy &amp; paste styles across mockups</li>
                     <li><span class="check">✓</span> Priority support</li>
-                    <li><span class="check">✓</span> All future Pro features</li>
                 </ul>
                 <a href="/app.html" class="plan-cta plan-cta-pro">Get Pro →</a>
             </div>
@@ -414,9 +412,9 @@
     /* Pricing toggle */
     (function () {
         var prices = {
-            monthly:  { starter: '$19', starterNote: 'Billed monthly',         pro: '$39', proNote: 'Billed monthly' },
-            annual:   { starter: '$13', starterNote: 'Billed $156/year',       pro: '$25', proNote: 'Billed $300/year' },
-            lifetime: { starter: '$299', starterNote: 'One-time payment',      pro: '$599', proNote: 'One-time payment' }
+            monthly:  { starter: '$25',    starterNote: 'Billed monthly',       pro: '$39',    proNote: 'Billed monthly' },
+            annual:   { starter: '$16.99', starterNote: 'Billed $199/year',     pro: '$24.99', proNote: 'Billed $299/year' },
+            lifetime: { starter: '$499',   starterNote: 'One-time payment',     pro: '$799',   proNote: 'One-time payment' }
         };
 
         var periods = {
