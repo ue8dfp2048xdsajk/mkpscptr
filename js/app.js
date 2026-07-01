@@ -8153,6 +8153,10 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             const clImg = new Image();
             clImg.onload = ()=>{
                 initColorLayer(data);
+                // Push the blank canvas as the baseline undo point so that
+                // Ctrl+Z in Color Layer mode can revert to "no paint" even
+                // immediately after a project is loaded.
+                pushColorLayerHistory(data);
                 // Scale the saved bitmap to the current canvas size
                 data.colorLayerCtx.drawImage(
                     clImg, 0, 0,
