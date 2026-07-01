@@ -35,6 +35,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/landing.css" />
+    <script
+        async
+        crossorigin="anonymous"
+        data-clerk-publishable-key="pk_live_Y2xlcmsubW9ja3Vwc2NyaXB0ZXIuY29tJA"
+        src="https://clerks.mockupscripter.com/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+        type="text/javascript"
+        onload="window.__clerkSdkReady=true; window.__clerkLandingInit && window.__clerkLandingInit()"
+    ></script>
 </head>
 <body>
 
@@ -66,7 +74,7 @@
             <li><a href="#pricing">Pricing</a></li>
             <li><a href="#faq">FAQ</a></li>
         </ul>
-        <div class="nav-ctas">
+        <div class="nav-ctas" id="landingNavCtas">
             <a href="/app.html" class="btn btn-ghost btn-nav">Sign in</a>
             <a href="/app.html" class="btn btn-primary btn-nav">Get started →</a>
         </div>
@@ -450,6 +458,35 @@
             });
         });
     })();
+
+    /* Nav scroll opacity */
+    (function () {
+        var nav = document.querySelector('.site-nav');
+        if (!nav) return;
+        function onScroll() {
+            nav.classList.toggle('scrolled', window.scrollY > 20);
+        }
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+    })();
+
+    /* Landing page Clerk auth state — show "Open App" when signed in */
+    window.__clerkLandingInit = async function () {
+        if (!window.Clerk) return;
+        await window.Clerk.load();
+        var user = window.Clerk.user;
+        if (!user) return;
+        var ctas = document.getElementById('landingNavCtas');
+        if (!ctas) return;
+        var avatarUrl = user.imageUrl || '';
+        var firstName = user.firstName || 'Account';
+        ctas.innerHTML =
+            '<a href="/app.html" class="btn btn-primary btn-nav" style="font-size:13px;">Open App →</a>' +
+            (avatarUrl
+                ? '<img src="' + avatarUrl + '" alt="' + firstName + '" class="landing-nav-avatar" />'
+                : '<span class="landing-nav-avatar landing-nav-avatar--initials">' + firstName.charAt(0).toUpperCase() + '</span>');
+    };
+    if (window.__clerkSdkReady) window.__clerkLandingInit();
 
     /* Cookie consent */
     (function () {

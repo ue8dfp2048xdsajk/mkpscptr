@@ -398,7 +398,9 @@
         var signOutBtn = dropdown.querySelector('#clerkSignOutBtn');
         if (signOutBtn) {
             signOutBtn.addEventListener('click', function () {
-                window.Clerk.signOut();
+                window.Clerk.signOut().then(function () {
+                    window.location.href = '/';
+                });
             });
         }
     }

@@ -31,15 +31,36 @@ body {
     position: relative;
 }
 
-/* Thin top bar — account / auth only */
+/* Thin top bar — logo left, account right */
 .header-top-row {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    padding: 3px 12px;
-    min-height: 32px;
+    justify-content: space-between;
+    padding: 0 16px;
+    min-height: 40px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
     background: rgba(0,0,0,0.18);
+}
+
+.app-nav-logo {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+.app-nav-logo:hover { color: #E5E7EB; }
+.app-nav-logo-dot {
+    width: 8px;
+    height: 8px;
+    background: #4F6EF7;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
 }
 
 /* Main controls row */
