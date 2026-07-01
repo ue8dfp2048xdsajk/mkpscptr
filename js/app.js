@@ -1702,6 +1702,8 @@ function handleBgFiles(files){
 
     if(!files.length) return;
 
+    _showUpgradePromptIfNeeded();
+
     // pre-allocate so images always appear in selection order
     backgrounds = new Array(files.length);
 
