@@ -38,7 +38,7 @@ async function getClerkUserPlan(clerkUserId, clerkSecretKey) {
             signal: AbortSignal.timeout(8000),
         }
     );
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error(`Clerk returned ${res.status}`);
     const data = await res.json();
     return (data?.public_metadata?.plan || 'free').toLowerCase();
 }
