@@ -1,13 +1,466 @@
 <!doctype html>
 <html lang="en">
 <head>
+    <script>
+        !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="init be fc a b bs cs capture autocapture capturePagLeave alias identify set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys getNextSurveyStep onSessionId setPersonProperties".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+        window._initPostHog = function() {
+            if (window._posthogInited) return;
+            window._posthogInited = true;
+            posthog.init('phc_xwDdXcr9BYR7DE7WrvwNWTJuJYN3vgcQFQgtnEPUeixo', {
+                api_host: 'https://us.i.posthog.com',
+                defaults: '2026-05-30',
+                person_profiles: 'identified_only',
+            });
+        };
+        if (localStorage.getItem('ms_cookie_consent') === 'accepted') {
+            window._initPostHog();
+        }
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mockup Scripter — Create Professional Mockups in Minutes</title>
+    <meta name="description" content="Drop your designs onto any background, apply effects, and batch-export watermark-free mockups in seconds. No design skills required." />
     <link rel="canonical" href="https://mockupscripter.com/" />
-    <meta http-equiv="refresh" content="0;url=/app.html" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/landing.css" />
 </head>
 <body>
-    <p>Loading <a href="/app.html">Mockup Scripter</a>…</p>
+
+<!-- ── Mobile overlay ──────────────────────────────────────────────────────── -->
+<div id="mobileOverlay">
+    <div id="mobileOverlayContent">
+        <div id="mobileOverlayIcon">🖥️</div>
+        <h1>Mockup Scripter works best on desktop</h1>
+        <p>Open this link on your computer to get started.</p>
+        <a id="mobileOverlayUrl" href="https://mockupscripter.com">mockupscripter.com</a>
+    </div>
+</div>
+<script>
+    if (window.matchMedia('(pointer: coarse) and (hover: none)').matches) {
+        var overlay = document.getElementById('mobileOverlay');
+        overlay.style.display = 'flex';
+    }
+</script>
+
+<!-- ── Navigation ──────────────────────────────────────────────────────────── -->
+<nav class="site-nav" role="navigation" aria-label="Main navigation">
+    <div class="nav-inner">
+        <a href="/" class="nav-logo" aria-label="Mockup Scripter home">
+            <span class="nav-logo-dot" aria-hidden="true"></span>
+            Mockup Scripter
+        </a>
+        <ul class="nav-links" role="list">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#faq">FAQ</a></li>
+        </ul>
+        <div class="nav-ctas">
+            <a href="/app.html" class="btn btn-ghost btn-nav">Sign in</a>
+            <a href="/app.html" class="btn btn-primary btn-nav">Get started →</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────────────────── -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-eyebrow">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><circle cx="6" cy="6" r="6"/></svg>
+            No design skills required
+        </div>
+        <h1 class="hero-title">
+            Create <span>stunning mockups</span><br />in minutes, not hours
+        </h1>
+        <p class="hero-sub">
+            Drop your designs onto any background, apply pro-grade effects, and batch-export every combination — watermark-free.
+        </p>
+        <div class="hero-ctas">
+            <a href="/app.html" class="btn btn-primary">Start for free →</a>
+            <a href="#features" class="btn btn-ghost">See how it works</a>
+        </div>
+        <p class="hero-note"><strong>Free plan available.</strong> No credit card required.</p>
+
+        <!-- Product demo placeholder -->
+        <div class="media-placeholder" role="img" aria-label="Product demo video placeholder">
+            <div class="media-placeholder-icon" aria-hidden="true">▶</div>
+            <span class="media-placeholder-text">Product demo — replace with gif or mp4</span>
+        </div>
+    </div>
+</section>
+
+<!-- ── Social proof strip ───────────────────────────────────────────────────── -->
+<div class="social-proof" aria-hidden="true">
+    <div class="social-proof-inner">
+        <div class="social-proof-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            Batch export all combinations
+        </div>
+        <div class="social-proof-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            Works in your browser — no install
+        </div>
+        <div class="social-proof-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            Watermark-free on paid plans
+        </div>
+        <div class="social-proof-item">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            PNG &amp; JPEG export
+        </div>
+    </div>
+</div>
+
+<!-- ── Features ────────────────────────────────────────────────────────────── -->
+<section class="features" id="features">
+    <div class="container">
+        <span class="section-label">Features</span>
+        <h2 class="section-title">Everything you need for great mockups</h2>
+        <p class="section-sub">
+            From drag-and-drop placement to advanced effects — all in your browser, no software to install.
+        </p>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon" aria-hidden="true">🖼️</div>
+                <h3 class="feature-title">Drop designs onto any background</h3>
+                <p class="feature-desc">
+                    Upload your product designs and drop them onto any background image. Resize, rotate, and position with pixel-perfect control. Works with PNG and JPEG.
+                </p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" aria-hidden="true">📦</div>
+                <h3 class="feature-title">Batch export all combinations</h3>
+                <p class="feature-desc">
+                    Generate every background–design combination in one click and download as a ZIP. Save hours of manual compositing work — especially useful for product launches and marketing campaigns.
+                </p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" aria-hidden="true">✨</div>
+                <h3 class="feature-title">Pro effects: patterns, warp &amp; perspective</h3>
+                <p class="feature-desc">
+                    Apply repeating patterns, arc warp, perspective tilt, fisheye, blur, noise, and blend modes to make your designs look naturally embedded in the scene.
+                </p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon" aria-hidden="true">🔓</div>
+                <h3 class="feature-title">Watermark-free exports on paid plans</h3>
+                <p class="feature-desc">
+                    Free plan exports include a subtle watermark. Upgrade to Starter or Pro to export clean, watermark-free images ready to use in ads, listings, or social posts.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── Pricing ──────────────────────────────────────────────────────────────── -->
+<section class="pricing" id="pricing">
+    <div class="container">
+        <span class="section-label">Pricing</span>
+        <h2 class="section-title">Simple, transparent pricing</h2>
+        <p class="section-sub">
+            Start free. Upgrade whenever you need clean exports or advanced effects.
+        </p>
+
+        <!-- Billing toggle -->
+        <div class="billing-toggle" role="group" aria-label="Billing period">
+            <button class="billing-tab" data-period="monthly" aria-pressed="false">Monthly</button>
+            <button class="billing-tab active" data-period="annual" aria-pressed="true">
+                Annual
+                <span class="badge-save" aria-label="Save up to 33%">Save 33%</span>
+            </button>
+            <button class="billing-tab" data-period="lifetime" aria-pressed="false">Lifetime</button>
+        </div>
+
+        <div class="pricing-grid">
+            <!-- Free -->
+            <div class="plan-card" data-plan="free">
+                <div class="plan-name">Free</div>
+                <div class="plan-amount" id="priceAmountFree">
+                    <sup>$</sup>0
+                </div>
+                <p class="plan-billing-note" id="priceNoteFree">Always free</p>
+                <div class="plan-divider"></div>
+                <ul class="plan-features">
+                    <li><span class="check">✓</span> Unlimited mockup compositing</li>
+                    <li><span class="check">✓</span> PNG &amp; JPEG export</li>
+                    <li><span class="check">✓</span> Basic effects (blur, noise, blend modes)</li>
+                    <li><span class="check">✓</span> 1 saved project</li>
+                    <li><span class="muted" aria-label="not included">✕</span> <span class="muted">Watermark on exports</span></li>
+                    <li><span class="muted" aria-label="not included">✕</span> <span class="muted">Pro effects (patterns, warp, perspective)</span></li>
+                </ul>
+                <a href="/app.html" class="plan-cta plan-cta-free">Get started free</a>
+            </div>
+
+            <!-- Starter -->
+            <div class="plan-card" data-plan="starter">
+                <div class="plan-name">Starter</div>
+                <div class="plan-amount" id="priceAmountStarter">
+                    <sup>$</sup><span id="starterPrice">16</span><span class="period" id="starterPeriod">/mo</span>
+                </div>
+                <p class="plan-billing-note" id="priceNoteStarter">Billed $199/year</p>
+                <div class="plan-divider"></div>
+                <ul class="plan-features">
+                    <li><span class="check">✓</span> Everything in Free</li>
+                    <li><span class="check">✓</span> Watermark-free exports</li>
+                    <li><span class="check">✓</span> Pattern effects</li>
+                    <li><span class="check">✓</span> Arc warp &amp; perspective</li>
+                    <li><span class="check">✓</span> Up to 5 saved projects</li>
+                    <li><span class="check">✓</span> Email support</li>
+                </ul>
+                <a href="/app.html" class="plan-cta plan-cta-starter">Get Starter →</a>
+            </div>
+
+            <!-- Pro (popular) -->
+            <div class="plan-card popular" data-plan="pro">
+                <div class="plan-badge" aria-label="Most popular plan">Most Popular</div>
+                <div class="plan-name">Pro</div>
+                <div class="plan-amount" id="priceAmountPro">
+                    <sup>$</sup><span id="proPrice">25</span><span class="period" id="proPeriod">/mo</span>
+                </div>
+                <p class="plan-billing-note" id="priceNotePro">Billed $299/year</p>
+                <div class="plan-divider"></div>
+                <ul class="plan-features">
+                    <li><span class="check">✓</span> Everything in Starter</li>
+                    <li><span class="check">✓</span> Unlimited saved projects</li>
+                    <li><span class="check">✓</span> Full effects suite (fisheye, all blends)</li>
+                    <li><span class="check">✓</span> Copy &amp; paste styles across mockups</li>
+                    <li><span class="check">✓</span> Priority support</li>
+                    <li><span class="check">✓</span> All future Pro features</li>
+                </ul>
+                <a href="/app.html" class="plan-cta plan-cta-pro">Get Pro →</a>
+            </div>
+        </div>
+
+        <div class="pricing-notes">
+            <div class="pricing-note-item">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                30-day money-back guarantee on paid plans
+            </div>
+            <div class="pricing-note-item">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Secure checkout via Stripe
+            </div>
+            <div class="pricing-note-item">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                Cancel anytime — no lock-in
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── FAQ ──────────────────────────────────────────────────────────────────── -->
+<section class="faq" id="faq">
+    <div class="container">
+        <span class="section-label">FAQ</span>
+        <h2 class="section-title">Frequently asked questions</h2>
+        <p class="section-sub" style="margin-bottom: 40px;">
+            Still have questions? Email us at <a href="mailto:support@mockupscripter.com" style="color:#818CF8;text-decoration:underline;text-underline-offset:3px;">support@mockupscripter.com</a>
+        </p>
+
+        <div class="faq-list">
+            <details class="faq-item">
+                <summary class="faq-question">
+                    What is Mockup Scripter?
+                    <span class="faq-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <p class="faq-answer">
+                    Mockup Scripter is a browser-based tool that lets you composite product designs onto background images. Upload your backgrounds and designs, apply effects like blur, warp, or perspective tilt, and batch-export every combination as PNG or JPEG — all without installing any software.
+                </p>
+            </details>
+
+            <details class="faq-item">
+                <summary class="faq-question">
+                    Is there a free plan?
+                    <span class="faq-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <p class="faq-answer">
+                    Yes. The free plan lets you composite and export unlimited mockups. Exports on the free plan include a subtle watermark. Upgrade to Starter or Pro to remove watermarks and unlock advanced effects.
+                </p>
+            </details>
+
+            <details class="faq-item">
+                <summary class="faq-question">
+                    What's the difference between Starter and Pro?
+                    <span class="faq-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <p class="faq-answer">
+                    Both plans remove watermarks and unlock core effects (patterns, arc warp, perspective). Pro adds the full effects suite (fisheye, all blend modes), unlimited saved projects, copy/paste styles across mockups, and priority support. If you're a power user or agency, Pro is the better choice.
+                </p>
+            </details>
+
+            <details class="faq-item">
+                <summary class="faq-question">
+                    Can I cancel my subscription anytime?
+                    <span class="faq-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <p class="faq-answer">
+                    Yes. You can cancel at any time from your account settings. Your plan remains active until the end of the current billing period — you won't be charged again after that.
+                </p>
+            </details>
+
+            <details class="faq-item">
+                <summary class="faq-question">
+                    What's your refund policy?
+                    <span class="faq-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <p class="faq-answer">
+                    We offer a 30-day money-back guarantee on all paid plans. If you're not satisfied within the first 30 days, contact us at <a href="mailto:support@mockupscripter.com">support@mockupscripter.com</a> and we'll issue a full refund. See our full <a href="/refund-policy.html">Refund Policy</a> for details.
+                </p>
+            </details>
+
+            <details class="faq-item">
+                <summary class="faq-question">
+                    Do you offer lifetime plans?
+                    <span class="faq-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <p class="faq-answer">
+                    Yes. Both Starter and Pro are available as one-time lifetime purchases — pay once and use Mockup Scripter forever with no recurring fees. Select the "Lifetime" tab on the pricing section above to see lifetime prices.
+                </p>
+            </details>
+
+            <details class="faq-item">
+                <summary class="faq-question">
+                    What file formats are supported?
+                    <span class="faq-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <p class="faq-answer">
+                    You can upload PNG and JPEG files as backgrounds or designs. Exports are available in PNG (lossless) or JPEG (adjustable quality). If you need transparent-background exports, use PNG.
+                </p>
+            </details>
+
+            <details class="faq-item">
+                <summary class="faq-question">
+                    Is my data secure? Does Mockup Scripter store my images?
+                    <span class="faq-chevron" aria-hidden="true">▾</span>
+                </summary>
+                <p class="faq-answer">
+                    All image processing happens entirely in your browser — your images are never uploaded to our servers. We only store your account and plan information. See our <a href="/privacy.html">Privacy Policy</a> for full details.
+                </p>
+            </details>
+        </div>
+    </div>
+</section>
+
+<!-- ── Footer ───────────────────────────────────────────────────────────────── -->
+<footer class="site-footer">
+    <div class="container">
+        <div class="footer-top">
+            <div class="footer-brand">
+                <div class="nav-logo" style="margin-bottom:12px;">
+                    <span class="nav-logo-dot" aria-hidden="true"></span>
+                    Mockup Scripter
+                </div>
+                <p class="footer-tagline">Create professional mockups in minutes. No design skills required.</p>
+            </div>
+            <div class="footer-links-group">
+                <div class="footer-links-title">Product</div>
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="#faq">FAQ</a>
+                <a href="/app.html">Open App</a>
+            </div>
+            <div class="footer-links-group">
+                <div class="footer-links-title">Company</div>
+                <a href="/about.html">About</a>
+                <a href="mailto:support@mockupscripter.com">Support</a>
+            </div>
+            <div class="footer-links-group">
+                <div class="footer-links-title">Legal</div>
+                <a href="/privacy.html">Privacy Policy</a>
+                <a href="/terms.html">Terms of Service</a>
+                <a href="/refund-policy.html">Refund Policy</a>
+                <a href="/cookie-policy.html">Cookie Policy</a>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p class="footer-copy">© 2026 Mockup Scripter. All rights reserved.</p>
+            <div class="footer-legal-links">
+                <a href="/privacy.html">Privacy</a>
+                <a href="/terms.html">Terms</a>
+                <a href="/refund-policy.html">Refund Policy</a>
+                <a href="/cookie-policy.html">Cookie Policy</a>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- ── Cookie consent bar ────────────────────────────────────────────────────── -->
+<div id="cookieConsentBar">
+    <span class="cookie-consent-text">
+        We use cookies for analytics to improve your experience.
+        <a href="/privacy.html">Privacy Policy</a>
+    </span>
+    <div class="cookie-consent-btns">
+        <button id="cookieDeclineBtn">Decline</button>
+        <button id="cookieAcceptBtn">Accept</button>
+    </div>
+</div>
+
+<!-- ── Scripts ──────────────────────────────────────────────────────────────── -->
+<script>
+    /* Pricing toggle */
+    (function () {
+        var prices = {
+            monthly:  { starter: '$25', starterNote: 'Billed monthly',         pro: '$39', proNote: 'Billed monthly' },
+            annual:   { starter: '$16', starterNote: 'Billed $199/year',       pro: '$25', proNote: 'Billed $299/year' },
+            lifetime: { starter: '$499', starterNote: 'One-time payment',      pro: '$799', proNote: 'One-time payment' }
+        };
+
+        var periods = {
+            monthly:  { starter: '/mo', pro: '/mo' },
+            annual:   { starter: '/mo', pro: '/mo' },
+            lifetime: { starter: '', pro: '' }
+        };
+
+        function setPeriod(period) {
+            var p = prices[period];
+            var pr = periods[period];
+            document.getElementById('starterPrice').textContent = p.starter.replace('$','');
+            document.getElementById('priceNoteStarter').textContent = p.starterNote;
+            document.getElementById('starterPeriod').textContent = pr.starter;
+            document.getElementById('proPrice').textContent = p.pro.replace('$','');
+            document.getElementById('priceNotePro').textContent = p.proNote;
+            document.getElementById('proPeriod').textContent = pr.pro;
+
+            if (period === 'lifetime') {
+                document.querySelector('sup').textContent = '$';
+            }
+
+            document.querySelectorAll('.billing-tab').forEach(function (tab) {
+                var active = tab.dataset.period === period;
+                tab.classList.toggle('active', active);
+                tab.setAttribute('aria-pressed', String(active));
+            });
+        }
+
+        document.querySelectorAll('.billing-tab').forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                setPeriod(tab.dataset.period);
+            });
+        });
+    })();
+
+    /* Cookie consent */
+    (function () {
+        var CONSENT_KEY = 'ms_cookie_consent';
+        var consent = localStorage.getItem(CONSENT_KEY);
+        if (consent !== null) return;
+        var bar = document.getElementById('cookieConsentBar');
+        bar.style.display = 'flex';
+        document.getElementById('cookieAcceptBtn').addEventListener('click', function () {
+            localStorage.setItem(CONSENT_KEY, 'accepted');
+            bar.style.display = 'none';
+            window._initPostHog && window._initPostHog();
+        });
+        document.getElementById('cookieDeclineBtn').addEventListener('click', function () {
+            localStorage.setItem(CONSENT_KEY, 'declined');
+            bar.style.display = 'none';
+        });
+    })();
+</script>
+
 </body>
 </html>
