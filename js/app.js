@@ -9492,15 +9492,12 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 // ── Drag-to-reorder windows ───────────────────────────────────────────────────
 (()=>{
     const container = document.getElementById('canvasContainer');
-    let _dragSrcWrapper = null;
-    let _dropTarget     = null;
-    let _dropBefore     = true;
+    let _dragSrcWrapper    = null;
+    let _dragOrigNext      = null; // next sibling at dragstart — used to restore on cancel
+    let _dropTarget        = null;
+    let _dropBefore        = true;
     let _pendingFromHandle = false;
-
-    // Blue insertion-bar indicator (fixed-position overlay, avoids grid/overflow issues)
-    const ind = document.createElement('div');
-    ind.style.cssText = 'position:fixed;width:3px;border-radius:2px;background:#1e5eff;pointer-events:none;z-index:9999;display:none;';
-    document.body.appendChild(ind);
+    let _dropped           = false; // true when drop fired (so dragend skips restore)
 
     // Track whether the drag was initiated from a drag handle
     document.addEventListener('mousedown', e => {
@@ -9510,16 +9507,17 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     container.addEventListener('dragstart', e => {
         if(!_pendingFromHandle){ e.preventDefault(); return; }
         if(clipEditMode || colorLayerMode){ e.preventDefault(); return; }
-        // Handle is now in the outer .window-cell, so check both parent paths
         const wrapper = e.target.closest('.canvas-wrapper') ||
             e.target.closest('.window-cell')?.querySelector('.canvas-wrapper');
         if(!wrapper){ e.preventDefault(); return; }
         const srcData = canvasData.find(d => d.wrapperEl === wrapper);
         if(srcData?.locked){ e.preventDefault(); return; }
         _dragSrcWrapper = wrapper;
+        _dragOrigNext   = wrapper.nextElementSibling; // remember original position
+        _dropped        = false;
         e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', ''); // required for Firefox
-        // Delay opacity so the ghost image still renders at full opacity
+        e.dataTransfer.setData('text/plain', '');
+        // Delay so the ghost image captures the element at full opacity
         requestAnimationFrame(() => wrapper.classList.add('drag-source'));
     });
 
@@ -9528,67 +9526,61 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         const wrapper = e.target.closest('.canvas-wrapper');
-        if(!wrapper || wrapper === _dragSrcWrapper){ ind.style.display = 'none'; _dropTarget = null; return; }
-        const rect = wrapper.getBoundingClientRect();
-        _dropBefore = e.clientX < rect.left + rect.width / 2;
+        if(!wrapper || wrapper === _dragSrcWrapper) return;
+        const rect   = wrapper.getBoundingClientRect();
+        const before = e.clientX < rect.left + rect.width / 2;
+        // Only move if target or direction changed (avoids unnecessary reflows)
+        if(wrapper === _dropTarget && before === _dropBefore) return;
         _dropTarget = wrapper;
-        // Position the blue bar in the gap between cells
-        const x = _dropBefore ? rect.left - 1 : rect.right - 2;
-        ind.style.left   = x + 'px';
-        ind.style.top    = rect.top + 'px';
-        ind.style.height = rect.height + 'px';
-        ind.style.display = 'block';
-    });
-
-    container.addEventListener('dragleave', e => {
-        if(!container.contains(e.relatedTarget)){
-            ind.style.display = 'none';
-            _dropTarget = null;
-        }
+        _dropBefore = before;
+        // Live DOM reorder — grid reflows so surrounding items shift to show the gap
+        if(before) wrapper.before(_dragSrcWrapper);
+        else       wrapper.after(_dragSrcWrapper);
     });
 
     container.addEventListener('dragend', () => {
-        if(_dragSrcWrapper) _dragSrcWrapper.classList.remove('drag-source');
+        if(_dragSrcWrapper){
+            _dragSrcWrapper.classList.remove('drag-source');
+            // Drag was cancelled (no drop) — restore to original position
+            if(!_dropped){
+                const parent = _dragSrcWrapper.parentNode;
+                if(parent) parent.insertBefore(_dragSrcWrapper, _dragOrigNext);
+            }
+        }
         _dragSrcWrapper = null;
         _dropTarget     = null;
-        ind.style.display = 'none';
+        _dragOrigNext   = null;
+        _dropped        = false;
         _pendingFromHandle = false;
     });
 
     container.addEventListener('drop', e => {
         e.preventDefault();
-        ind.style.display = 'none';
+        if(!_dragSrcWrapper){ return; }
 
-        if(!_dragSrcWrapper || !_dropTarget || _dragSrcWrapper === _dropTarget){
-            if(_dragSrcWrapper) _dragSrcWrapper.classList.remove('drag-source');
-            _dragSrcWrapper = null; _dropTarget = null;
-            return;
-        }
+        _dropped = true; // tell dragend not to restore
 
-        // ── 0. Push undo for the reorder ─────────────────────────────────────
+        // No reorder needed — live dragover already placed the element correctly
+
+        // ── 0. Push undo ──────────────────────────────────────────────────────
         globalUndoStack.push({ type: 'reorder', order: [...canvasData] });
         if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
         globalRedoStack = [];
         updateUndoRedoButtons();
         _markDirty();
 
-        // ── 1. Reorder DOM ────────────────────────────────────────────────────
+        // ── 1. Remove drag-source class ───────────────────────────────────────
         _dragSrcWrapper.classList.remove('drag-source');
-        if(_dropBefore) _dropTarget.before(_dragSrcWrapper);
-        else            _dropTarget.after(_dragSrcWrapper);
 
-        // ── 2. Rebuild canvasData to match DOM order (all state lives on data
-        //       objects so nothing is lost — just the index changes) ────────────
-        const oldCanvasData   = [...canvasData];
-        const selectedDatas   = activeIndices.map(i => oldCanvasData[i]);
+        // ── 2. Rebuild canvasData to match new DOM order ──────────────────────
+        const oldCanvasData = [...canvasData];
+        const selectedDatas = activeIndices.map(i => oldCanvasData[i]);
 
         const wrappers = [...container.querySelectorAll('.canvas-wrapper')];
         canvasData = wrappers.map(w => oldCanvasData.find(d => d.wrapperEl === w));
 
-        // ── 3. Remap active indices to new positions ───────────────────────────
-        activeIndices     = selectedDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
-        // lastSelectedIndex is a data-object reference — remains valid after reorder;
-        // only clear it if the object is no longer present in canvasData.
+        // ── 3. Remap active indices ───────────────────────────────────────────
+        activeIndices = selectedDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
         if(lastSelectedIndex !== null && !canvasData.includes(lastSelectedIndex)){
             lastSelectedIndex = null;
         }
