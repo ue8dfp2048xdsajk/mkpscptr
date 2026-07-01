@@ -256,7 +256,6 @@ function initClerk() {
             portalBtn.addEventListener('click', function() {
                 window.location.href = '/#plans';
             });
-            document.getElementById('invoiceSection').style.display = 'none';
         } else {
             var subEndsAt = user.publicMetadata && user.publicMetadata.subscriptionEndsAt;
             if (subEndsAt) {
@@ -273,7 +272,7 @@ function initClerk() {
 
         var portalBtn2 = document.getElementById('openPortalBtn');
         if (plan !== 'free') {
-            portalBtn2.addEventListener('click', function() {
+            portalBtn2.addEventListener('click', function () {
                 portalBtn2.disabled = true;
                 portalBtn2.textContent = 'Loading…';
                 window.Clerk.session.getToken().then(function(token) {
@@ -302,8 +301,9 @@ function initClerk() {
                 });
             });
 
-            loadInvoices();
         }
+
+        loadInvoices();
 
         if (window.location.hash === '#invoices') {
             setTimeout(function() {
@@ -319,7 +319,7 @@ function loadInvoices() {
     if (!wrap) return;
 
     window.Clerk.session.getToken().then(function(token) {
-        return fetch('/api/billing/portal', {
+        return fetch('/api/billing/invoices', {
             headers: { 'Authorization': 'Bearer ' + token }
         });
     })

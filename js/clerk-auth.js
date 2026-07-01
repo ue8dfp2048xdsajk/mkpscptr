@@ -131,7 +131,7 @@
             cancelLine +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
             (!showUpgradeBtn ? '<button class="ms-avatar-billing-btn" id="clerkBillingBtn">Manage Billing</button>' : '') +
-            (!showUpgradeBtn ? '<div class="ms-invoice-panel" id="msInvoicePanel"><span class="ms-invoice-loading">Loading invoices…</span></div>' : '') +
+            '<div class="ms-invoice-panel" id="msInvoicePanel"><span class="ms-invoice-loading">Loading invoices…</span></div>' +
             '<button class="ms-avatar-settings-btn" id="clerkSettingsBtn">⚙ Settings</button>' +
             '<div class="ms-projects-section">' +
               '<div class="ms-projects-label">My Projects</div>' +
@@ -163,9 +163,9 @@
         }
 
         function _renameProject(uuid, newName) {
-            _apiWithToken('/api/projects/rename', {
-                method: 'POST',
-                body: JSON.stringify({ uuid: uuid, name: newName })
+            _apiWithToken('/api/projects/' + uuid, {
+                method: 'PATCH',
+                body: JSON.stringify({ name: newName })
             })
                 .then(function (r) { return r.json(); })
                 .then(function (d) {
@@ -284,14 +284,14 @@
         window._openCloudProjectsUI = function () {
             dropdown.classList.add('open');
             _loadProjects();
-            if (!showUpgradeBtn) _loadInvoices();
+            _loadInvoices();
         };
 
         function _loadInvoices() {
             var panel = dropdown.querySelector('#msInvoicePanel');
             if (!panel) return;
             window._clerkGetToken().then(function (token) {
-                return fetch('/api/billing/portal', {
+                return fetch('/api/billing/invoices', {
                     headers: token ? { 'Authorization': 'Bearer ' + token } : {}
                 });
             })
@@ -320,7 +320,7 @@
                 panel.innerHTML = html;
             })
             .catch(function () {
-                panel.innerHTML = '';
+                panel.innerHTML = '<span class="ms-invoice-none">Could not load invoices.</span>';
             });
         }
 
@@ -330,7 +330,7 @@
             dropdown.classList.toggle('open');
             if (opening) {
                 _loadProjects();
-                if (!showUpgradeBtn) _loadInvoices();
+                _loadInvoices();
             }
         });
 

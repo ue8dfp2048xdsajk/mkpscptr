@@ -38,6 +38,27 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true, snapshot: project.snapshot });
     }
 
+    if (req.method === 'PATCH') {
+        let userId;
+        try {
+            userId = await verifyClerkToken(req.headers.authorization);
+        } catch {
+            return res.status(502).json({ ok: false, error: 'Could not verify session' });
+        }
+        if (!userId) return res.status(401).json({ ok: false, error: 'Not authenticated' });
+
+        const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+        const { name } = body || {};
+
+        const project = await col.findOne({ uuid: id }, { projection: { userId: 1 } });
+        if (!project) return res.status(404).json({ ok: false, error: 'Project not found' });
+        if (project.userId !== userId) return res.status(403).json({ ok: false, error: 'Not your project' });
+
+        const newName = (name || '').trim() || 'Untitled';
+        await col.updateOne({ uuid: id }, { $set: { name: newName, updatedAt: new Date() } });
+        return res.status(200).json({ ok: true });
+    }
+
     if (req.method === 'DELETE') {
         let userId;
         try {

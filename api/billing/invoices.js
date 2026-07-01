@@ -31,22 +31,7 @@ async function resolveStripeCustomer(clerkUserId, clerkSecretKey, stripeSecretKe
                 const customer =
                     customers.find(c => c.subscriptions?.data?.some(s => s.status === 'active')) ||
                     customers[0];
-                if (customer) {
-                    stripeCustomerId = customer.id;
-                    if (clerkSecretKey) {
-                        fetch(
-                            `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}/metadata`,
-                            {
-                                method: 'PATCH',
-                                headers: {
-                                    Authorization: `Bearer ${clerkSecretKey}`,
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({ public_metadata: { stripeCustomerId } }),
-                            }
-                        ).catch(() => {});
-                    }
-                }
+                if (customer) stripeCustomerId = customer.id;
             }
         } catch {}
     }
@@ -58,7 +43,7 @@ module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
     if (handleOptions(req, res)) return;
 
-    if (req.method !== 'POST') {
+    if (req.method !== 'GET') {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
@@ -81,38 +66,32 @@ module.exports = async function handler(req, res) {
     const stripeCustomerId = await resolveStripeCustomer(clerkUserId, clerkSecretKey, stripeSecretKey);
 
     if (!stripeCustomerId) {
-        return res.status(404).json({
-            ok: false,
-            error: 'No billing account found. Please make a purchase first.',
-        });
+        return res.status(200).json({ ok: true, invoices: [] });
     }
 
-    const origin = req.headers.origin || 'https://mockupscripter.com';
-    const params = new URLSearchParams();
-    params.set('customer', stripeCustomerId);
-    params.set('return_url', `${origin}/`);
-
-    let portalRes;
+    let invoiceRes;
     try {
-        portalRes = await fetch('https://api.stripe.com/v1/billing_portal/sessions', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${stripeSecretKey}`,
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: params.toString(),
-        });
+        invoiceRes = await fetch(
+            `https://api.stripe.com/v1/invoices?customer=${encodeURIComponent(stripeCustomerId)}&limit=100&status=paid`,
+            { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+        );
     } catch {
         return res.status(502).json({ ok: false, error: 'Failed to reach Stripe API' });
     }
 
-    const data = await portalRes.json();
-    if (!portalRes.ok) {
-        return res.status(502).json({
-            ok: false,
-            error: data.error?.message || 'Stripe portal error',
-        });
+    const invData = await invoiceRes.json();
+    if (!invoiceRes.ok) {
+        return res.status(502).json({ ok: false, error: invData.error?.message || 'Stripe error' });
     }
 
-    return res.status(200).json({ ok: true, url: data.url });
+    const invoices = (invData.data || []).map(inv => ({
+        id: inv.id,
+        date: inv.created,
+        amount: inv.amount_paid,
+        currency: inv.currency,
+        pdfUrl: inv.invoice_pdf || null,
+        hostedUrl: inv.hosted_invoice_url || null,
+    }));
+
+    return res.status(200).json({ ok: true, invoices });
 };
