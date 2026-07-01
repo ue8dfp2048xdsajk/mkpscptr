@@ -87,7 +87,7 @@
         if (_fetchPromise) return _fetchPromise;
         _pricesLoading = true;
         var base = (typeof API_BASE !== 'undefined' ? API_BASE : '').replace(/\/$/, '');
-        _fetchPromise = fetch(base + '/api/config-check')
+        _fetchPromise = fetch(base + '/api/admin/config-check')
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
                 _configuredPrices = (data && data.prices) ? data.prices : {};

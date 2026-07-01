@@ -1,14 +1,14 @@
 /**
  * @jest-environment node
  *
- * Tests for the rate_limiter section of api/config-check.js.
+ * Tests for the rate_limiter section of api/admin/[action].js (config-check action).
  *
  * Three scenarios are covered:
  *  1. No backend configured (no Redis, no PG) → warning present, durable=false
  *  2. Redis configured → warning null, durable=true
  *  3. PG configured    → warning null, durable=true
  *
- * The handler is imported directly; only _cors is stubbed.
+ * The handler is imported directly; _cors and _nonce-store are stubbed.
  */
 
 'use strict';
@@ -16,6 +16,11 @@
 jest.mock('../api/_cors', () => ({
     setCorsHeaders: () => {},
     handleOptions: () => false,
+}));
+
+jest.mock('../api/_nonce-store', () => ({
+    deleteNonce: async () => {},
+    deleteNonceByUserPlan: async () => 0,
 }));
 
 function makeRes() {
@@ -28,7 +33,7 @@ function makeRes() {
 }
 
 function makeReq(method = 'GET') {
-    return { method, headers: {} };
+    return { method, headers: {}, query: { action: 'config-check' } };
 }
 
 function withEnv(overrides, fn) {
@@ -58,7 +63,7 @@ function withEnv(overrides, fn) {
     }
 }
 
-describe('GET /api/config-check — rate_limiter section', () => {
+describe('GET /api/admin/config-check — rate_limiter section', () => {
     test('no backend: warning is present and durable is false', async () => {
         let handler;
         withEnv({}, () => {
@@ -67,7 +72,11 @@ describe('GET /api/config-check — rate_limiter section', () => {
                 setCorsHeaders: () => {},
                 handleOptions: () => false,
             }));
-            handler = require('../api/config-check');
+            jest.mock('../api/_nonce-store', () => ({
+                deleteNonce: async () => {},
+                deleteNonceByUserPlan: async () => 0,
+            }));
+            handler = require('../api/admin/[action]');
         });
 
         const req = makeReq();
@@ -96,7 +105,11 @@ describe('GET /api/config-check — rate_limiter section', () => {
                     setCorsHeaders: () => {},
                     handleOptions: () => false,
                 }));
-                handler = require('../api/config-check');
+                jest.mock('../api/_nonce-store', () => ({
+                    deleteNonce: async () => {},
+                    deleteNonceByUserPlan: async () => 0,
+                }));
+                handler = require('../api/admin/[action]');
             },
         );
 
@@ -121,7 +134,11 @@ describe('GET /api/config-check — rate_limiter section', () => {
                     setCorsHeaders: () => {},
                     handleOptions: () => false,
                 }));
-                handler = require('../api/config-check');
+                jest.mock('../api/_nonce-store', () => ({
+                    deleteNonce: async () => {},
+                    deleteNonceByUserPlan: async () => 0,
+                }));
+                handler = require('../api/admin/[action]');
             },
         );
 

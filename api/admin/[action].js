@@ -1,7 +1,61 @@
-const { setCorsHeaders, handleOptions } = require('./_cors');
-const { deleteNonce, deleteNonceByUserPlan } = require('./_nonce-store');
+const { setCorsHeaders, handleOptions } = require('../_cors');
+const { deleteNonce, deleteNonceByUserPlan } = require('../_nonce-store');
 
-// POST /api/clear-nonce
+const USE_REDIS = Boolean(
+    process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+);
+const USE_PG = Boolean(process.env.DATABASE_URL);
+
+const PRICE_KEYS = [
+    'STRIPE_PRICE_STARTER_MONTHLY',
+    'STRIPE_PRICE_STARTER_ANNUAL',
+    'STRIPE_PRICE_STARTER_LIFETIME',
+    'STRIPE_PRICE_PRO_MONTHLY',
+    'STRIPE_PRICE_PRO_ANNUAL',
+    'STRIPE_PRICE_PRO_LIFETIME',
+];
+
+async function handleConfigCheck(req, res) {
+    if (req.method !== 'GET') {
+        return res.status(405).json({ ok: false, error: 'Method not allowed' });
+    }
+
+    const prices = {};
+    for (const key of PRICE_KEYS) {
+        const parts = key.replace('STRIPE_PRICE_', '').toLowerCase().split('_');
+        const period = parts.pop();
+        const plan = parts.join('_');
+        const combo = `${plan}_${period}`;
+        prices[combo] = !!process.env[key];
+    }
+
+    const missing = Object.entries(prices)
+        .filter(([, set]) => !set)
+        .map(([combo]) => `STRIPE_PRICE_${combo.toUpperCase()}`);
+
+    const rateLimiterBackend = USE_REDIS ? 'redis' : USE_PG ? 'postgresql' : 'in-memory';
+    const rateLimiterWarning = (!USE_REDIS && !USE_PG)
+        ? 'WARNING: Rate-limit counters are stored in process memory only. ' +
+          'Lockouts will not survive a cold start and will not be shared across ' +
+          'serverless instances. Configure UPSTASH_REDIS_REST_URL/TOKEN or ' +
+          'DATABASE_URL for reliable rate limiting in production.'
+        : null;
+
+    return res.status(200).json({
+        ok: true,
+        stripe_configured: !!process.env.STRIPE_SECRET_KEY,
+        prices,
+        missing,
+        all_configured: missing.length === 0,
+        rate_limiter: {
+            backend: rateLimiterBackend,
+            durable: USE_REDIS || USE_PG,
+            warning: rateLimiterWarning,
+        },
+    });
+}
+
+// POST /api/admin/clear-nonce
 //
 // Admin-only endpoint for clearing a stuck nonce when the nonce store had a
 // connectivity problem mid-checkout and deleteNonce() could not complete even
@@ -21,12 +75,7 @@ const { deleteNonce, deleteNonceByUserPlan } = require('./_nonce-store');
 //   401  { ok: false, error: "Unauthorized" }
 //   405  { ok: false, error: "Method not allowed" }
 //   500  { ok: false, error: "..." }     — store error
-
-module.exports = async function handler(req, res) {
-    setCorsHeaders(req, res);
-
-    if (handleOptions(req, res)) return;
-
+async function handleClearNonce(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
@@ -54,7 +103,6 @@ module.exports = async function handler(req, res) {
 
     const reasonStr = (typeof reason === 'string' && reason.trim()) ? reason.trim() : 'not provided';
 
-    // --- Mode 1: clear by nonce value ---
     if (nonce != null) {
         if (typeof nonce !== 'string' || nonce.trim() === '') {
             return res.status(400).json({ ok: false, error: 'nonce must be a non-empty string' });
@@ -77,7 +125,6 @@ module.exports = async function handler(req, res) {
         }
     }
 
-    // --- Mode 2: clear by userId + plan ---
     if (userId != null || plan != null) {
         if (typeof userId !== 'string' || userId.trim() === '') {
             return res.status(400).json({ ok: false, error: 'userId must be a non-empty string' });
@@ -107,4 +154,16 @@ module.exports = async function handler(req, res) {
         ok: false,
         error: 'Provide either { "nonce": "..." } or { "userId": "...", "plan": "..." }',
     });
+}
+
+module.exports = async function handler(req, res) {
+    setCorsHeaders(req, res);
+    if (handleOptions(req, res)) return;
+
+    const { action } = req.query;
+
+    if (action === 'config-check') return handleConfigCheck(req, res);
+    if (action === 'clear-nonce') return handleClearNonce(req, res);
+
+    return res.status(404).json({ ok: false, error: 'Not found' });
 };
