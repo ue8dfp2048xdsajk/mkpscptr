@@ -103,18 +103,17 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
     return Number(timestamp);
 }
 
-// Store stripeCustomerId → clerkUserId in MongoDB (upsert)
+// Store stripeCustomerId → clerkUserId in MongoDB (upsert).
+// IMPORTANT: this now throws on failure so the caller can return 500 and let
+// Stripe retry — a silently-dropped mapping means future subscription events
+// (updates, cancellations) cannot look up the Clerk user.
 async function storeCustomerMapping(stripeCustomerId, clerkUserId) {
-    try {
-        const db = await getDb();
-        await db.collection('customers').updateOne(
-            { stripeCustomerId },
-            { $set: { stripeCustomerId, clerkUserId, updatedAt: new Date() } },
-            { upsert: true }
-        );
-    } catch (err) {
-        console.error('stripe-webhook: failed to store customer mapping', err);
-    }
+    const db = await getDb();
+    await db.collection('customers').updateOne(
+        { stripeCustomerId },
+        { $set: { stripeCustomerId, clerkUserId, updatedAt: new Date() } },
+        { upsert: true }
+    );
 }
 
 // Look up clerkUserId from stripeCustomerId via MongoDB
@@ -142,6 +141,7 @@ async function patchClerkPublicMetadata(clerkUserId, fields, clerkSecretKey) {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ public_metadata: fields }),
+                signal: AbortSignal.timeout(8000),
             }
         );
     } catch (err) {
@@ -171,6 +171,7 @@ async function callSetPlan(baseUrl, setPlanSecret, userId, plan, nonce, extraHea
             ...extraHeaders,
         },
         body: JSON.stringify({ userId, plan }),
+        signal: AbortSignal.timeout(15000),
     });
 }
 
@@ -180,7 +181,17 @@ module.exports = async function handler(req, res) {
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
 
+    // Diagnostic endpoint — requires Bearer <SET_PLAN_SECRET> auth.
+    // Previously this was open, leaking configuration state to anyone.
     if (req.method === 'GET') {
+        if (!setPlanSecret) {
+            return res.status(500).json({ ok: false, error: 'Server misconfigured — SET_PLAN_SECRET is not set' });
+        }
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+        if (!token || token !== setPlanSecret) {
+            return res.status(401).json({ ok: false, error: 'Unauthorized' });
+        }
         const configured = {
             STRIPE_WEBHOOK_SECRET: Boolean(webhookSecret && webhookSecret.startsWith('whsec_')),
             STRIPE_SECRET_KEY: Boolean(process.env.STRIPE_SECRET_KEY),
@@ -275,7 +286,10 @@ module.exports = async function handler(req, res) {
                 try {
                     const expandRes = await fetch(
                         `https://api.stripe.com/v1/checkout/sessions/${session.id}?expand[]=line_items`,
-                        { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+                        {
+                            headers: { Authorization: `Bearer ${stripeSecretKey}` },
+                            signal: AbortSignal.timeout(8000),
+                        }
                     );
                     if (expandRes.ok) {
                         const expandedSession = await expandRes.json();
@@ -298,9 +312,17 @@ module.exports = async function handler(req, res) {
             return res.status(400).json({ ok: false, error: 'Could not determine plan from Stripe session' });
         }
 
-        // Store customer ID mapping so subscription events can look up the Clerk user
+        // Store customer ID mapping so subscription events can look up the Clerk user.
+        // If this write fails, return 500 so Stripe retries — a dropped mapping means
+        // future subscription.updated / subscription.deleted events cannot find the user.
         if (session.customer) {
-            await storeCustomerMapping(session.customer, userId);
+            try {
+                await storeCustomerMapping(session.customer, userId);
+            } catch (err) {
+                console.error('stripe-webhook: failed to store customer mapping — returning 500 so Stripe retries:', err);
+                return res.status(500).json({ ok: false, error: 'Failed to store customer mapping' });
+            }
+            // Clerk metadata update is best-effort — non-fatal if it fails.
             await storeStripeCustomerInClerk(userId, session.customer, clerkSecretKey);
         }
 

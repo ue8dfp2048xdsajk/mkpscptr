@@ -67,7 +67,11 @@ describe('GET /api/webhooks/stripe — config health-check', () => {
     });
 
     test('returns 200 + ok:true when all required env vars are set correctly', async () => {
-        const { req, res, restore } = makeReqRes({ method: 'GET', env: GOOD_ENV });
+        const { req, res, restore } = makeReqRes({
+            method: 'GET',
+            headers: { authorization: `Bearer ${GOOD_ENV.SET_PLAN_SECRET}` },
+            env: GOOD_ENV,
+        });
         await handler(req, res);
         restore();
         expect(res._status).toBe(200);
@@ -82,6 +86,7 @@ describe('GET /api/webhooks/stripe — config health-check', () => {
         delete env.STRIPE_WEBHOOK_SECRET;
         const { req, res, restore } = makeReqRes({
             method: 'GET',
+            headers: { authorization: `Bearer ${GOOD_ENV.SET_PLAN_SECRET}` },
             env: { ...env, STRIPE_WEBHOOK_SECRET: '' },
         });
         await handler(req, res);
@@ -94,6 +99,7 @@ describe('GET /api/webhooks/stripe — config health-check', () => {
     test('returns 503 + ok:false when STRIPE_WEBHOOK_SECRET has wrong format', async () => {
         const { req, res, restore } = makeReqRes({
             method: 'GET',
+            headers: { authorization: `Bearer ${GOOD_ENV.SET_PLAN_SECRET}` },
             env: { ...GOOD_ENV, STRIPE_WEBHOOK_SECRET: 'not_a_valid_secret' },
         });
         await handler(req, res);
@@ -114,6 +120,7 @@ describe('GET /api/webhooks/stripe — STRIPE_SECRET_KEY health-check', () => {
     test('returns 503 + configured.STRIPE_SECRET_KEY===false when STRIPE_SECRET_KEY is missing', async () => {
         const { req, res, restore } = makeReqRes({
             method: 'GET',
+            headers: { authorization: `Bearer ${GOOD_ENV.SET_PLAN_SECRET}` },
             env: { ...GOOD_ENV, STRIPE_SECRET_KEY: '' },
         });
         await handler(req, res);
@@ -124,7 +131,11 @@ describe('GET /api/webhooks/stripe — STRIPE_SECRET_KEY health-check', () => {
     });
 
     test('returns 200 + ok:true when all four env vars are present', async () => {
-        const { req, res, restore } = makeReqRes({ method: 'GET', env: GOOD_ENV });
+        const { req, res, restore } = makeReqRes({
+            method: 'GET',
+            headers: { authorization: `Bearer ${GOOD_ENV.SET_PLAN_SECRET}` },
+            env: GOOD_ENV,
+        });
         await handler(req, res);
         restore();
         expect(res._status).toBe(200);

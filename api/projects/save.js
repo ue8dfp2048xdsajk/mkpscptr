@@ -3,9 +3,18 @@ const { getDb } = require('../_db');
 const { verifyClerkToken } = require('../_verify-clerk-token');
 const crypto = require('crypto');
 
-const MAX_BODY_BYTES = 15 * 1024 * 1024; // 15 MB
-const ANON_TTL_MS   = 48 * 60 * 60 * 1000; // 48 hours
-const ANON_RATE_MS  = 10 * 60 * 1000; // 10 minutes between new anon saves
+const MAX_BODY_BYTES  = 15 * 1024 * 1024; // 15 MB
+const MAX_NAME_LENGTH = 255;
+const ANON_TTL_MS     = 48 * 60 * 60 * 1000; // 48 hours
+const ANON_RATE_MS    = 10 * 60 * 1000; // 10 minutes between new anon saves
+
+// Hash client IPs before storing them so raw addresses never land in MongoDB.
+// A static app-specific prefix makes generic rainbow tables useless.
+// Set IP_HASH_SALT in env for a secret salt that prevents targeted precomputation.
+const IP_HASH_SALT = process.env.IP_HASH_SALT || 'mockupscripter-ip-v1';
+function hashIp(ip) {
+    return crypto.createHash('sha256').update(IP_HASH_SALT + ip).digest('hex').slice(0, 16);
+}
 
 function getClientIp(req) {
     const fwd = req.headers['x-forwarded-for'];
@@ -15,7 +24,10 @@ function getClientIp(req) {
 async function getClerkUserPlan(clerkUserId, clerkSecretKey) {
     const res = await fetch(
         `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
-        { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
+        {
+            headers: { Authorization: `Bearer ${clerkSecretKey}` },
+            signal: AbortSignal.timeout(8000),
+        }
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -39,10 +51,22 @@ module.exports = async function handler(req, res) {
 
     const { uuid, snapshot, name } = body || {};
 
+    // ── Input validation ─────────────────────────────────────────────────────
+
+    if (name != null) {
+        if (typeof name !== 'string') {
+            return res.status(400).json({ ok: false, error: 'name must be a string' });
+        }
+        if (name.trim().length > MAX_NAME_LENGTH) {
+            return res.status(400).json({ ok: false, error: `name must be ${MAX_NAME_LENGTH} characters or fewer` });
+        }
+    }
+
     if (!snapshot || typeof snapshot !== 'object') {
         return res.status(400).json({ ok: false, error: 'Missing snapshot' });
     }
-    if (!snapshot.schemaVersion) {
+    // Use null-check instead of truthiness so schemaVersion: 0 is accepted.
+    if (snapshot.schemaVersion == null) {
         return res.status(400).json({ ok: false, error: 'Missing schemaVersion in snapshot' });
     }
 
@@ -53,6 +77,7 @@ module.exports = async function handler(req, res) {
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     const clientIp = getClientIp(req);
+    const ipHash = hashIp(clientIp);
     const now = new Date();
 
     // Validate uuid format when provided (both authenticated and anonymous overwrite paths)
@@ -87,32 +112,59 @@ module.exports = async function handler(req, res) {
     const col = db.collection('projects');
 
     if (clerkUserId) {
-        // Look up plan from Clerk (needed for limit enforcement)
-        // When CLERK_SECRET_KEY is absent (local dev), skip enforcement and allow saves.
-        let plan = 'pro';
+        // Look up plan from Clerk (needed for limit enforcement).
+        // Default to 'free' — not 'pro' — so that a missing or misconfigured
+        // CLERK_SECRET_KEY fails safe rather than granting unlimited saves.
+        let plan = 'free';
         if (clerkSecretKey) {
             try {
                 plan = await getClerkUserPlan(clerkUserId, clerkSecretKey) || 'free';
             } catch {
                 return res.status(502).json({ ok: false, error: 'Could not reach auth server' });
             }
+        } else {
+            console.warn('projects/save: CLERK_SECRET_KEY not set — plan defaults to free (no saves allowed for unauthenticated dev)');
         }
 
         const PLAN_RANK = { free: 0, starter: 1, pro: 2 };
 
         // Overwrite existing project
         if (uuid) {
-            const existing = await col.findOne({ uuid });
+            let existing;
+            try {
+                existing = await col.findOne({ uuid });
+            } catch (err) {
+                console.error('projects/save: findOne (overwrite) failed', err);
+                return res.status(500).json({ ok: false, error: 'Failed to load project' });
+            }
+
             if (!existing) {
                 return res.status(404).json({ ok: false, error: 'Project not found' });
             }
-            if (existing.userId && existing.userId !== clerkUserId) {
+
+            // Prevent any authenticated user from silently overwriting an anonymous
+            // project. Anonymous projects must be claimed via /api/projects/claim
+            // before they can be saved to. Without this check, knowing any UUID is
+            // sufficient to hijack another user's unsaved work.
+            if (existing.userId !== clerkUserId) {
+                if (!existing.userId) {
+                    return res.status(403).json({
+                        ok: false,
+                        error: 'Anonymous project — use /api/projects/claim to take ownership first',
+                    });
+                }
                 return res.status(403).json({ ok: false, error: 'Not your project' });
             }
+
             const nameToSet = (name || '').trim() || existing.name || 'Untitled';
-            await col.updateOne({ uuid }, {
-                $set: { snapshot, name: nameToSet, updatedAt: now, userId: clerkUserId, expiresAt: null }
-            });
+            try {
+                await col.updateOne({ uuid }, {
+                    $set: { snapshot, name: nameToSet, updatedAt: now, userId: clerkUserId, expiresAt: null }
+                });
+            } catch (err) {
+                console.error('projects/save: updateOne (overwrite) failed', err);
+                return res.status(500).json({ ok: false, error: 'Failed to save project' });
+            }
             return res.status(200).json({ ok: true, uuid });
         }
 
@@ -124,47 +176,75 @@ module.exports = async function handler(req, res) {
             // Atomic find-or-create: avoids race where two concurrent requests
             // both see no existing project and both insert.
             const starterUuid = crypto.randomUUID();
-            const result = await col.findOneAndUpdate(
-                { userId: clerkUserId },
-                {
-                    $set: { snapshot, updatedAt: now, plan, userId: clerkUserId, expiresAt: null },
-                    $setOnInsert: {
-                        uuid: starterUuid,
-                        schemaVersion: snapshot.schemaVersion,
-                        createdAt: now,
-                        name: (name || '').trim() || 'Untitled',
+            let result;
+            try {
+                result = await col.findOneAndUpdate(
+                    { userId: clerkUserId },
+                    {
+                        $set: { snapshot, updatedAt: now, plan, userId: clerkUserId, expiresAt: null },
+                        $setOnInsert: {
+                            uuid: starterUuid,
+                            schemaVersion: snapshot.schemaVersion,
+                            createdAt: now,
+                            name: (name || '').trim() || 'Untitled',
+                        },
                     },
-                },
-                { upsert: true, returnDocument: 'after' }
-            );
+                    { upsert: true, returnDocument: 'after' }
+                );
+            } catch (err) {
+                console.error('projects/save: findOneAndUpdate (starter) failed', err);
+                return res.status(500).json({ ok: false, error: 'Failed to save project' });
+            }
             return res.status(200).json({ ok: true, uuid: result.uuid });
         }
         if (plan === 'pro') {
-            const proCount = await col.countDocuments({ userId: clerkUserId });
+            let proCount;
+            try {
+                proCount = await col.countDocuments({ userId: clerkUserId });
+            } catch (err) {
+                console.error('projects/save: countDocuments (pro) failed', err);
+                return res.status(500).json({ ok: false, error: 'Failed to count projects' });
+            }
             if (proCount >= 50) {
                 return res.status(403).json({ ok: false, error: 'project_limit_reached' });
             }
         }
 
         const newUuid = crypto.randomUUID();
-        await col.insertOne({
-            uuid: newUuid,
-            userId: clerkUserId,
-            plan,
-            name: (name || '').trim() || 'Untitled',
-            snapshot,
-            schemaVersion: snapshot.schemaVersion,
-            createdAt: now,
-            updatedAt: now,
-            expiresAt: null,
-        });
+        try {
+            await col.insertOne({
+                uuid: newUuid,
+                userId: clerkUserId,
+                plan,
+                name: (name || '').trim() || 'Untitled',
+                snapshot,
+                schemaVersion: snapshot.schemaVersion,
+                createdAt: now,
+                updatedAt: now,
+                expiresAt: null,
+            });
+        } catch (err) {
+            console.error('projects/save: insertOne (pro) failed', err);
+            return res.status(500).json({ ok: false, error: 'Failed to save project' });
+        }
 
         // Post-insert guard: if two concurrent Pro requests both passed the
         // count check, the one that pushed the total over 50 is rolled back.
         if (plan === 'pro') {
-            const postCount = await col.countDocuments({ userId: clerkUserId });
+            let postCount;
+            try {
+                postCount = await col.countDocuments({ userId: clerkUserId });
+            } catch (err) {
+                console.error('projects/save: post-insert countDocuments failed', err);
+                // Non-fatal — project was inserted; we just can't verify the cap.
+                return res.status(200).json({ ok: true, uuid: newUuid });
+            }
             if (postCount > 50) {
-                await col.deleteOne({ uuid: newUuid });
+                try {
+                    await col.deleteOne({ uuid: newUuid });
+                } catch (err) {
+                    console.error('projects/save: rollback deleteOne failed', err);
+                }
                 return res.status(403).json({ ok: false, error: 'project_limit_reached' });
             }
         }
@@ -174,7 +254,14 @@ module.exports = async function handler(req, res) {
 
     // ── Anonymous save ───────────────────────────────────────────────────────
     if (uuid) {
-        const existing = await col.findOne({ uuid });
+        let existing;
+        try {
+            existing = await col.findOne({ uuid });
+        } catch (err) {
+            console.error('projects/save: findOne (anon overwrite) failed', err);
+            return res.status(500).json({ ok: false, error: 'Failed to load project' });
+        }
+
         if (!existing) {
             return res.status(404).json({ ok: false, error: 'Project not found' });
         }
@@ -182,18 +269,30 @@ module.exports = async function handler(req, res) {
             return res.status(403).json({ ok: false, error: 'Sign in to edit this project' });
         }
         const newExpiry = new Date(now.getTime() + ANON_TTL_MS);
-        await col.updateOne({ uuid }, {
-            $set: { snapshot, updatedAt: now, expiresAt: newExpiry }
-        });
+        try {
+            await col.updateOne({ uuid }, {
+                $set: { snapshot, updatedAt: now, expiresAt: newExpiry }
+            });
+        } catch (err) {
+            console.error('projects/save: updateOne (anon overwrite) failed', err);
+            return res.status(500).json({ ok: false, error: 'Failed to save project' });
+        }
         return res.status(200).json({ ok: true, uuid });
     }
 
-    // New anonymous save — rate limit by IP
-    const recentAnon = await col.findOne({
-        ip: clientIp,
-        userId: null,
-        createdAt: { $gte: new Date(now.getTime() - ANON_RATE_MS) }
-    });
+    // New anonymous save — rate limit by hashed IP
+    let recentAnon;
+    try {
+        recentAnon = await col.findOne({
+            ip: ipHash,
+            userId: null,
+            createdAt: { $gte: new Date(now.getTime() - ANON_RATE_MS) }
+        });
+    } catch (err) {
+        console.error('projects/save: rate-limit findOne (anon) failed', err);
+        return res.status(500).json({ ok: false, error: 'Failed to check rate limit' });
+    }
+
     if (recentAnon) {
         return res.status(429).json({
             ok: false,
@@ -203,17 +302,22 @@ module.exports = async function handler(req, res) {
 
     const newUuid = crypto.randomUUID();
     const expiresAt = new Date(now.getTime() + ANON_TTL_MS);
-    await col.insertOne({
-        uuid: newUuid,
-        userId: null,
-        ip: clientIp,
-        plan: 'anon',
-        snapshot,
-        schemaVersion: snapshot.schemaVersion,
-        createdAt: now,
-        updatedAt: now,
-        expiresAt,
-    });
+    try {
+        await col.insertOne({
+            uuid: newUuid,
+            userId: null,
+            ip: ipHash,
+            plan: 'anon',
+            snapshot,
+            schemaVersion: snapshot.schemaVersion,
+            createdAt: now,
+            updatedAt: now,
+            expiresAt,
+        });
+    } catch (err) {
+        console.error('projects/save: insertOne (anon) failed', err);
+        return res.status(500).json({ ok: false, error: 'Failed to save project' });
+    }
 
     return res.status(200).json({ ok: true, uuid: newUuid });
 };

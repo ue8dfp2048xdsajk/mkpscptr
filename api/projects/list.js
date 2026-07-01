@@ -30,14 +30,21 @@ module.exports = async function handler(req, res) {
     }
 
     const col = db.collection('projects');
-    const projects = await col
-        .find(
-            { userId: clerkUserId },
-            { projection: { _id: 0, uuid: 1, name: 1, updatedAt: 1 } }
-        )
-        .sort({ updatedAt: -1 })
-        .limit(20)
-        .toArray();
+
+    let projects;
+    try {
+        projects = await col
+            .find(
+                { userId: clerkUserId },
+                { projection: { _id: 0, uuid: 1, name: 1, updatedAt: 1 } }
+            )
+            .sort({ updatedAt: -1 })
+            .limit(50)
+            .toArray();
+    } catch (err) {
+        console.error('projects/list: query failed', err);
+        return res.status(500).json({ ok: false, error: 'Failed to load projects' });
+    }
 
     return res.status(200).json({ ok: true, projects });
 };

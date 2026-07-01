@@ -16,22 +16,31 @@ function billingRateLimited(userId) {
 }
 
 // Resolve the Stripe customer ID for a Clerk user from their Clerk public_metadata.
-// The stripeCustomerId is stored there by the webhook when checkout.session.completed
-// fires. We do NOT fall back to an email-based Stripe search — that lookup can
-// resolve to a different customer with the same email address, which would expose
-// another user's invoices or let them manage an unrelated subscription via the portal.
+// Returns { customerId, error } where:
+//   customerId — the Stripe customer ID, or null if none is stored
+//   error      — non-null string if Clerk was unreachable or returned an error,
+//                so callers can distinguish "no account" from "Clerk is down"
+//
+// We do NOT fall back to an email-based Stripe search — that lookup can
+// resolve to a different customer with the same email address, exposing
+// another user's invoices or granting portal access to an unrelated subscription.
 async function resolveStripeCustomer(clerkUserId, clerkSecretKey) {
-    if (!clerkSecretKey) return null;
+    if (!clerkSecretKey) return { customerId: null, error: null };
     try {
         const r = await fetch(
             `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
-            { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
+            {
+                headers: { Authorization: `Bearer ${clerkSecretKey}` },
+                signal: AbortSignal.timeout(8000),
+            }
         );
-        if (!r.ok) return null;
+        if (!r.ok) {
+            return { customerId: null, error: `Clerk returned ${r.status}` };
+        }
         const d = await r.json();
-        return d?.public_metadata?.stripeCustomerId || null;
+        return { customerId: d?.public_metadata?.stripeCustomerId || null, error: null };
     } catch {
-        return null;
+        return { customerId: null, error: 'Clerk unreachable' };
     }
 }
 
@@ -44,7 +53,10 @@ async function handleInvoices(req, res, stripeCustomerId, stripeSecretKey) {
     try {
         invoiceRes = await fetch(
             `https://api.stripe.com/v1/invoices?customer=${encodeURIComponent(stripeCustomerId)}&limit=100&status=paid`,
-            { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+            {
+                headers: { Authorization: `Bearer ${stripeSecretKey}` },
+                signal: AbortSignal.timeout(8000),
+            }
         );
     } catch {
         return res.status(502).json({ ok: false, error: 'Failed to reach Stripe API' });
@@ -88,6 +100,7 @@ async function handlePortal(req, res, stripeCustomerId, stripeSecretKey) {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: params.toString(),
+            signal: AbortSignal.timeout(8000),
         });
     } catch {
         return res.status(502).json({ ok: false, error: 'Failed to reach Stripe API' });
@@ -131,7 +144,13 @@ module.exports = async function handler(req, res) {
     }
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    const stripeCustomerId = await resolveStripeCustomer(clerkUserId, clerkSecretKey);
+    const { customerId: stripeCustomerId, error: clerkError } = await resolveStripeCustomer(clerkUserId, clerkSecretKey);
+
+    // If Clerk is reachable but returned an error, surface it — do not silently
+    // return an empty invoice list or a misleading "no billing account" message.
+    if (clerkError) {
+        return res.status(502).json({ ok: false, error: 'Could not reach authentication server. Please try again.' });
+    }
 
     if (action === 'invoices') {
         if (!stripeCustomerId) {

@@ -11,16 +11,12 @@ let _client = null;
 let _clientPromise = null;
 
 async function getClient() {
-    if (_client) {
-        try {
-            // MongoDB driver v6 removed topology.isConnected(); use a ping instead.
-            await _client.db('admin').command({ ping: 1 });
-            return _client;
-        } catch {
-            // Connection dropped — fall through to reconnect.
-            _client = null;
-        }
-    }
+    // Return a cached client if one exists. The MongoDB driver manages its
+    // own connection pool and replaces broken connections automatically —
+    // no manual ping is needed. If a query fails because the connection is
+    // stale, callers should catch the error and call invalidateClient() so
+    // the next request establishes a fresh connection.
+    if (_client) return _client;
     if (!_clientPromise) {
         _clientPromise = MongoClient.connect(MONGODB_URI, {
             maxPoolSize: 10,
@@ -43,4 +39,10 @@ async function getDb() {
     return client.db(DB_NAME);
 }
 
-module.exports = { getDb };
+// Call after a fatal query error to force a fresh connection on the next request.
+function invalidateClient() {
+    _client = null;
+    _clientPromise = null;
+}
+
+module.exports = { getDb, invalidateClient };

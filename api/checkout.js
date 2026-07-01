@@ -15,15 +15,6 @@ function checkoutRateLimited(userId) {
     return false;
 }
 
-const PRICE_MAP = {
-    starter_monthly:  process.env.STRIPE_PRICE_STARTER_MONTHLY,
-    starter_annual:   process.env.STRIPE_PRICE_STARTER_ANNUAL,
-    starter_lifetime: process.env.STRIPE_PRICE_STARTER_LIFETIME,
-    pro_monthly:      process.env.STRIPE_PRICE_PRO_MONTHLY,
-    pro_annual:       process.env.STRIPE_PRICE_PRO_ANNUAL,
-    pro_lifetime:     process.env.STRIPE_PRICE_PRO_LIFETIME,
-};
-
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
     if (handleOptions(req, res)) return;
@@ -36,6 +27,18 @@ module.exports = async function handler(req, res) {
     if (!stripeSecretKey) {
         return res.status(500).json({ ok: false, error: 'Stripe is not configured on this server' });
     }
+
+    // Read price IDs at request time — not at module load — so that env-var
+    // changes and test overrides (jest.resetModules + per-test env) are picked
+    // up correctly without stale module-level values.
+    const PRICE_MAP = {
+        starter_monthly:  process.env.STRIPE_PRICE_STARTER_MONTHLY,
+        starter_annual:   process.env.STRIPE_PRICE_STARTER_ANNUAL,
+        starter_lifetime: process.env.STRIPE_PRICE_STARTER_LIFETIME,
+        pro_monthly:      process.env.STRIPE_PRICE_PRO_MONTHLY,
+        pro_annual:       process.env.STRIPE_PRICE_PRO_ANNUAL,
+        pro_lifetime:     process.env.STRIPE_PRICE_PRO_LIFETIME,
+    };
 
     let body;
     try {
@@ -84,6 +87,7 @@ module.exports = async function handler(req, res) {
         try {
             clerkRes = await fetch(`https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`, {
                 headers: { Authorization: `Bearer ${clerkSecretKey}` },
+                signal: AbortSignal.timeout(8000),
             });
         } catch {
             return res.status(502).json({ ok: false, code: 'CLERK_UNREACHABLE', error: 'Failed to reach Clerk API' });
@@ -141,6 +145,7 @@ module.exports = async function handler(req, res) {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: params.toString(),
+            signal: AbortSignal.timeout(10000),
         });
     } catch (err) {
         return res.status(502).json({ ok: false, error: 'Failed to reach Stripe API' });

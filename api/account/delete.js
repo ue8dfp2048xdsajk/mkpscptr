@@ -77,6 +77,7 @@ module.exports = async function handler(req, res) {
                     {
                         method: 'DELETE',
                         headers: { Authorization: `Bearer ${stripeSecretKey}` },
+                        signal: AbortSignal.timeout(8000),
                     }
                 );
                 if (!stripeRes.ok) {
@@ -105,6 +106,7 @@ module.exports = async function handler(req, res) {
             {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${clerkSecretKey}` },
+                signal: AbortSignal.timeout(8000),
             }
         );
     } catch {

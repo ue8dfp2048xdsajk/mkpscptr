@@ -21,12 +21,19 @@ async function handleConfigCheck(req, res) {
     }
 
     const setPlanSecret = process.env.SET_PLAN_SECRET;
-    if (setPlanSecret) {
-        const authHeader = req.headers.authorization || '';
-        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-        if (!token || token !== setPlanSecret) {
-            return res.status(401).json({ ok: false, error: 'Unauthorized' });
-        }
+
+    // Fail closed: if SET_PLAN_SECRET is absent the endpoint cannot be
+    // authenticated — return 500 rather than falling through to open access
+    // and leaking configuration state to unauthenticated callers.
+    if (!setPlanSecret) {
+        console.error('admin/config-check: SET_PLAN_SECRET is not set — refusing unauthenticated access');
+        return res.status(500).json({ ok: false, error: 'Server misconfigured — SET_PLAN_SECRET is not set' });
+    }
+
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!token || token !== setPlanSecret) {
+        return res.status(401).json({ ok: false, error: 'Unauthorized' });
     }
 
     const prices = {};

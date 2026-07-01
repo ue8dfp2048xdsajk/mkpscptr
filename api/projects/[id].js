@@ -24,10 +24,16 @@ module.exports = async function handler(req, res) {
     const col = db.collection('projects');
 
     if (req.method === 'GET') {
-        const project = await col.findOne(
-            { uuid: id },
-            { projection: { _id: 0, snapshot: 1, schemaVersion: 1, updatedAt: 1, expiresAt: 1 } }
-        );
+        let project;
+        try {
+            project = await col.findOne(
+                { uuid: id },
+                { projection: { _id: 0, snapshot: 1, schemaVersion: 1, updatedAt: 1, expiresAt: 1 } }
+            );
+        } catch (err) {
+            console.error('projects/[id]: GET findOne failed', err);
+            return res.status(500).json({ ok: false, error: 'Failed to load project' });
+        }
 
         if (!project) {
             return res.status(404).json({ ok: false, error: 'Project not found' });
@@ -65,12 +71,25 @@ module.exports = async function handler(req, res) {
             return res.status(400).json({ ok: false, error: `name must be ${MAX_NAME_LENGTH} characters or fewer` });
         }
 
-        const project = await col.findOne({ uuid: id }, { projection: { userId: 1, name: 1 } });
+        let project;
+        try {
+            project = await col.findOne({ uuid: id }, { projection: { userId: 1, name: 1 } });
+        } catch (err) {
+            console.error('projects/[id]: PATCH findOne failed', err);
+            return res.status(500).json({ ok: false, error: 'Failed to load project' });
+        }
+
         if (!project) return res.status(404).json({ ok: false, error: 'Project not found' });
         if (project.userId !== userId) return res.status(403).json({ ok: false, error: 'Not your project' });
 
         const newName = trimmedName || project.name || 'Untitled';
-        await col.updateOne({ uuid: id }, { $set: { name: newName, updatedAt: new Date() } });
+        try {
+            await col.updateOne({ uuid: id }, { $set: { name: newName, updatedAt: new Date() } });
+        } catch (err) {
+            console.error('projects/[id]: PATCH updateOne failed', err);
+            return res.status(500).json({ ok: false, error: 'Failed to update project' });
+        }
+
         return res.status(200).json({ ok: true });
     }
 
@@ -83,11 +102,24 @@ module.exports = async function handler(req, res) {
         }
         if (!userId) return res.status(401).json({ ok: false, error: 'Not authenticated' });
 
-        const project = await col.findOne({ uuid: id }, { projection: { userId: 1 } });
+        let project;
+        try {
+            project = await col.findOne({ uuid: id }, { projection: { userId: 1 } });
+        } catch (err) {
+            console.error('projects/[id]: DELETE findOne failed', err);
+            return res.status(500).json({ ok: false, error: 'Failed to load project' });
+        }
+
         if (!project) return res.status(404).json({ ok: false, error: 'Project not found' });
         if (project.userId !== userId) return res.status(403).json({ ok: false, error: 'Not your project' });
 
-        await col.deleteOne({ uuid: id });
+        try {
+            await col.deleteOne({ uuid: id });
+        } catch (err) {
+            console.error('projects/[id]: DELETE deleteOne failed', err);
+            return res.status(500).json({ ok: false, error: 'Failed to delete project' });
+        }
+
         return res.status(200).json({ ok: true });
     }
 

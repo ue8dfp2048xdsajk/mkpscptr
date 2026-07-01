@@ -42,7 +42,10 @@ module.exports = async function handler(req, res) {
         try {
             const r = await fetch(
                 `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
-                { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
+                {
+                    headers: { Authorization: `Bearer ${clerkSecretKey}` },
+                    signal: AbortSignal.timeout(8000),
+                }
             );
             if (r.ok) {
                 const d = await r.json();
@@ -62,7 +65,14 @@ module.exports = async function handler(req, res) {
     }
 
     const col = db.collection('projects');
-    const project = await col.findOne({ uuid });
+
+    let project;
+    try {
+        project = await col.findOne({ uuid });
+    } catch (err) {
+        console.error('projects/claim: findOne failed', err);
+        return res.status(500).json({ ok: false, error: 'Failed to look up project' });
+    }
 
     if (!project) {
         return res.status(404).json({ ok: false, error: 'Project not found' });
@@ -74,15 +84,20 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true, uuid, message: 'Already claimed' });
     }
 
-    await col.updateOne({ uuid }, {
-        $set: {
-            userId: clerkUserId,
-            plan,
-            expiresAt: null,
-            ip: null,
-            updatedAt: new Date(),
-        }
-    });
+    try {
+        await col.updateOne({ uuid }, {
+            $set: {
+                userId: clerkUserId,
+                plan,
+                expiresAt: null,
+                ip: null,
+                updatedAt: new Date(),
+            }
+        });
+    } catch (err) {
+        console.error('projects/claim: updateOne failed', err);
+        return res.status(500).json({ ok: false, error: 'Failed to claim project' });
+    }
 
     return res.status(200).json({ ok: true, uuid });
 };

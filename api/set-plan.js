@@ -4,9 +4,18 @@ const { isNonceSeen, recordNonce, deleteNonce } = require('./_nonce-store');
 
 const VALID_PLANS = ['free', 'starter', 'pro'];
 
+// Use x-real-ip when available (set by Vercel/Nginx from the verified edge
+// connection and cannot be spoofed by the client). Fall back to the RIGHTMOST
+// value in x-forwarded-for, which is appended by the most-trusted proxy rather
+// than the leftmost value which is attacker-controlled in non-Vercel setups.
 function getClientIp(req) {
+    const realIp = req.headers['x-real-ip'];
+    if (realIp && typeof realIp === 'string') return realIp.trim();
     const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) return forwarded.split(',')[0].trim();
+    if (forwarded) {
+        const parts = forwarded.split(',');
+        return parts[parts.length - 1].trim();
+    }
     return req.socket?.remoteAddress || 'unknown';
 }
 
@@ -119,6 +128,7 @@ module.exports = async function handler(req, res) {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ public_metadata: { plan } }),
+            signal: AbortSignal.timeout(8000),
         });
     } catch (err) {
         console.error('set-plan: Clerk API fetch error', err);

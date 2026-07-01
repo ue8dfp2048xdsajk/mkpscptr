@@ -34,7 +34,10 @@ module.exports = async function handler(req, res) {
         try {
             const clerkRes = await fetch(
                 `https://api.clerk.com/v1/users/${encodeURIComponent(result.userId)}`,
-                { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
+                {
+                    headers: { Authorization: `Bearer ${clerkSecretKey}` },
+                    signal: AbortSignal.timeout(8000),
+                }
             );
             if (!clerkRes.ok) {
                 return res.status(502).json({ ok: false, error: 'Could not verify plan' });
