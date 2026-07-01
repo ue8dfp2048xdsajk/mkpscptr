@@ -8429,6 +8429,7 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
     document.getElementById("bgUpload").value = "";
     document.getElementById("designUpload").value = "";
 
+    updateWindowBorders();
     updateSelectButtonState();
     syncSliders();
     updateDropUI();
