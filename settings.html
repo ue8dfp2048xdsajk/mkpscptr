@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings | Mockup Scripter</title>
+    <script
+        async
+        crossorigin="anonymous"
+        data-clerk-publishable-key="pk_test_aGlwLWtvYWxhLTcyLmNsZXJrLmFjY291bnRzLmRldiQ"
+        src="https://hip-koala-72.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+        onload="initClerk()"
+    ></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', Arial, sans-serif;
+            background: #0D1117;
+            color: #D1D5DB;
+            min-height: 100vh;
+            padding: 48px 24px 80px;
+        }
+        .container { max-width: 720px; margin: 0 auto; }
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #6B7280;
+            text-decoration: none;
+            font-size: 13px;
+            margin-bottom: 32px;
+        }
+        .back:hover { color: #9CA3AF; }
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #F9FAFB;
+            margin-bottom: 32px;
+        }
+        .card {
+            background: #111827;
+            border: 1px solid #1F2937;
+            border-radius: 10px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #F9FAFB;
+        }
+        .card-desc {
+            font-size: 13px;
+            color: #6B7280;
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+        .btn {
+            display: inline-block;
+            padding: 8px 18px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            font-family: 'Inter', Arial, sans-serif;
+            text-decoration: none;
+        }
+        .btn-primary {
+            background: #6366F1;
+            color: #fff;
+        }
+        .btn-primary:hover { background: #4F46E5; }
+        .btn-primary:disabled { background: #374151; color: #6B7280; cursor: default; }
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid #374151;
+            color: #9CA3AF;
+        }
+        .btn-secondary:hover { background: #1F2937; color: #E5E7EB; }
+        .plan-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #1F2937;
+            color: #818CF8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        #invoiceSection h2 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #F9FAFB;
+            margin-bottom: 6px;
+        }
+        #invoiceSection .card-desc { margin-bottom: 16px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            text-align: left;
+            padding: 8px 12px;
+            color: #6B7280;
+            font-weight: 500;
+            border-bottom: 1px solid #1F2937;
+            font-size: 12px;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #1F2937;
+            color: #9CA3AF;
+        }
+        tr:last-child td { border-bottom: none; }
+        td a {
+            color: #818CF8;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        td a:hover { text-decoration: underline; }
+        .invoice-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            background: #064E3B;
+            color: #6EE7B7;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 32px 0;
+            color: #4B5563;
+            font-size: 13px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #374151;
+            border-top-color: #6366F1;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .not-signed-in {
+            text-align: center;
+            padding: 60px 0;
+            color: #6B7280;
+            font-size: 14px;
+        }
+        .not-signed-in a {
+            color: #818CF8;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .footer {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            padding: 8px;
+            text-align: center;
+            font-size: 11px;
+            color: #374151;
+            background: #0D1117;
+            border-top: 1px solid #1F2937;
+        }
+        .footer a { color: #4B5563; text-decoration: none; margin: 0 6px; }
+        .footer a:hover { color: #9CA3AF; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a class="back" href="/">← Back to app</a>
+    <h1>Settings</h1>
+
+    <div id="settingsContent" style="display:none">
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Account</span>
+            </div>
+            <p class="card-desc">Update your name, email, password, and profile photo.</p>
+            <button class="btn btn-secondary" id="openProfileBtn">Edit Profile</button>
+        </div>
+
+        <div class="card" id="billingCard">
+            <div class="card-header">
+                <span class="card-title">Plan &amp; Billing</span>
+                <span class="plan-badge" id="planBadge">Free</span>
+            </div>
+            <p class="card-desc" id="billingDesc">Manage your subscription, payment methods, and billing address.</p>
+            <button class="btn btn-primary" id="openPortalBtn">Manage Billing</button>
+        </div>
+
+        <div class="card" id="invoiceSection">
+            <div class="card-header">
+                <span class="card-title">Invoice History</span>
+            </div>
+            <p class="card-desc">Download PDF receipts for all your past payments.</p>
+            <div id="invoiceTableWrap">
+                <div class="empty-state">
+                    <span class="spinner"></span> Loading invoices…
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="notSignedIn" class="not-signed-in" style="display:none">
+        <p>You need to be signed in to view settings.</p>
+        <p style="margin-top:12px"><a id="signInLink">Sign in</a></p>
+    </div>
+
+</div>
+
+<div class="footer">
+    <a href="/privacy.html">Privacy Policy</a> ·
+    <a href="/terms.html">Terms of Service</a> ·
+    <a href="mailto:support@mockupscripter.com">Support</a>
+</div>
+
+<script>
+function initClerk() {
+    window.Clerk.load().then(function() {
+        var user = window.Clerk.user;
+        if (!user) {
+            document.getElementById('notSignedIn').style.display = 'block';
+            document.getElementById('signInLink').addEventListener('click', function() {
+                window.Clerk.openSignIn();
+            });
+            return;
+        }
+
+        document.getElementById('settingsContent').style.display = 'block';
+
+        var plan = (user.publicMetadata && user.publicMetadata.plan) || 'free';
+        var planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+        document.getElementById('planBadge').textContent = planLabel;
+
+        if (plan === 'free') {
+            document.getElementById('billingDesc').textContent = 'Upgrade to a paid plan to unlock all features.';
+            var portalBtn = document.getElementById('openPortalBtn');
+            portalBtn.textContent = 'See Plans';
+            portalBtn.addEventListener('click', function() {
+                window.location.href = '/#plans';
+            });
+            document.getElementById('invoiceSection').style.display = 'none';
+        } else {
+            var subEndsAt = user.publicMetadata && user.publicMetadata.subscriptionEndsAt;
+            if (subEndsAt) {
+                var endsDate = new Date(subEndsAt * 1000).toLocaleDateString('en-GB', {
+                    day: 'numeric', month: 'short', year: 'numeric'
+                });
+                document.getElementById('billingDesc').textContent = 'Your subscription cancels on ' + endsDate + '. Manage or reactivate below.';
+            }
+        }
+
+        document.getElementById('openProfileBtn').addEventListener('click', function() {
+            window.Clerk.openUserProfile();
+        });
+
+        var portalBtn2 = document.getElementById('openPortalBtn');
+        if (plan !== 'free') {
+            portalBtn2.addEventListener('click', function() {
+                portalBtn2.disabled = true;
+                portalBtn2.textContent = 'Loading…';
+                window.Clerk.session.getToken().then(function(token) {
+                    return fetch('/api/billing/portal', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token,
+                        },
+                    });
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.ok && d.url) {
+                        window.location.href = d.url;
+                    } else {
+                        alert(d.error || 'Could not open billing portal. Please try again.');
+                        portalBtn2.disabled = false;
+                        portalBtn2.textContent = 'Manage Billing';
+                    }
+                })
+                .catch(function() {
+                    alert('Network error. Please try again.');
+                    portalBtn2.disabled = false;
+                    portalBtn2.textContent = 'Manage Billing';
+                });
+            });
+
+            loadInvoices();
+        }
+
+        if (window.location.hash === '#invoices') {
+            setTimeout(function() {
+                var el = document.getElementById('invoiceSection');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }, 200);
+        }
+    });
+}
+
+function loadInvoices() {
+    var wrap = document.getElementById('invoiceTableWrap');
+    if (!wrap) return;
+
+    window.Clerk.session.getToken().then(function(token) {
+        return fetch('/api/billing/portal', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.ok || !data.invoices || !data.invoices.length) {
+            wrap.innerHTML = '<div class="empty-state">No invoices yet.</div>';
+            return;
+        }
+        var html = '<table><thead><tr><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>';
+        data.invoices.forEach(function(inv) {
+            var date = new Date(inv.date * 1000).toLocaleDateString('en-GB', {
+                day: 'numeric', month: 'short', year: 'numeric'
+            });
+            var amount = (inv.amount / 100).toFixed(2);
+            var currency = inv.currency.toUpperCase();
+            html += '<tr>' +
+                '<td>' + date + '</td>' +
+                '<td>' + currency + ' ' + amount + '</td>' +
+                '<td><span class="invoice-status">Paid</span></td>' +
+                '<td>' +
+                    (inv.pdfUrl ? '<a href="' + inv.pdfUrl + '" target="_blank" rel="noopener">Download PDF</a>' : '') +
+                    (inv.hostedUrl && !inv.pdfUrl ? '<a href="' + inv.hostedUrl + '" target="_blank" rel="noopener">View</a>' : '') +
+                '</td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+    })
+    .catch(function() {
+        wrap.innerHTML = '<div class="empty-state">Could not load invoices.</div>';
+    });
+}
+</script>
+</body>
+</html>

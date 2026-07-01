@@ -131,7 +131,8 @@
             cancelLine +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
             (!showUpgradeBtn ? '<button class="ms-avatar-billing-btn" id="clerkBillingBtn">Manage Billing</button>' : '') +
-            '<button class="ms-avatar-settings-btn" id="clerkSettingsBtn">⚙ Account Settings</button>' +
+            (!showUpgradeBtn ? '<div class="ms-invoice-panel" id="msInvoicePanel"><span class="ms-invoice-loading">Loading invoices…</span></div>' : '') +
+            '<button class="ms-avatar-settings-btn" id="clerkSettingsBtn">⚙ Settings</button>' +
             '<div class="ms-projects-section">' +
               '<div class="ms-projects-label">My Projects</div>' +
               '<div class="ms-projects-limit">' + projectLimitHint + '</div>' +
@@ -283,13 +284,54 @@
         window._openCloudProjectsUI = function () {
             dropdown.classList.add('open');
             _loadProjects();
+            if (!showUpgradeBtn) _loadInvoices();
         };
+
+        function _loadInvoices() {
+            var panel = dropdown.querySelector('#msInvoicePanel');
+            if (!panel) return;
+            window._clerkGetToken().then(function (token) {
+                return fetch('/api/billing/portal', {
+                    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+                });
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.ok || !data.invoices || !data.invoices.length) {
+                    panel.innerHTML = '<span class="ms-invoice-none">No invoices yet.</span>';
+                    return;
+                }
+                var html = '<div class="ms-invoice-label">Recent Invoices</div>';
+                data.invoices.slice(0, 3).forEach(function (inv) {
+                    var date = new Date(inv.date * 1000).toLocaleDateString('en-GB', {
+                        day: 'numeric', month: 'short', year: 'numeric'
+                    });
+                    var amount = (inv.amount / 100).toFixed(2);
+                    var currency = inv.currency.toUpperCase();
+                    html += '<div class="ms-invoice-row">' +
+                        '<span class="ms-invoice-date">' + date + '</span>' +
+                        '<span class="ms-invoice-amount">' + currency + '\u00a0' + amount + '</span>' +
+                        (inv.pdfUrl ? '<a class="ms-invoice-pdf" href="' + inv.pdfUrl + '" target="_blank" rel="noopener">PDF</a>' : '') +
+                    '</div>';
+                });
+                if (data.invoices.length > 3) {
+                    html += '<a class="ms-invoice-viewall" href="/settings.html#invoices">View all \u2192</a>';
+                }
+                panel.innerHTML = html;
+            })
+            .catch(function () {
+                panel.innerHTML = '';
+            });
+        }
 
         avatar.addEventListener('click', function (e) {
             e.stopPropagation();
             var opening = !dropdown.classList.contains('open');
             dropdown.classList.toggle('open');
-            if (opening) _loadProjects();
+            if (opening) {
+                _loadProjects();
+                if (!showUpgradeBtn) _loadInvoices();
+            }
         });
 
         var _dropdownHovered = false;
@@ -349,8 +391,7 @@
         var settingsBtn = dropdown.querySelector('#clerkSettingsBtn');
         if (settingsBtn) {
             settingsBtn.addEventListener('click', function () {
-                dropdown.classList.remove('open');
-                window.Clerk.openUserProfile();
+                window.location.href = '/settings.html';
             });
         }
 

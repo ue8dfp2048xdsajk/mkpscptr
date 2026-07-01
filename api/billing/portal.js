@@ -1,11 +1,64 @@
 const { setCorsHeaders, handleOptions } = require('../_cors');
 const { verifyClerkToken } = require('../_verify-clerk-token');
 
+async function resolveStripeCustomer(clerkUserId, clerkSecretKey, stripeSecretKey) {
+    let stripeCustomerId = null;
+    let userEmail = null;
+
+    if (clerkSecretKey) {
+        try {
+            const r = await fetch(
+                `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
+                { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
+            );
+            if (r.ok) {
+                const d = await r.json();
+                stripeCustomerId = d?.public_metadata?.stripeCustomerId;
+                userEmail = d?.email_addresses?.[0]?.email_address;
+            }
+        } catch {}
+    }
+
+    if (!stripeCustomerId && userEmail) {
+        try {
+            const search = await fetch(
+                `https://api.stripe.com/v1/customers/search?query=${encodeURIComponent(`email:"${userEmail}"`)}&expand[]=data.subscriptions`,
+                { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+            );
+            if (search.ok) {
+                const sd = await search.json();
+                const customers = sd?.data || [];
+                const customer =
+                    customers.find(c => c.subscriptions?.data?.some(s => s.status === 'active')) ||
+                    customers[0];
+                if (customer) {
+                    stripeCustomerId = customer.id;
+                    if (clerkSecretKey) {
+                        fetch(
+                            `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}/metadata`,
+                            {
+                                method: 'PATCH',
+                                headers: {
+                                    Authorization: `Bearer ${clerkSecretKey}`,
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ public_metadata: { stripeCustomerId } }),
+                            }
+                        ).catch(() => {});
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    return stripeCustomerId;
+}
+
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
     if (handleOptions(req, res)) return;
 
-    if (req.method !== 'POST') {
+    if (req.method !== 'POST' && req.method !== 'GET') {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
@@ -25,59 +78,7 @@ module.exports = async function handler(req, res) {
     }
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-    let stripeCustomerId;
-    let userEmail;
-
-    // Step 1: get stripeCustomerId + email from Clerk
-    if (clerkSecretKey) {
-        try {
-            const r = await fetch(
-                `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
-                { headers: { Authorization: `Bearer ${clerkSecretKey}` } }
-            );
-            if (r.ok) {
-                const d = await r.json();
-                stripeCustomerId = d?.public_metadata?.stripeCustomerId;
-                userEmail = d?.email_addresses?.[0]?.email_address;
-            }
-        } catch {}
-    }
-
-    // Step 2: no cached customer ID — look up by email in Stripe (existing users)
-    // If multiple customers share the email, prefer the one with an active subscription
-    if (!stripeCustomerId && userEmail) {
-        try {
-            const search = await fetch(
-                `https://api.stripe.com/v1/customers/search?query=${encodeURIComponent(`email:"${userEmail}"`)}&expand[]=data.subscriptions`,
-                { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
-            );
-            if (search.ok) {
-                const sd = await search.json();
-                const customers = sd?.data || [];
-                // Prefer a customer with at least one active subscription
-                const customer =
-                    customers.find(c => c.subscriptions?.data?.some(s => s.status === 'active')) ||
-                    customers[0];
-                if (customer) {
-                    stripeCustomerId = customer.id;
-                    // Cache it in Clerk so we don't need to search again
-                    if (clerkSecretKey) {
-                        fetch(
-                            `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}/metadata`,
-                            {
-                                method: 'PATCH',
-                                headers: {
-                                    Authorization: `Bearer ${clerkSecretKey}`,
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({ public_metadata: { stripeCustomerId } }),
-                            }
-                        ).catch(() => {});
-                    }
-                }
-            }
-        } catch {}
-    }
+    const stripeCustomerId = await resolveStripeCustomer(clerkUserId, clerkSecretKey, stripeSecretKey);
 
     if (!stripeCustomerId) {
         return res.status(404).json({
@@ -86,8 +87,35 @@ module.exports = async function handler(req, res) {
         });
     }
 
-    const origin = req.headers.origin || 'https://mockupscripter.com';
+    if (req.method === 'GET') {
+        let invoiceRes;
+        try {
+            invoiceRes = await fetch(
+                `https://api.stripe.com/v1/invoices?customer=${encodeURIComponent(stripeCustomerId)}&limit=100&status=paid`,
+                { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+            );
+        } catch {
+            return res.status(502).json({ ok: false, error: 'Failed to reach Stripe API' });
+        }
 
+        const invData = await invoiceRes.json();
+        if (!invoiceRes.ok) {
+            return res.status(502).json({ ok: false, error: invData.error?.message || 'Stripe error' });
+        }
+
+        const invoices = (invData.data || []).map(inv => ({
+            id: inv.id,
+            date: inv.created,
+            amount: inv.amount_paid,
+            currency: inv.currency,
+            pdfUrl: inv.invoice_pdf || null,
+            hostedUrl: inv.hosted_invoice_url || null,
+        }));
+
+        return res.status(200).json({ ok: true, invoices });
+    }
+
+    const origin = req.headers.origin || 'https://mockupscripter.com';
     const params = new URLSearchParams();
     params.set('customer', stripeCustomerId);
     params.set('return_url', `${origin}/`);

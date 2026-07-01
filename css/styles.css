@@ -2467,6 +2467,53 @@ body.sidebar-expanded #contextPanelBody {
     justify-content: flex-end;
 }
 
+/* ── Invoice panel (in user dropdown) ──────────────────────────────────── */
+.ms-invoice-panel {
+    border-top: 1px solid #1F2937;
+    padding: 8px 0 4px;
+    margin: 2px 0;
+}
+.ms-invoice-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #4B5563;
+    padding: 0 2px 6px;
+    font-weight: 600;
+}
+.ms-invoice-loading,
+.ms-invoice-none {
+    font-size: 11px;
+    color: #4B5563;
+    padding: 2px;
+}
+.ms-invoice-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 2px;
+    font-size: 11px;
+}
+.ms-invoice-date { color: #6B7280; flex: 1; }
+.ms-invoice-amount { color: #D1D5DB; font-weight: 500; }
+.ms-invoice-pdf {
+    color: #818CF8;
+    text-decoration: none;
+    font-size: 10px;
+    padding: 1px 6px;
+    border: 1px solid #374151;
+    border-radius: 4px;
+}
+.ms-invoice-pdf:hover { background: #1F2937; }
+.ms-invoice-viewall {
+    display: block;
+    font-size: 11px;
+    color: #818CF8;
+    text-decoration: none;
+    padding: 4px 2px 2px;
+}
+.ms-invoice-viewall:hover { text-decoration: underline; }
+
 /* ── Cookie consent banner ─────────────────────────────────────────────── */
 #cookieConsentBar {
     display: none;
