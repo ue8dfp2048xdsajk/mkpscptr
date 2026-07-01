@@ -418,6 +418,7 @@
     }
 
     var PAYMENT_PENDING_KEY = 'ms_payment_pending';
+    var PENDING_PLAN_KEY    = 'ms_pending_plan';   // target plan stored by _startCheckout
     var _paymentPollingActive = false;
     var _pollTimerId = null;
     var _pollStartTime = null;
@@ -487,7 +488,11 @@
             history.replaceState(null, '', cleanUrl);
 
             var currentUserId = window.Clerk && window.Clerk.user && window.Clerk.user.id;
-            localStorage.setItem(PAYMENT_PENDING_KEY, currentUserId || '1');
+            // Only persist when we have a real user ID — the '1' fallback caused
+            // the poll to cancel immediately for any user (pendingUserId '1' !== actual id).
+            if (currentUserId) {
+                localStorage.setItem(PAYMENT_PENDING_KEY, currentUserId);
+            }
         }
 
         var storedValue = localStorage.getItem(PAYMENT_PENDING_KEY);
@@ -506,7 +511,11 @@
 
         _showActivatingBanner();
 
-        var planBefore = (window.Clerk.user.publicMetadata && window.Clerk.user.publicMetadata.plan) || 'free';
+        var planBefore  = (window.Clerk.user.publicMetadata && window.Clerk.user.publicMetadata.plan) || 'free';
+        // targetPlan is written by _startCheckout before redirecting to Stripe.
+        // Using it lets us correctly detect paid→paid upgrades (e.g. Starter→Pro)
+        // where the user was already on a non-free plan before the new purchase.
+        var targetPlan  = (function () { try { return localStorage.getItem(PENDING_PLAN_KEY); } catch (_) { return null; } })();
         var attemptDelay = 2000;
         _pollStartTime = Date.now();
 
@@ -563,10 +572,15 @@
 
                 var newPlan = (freshUser.publicMetadata && freshUser.publicMetadata.plan) || 'free';
                 var planUpgraded = newPlan !== planBefore;
-                var alreadyUpgraded = newPlan !== 'free';
+                // If we know the exact plan the user purchased, wait until the
+                // session reflects that specific plan.  Fallback: accept any paid
+                // plan (handles the case where targetPlan wasn't stored — e.g. the
+                // user closed the tab after payment and came back later).
+                var reachedTargetPlan = targetPlan ? (newPlan === targetPlan) : (newPlan !== 'free');
 
-                if (planUpgraded || alreadyUpgraded) {
+                if (planUpgraded || reachedTargetPlan) {
                     localStorage.removeItem(PAYMENT_PENDING_KEY);
+                    try { localStorage.removeItem(PENDING_PLAN_KEY); } catch (_) {}
                     _cleanupPoll();
                     _dismissActivatingBanner();
                     _onClerkSignedIn(freshUser);

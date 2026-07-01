@@ -43,19 +43,26 @@ async function tryClaimStripeEvent(eventId) {
     }
 }
 
-const PRICE_TO_PLAN = {
-    [process.env.STRIPE_PRICE_STARTER_MONTHLY]:  'starter',
-    [process.env.STRIPE_PRICE_STARTER_ANNUAL]:   'starter',
-    [process.env.STRIPE_PRICE_STARTER_LIFETIME]: 'starter',
-    [process.env.STRIPE_PRICE_PRO_MONTHLY]:      'pro',
-    [process.env.STRIPE_PRICE_PRO_ANNUAL]:       'pro',
-    [process.env.STRIPE_PRICE_PRO_LIFETIME]:     'pro',
-};
+// Built at call time so env-var changes and test overrides (jest.resetModules)
+// are always reflected. A module-level map would bake in undefined values for
+// any price env var that wasn't set at first require(), causing subscription
+// events to silently map to the wrong plan or be dropped entirely.
+function getPriceMap() {
+    return {
+        [process.env.STRIPE_PRICE_STARTER_MONTHLY]:  'starter',
+        [process.env.STRIPE_PRICE_STARTER_ANNUAL]:   'starter',
+        [process.env.STRIPE_PRICE_STARTER_LIFETIME]: 'starter',
+        [process.env.STRIPE_PRICE_PRO_MONTHLY]:      'pro',
+        [process.env.STRIPE_PRICE_PRO_ANNUAL]:       'pro',
+        [process.env.STRIPE_PRICE_PRO_LIFETIME]:     'pro',
+    };
+}
 
 const HANDLED_EVENTS = new Set([
     'checkout.session.completed',
     'customer.subscription.updated',
     'customer.subscription.deleted',
+    'invoice.payment_failed',
 ]);
 
 async function getRawBody(req) {
@@ -295,7 +302,7 @@ module.exports = async function handler(req, res) {
                         const expandedSession = await expandRes.json();
                         const lineItem = expandedSession.line_items?.data?.[0];
                         const priceId = lineItem?.price?.id;
-                        plan = priceId ? PRICE_TO_PLAN[priceId] : undefined;
+                        plan = priceId ? getPriceMap()[priceId] : undefined;
                         if (plan) console.log(`stripe-webhook: resolved plan="${plan}" via line_items expand`);
                     }
                 } catch (err) {
@@ -373,7 +380,7 @@ module.exports = async function handler(req, res) {
         let newPlan;
         if (status === 'active') {
             const priceId = sub.items?.data?.[0]?.price?.id;
-            newPlan = priceId ? PRICE_TO_PLAN[priceId] : null;
+            newPlan = priceId ? getPriceMap()[priceId] : null;
             if (!newPlan) {
                 console.warn(`stripe-webhook: unknown priceId=${priceId} on subscription update`);
                 return res.status(200).json({ ok: true, ignored: true, reason: 'unknown price' });
@@ -442,6 +449,51 @@ module.exports = async function handler(req, res) {
         }
 
         console.log(`stripe-webhook: subscription deleted — reset to free for userId="${clerkUserId}"`);
+        return res.status(200).json({ ok: true, clerkUserId, plan: 'free' });
+    }
+
+    // ── invoice.payment_failed ───────────────────────────────────────────────
+    // Stripe retries failed payments on its dunning schedule. We only act on
+    // the final failure (next_payment_attempt === null), which means Stripe has
+    // exhausted all retries and is about to cancel the subscription. The
+    // subscription.deleted event will fire shortly after, but revoking here
+    // ensures access is removed even if that event is delayed or missed.
+    if (event.type === 'invoice.payment_failed') {
+        const invoice = event.data && event.data.object;
+        if (!invoice) return res.status(400).json({ ok: false, error: 'Missing invoice object' });
+
+        const attemptCount = invoice.attempt_count || 0;
+        const isFinalFailure = invoice.next_payment_attempt === null;
+
+        console.log(`stripe-webhook: invoice.payment_failed customer=${invoice.customer} attempt=${attemptCount} final=${isFinalFailure}`);
+
+        if (!isFinalFailure) {
+            // Stripe will retry — leave the plan intact during the dunning period.
+            return res.status(200).json({ ok: true, noted: true, reason: 'dunning_retry' });
+        }
+
+        const stripeCustomerId = invoice.customer;
+        const clerkUserId = await getClerkUserIdByCustomer(stripeCustomerId);
+        if (!clerkUserId) {
+            console.warn(`stripe-webhook: no Clerk user found for customer=${stripeCustomerId} on final payment failure`);
+            return res.status(200).json({ ok: true, ignored: true, reason: 'unknown customer' });
+        }
+
+        let setPlanRes;
+        try {
+            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, 'free', event.id);
+        } catch (err) {
+            console.error('stripe-webhook: set-plan fetch error on final payment failure', err);
+            return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
+        }
+
+        if (!setPlanRes.ok) {
+            const b = await setPlanRes.json().catch(() => ({}));
+            console.error('stripe-webhook: set-plan error on final payment failure', b?.error);
+            return res.status(502).json({ ok: false, error: b?.error || 'set-plan error' });
+        }
+
+        console.log(`stripe-webhook: final payment failure — reset to free for userId="${clerkUserId}"`);
         return res.status(200).json({ ok: true, clerkUserId, plan: 'free' });
     }
 

@@ -9769,14 +9769,20 @@ async function _startCheckout(plan, period) {
         return;
     }
 
-    const clerkUserId = window.Clerk.user.id;
+    // Fetch a fresh Clerk session token — required for server-side JWT verification.
+    const token = window.Clerk.session
+        ? await window.Clerk.session.getToken().catch(function () { return null; })
+        : null;
 
     let url;
     try {
         const resp = await fetch('/api/checkout', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan, period, clerkUserId }),
+            headers: Object.assign(
+                { 'Content-Type': 'application/json' },
+                token ? { 'Authorization': 'Bearer ' + token } : {}
+            ),
+            body: JSON.stringify({ plan, period }),
         });
         const data = await resp.json();
         if (!data.ok || !data.url) {
@@ -9800,6 +9806,12 @@ async function _startCheckout(plan, period) {
         alert('Could not start checkout \u2014 please try again.');
         return;
     }
+
+    // Persist the purchased plan so the payment poller in clerk-auth.js knows
+    // exactly which plan to wait for. Critical for paid→paid upgrades
+    // (e.g. Starter→Pro) where the user is already on a paid plan and
+    // `alreadyUpgraded` would otherwise short-circuit the poll prematurely.
+    try { localStorage.setItem('ms_pending_plan', requestedPlan); } catch (_) {}
 
     window.location.href = url;
 }
