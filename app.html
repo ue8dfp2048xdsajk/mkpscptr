@@ -1,0 +1,1352 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <script>
+            !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="init be fc a b bs cs capture autocapture capturePagLeave alias identify set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys getNextSurveyStep onSessionId setPersonProperties".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+            window._initPostHog = function() {
+                if (window._posthogInited) return;
+                window._posthogInited = true;
+                posthog.init('phc_xwDdXcr9BYR7DE7WrvwNWTJuJYN3vgcQFQgtnEPUeixo', {
+                    api_host: 'https://us.i.posthog.com',
+                    defaults: '2026-05-30',
+                    person_profiles: 'identified_only',
+                });
+            };
+            if (localStorage.getItem('ms_cookie_consent') === 'accepted') {
+                window._initPostHog();
+            }
+        </script>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link rel="stylesheet" href="css/styles.css" />
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Mockup Scripter</title>
+        <link rel="canonical" href="https://mockupscripter.com/app.html" />
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+        <script src="js/jszip.min.js"></script>
+        <script
+            async
+            crossorigin="anonymous"
+            data-clerk-publishable-key="pk_live_Y2xlcmsubW9ja3Vwc2NyaXB0ZXIuY29tJA"
+            src="https://clerks.mockupscripter.com/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+            type="text/javascript"
+            onload="window.__clerkSdkReady=true; window.__clerkInit && window.__clerkInit()"
+        ></script>
+    </head>
+    <body>
+        <div id="mobileOverlay">
+            <div id="mobileOverlayContent">
+                <div id="mobileOverlayIcon">🖥️</div>
+                <h1>Mockup Scripter works best on desktop</h1>
+                <p>Open this link on your computer to get started.</p>
+                <a id="mobileOverlayUrl" href="https://mockupscripter.com">mockupscripter.com</a>
+            </div>
+        </div>
+        <script>
+            if (window.matchMedia('(pointer: coarse) and (hover: none)').matches) {
+                var vp = document.querySelector('meta[name="viewport"]');
+                if (vp) vp.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+                var overlay = document.getElementById('mobileOverlay');
+                overlay.style.display = 'flex';
+                overlay.style.position = 'fixed';
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.right = '0';
+                overlay.style.bottom = '0';
+                overlay.style.width = '100%';
+                overlay.style.height = '100%';
+            }
+        </script>
+        <div class="sticky-header">
+            <div class="header-top-row">
+                <div id="clerkAuthContainer"></div>
+            </div>
+            <div id="upgradePrompt" class="upgrade-prompt" style="display:none">
+                <span>🚀 <strong>Free plan</strong> — watermarks appear on canvas and export is disabled. <a href="#plans" id="upgradePromptLink">See plans</a></span>
+                <button id="upgradePromptClose" aria-label="Dismiss" class="upgrade-prompt-close">✕</button>
+            </div>
+            <div class="header-controls-row">
+            <div class="header-left">
+                <span class="export-wrap">
+                    <button id="fileMenuBtn">File ▾</button>
+                    <div id="fileMenuPopover" class="export-popover" hidden>
+                        <button
+                            id="saveProgressBtn"
+                            title="Save Progress (Ctrl/Cmd+S)"
+                        >
+                            Save
+                        </button>
+                        <span class="file-menu-pro-wrap" id="saveNewWrap">
+                            <button
+                                id="saveNewBtn"
+                                title="Save as New"
+                            >
+                                Save as New
+                            </button>
+                            <span class="file-menu-pro-badge" id="saveNewProBadge" aria-hidden="true">PRO</span>
+                            <span class="file-menu-pro-tooltip" id="saveNewTooltip">Pro plan required — upgrade to save multiple projects</span>
+                        </span>
+                        <button
+                            id="saveLocalBtn"
+                            title="Save to local file"
+                        >
+                            Save to local file
+                        </button>
+                        <button
+                            id="loadProgressBtn"
+                            title="Load Progress (Ctrl/Cmd+L)"
+                        >
+                            Load local file
+                        </button>
+                        <button id="openCloudBtn" title="Open a saved project">
+                            Open from cloud…
+                        </button>
+                        <input
+                            type="file"
+                            id="loadProgressInput"
+                            accept=".json"
+                            style="display: none"
+                        />
+                        <button
+                            id="clearSessionBtn"
+                            title="Remove the autosaved session so the canvas starts blank on next load"
+                        >
+                            Clear Session
+                        </button>
+                    </div>
+                </span>
+                <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">
+                    ↩ Undo
+                </button>
+                <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">
+                    ↪ Redo
+                </button>
+                <button id="bgUploadBtn">Upload Backgrounds</button>
+                <input
+                    type="file"
+                    id="bgUpload"
+                    accept="image/png, image/jpeg"
+                    multiple
+                    style="display: none"
+                />
+                <button id="designUploadBtn">Upload Designs</button>
+                <input
+                    type="file"
+                    id="designUpload"
+                    accept="image/png, image/jpeg"
+                    multiple
+                    style="display: none"
+                />
+            </div>
+
+            <div class="header-right">
+                <button id="selectAllBtn" title="Select All (Ctrl/Cmd+A)">Select All</button>
+                <input
+                    id="filterByNameInput"
+                    type="text"
+                    placeholder="Select by filename…"
+                    style="width: 160px;"
+                />
+                <button
+                    id="resetBtnTop"
+                    class="lock-sensitive"
+                    title="Reset selected mockups to default (R)"
+                >
+                    Reset Selected
+                </button>
+                <span class="header-section-div"></span>
+                <span class="export-wrap">
+                    <button id="exportBtn" title="Export (Ctrl/Cmd+E)">
+                        Export ▾
+                    </button>
+                    <div id="exportPopover" class="export-popover" hidden>
+                        <div class="export-row">
+                            <span class="export-label">Output</span>
+                            <span class="export-seg" id="exportOutputToggle">
+                                <button
+                                    class="seg-btn seg-active"
+                                    data-val="zip"
+                                >
+                                    ZIP
+                                </button>
+                                <button class="seg-btn" data-val="file">
+                                    File
+                                </button>
+                            </span>
+                        </div>
+                        <div class="export-row">
+                            <span class="export-label">Scope</span>
+                            <span class="export-seg" id="exportScopeToggle">
+                                <button
+                                    class="seg-btn seg-active"
+                                    data-val="selected"
+                                >
+                                    Selected
+                                </button>
+                                <button class="seg-btn" data-val="all">
+                                    All
+                                </button>
+                            </span>
+                        </div>
+                        <div class="export-row">
+                            <span class="export-label">Format</span>
+                            <span class="export-seg" id="exportFormatToggle">
+                                <button
+                                    class="seg-btn seg-active"
+                                    data-val="png"
+                                >
+                                    PNG
+                                </button>
+                                <button class="seg-btn" data-val="jpeg">
+                                    JPEG
+                                </button>
+                            </span>
+                        </div>
+                        <div class="export-row" id="exportQualityRow">
+                            <span class="export-label">Quality</span>
+                            <input
+                                type="range"
+                                id="exportQualitySlider"
+                                min="1"
+                                max="100"
+                                value="92"
+                            />
+                            <span id="exportQualityVal">92%</span>
+                        </div>
+                        <div class="export-row">
+                            <button
+                                id="exportTextBtn"
+                                title="Export canvas text boxes as .txt"
+                            >
+                                Export Text Boxes
+                            </button>
+                        </div>
+                        <button id="exportGoBtn">Export</button>
+                    </div>
+                </span>
+            </div>
+            </div><!-- /.header-controls-row -->
+
+            <!-- Viewport control panels — inside .sticky-header so JS deselection guard applies -->
+            <div id="vpControlPanel">
+                <button id="vpPanelCollapseBtn" title="Hide controls">×</button>
+                <div class="vpc-grid-row">
+                    <label for="numColsInput" class="vpc-label">Cols</label>
+                    <input id="numColsInput" type="number" min="1" max="20" value="4" title="Number of columns (1–20)" />
+                </div>
+                <div class="vpc-grid-row">
+                    <label for="rowGapInput" class="vpc-label">Row gap</label>
+                    <input id="rowGapInput" type="number" min="0" max="120" value="20" title="Row gap — vertical space between mockups (px)" />
+                </div>
+                <div class="vpc-grid-row">
+                    <label for="colGapInput" class="vpc-label">Col gap</label>
+                    <input id="colGapInput" type="number" min="0" max="120" value="20" title="Col gap — horizontal space between mockups (px)" />
+                </div>
+                <div class="vpc-divider"></div>
+                <div class="vpc-tools">
+                    <button id="toolTextBtn" title="Text (T)">T</button>
+                    <button id="toolSelectBtn" title="Select (S)">↖</button>
+                    <button id="toolPanBtn" title="Pan (Space)">✋&#xFE0E;</button>
+                    <button id="resetViewBtn" title="Reset view — zoom 100%, row/col gap 20">↺</button>
+                </div>
+            </div>
+
+            <button id="vpPanelTeaser" title="Show grid controls" hidden>⊞</button>
+
+            <div id="vpZoomPanel">
+                <span id="windowCountBadge" class="window-count-badge" hidden></span>
+                <div class="vpc-zoom-row">
+                    <button id="centerViewBtn" title="Fit Selection (F)"></button>
+                    <button id="zoomOutBtn" title="Zoom out (Ctrl+−)">−</button>
+                    <span id="zoomLevelDisplay" title="Reset zoom (Ctrl+0)" style="cursor: pointer">100%</span>
+                    <button id="zoomInBtn" title="Zoom in (Ctrl+=)">+</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="viewportWrapper">
+            <div id="dropZone">
+                <div id="dropZoneInner">
+                    <div class="dz-icon">&#8659;</div>
+                    <p class="dz-title">Drag background images here</p>
+                    <p class="dz-sub">
+                        or use the <strong>Upload Backgrounds</strong> button
+                        above
+                    </p>
+                </div>
+            </div>
+            <div id="designPrompt">
+                <span
+                    >Backgrounds ready - drag your designs here, or
+                    <button id="designPromptBtn">
+                        click to upload designs
+                    </button></span
+                >
+            </div>
+
+            <div
+                id="loadingIndicator"
+                style="
+                    display: none;
+                    position: fixed;
+                    top: 80px;
+                    right: 20px;
+                    background: #111;
+                    color: #fff;
+                    padding: 10px 14px;
+                    border-radius: 8px;
+                    z-index: 9999;
+                    font-size: 14px;
+                    font-family: 'Inter', Arial, sans-serif;
+                "
+            >
+                Preparing designs...
+            </div>
+
+            <div class="canvas-container" id="canvasContainer"></div>
+            <div id="textLayer"></div>
+            <div id="minimap" hidden>
+                <canvas id="minimapCanvas"></canvas>
+            </div>
+        </div>
+        <!-- /#viewportWrapper -->
+
+        <!-- ── Context Panel ─────────────────────────────────────────────────── -->
+        <div id="contextPanel">
+            <button id="sidebarToggleBtn" title="Open panel" aria-label="Toggle side panel">▶</button>
+            <div id="sidebarResizeHandle" title="Drag to resize panel"></div>
+            <div id="contextPanelBody">
+                <!-- ── Layers ─────────────────────────────────────────────────────── -->
+                <div class="cp-section lock-sensitive">
+                    <div class="cp-section-title">Layers</div>
+                    <button
+                        id="addLayerBtn"
+                        title="Upload images as overlay layers onto selected mockups"
+                    >
+                        Add Layer
+                    </button>
+                    <input
+                        type="file"
+                        id="layerUpload"
+                        accept="image/*"
+                        multiple
+                        style="display: none"
+                    />
+                    <button
+                        id="copyLayerBtn"
+                        disabled
+                        title="Select a layer first to copy or paste it"
+                    >
+                        Copy Layer
+                    </button>
+                    <button
+                        id="duplicateLayerBtn"
+                        disabled
+                        title="Select a layer to duplicate it"
+                    >
+                        Duplicate Layer (D)
+                    </button>
+                    <button
+                        id="deleteLayerBtn"
+                        disabled
+                        title="Select a layer to delete it"
+                    >
+                        Delete Layer
+                    </button>
+                    <div class="cp-btn-row">
+                        <button
+                            id="copyTransformsBtn"
+                            title="Copy position, scale, rotation and FX from the last selected mockup"
+                        >
+                            Copy Style
+                        </button>
+                        <button
+                            id="pasteTransformsBtn"
+                            title="Paste copied style to all selected mockups"
+                            disabled
+                        >
+                            Paste Style
+                        </button>
+                    </div>
+                </div>
+
+                <div class="cp-section lock-sensitive">
+                    <div class="cp-section-title">Appearance</div>
+                    <label
+                        >Opacity %
+                        <input
+                            type="number"
+                            id="opacityAmount"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value="100"
+                        />
+                    </label>
+                    <label
+                        >Gaussian Blur %
+                        <input
+                            type="number"
+                            id="blurAmount"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value="0"
+                        />
+                    </label>
+                    <label
+                        >Noise %
+                        <input
+                            type="number"
+                            id="noiseAmount"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value="0"
+                        />
+                    </label>
+                    <label
+                        >Layer Mode
+                        <select id="blendMode">
+                            <option value="normal">Normal</option>
+                            <option value="multiply">Multiply</option>
+                            <option value="screen">Screen</option>
+                            <option value="overlay">Overlay</option>
+                            <option value="soft-light">Soft Light</option>
+                            <option value="color">Color</option>
+                            <option value="luminosity">Luminosity</option>
+                        </select>
+                    </label>
+                    <button
+                        id="invertColorsBtn"
+                        disabled
+                        title="Select a layer to invert its colors"
+                    >
+                        Invert Colors
+                    </button>
+                    <div class="cp-btn-row">
+                        <button id="flipHBtn" title="Flip design horizontally">
+                            ↔ Flip H
+                        </button>
+                        <button id="flipVBtn" title="Flip design vertically">
+                            ↕ Flip V
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ── Mockup ──────────────────────────────────────────────────────── -->
+                <div class="cp-section">
+                    <div class="cp-section-title">Mockup</div>
+                    <button
+                        id="addWindowBtn"
+                        title="Add a single new mockup at the start of the grid"
+                    >
+                        Add Mockup
+                    </button>
+                    <input
+                        type="file"
+                        id="addWindowBgInput"
+                        accept="image/png, image/jpeg"
+                        style="display: none"
+                    />
+                    <input
+                        type="file"
+                        id="addWindowDesignInput"
+                        accept="image/png, image/jpeg"
+                        style="display: none"
+                    />
+                    <div class="cp-btn-row">
+                        <button id="lockWindowsBtn" class="lock-sensitive">
+                            Lock (L)
+                        </button>
+                        <button id="unlockWindowsBtn">Unlock</button>
+                    </div>
+                    <button id="changeBgBtn" class="lock-sensitive">
+                        Change Background
+                    </button>
+                    <input
+                        type="file"
+                        id="changeBgInput"
+                        accept="image/*"
+                        style="display: none"
+                    />
+                    <button id="changeDesignBtn" class="lock-sensitive">
+                        Change Design
+                    </button>
+                    <input
+                        type="file"
+                        id="changeDesignInput"
+                        accept="image/*"
+                        style="display: none"
+                    />
+                    <button id="duplicateWindowsBtn" class="lock-sensitive" title="Duplicate Selected (Ctrl/Cmd+D)">
+                        Duplicate Selected
+                    </button>
+                    <button id="deleteWindowsBtn" class="lock-sensitive" title="Delete Selected (Del)">
+                        Delete Selected
+                    </button>
+                    <button id="resetBtn" class="lock-sensitive" title="Reset Selected (R)">
+                        Reset Selected
+                    </button>
+                </div>
+
+                <div class="cp-section lock-sensitive">
+                    <div class="cp-section-title">Warp &amp; Perspective <span class="pro-badge">⭐ PRO</span></div>
+                    <label
+                        >Cylinder Warp
+                        <input
+                            type="range"
+                            id="warpAmount"
+                            min="0"
+                            max="100"
+                            value="0"
+                        />
+                    </label>
+                    <label
+                        >Vertical Arc
+                        <input
+                            type="range"
+                            id="arcAmount"
+                            min="-100"
+                            max="100"
+                            value="0"
+                        />
+                    </label>
+                    <label
+                        >Fisheye
+                        <input
+                            type="range"
+                            id="arcTilt"
+                            min="-100"
+                            max="100"
+                            value="0"
+                        />
+                    </label>
+                    <label
+                        >Horizontal Perspective
+                        <input
+                            type="range"
+                            id="perspectiveTop"
+                            min="-100"
+                            max="100"
+                            value="0"
+                        />
+                    </label>
+                    <label
+                        >Vertical Perspective
+                        <input
+                            type="range"
+                            id="perspectiveLeft"
+                            min="-100"
+                            max="100"
+                            value="0"
+                        />
+                    </label>
+                    <button id="designWarpBtn">Warp Mesh (W)</button>
+
+                    <span
+                        id="warpModeControls"
+                        style="
+                            display: none;
+                            align-items: center;
+                            gap: 6px;
+                            flex-wrap: wrap;
+                        "
+                    >
+                        <button
+                            id="warpApplyBtn"
+                            style="
+                                background: #2ecc71;
+                                color: #fff;
+                                border: none;
+                                padding: 3px 10px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 12px;
+                                width: auto;
+                            "
+                        >
+                            Apply
+                        </button>
+                        <button
+                            id="warpCancelBtn"
+                            style="
+                                background: #e74c3c;
+                                color: #fff;
+                                border: none;
+                                padding: 3px 10px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 12px;
+                                width: auto;
+                            "
+                        >
+                            Cancel
+                        </button>
+                        <span style="font-size: 11px; color: #9CA3AF"
+                            >Drag grid points to warp</span
+                        >
+                    </span>
+                </div>
+
+                <!-- ── Clipping ───────────────────────────────────────────────────── -->
+                <div class="cp-section lock-sensitive">
+                    <div class="cp-section-title">Clipping <span class="pro-badge">⭐ PRO</span></div>
+                    <button id="editClipBtn">Edit Clipping (C)</button>
+                    <button
+                        id="addClipAreaBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        Add Clipping Area
+                    </button>
+                    <button
+                        id="copyClipBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        Copy Clipping
+                    </button>
+                    <button
+                        id="copyClipToSelectedBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        Copy Clipping to Selected
+                    </button>
+                    <button
+                        id="deleteClipBtn"
+                        class="clip-sub-btn clip-sub-btn--danger"
+                        style="display: none"
+                    >
+                        Delete Clipping
+                    </button>
+                    <button
+                        id="hideClipLayersBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        👁 Hide Layers (H)
+                    </button>
+                </div>
+
+                <!-- ── Painting ────────────────────────────────────────────────────── -->
+                <div class="cp-section lock-sensitive">
+                    <div class="cp-section-title">Painting <span class="pro-badge">⭐ PRO</span></div>
+                    <button id="designEraserBtn">Eraser (E)</button>
+                    <span
+                        id="designEraserControls"
+                        style="
+                            display: none;
+                            align-items: center;
+                            gap: 6px;
+                            flex-wrap: wrap;
+                            margin-top: 2px;
+                        "
+                    >
+                        <span style="font-size: 11px">Size</span>
+                        <input
+                            type="range"
+                            id="designEraserSizeSlider"
+                            min="1"
+                            max="200"
+                            value="30"
+                            style="width: 80px; vertical-align: middle"
+                        />
+                        <span
+                            id="designEraserSizeVal"
+                            style="font-size: 11px; min-width: 24px"
+                            >30</span
+                        >
+                        <span style="font-size: 11px">Soft</span>
+                        <input
+                            type="range"
+                            id="designEraserSoftnessSlider"
+                            min="0"
+                            max="100"
+                            value="0"
+                            style="width: 80px; vertical-align: middle"
+                        />
+                        <span
+                            id="designEraserSoftnessVal"
+                            style="font-size: 11px; min-width: 24px"
+                            >0</span
+                        >
+                    </span>
+                    <button id="addColorLayerBtn">Paint Overlay</button>
+                    <button
+                        id="copyColorBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        Copy Color
+                    </button>
+                    <button
+                        id="copyColorToSelectedBtn"
+                        class="clip-sub-btn"
+                        style="display: none"
+                    >
+                        Copy Color to Selected
+                    </button>
+                    <button
+                        id="deleteColorBtn"
+                        class="clip-sub-btn clip-sub-btn--danger"
+                        style="display: none"
+                    >
+                        Delete Color
+                    </button>
+                    <span
+                        id="colorLayerControls"
+                        style="
+                            display: none;
+                            align-items: center;
+                            gap: 4px;
+                            flex-wrap: wrap;
+                            margin-top: 2px;
+                        "
+                    >
+                        <button
+                            id="brushToolBtn"
+                            class="color-tool-btn active"
+                            title="Paintbrush"
+                            style="width: auto"
+                        >
+                            Paint
+                        </button>
+                        <button
+                            id="eraserToolBtn"
+                            class="color-tool-btn"
+                            title="Eraser"
+                            style="width: auto"
+                        >
+                            Erase
+                        </button>
+                        <input
+                            type="color"
+                            id="brushColorPicker"
+                            value="#ff0000"
+                            title="Paint color"
+                            style="
+                                cursor: pointer;
+                                width: 28px;
+                                height: 22px;
+                                padding: 1px;
+                                border: 1px solid #ccc;
+                                vertical-align: middle;
+                            "
+                        />
+                        <span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 4px;
+                            "
+                        >
+                            <span style="font-size: 11px">Size</span>
+                            <input
+                                type="range"
+                                id="brushSizeSlider"
+                                min="1"
+                                max="150"
+                                value="20"
+                                style="width: 70px; vertical-align: middle"
+                            />
+                        </span>
+                        <span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 4px;
+                            "
+                        >
+                            <span style="font-size: 11px">Soft</span>
+                            <input
+                                type="range"
+                                id="brushSoftnessSlider"
+                                min="0"
+                                max="100"
+                                value="30"
+                                style="width: 70px; vertical-align: middle"
+                            />
+                        </span>
+                        <span style="font-size: 11px">Opacity</span>
+                        <input
+                            type="number"
+                            id="colorLayerOpacityInput"
+                            min="0"
+                            max="100"
+                            value="100"
+                            style="width: 50px"
+                            title="Color Opacity %"
+                        />
+                        <span
+                            style="
+                                font-size: 11px;
+                                font-weight: 600;
+                                width: 100%;
+                                display: block;
+                                margin-top: 2px;
+                            "
+                            >Color Layer Mode</span
+                        >
+                        <select
+                            id="colorLayerModeSelect"
+                            title="Color Layer Mode"
+                            style="width: 100%"
+                        >
+                            <option value="source-over">Normal</option>
+                            <option value="multiply">Multiply</option>
+                            <option value="screen">Screen</option>
+                            <option value="overlay">Overlay</option>
+                            <option value="soft-light">Soft Light</option>
+                            <option value="color">Color</option>
+                            <option value="luminosity">Luminosity</option>
+                        </select>
+                    </span>
+                </div>
+
+                <div class="cp-section lock-sensitive" id="patternSection">
+                    <div
+                        class="cp-section-title"
+                        style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        "
+                    >
+                        <span>Create Pattern (P) <span class="pro-badge">⭐ PRO</span></span>
+                        <label class="cp-toggle-switch">
+                            <input type="checkbox" id="patternModeToggle" />
+                            <span class="cp-toggle-track"
+                                ><span class="cp-toggle-knob"></span
+                            ></span>
+                        </label>
+                    </div>
+                    <div id="patternControls" style="display: none">
+                        <div class="bg-crop-aspect-row">
+                            <button
+                                class="pattern-type-btn active"
+                                data-type="grid"
+                            >
+                                Grid
+                            </button>
+                            <button
+                                class="pattern-type-btn"
+                                data-type="brick-h"
+                            >
+                                Brick H
+                            </button>
+                            <button
+                                class="pattern-type-btn"
+                                data-type="brick-v"
+                            >
+                                Brick V
+                            </button>
+                        </div>
+                        <div class="bg-adj-row">
+                            <label>H Spacing</label>
+                            <input
+                                type="range"
+                                id="patternHSpacing"
+                                min="0"
+                                max="200"
+                                step="1"
+                                value="0"
+                            />
+                            <input
+                                type="number"
+                                class="pattern-num-input"
+                                id="patternHSpacingVal"
+                                min="0"
+                                max="200"
+                                step="1"
+                                value="0"
+                            />
+                        </div>
+                        <div class="bg-adj-row">
+                            <label>V Spacing</label>
+                            <input
+                                type="range"
+                                id="patternVSpacing"
+                                min="0"
+                                max="200"
+                                step="1"
+                                value="0"
+                            />
+                            <input
+                                type="number"
+                                class="pattern-num-input"
+                                id="patternVSpacingVal"
+                                min="0"
+                                max="200"
+                                step="1"
+                                value="0"
+                            />
+                        </div>
+                        <div class="bg-adj-row">
+                            <label>Angle</label>
+                            <input
+                                type="range"
+                                id="patternAngle"
+                                min="-180"
+                                max="180"
+                                step="1"
+                                value="0"
+                            />
+                            <input
+                                type="number"
+                                class="pattern-num-input"
+                                id="patternAngleVal"
+                                min="-180"
+                                max="180"
+                                step="1"
+                                value="0"
+                            />
+                        </div>
+                        <div class="bg-adj-row">
+                            <label>H Offset</label>
+                            <input
+                                type="range"
+                                id="patternHOffset"
+                                min="-100"
+                                max="100"
+                                step="1"
+                                value="0"
+                            />
+                            <input
+                                type="number"
+                                class="pattern-num-input"
+                                id="patternHOffsetVal"
+                                min="-100"
+                                max="100"
+                                step="1"
+                                value="0"
+                            />
+                        </div>
+                        <div class="bg-adj-row">
+                            <label>Rot/H step</label>
+                            <input
+                                type="range"
+                                id="patternRotH"
+                                min="-180"
+                                max="180"
+                                step="1"
+                                value="0"
+                            />
+                            <input
+                                type="number"
+                                class="pattern-num-input"
+                                id="patternRotHVal"
+                                min="-180"
+                                max="180"
+                                step="1"
+                                value="0"
+                            />
+                        </div>
+                        <div class="bg-adj-row">
+                            <label>Rot/V step</label>
+                            <input
+                                type="range"
+                                id="patternRotV"
+                                min="-180"
+                                max="180"
+                                step="1"
+                                value="0"
+                            />
+                            <input
+                                type="number"
+                                class="pattern-num-input"
+                                id="patternRotVVal"
+                                min="-180"
+                                max="180"
+                                step="1"
+                                value="0"
+                            />
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: flex-end;
+                                margin-top: 4px;
+                            "
+                        >
+                            <button
+                                id="resetPatternBtn"
+                                class="pattern-reset-btn"
+                            >
+                                Reset Pattern
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 4px; margin-top: 6px">
+                            <button
+                                id="bakePatternBtn"
+                                class="pattern-action-btn pattern-action-btn--teal"
+                            >
+                                Flatten to Image
+                            </button>
+                            <button
+                                id="exportPatternBtn"
+                                class="pattern-action-btn"
+                            >
+                                Export PNG
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cp-section lock-sensitive" id="bgCropSection">
+                    <div class="cp-section-title">Framing <span class="pro-badge">⭐ PRO</span></div>
+                    <div class="bg-crop-aspect-row">
+                        <button class="bg-aspect-btn" data-aspect="1">
+                            1:1
+                        </button>
+                        <button class="bg-aspect-btn" data-aspect="0.8">
+                            4:5
+                        </button>
+                        <button class="bg-aspect-btn" data-aspect="1.25">
+                            5:4
+                        </button>
+                        <button class="bg-aspect-btn" data-aspect="0.6667">
+                            2:3
+                        </button>
+                        <button class="bg-aspect-btn" data-aspect="1.5">
+                            3:2
+                        </button>
+                        <button class="bg-aspect-btn" data-aspect="1.7778">
+                            16:9
+                        </button>
+                    </div>
+                    <div class="bgcrop-dim-row">
+                        <input
+                            type="number"
+                            id="bgCropCustomW"
+                            class="bgcrop-dim-input"
+                            min="1"
+                            max="999"
+                            step="1"
+                            placeholder="W"
+                        />
+                        <span
+                            style="
+                                font-size: 13px;
+                                color: #9CA3AF;
+                                font-weight: 600;
+                            "
+                            >:</span
+                        >
+                        <input
+                            type="number"
+                            id="bgCropCustomH"
+                            class="bgcrop-dim-input"
+                            min="1"
+                            max="999"
+                            step="1"
+                            placeholder="H"
+                        />
+                        <button
+                            id="bgCropCustomApply"
+                            class="bgcrop-apply-btn"
+                        >
+                            Custom
+                        </button>
+                    </div>
+                    <div class="bg-adj-row">
+                        <label>Rotation</label>
+                        <input
+                            type="range"
+                            id="bgCropRotation"
+                            min="-180"
+                            max="180"
+                            step="1"
+                            value="0"
+                        />
+                        <span id="bgCropRotationVal">0</span>
+                    </div>
+                    <div class="bg-adj-row">
+                        <label>Zoom %</label>
+                        <input
+                            type="range"
+                            id="bgCropScale"
+                            min="50"
+                            max="300"
+                            step="1"
+                            value="100"
+                        />
+                        <span id="bgCropScaleVal">100</span>
+                    </div>
+                    <div class="bg-adj-row">
+                        <label>Pan X</label>
+                        <input
+                            type="range"
+                            id="bgCropX"
+                            min="-50"
+                            max="50"
+                            step="1"
+                            value="0"
+                        />
+                        <span id="bgCropXVal">0</span>
+                    </div>
+                    <div class="bg-adj-row">
+                        <label>Pan Y</label>
+                        <input
+                            type="range"
+                            id="bgCropY"
+                            min="-50"
+                            max="50"
+                            step="1"
+                            value="0"
+                        />
+                        <span id="bgCropYVal">0</span>
+                    </div>
+                    <label
+                        style="
+                            display: flex;
+                            flex-direction: row;
+                            align-items: center;
+                            gap: 6px;
+                            margin-top: 6px;
+                            font-size: 12px;
+                            color: #D1D5DB;
+                            cursor: pointer;
+                            user-select: none;
+                        "
+                    >
+                        <input
+                            type="checkbox"
+                            id="bgCropAttachDesign"
+                            style="
+                                width: 14px;
+                                height: 14px;
+                                cursor: pointer;
+                                accent-color: #4F6EF7;
+                            "
+                        />
+                        Attach design to background
+                    </label>
+                    <button id="bgCropResetBtn" style="margin-top: 4px">
+                        Reset Framing
+                    </button>
+                </div>
+
+                <div class="cp-section lock-sensitive" id="bgAdjustSection">
+                    <div class="cp-section-title">Background Adjustments <span class="pro-badge">⭐ PRO</span></div>
+                    <div class="bg-adj-row">
+                        <label>Hue</label>
+                        <input
+                            type="range"
+                            id="bgHue"
+                            min="-180"
+                            max="180"
+                            value="0"
+                        />
+                        <span id="bgHueVal">0</span>
+                    </div>
+                    <div class="bg-adj-row">
+                        <label>Saturation</label>
+                        <input
+                            type="range"
+                            id="bgSaturation"
+                            min="-100"
+                            max="100"
+                            value="0"
+                        />
+                        <span id="bgSaturationVal">0</span>
+                    </div>
+                    <div class="bg-adj-row">
+                        <label>Brightness</label>
+                        <input
+                            type="range"
+                            id="bgBrightness"
+                            min="-100"
+                            max="100"
+                            value="0"
+                        />
+                        <span id="bgBrightnessVal">0</span>
+                    </div>
+                    <div class="bg-adj-row">
+                        <label>Contrast</label>
+                        <input
+                            type="range"
+                            id="bgContrast"
+                            min="-100"
+                            max="100"
+                            value="0"
+                        />
+                        <span id="bgContrastVal">0</span>
+                    </div>
+                    <button id="bgAdjustResetBtn" style="margin-top: 4px">
+                        Reset Adjustments
+                    </button>
+                </div>
+
+                <a
+                    href="https://forms.gle/aE82E8z7ZjWQt6Hm7"
+                    target="_blank"
+                    rel="noopener"
+                    class="cp-feedback"
+                    >Report Bugs &amp; Give Feedback</a
+                >
+            </div>
+
+            <!-- Idle overlay — shown over the dimmed sections when nothing is selected -->
+            <div class="cp-idle-msg">
+                <div class="cp-idle-icon">&#9654;</div>
+                <div>Click a mockup<br />to start editing</div>
+            </div>
+        </div>
+
+        <div id="brushCursorRing"></div>
+        <div id="designEraserCursor" style="display: none">
+            <div id="designEraserInner"></div>
+        </div>
+
+        <script src="js/image-utils.js"></script>
+        <script src="js/warp-engine.js"></script>
+        <script src="js/eraser.js"></script>
+        <script src="js/mesh-warp.js"></script>
+        <script src="js/color-layer.js"></script>
+        <script src="js/undo.js"></script>
+        <script src="js/clip.js"></script>
+        <script src="js/pattern.js"></script>
+        <script src="js/background.js"></script>
+        <!-- Plans modal -->
+        <div id="plansModal" class="ms-plans-overlay" aria-hidden="true">
+            <div class="ms-plans-dialog" role="dialog" aria-labelledby="plansModalTitle">
+                <button class="ms-plans-close" id="plansModalClose" aria-label="Close">&times;</button>
+                <div id="plansModalNotice" class="ms-plans-notice" style="display:none">
+                    <p id="plansModalNoticeText"></p>
+                    <button id="plansModalSkipBtn" class="ms-plans-skip-btn" style="display:none">Skip PRO windows &amp; export the rest</button>
+                </div>
+                <div class="ms-plans-header">
+                    <h2 id="plansModalTitle">Choose your plan</h2>
+                    <p class="ms-plans-subtitle">Upgrade anytime. No hidden fees.</p>
+                    <div class="ms-billing-tabs" role="tablist">
+                        <button class="ms-billing-tab" data-period="monthly" role="tab">Monthly</button>
+                        <button class="ms-billing-tab active" data-period="annual" role="tab">Annual <span class="ms-billing-save">Save 34%</span></button>
+                        <button class="ms-billing-tab" data-period="lifetime" role="tab">Lifetime</button>
+                    </div>
+                </div>
+                <div class="ms-plans-grid">
+                    <!-- Free -->
+                    <div class="ms-plan-card" data-plan="free">
+                        <div class="ms-plan-tier">Free</div>
+                        <div class="ms-plan-tagline">Get started</div>
+                        <div class="ms-plan-pricing">
+                            <span class="ms-plan-amount" data-monthly="$0" data-annual="$0" data-lifetime="$0">$0</span>
+                            <span class="ms-plan-period" data-monthly="/month" data-annual="/month" data-lifetime="">/month</span>
+                        </div>
+                        <div class="ms-plan-billing-note" data-monthly="" data-annual="" data-lifetime=""></div>
+                        <ul class="ms-plan-features">
+                            <li>Canvas compositing tools</li>
+                            <li>Upload &amp; position mockups</li>
+                            <li>Try all editor features</li>
+                            <li class="ms-feature-no">Export locked</li>
+                            <li class="ms-feature-no">Save progress locked</li>
+                        </ul>
+                        <button class="ms-plan-cta ms-plan-cta--current" disabled>Current plan</button>
+                    </div>
+                    <!-- Starter -->
+                    <div class="ms-plan-card" data-plan="starter">
+                        <div class="ms-plan-tier">Starter</div>
+                        <div class="ms-plan-tagline">Perfect for getting started</div>
+                        <div class="ms-plan-pricing">
+                            <span class="ms-plan-amount" data-monthly="$25" data-annual="$17" data-lifetime="$499">$25</span>
+                            <span class="ms-plan-period" data-monthly="/month" data-annual="/month" data-lifetime=" one-time">/month</span>
+                        </div>
+                        <div class="ms-plan-billing-note" data-monthly="" data-annual="billed $199/yr" data-lifetime="pay once, use forever"></div>
+                        <ul class="ms-plan-features">
+                            <li>Everything in Free</li>
+                            <li>Export without watermarks</li>
+                            <li>Save &amp; restore progress</li>
+                            <li>Starter visual effects</li>
+                        </ul>
+                        <button class="ms-plan-cta ms-plan-cta--upgrade" data-plan="starter" data-period="monthly">Upgrade to Starter</button>
+                    </div>
+                    <!-- Pro -->
+                    <div class="ms-plan-card ms-plan-card--featured" data-plan="pro">
+                        <div class="ms-plan-popular">Most Popular</div>
+                        <div class="ms-plan-tier">Pro</div>
+                        <div class="ms-plan-tagline">For power users</div>
+                        <div class="ms-plan-pricing">
+                            <span class="ms-plan-amount" data-monthly="$39" data-annual="$25" data-lifetime="$799">$39</span>
+                            <span class="ms-plan-period" data-monthly="/month" data-annual="/month" data-lifetime=" one-time">/month</span>
+                        </div>
+                        <div class="ms-plan-billing-note" data-monthly="" data-annual="billed $299/yr" data-lifetime="pay once, use forever"></div>
+                        <ul class="ms-plan-features">
+                            <li>Everything in Starter</li>
+                            <li>Advanced visual effects</li>
+                            <li>Warp, fisheye &amp; perspective</li>
+                            <li>Priority support</li>
+                        </ul>
+                        <button class="ms-plan-cta ms-plan-cta--pro" data-plan="pro" data-period="monthly">Upgrade to Pro</button>
+                    </div>
+                </div>
+                <p class="ms-plans-footer">Secure checkout via Stripe &nbsp;·&nbsp; Cancel anytime &nbsp;·&nbsp; Lifetime = pay once</p>
+            </div>
+        </div>
+
+        <script src="js/migrations.js"></script>
+        <script src="js/app.js"></script>
+        <script src="js/plans-modal.js"></script>
+        <script src="js/clerk-auth.js"></script>
+
+        <!-- ── Cookie consent banner ────────────────────────────────────────── -->
+        <div id="cookieConsentBar">
+            <span class="cookie-consent-text">
+                We use cookies for analytics to improve your experience.
+                <a href="/privacy.html" target="_blank">Privacy Policy</a>
+            </span>
+            <div class="cookie-consent-btns">
+                <button id="cookieDeclineBtn">Decline</button>
+                <button id="cookieAcceptBtn">Accept</button>
+            </div>
+        </div>
+
+        <!-- ── Footer ────────────────────────────────────────────────────────── -->
+        <footer class="ms-footer">
+            <a href="/privacy.html" target="_blank">Privacy Policy</a>
+            <span class="ms-footer-dot">·</span>
+            <a href="/terms.html" target="_blank">Terms of Service</a>
+            <span class="ms-footer-dot">·</span>
+            <a href="mailto:support@mockupscripter.com">Support</a>
+            <span class="ms-footer-dot">·</span>
+            <span>© 2026 Mockup Scripter</span>
+        </footer>
+
+        <!-- ── Cookie consent logic ───────────────────────────────────────────── -->
+        <script>
+            (function() {
+                var CONSENT_KEY = 'ms_cookie_consent';
+                var consent = localStorage.getItem(CONSENT_KEY);
+                if (consent !== null) return;
+                var bar = document.getElementById('cookieConsentBar');
+                bar.style.display = 'flex';
+                document.getElementById('cookieAcceptBtn').addEventListener('click', function() {
+                    localStorage.setItem(CONSENT_KEY, 'accepted');
+                    bar.style.display = 'none';
+                    window._initPostHog && window._initPostHog();
+                });
+                document.getElementById('cookieDeclineBtn').addEventListener('click', function() {
+                    localStorage.setItem(CONSENT_KEY, 'declined');
+                    bar.style.display = 'none';
+                });
+            })();
+        </script>
+
+        <!-- ── Security deterrents ──────────────────────────────────────────── -->
+        <script>
+            document.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'F12') { e.preventDefault(); }
+                if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'I') { e.preventDefault(); }
+                if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'J') { e.preventDefault(); }
+                if ((e.ctrlKey || e.metaKey) && e.key === 'u') { e.preventDefault(); }
+            });
+        </script>
+    </body>
+</html>

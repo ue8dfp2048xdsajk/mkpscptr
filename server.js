@@ -44,7 +44,7 @@ app.all('/api/clear-nonce', apiHandler('./api/clear-nonce'));
 app.use(express.static('.'));
 
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'app.html'));
 });
 
 // Catch-all error handler (handles PayloadTooLargeError and others)
