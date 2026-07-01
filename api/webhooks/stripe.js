@@ -154,10 +154,13 @@ function storeStripeCustomerInClerk(clerkUserId, stripeCustomerId, clerkSecretKe
     return patchClerkPublicMetadata(clerkUserId, { stripeCustomerId }, clerkSecretKey);
 }
 
-// Call the internal set-plan endpoint
-async function callSetPlan(baseUrl, setPlanSecret, userId, plan, extraHeaders = {}) {
+// Call the internal set-plan endpoint.
+// `nonce` should be the Stripe event ID (event.id) so that two concurrent
+// deliveries of the same event are deduplicated atomically by the nonce store
+// (Redis SET NX / PG INSERT ON CONFLICT DO NOTHING), even if the MongoDB
+// idempotency check in tryClaimStripeEvent is temporarily unavailable.
+async function callSetPlan(baseUrl, setPlanSecret, userId, plan, nonce, extraHeaders = {}) {
     const timestamp = Math.floor(Date.now() / 1000);
-    const nonce = crypto.randomUUID();
     return fetch(`${baseUrl}/api/set-plan`, {
         method: 'POST',
         headers: {
@@ -311,7 +314,7 @@ module.exports = async function handler(req, res) {
 
         let setPlanRes;
         try {
-            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, userId, plan, testHookHeaders);
+            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, userId, plan, event.id, testHookHeaders);
         } catch (err) {
             console.error('stripe-webhook: set-plan fetch error', err);
             return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
@@ -363,7 +366,7 @@ module.exports = async function handler(req, res) {
 
         let setPlanRes;
         try {
-            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, newPlan);
+            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, newPlan, event.id);
         } catch (err) {
             console.error('stripe-webhook: set-plan fetch error on subscription update', err);
             return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
@@ -399,7 +402,7 @@ module.exports = async function handler(req, res) {
 
         let setPlanRes;
         try {
-            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, 'free');
+            setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, 'free', event.id);
         } catch (err) {
             console.error('stripe-webhook: set-plan fetch error on subscription deletion', err);
             return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });

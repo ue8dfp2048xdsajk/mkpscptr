@@ -227,6 +227,14 @@ describe('Stripe webhook retry — nonce released on Clerk 500, second attempt s
         delete process.env.UPSTASH_REDIS_REST_TOKEN;
         delete process.env.DATABASE_URL;
 
+        // Simulate MongoDB being unavailable so tryClaimStripeEvent always returns
+        // true (allows processing through to callSetPlan).  This isolates the
+        // nonce store as the sole deduplication layer under test, which is the
+        // code path exercised by these suites.
+        jest.doMock('../api/_db', () => ({
+            getDb: () => Promise.reject(new Error('MongoDB unavailable in test')),
+        }));
+
         webhookHandler = require('../api/webhooks/stripe');
         setPlanHandler = require('../api/set-plan');
     });
@@ -272,6 +280,7 @@ describe('Stripe webhook retry — nonce released on Clerk 500, second attempt s
 
     test('first attempt returns 502 when Clerk fails; second attempt (retry) succeeds', async () => {
         const stripeEvent = {
+            id: 'evt_test_retry_001',
             type: 'checkout.session.completed',
             data: {
                 object: {
@@ -360,8 +369,12 @@ describe('Stripe webhook retry — nonce released on Clerk 500, second attempt s
         }
     });
 
-    test('a successful delivery is idempotent — second identical event with same user/plan still succeeds via fresh nonce', async () => {
+    test('second delivery of same event ID is blocked by nonce — Clerk called exactly once', async () => {
+        // Using event.id as nonce: both deliveries carry the same nonce, so the
+        // nonce store (in-memory here, Redis/PG in production) blocks the second
+        // one even when the MongoDB idempotency check is unavailable.
         const stripeEvent = {
+            id: 'evt_test_idempotent_001',
             type: 'checkout.session.completed',
             data: {
                 object: {
@@ -419,20 +432,116 @@ describe('Stripe webhook retry — nonce released on Clerk 500, second attempt s
         });
 
         try {
+            // First delivery: succeeds, nonce (event.id) recorded.
             const sig1 = buildStripeSignature(rawBody);
             const req1 = makeStreamReq(sig1, rawBody);
             const res1 = makeRes();
             await webhookHandler(req1, res1);
             expect(res1._status).toBe(200);
             expect(res1._body.ok).toBe(true);
+            expect(clerkCallCount).toBe(1);
 
+            // Second delivery of the same event: MongoDB unavailable so
+            // tryClaimStripeEvent returns true, but the nonce store sees the
+            // event.id is already recorded and rejects with 400, causing the
+            // webhook to return 502.  Clerk is NOT called a second time.
             const sig2 = buildStripeSignature(rawBody);
             const req2 = makeStreamReq(sig2, rawBody);
             const res2 = makeRes();
             await webhookHandler(req2, res2);
-            expect(res2._status).toBe(200);
-            expect(res2._body.ok).toBe(true);
-            expect(clerkCallCount).toBe(2);
+            expect(res2._status).toBe(502);
+            expect(res2._body.ok).toBe(false);
+            expect(clerkCallCount).toBe(1); // Clerk was NOT called again
+        } finally {
+            global.fetch = realFetch;
+        }
+    });
+
+    test('concurrent deliveries of same Stripe event are deduplicated — Clerk called exactly once', async () => {
+        // Two deliveries of the SAME event arrive simultaneously (e.g. Stripe
+        // fires twice due to a network blip).  Both carry the same event.id, so
+        // the nonce store's atomic SET NX / in-memory Map ensures exactly one
+        // reaches Clerk.
+        const stripeEvent = {
+            id: 'evt_test_concurrent_001',
+            type: 'checkout.session.completed',
+            data: {
+                object: {
+                    id: 'cs_test_concurrent_001',
+                    client_reference_id: 'user_concurrent_001',
+                    metadata: { plan: 'starter' },
+                },
+            },
+        };
+        const rawBody = JSON.stringify(stripeEvent);
+
+        let clerkCallCount = 0;
+
+        const realFetch = global.fetch;
+        global.fetch = jest.fn(async (url, options) => {
+            const urlStr = String(url);
+
+            if (urlStr.includes('/api/set-plan')) {
+                const bodyStr = options && options.body ? String(options.body) : '{}';
+                const reqHeaders = {};
+                for (const [k, v] of Object.entries((options && options.headers) || {})) {
+                    reqHeaders[k.toLowerCase()] = v;
+                }
+                const setPlanReq = {
+                    method: 'POST',
+                    headers: {
+                        'content-type': 'application/json',
+                        authorization: reqHeaders['authorization'] || '',
+                        'x-timestamp': reqHeaders['x-timestamp'] || '',
+                        'x-nonce': reqHeaders['x-nonce'] || '',
+                    },
+                    body: bodyStr,
+                    socket: { remoteAddress: '127.0.0.3' },
+                };
+                const setPlanRes = makeRes();
+                await setPlanHandler(setPlanReq, setPlanRes);
+                const isOk = setPlanRes._status >= 200 && setPlanRes._status < 300;
+                return {
+                    ok: isOk,
+                    status: setPlanRes._status,
+                    json: async () => setPlanRes._body,
+                };
+            }
+
+            if (urlStr.includes('api.clerk.com')) {
+                clerkCallCount += 1;
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({ id: 'user_concurrent_001', public_metadata: { plan: 'starter' } }),
+                };
+            }
+
+            throw new Error(`Unexpected fetch to: ${urlStr}`);
+        });
+
+        try {
+            const sig1 = buildStripeSignature(rawBody);
+            const sig2 = buildStripeSignature(rawBody);
+            const req1 = makeStreamReq(sig1, rawBody);
+            const req2 = makeStreamReq(sig2, rawBody);
+            const res1 = makeRes();
+            const res2 = makeRes();
+
+            // Fire both deliveries concurrently.
+            await Promise.all([
+                webhookHandler(req1, res1),
+                webhookHandler(req2, res2),
+            ]);
+
+            const statuses = [res1._status, res2._status].sort();
+            // Exactly one should succeed (200); the other should be blocked (502
+            // because set-plan rejected the duplicate nonce with 400).
+            expect(statuses.filter(s => s === 200)).toHaveLength(1);
+            expect(statuses.filter(s => s >= 400)).toHaveLength(1);
+
+            // Clerk must have been called exactly once — no duplicate upgrade.
+            expect(clerkCallCount).toBe(1);
         } finally {
             global.fetch = realFetch;
         }
