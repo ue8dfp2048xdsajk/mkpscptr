@@ -421,6 +421,7 @@
     var _pollStartTime = null;
     var _pollDeadlineMs = 90000;
     var _pollVisibilityHandler = null;
+    var _pollOnlineHandler = null;
 
     function _cleanupPoll() {
         _paymentPollingActive = false;
@@ -428,6 +429,10 @@
         if (_pollVisibilityHandler) {
             document.removeEventListener('visibilitychange', _pollVisibilityHandler);
             _pollVisibilityHandler = null;
+        }
+        if (_pollOnlineHandler) {
+            window.removeEventListener('online', _pollOnlineHandler);
+            _pollOnlineHandler = null;
         }
     }
 
@@ -457,6 +462,14 @@
         if (!banner) return;
         banner.classList.remove('ms-activating-banner--visible');
         setTimeout(function () { banner.parentNode && banner.parentNode.removeChild(banner); }, 350);
+    }
+
+    function _setActivatingBannerText(msg) {
+        var banner = document.getElementById('msActivatingBanner');
+        if (!banner) return;
+        var spans = banner.querySelectorAll('span');
+        var textSpan = spans[spans.length - 1];
+        if (textSpan) textSpan.textContent = msg;
     }
 
     function _handlePaymentSuccess() {
@@ -495,6 +508,18 @@
         var attemptDelay = 2000;
         _pollStartTime = Date.now();
 
+        function _pauseForOnline() {
+            if (_pollOnlineHandler) return;
+            _setActivatingBannerText('Waiting for connection\u2026');
+            _pollOnlineHandler = function () {
+                window.removeEventListener('online', _pollOnlineHandler);
+                _pollOnlineHandler = null;
+                _setActivatingBannerText('Confirming your upgrade\u2026');
+                tryReload();
+            };
+            window.addEventListener('online', _pollOnlineHandler);
+        }
+
         function tryReload() {
             if (!_paymentPollingActive) return;
 
@@ -512,6 +537,11 @@
             }
 
             if (document.visibilityState === 'hidden') {
+                return;
+            }
+
+            if (!navigator.onLine) {
+                _pauseForOnline();
                 return;
             }
 
@@ -547,7 +577,9 @@
                     _pollTimerId = setTimeout(tryReload, attemptDelay);
                 }
             }).catch(function () {
-                if (Date.now() - _pollStartTime < _pollDeadlineMs) {
+                if (!navigator.onLine) {
+                    _pauseForOnline();
+                } else if (Date.now() - _pollStartTime < _pollDeadlineMs) {
                     _pollTimerId = setTimeout(tryReload, attemptDelay);
                 } else {
                     _cleanupPoll();
