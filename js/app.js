@@ -74,7 +74,7 @@ function _drawWatermarkOnCanvas(data) {
     var cols = Math.ceil(diag / colPitch) + 1;
 
     // Draw all line-1 text first (batching same fillStyle avoids redundant GPU state changes)
-    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
     for (var r = -rows; r <= rows; r++) {
         var y   = r * rowPitch;
         var xOff = (r & 1) ? colPitch / 2 : 0; // brick offset on odd rows
@@ -83,7 +83,7 @@ function _drawWatermarkOnCanvas(data) {
         }
     }
     // Draw all line-2 text
-    ctx.fillStyle = 'rgba(255,255,255,0.50)';
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
     for (var r = -rows; r <= rows; r++) {
         var y   = r * rowPitch;
         var xOff = (r & 1) ? colPitch / 2 : 0;
