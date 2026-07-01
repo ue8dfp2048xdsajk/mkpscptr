@@ -1675,17 +1675,17 @@ body.sidebar-expanded #contextPanelBody {
 
 /* ── Clerk auth UI ──────────────────────────────────────────────────────── */
 #clerkSignInBtn {
-    background: #4F6EF7;
-    color: #fff;
-    border-color: #4F6EF7;
-    font-weight: 600;
-    box-shadow: 0 1px 4px rgba(79, 110, 247, 0.30);
+    background: transparent;
+    color: #E5E7EB;
+    border-color: rgba(255,255,255,0.25);
+    font-weight: 500;
+    box-shadow: none;
 }
 #clerkSignInBtn:hover {
-    background: #3A56D4;
-    border-color: #3A56D4;
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.4);
     color: #fff;
-    box-shadow: 0 2px 8px rgba(79, 110, 247, 0.40);
+    box-shadow: none;
 }
 
 .ms-user-wrap {

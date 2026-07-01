@@ -638,6 +638,10 @@
         }, 5000);
     }
 
+    // Render sign-in button immediately as default state so it appears
+    // even before Clerk finishes loading (or if it fails to load in dev).
+    _renderSignInButton();
+
     if (window.__clerkSdkReady) {
         _clerkAuthMain();
     } else {
