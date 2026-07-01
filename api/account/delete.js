@@ -39,11 +39,43 @@ module.exports = async function handler(req, res) {
         return res.status(500).json({ ok: false, error: 'Failed to delete projects' });
     }
 
+    let stripeCustomerId = null;
+    try {
+        const customerDoc = await db.collection('customers').findOne(
+            { clerkUserId },
+            { projection: { stripeCustomerId: 1 } }
+        );
+        stripeCustomerId = customerDoc?.stripeCustomerId || null;
+    } catch (err) {
+        console.error('account/delete: failed to look up customer record', err);
+    }
+
     try {
         await db.collection('customers').deleteOne({ clerkUserId });
     } catch (err) {
         console.error('account/delete: failed to delete customer record', err);
         return res.status(500).json({ ok: false, error: 'Failed to delete customer record' });
+    }
+
+    if (stripeCustomerId) {
+        const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+        if (stripeSecretKey) {
+            try {
+                const stripeRes = await fetch(
+                    `https://api.stripe.com/v1/customers/${encodeURIComponent(stripeCustomerId)}`,
+                    {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+                    }
+                );
+                if (!stripeRes.ok) {
+                    const d = await stripeRes.json().catch(() => ({}));
+                    console.error('account/delete: Stripe customer deletion failed', d?.error?.message);
+                }
+            } catch (err) {
+                console.error('account/delete: failed to reach Stripe API', err);
+            }
+        }
     }
 
     let clerkRes;
