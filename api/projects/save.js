@@ -317,6 +317,7 @@ module.exports = async function handler(req, res) {
             userId: null,
             ip: ipHash,
             plan: 'anon',
+            name: 'Untitled',
             snapshot,
             schemaVersion: snapshot.schemaVersion,
             createdAt: now,

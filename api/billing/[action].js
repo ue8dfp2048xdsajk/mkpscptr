@@ -16,6 +16,7 @@ const BILLING_WINDOW_SEC = 60;
 // another user's invoices or granting portal access to an unrelated subscription.
 async function resolveStripeCustomer(clerkUserId, clerkSecretKey) {
     if (!clerkSecretKey) return { customerId: null, error: null };
+    let customerId = null;
     try {
         const r = await fetch(
             `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
@@ -28,10 +29,30 @@ async function resolveStripeCustomer(clerkUserId, clerkSecretKey) {
             return { customerId: null, error: `Clerk returned ${r.status}` };
         }
         const d = await r.json();
-        return { customerId: d?.public_metadata?.stripeCustomerId || null, error: null };
+        customerId = d?.public_metadata?.stripeCustomerId || null;
     } catch {
         return { customerId: null, error: 'Clerk unreachable' };
     }
+
+    // Clerk metadata may be missing stripeCustomerId if the post-checkout
+    // storeStripeCustomerInClerk write failed transiently.  Fall back to the
+    // authoritative MongoDB customers collection so paying users can always
+    // reach their billing portal and invoice history.
+    if (!customerId) {
+        try {
+            const { getDb } = require('../_db');
+            const db = await getDb();
+            const doc = await db.collection('customers').findOne(
+                { clerkUserId },
+                { projection: { stripeCustomerId: 1 } }
+            );
+            customerId = doc?.stripeCustomerId || null;
+        } catch {
+            // Non-fatal — if MongoDB is also unavailable, return null (no customer found).
+        }
+    }
+
+    return { customerId, error: null };
 }
 
 async function handleInvoices(req, res, stripeCustomerId, stripeSecretKey) {
