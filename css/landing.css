@@ -188,9 +188,14 @@ img { max-width: 100%; display: block; }
     padding: 5px 14px;
     font-size: 12px;
     font-weight: 600;
+    font-family: 'Courier New', Courier, monospace;
     color: #818CF8;
     margin-bottom: 28px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
+}
+.hero-eyebrow-prompt {
+    color: #4ADE80;
+    font-weight: 700;
 }
 
 .hero-title {
