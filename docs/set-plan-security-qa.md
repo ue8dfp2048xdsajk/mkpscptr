@@ -389,15 +389,35 @@ When `deleteNonce()` exhausts all retries it emits a structured log line at the 
    curl -s -X POST "$BASE_URL/api/clear-nonce" \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer $SECRET" \
-     -d '{"nonce":"<value from log>"}'
+     -d '{"nonce":"<value from log>","reason":"deleteNonce retries exhausted after Redis connectivity issue on <date>"}'
 
    # By userId + plan (use when the nonce value is not in the log):
    curl -s -X POST "$BASE_URL/api/clear-nonce" \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer $SECRET" \
-     -d '{"userId":"<id from log>","plan":"<plan from log>"}'
+     -d '{"userId":"<id from log>","plan":"<plan from log>","reason":"deleteNonce retries exhausted after Redis connectivity issue on <date>"}'
    ```
 3. Investigate why Redis / PostgreSQL was unreachable; fix the connectivity issue so `deleteNonce()` succeeds on subsequent events.
+
+### ⚠️ Timing warning — race-condition window
+
+**Only call this endpoint after you have confirmed that the Clerk metadata update succeeded.**
+
+Here is the risk if you call it too early:
+
+1. Stripe fires a `checkout.session.completed` event → `set-plan` receives it, records the nonce, and starts updating Clerk.
+2. An admin calls `POST /api/clear-nonce` while the Clerk update is still in-flight.
+3. The nonce is wiped from the store.
+4. The Clerk update fails (network blip, timeout, etc.) and the endpoint returns a non-200 — but the nonce is already gone.
+5. Stripe retries. The retry arrives with the same nonce → the nonce store reports "not seen" → the request is treated as fresh → Clerk is updated a second time (usually a no-op) **and** any Stripe-side deduplication is bypassed.
+
+In normal failure recovery the nonce remains recorded so Stripe retries are still deduplicated. Premature admin clearance defeats that protection.
+
+**Safe procedure:**
+1. Confirm in the Clerk dashboard (or via `GET /api/user-plan`) that `publicMetadata.plan` is already set to the expected value for the affected user.
+2. Only then call `POST /api/clear-nonce` to unblock future retries.
+
+If Clerk shows the correct plan, clearing the nonce is safe — the upgrade already happened and a second Clerk write is idempotent. If Clerk does **not** yet show the correct plan, wait or investigate before clearing.
 
 ### Authentication
 
@@ -414,16 +434,18 @@ No `X-Timestamp` or `X-Nonce` headers are required (this is an admin-only intern
 **Mode 1 — clear by nonce value** (use when the nonce appears in your server logs):
 
 ```json
-{ "nonce": "<exact nonce value from X-Nonce header in the webhook log>" }
+{ "nonce": "<exact nonce value from X-Nonce header in the webhook log>", "reason": "<short description>" }
 ```
 
 **Mode 2 — clear by userId + plan** (use when the nonce value is unknown):
 
 ```json
-{ "userId": "<clerk userId>", "plan": "pro" }
+{ "userId": "<clerk userId>", "plan": "pro", "reason": "<short description>" }
 ```
 
 The nonce store records `userId` and `plan` alongside each nonce so this lookup is possible without knowing the nonce value itself.
+
+The `reason` field is optional but strongly recommended — it is written to the structured audit log so you can reconstruct who cleared a nonce and why.
 
 ### Response
 
@@ -457,7 +479,7 @@ echo ""
 curl -s -X POST "$BASE_URL/api/clear-nonce" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
-  -d "{\"nonce\":\"$STUCK_NONCE\"}"
+  -d "{\"nonce\":\"$STUCK_NONCE\",\"reason\":\"QA test — clearing simulated stuck nonce\"}"
 ```
 
 **Expected:** `200`
@@ -473,7 +495,7 @@ curl -s -X POST "$BASE_URL/api/clear-nonce" \
 curl -s -X POST "$BASE_URL/api/clear-nonce" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
-  -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\"}"
+  -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\",\"reason\":\"QA test — clearing by userId+plan\"}"
 ```
 
 **Expected:** `200`

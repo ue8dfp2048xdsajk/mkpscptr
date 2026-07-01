@@ -50,7 +50,9 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
     }
 
-    const { nonce, userId, plan } = body || {};
+    const { nonce, userId, plan, reason } = body || {};
+
+    const reasonStr = (typeof reason === 'string' && reason.trim()) ? reason.trim() : 'not provided';
 
     // --- Mode 1: clear by nonce value ---
     if (nonce != null) {
@@ -59,7 +61,15 @@ module.exports = async function handler(req, res) {
         }
         try {
             await deleteNonce(nonce.trim());
-            console.log(`clear-nonce: deleted nonce by value (userId hint: ${userId || 'none'})`);
+            console.log(JSON.stringify({
+                event: 'clear-nonce',
+                mode: 'by-value',
+                nonce: nonce.trim(),
+                userId: userId || null,
+                plan: plan || null,
+                reason: reasonStr,
+                deleted: 1,
+            }));
             return res.status(200).json({ ok: true, deleted: 1 });
         } catch (err) {
             console.error('clear-nonce: deleteNonce failed:', err);
@@ -77,7 +87,15 @@ module.exports = async function handler(req, res) {
         }
         try {
             const deleted = await deleteNonceByUserPlan(userId.trim(), plan.trim());
-            console.log(`clear-nonce: deleted ${deleted} nonce(s) for userId=${userId} plan=${plan}`);
+            console.log(JSON.stringify({
+                event: 'clear-nonce',
+                mode: 'by-user-plan',
+                nonce: null,
+                userId: userId.trim(),
+                plan: plan.trim(),
+                reason: reasonStr,
+                deleted,
+            }));
             return res.status(200).json({ ok: true, deleted });
         } catch (err) {
             console.error('clear-nonce: deleteNonceByUserPlan failed:', err);
