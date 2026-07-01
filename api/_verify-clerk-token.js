@@ -21,4 +21,24 @@ async function verifyClerkToken(authorizationHeader) {
     }
 }
 
-module.exports = { verifyClerkToken };
+/**
+ * Verify a Clerk session JWT and return both the user ID and the full
+ * verified payload.  Returns { userId, payload } if valid, or null if the
+ * token is absent / invalid / expired.
+ *
+ * Use this variant when you need claims beyond sub — e.g. public_metadata —
+ * so you can avoid a second round-trip to the Clerk REST API.
+ */
+async function verifyClerkTokenFull(authorizationHeader) {
+    const token = (authorizationHeader || '').replace(/^Bearer\s+/i, '').trim();
+    if (!token) return null;
+    try {
+        const { payload } = await jwtVerify(token, JWKS);
+        if (typeof payload.sub !== 'string') return null;
+        return { userId: payload.sub, payload };
+    } catch {
+        return null;
+    }
+}
+
+module.exports = { verifyClerkToken, verifyClerkTokenFull };
