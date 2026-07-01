@@ -30,7 +30,6 @@ function apiHandler(handlerPath) {
 app.all('/api/projects/list',   apiHandler('./api/projects/list'));
 app.all('/api/projects/save',   apiHandler('./api/projects/save'));
 app.all('/api/projects/claim',  apiHandler('./api/projects/claim'));
-app.all('/api/projects/rename', apiHandler('./api/projects/rename'));
 app.all('/api/projects/:id', (req, res) => {
     req.query.id = req.params.id;
     require('./api/projects/[id]')(req, res);
