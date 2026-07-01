@@ -73,10 +73,7 @@
             font-family: 'Inter', Arial, sans-serif;
             text-decoration: none;
         }
-        .btn-primary {
-            background: #6366F1;
-            color: #fff;
-        }
+        .btn-primary { background: #6366F1; color: #fff; }
         .btn-primary:hover { background: #4F46E5; }
         .btn-primary:disabled { background: #374151; color: #6B7280; cursor: default; }
         .btn-secondary {
@@ -96,13 +93,6 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-        #invoiceSection h2 {
-            font-size: 15px;
-            font-weight: 600;
-            color: #F9FAFB;
-            margin-bottom: 6px;
-        }
-        #invoiceSection .card-desc { margin-bottom: 16px; }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -122,11 +112,7 @@
             color: #9CA3AF;
         }
         tr:last-child td { border-bottom: none; }
-        td a {
-            color: #818CF8;
-            text-decoration: none;
-            font-size: 12px;
-        }
+        td a { color: #818CF8; text-decoration: none; font-size: 12px; }
         td a:hover { text-decoration: underline; }
         .invoice-status {
             display: inline-block;
@@ -161,11 +147,112 @@
             color: #6B7280;
             font-size: 14px;
         }
-        .not-signed-in a {
-            color: #818CF8;
-            cursor: pointer;
-            text-decoration: underline;
+        .not-signed-in a { color: #818CF8; cursor: pointer; text-decoration: underline; }
+        /* ── Danger Zone ──────────────────────────────────────────────── */
+        .card-danger {
+            background: #111827;
+            border: 1px solid #7F1D1D;
+            border-radius: 10px;
+            padding: 24px;
+            margin-bottom: 16px;
         }
+        .card-danger .card-title { color: #FCA5A5; }
+        .btn-danger {
+            background: transparent;
+            border: 1px solid #991B1B;
+            color: #FCA5A5;
+            padding: 8px 18px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: 'Inter', Arial, sans-serif;
+        }
+        .btn-danger:hover { background: #7F1D1D; border-color: #7F1D1D; color: #fff; }
+        /* ── Delete modal ─────────────────────────────────────────────── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 12px;
+            padding: 28px 28px 24px;
+            max-width: 420px;
+            width: 100%;
+            margin: 16px;
+        }
+        .modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #FCA5A5;
+            margin-bottom: 10px;
+        }
+        .modal-body {
+            font-size: 13px;
+            color: #9CA3AF;
+            line-height: 1.6;
+            margin-bottom: 18px;
+        }
+        .modal-body strong { color: #E5E7EB; }
+        .modal-input-label {
+            font-size: 12px;
+            color: #6B7280;
+            margin-bottom: 6px;
+        }
+        .modal-input {
+            width: 100%;
+            padding: 9px 12px;
+            background: #0D1117;
+            border: 1px solid #374151;
+            border-radius: 7px;
+            color: #F9FAFB;
+            font-size: 13px;
+            font-family: 'Inter', Arial, sans-serif;
+            margin-bottom: 16px;
+            outline: none;
+        }
+        .modal-input:focus { border-color: #6366F1; }
+        .modal-error {
+            font-size: 12px;
+            color: #FCA5A5;
+            margin-bottom: 12px;
+            min-height: 16px;
+        }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-cancel {
+            background: transparent;
+            border: 1px solid #374151;
+            color: #9CA3AF;
+            padding: 8px 18px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: 'Inter', Arial, sans-serif;
+        }
+        .btn-cancel:hover { background: #1F2937; }
+        .btn-danger-confirm {
+            background: #991B1B;
+            border: none;
+            color: #fff;
+            padding: 8px 18px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', Arial, sans-serif;
+        }
+        .btn-danger-confirm:hover:not(:disabled) { background: #7F1D1D; }
+        .btn-danger-confirm:disabled { background: #374151; color: #6B7280; cursor: default; }
+        /* ── Footer ───────────────────────────────────────────────────── */
         .footer {
             position: fixed;
             bottom: 0; left: 0; right: 0;
@@ -216,6 +303,18 @@
             </div>
         </div>
 
+        <div class="card-danger">
+            <div class="card-header">
+                <span class="card-title">Danger Zone</span>
+            </div>
+            <p class="card-desc" style="margin-bottom:16px">
+                Permanently delete your account and all associated data. This removes
+                <strong style="color:#E5E7EB">all your saved projects</strong> and your
+                billing records. <strong style="color:#E5E7EB">This cannot be undone.</strong>
+            </p>
+            <button class="btn-danger" id="openDeleteModalBtn">Delete my account</button>
+        </div>
+
     </div>
 
     <div id="notSignedIn" class="not-signed-in" style="display:none">
@@ -223,6 +322,24 @@
         <p style="margin-top:12px"><a id="signInLink">Sign in</a></p>
     </div>
 
+</div>
+
+<div id="deleteModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+    <div class="modal-box">
+        <div class="modal-title" id="deleteModalTitle">Delete your account</div>
+        <div class="modal-body">
+            This will permanently delete <strong>all your projects</strong>, your billing records,
+            and your login. You will be signed out immediately and
+            <strong>this action cannot be undone</strong>.
+        </div>
+        <div class="modal-input-label">Type <strong style="color:#E5E7EB">DELETE</strong> to confirm</div>
+        <input class="modal-input" type="text" id="deleteConfirmInput" autocomplete="off" placeholder="DELETE" />
+        <div class="modal-error" id="deleteModalError"></div>
+        <div class="modal-actions">
+            <button class="btn-cancel" id="cancelDeleteBtn">Cancel</button>
+            <button class="btn-danger-confirm" id="confirmDeleteBtn" disabled>Delete my account</button>
+        </div>
+    </div>
 </div>
 
 <div class="footer">
@@ -262,7 +379,8 @@ function initClerk() {
                 var endsDate = new Date(subEndsAt * 1000).toLocaleDateString('en-GB', {
                     day: 'numeric', month: 'short', year: 'numeric'
                 });
-                document.getElementById('billingDesc').textContent = 'Your subscription cancels on ' + endsDate + '. Manage or reactivate below.';
+                document.getElementById('billingDesc').textContent =
+                    'Your subscription cancels on ' + endsDate + '. Manage or reactivate below.';
             }
         }
 
@@ -272,9 +390,9 @@ function initClerk() {
 
         var portalBtn2 = document.getElementById('openPortalBtn');
         if (plan !== 'free') {
-            portalBtn2.addEventListener('click', function () {
+            portalBtn2.addEventListener('click', function() {
                 portalBtn2.disabled = true;
-                portalBtn2.textContent = 'Loading…';
+                portalBtn2.textContent = 'Loading\u2026';
                 window.Clerk.session.getToken().then(function(token) {
                     return fetch('/api/billing/portal', {
                         method: 'POST',
@@ -300,7 +418,6 @@ function initClerk() {
                     portalBtn2.textContent = 'Manage Billing';
                 });
             });
-
         }
 
         loadInvoices();
@@ -311,6 +428,8 @@ function initClerk() {
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
             }, 200);
         }
+
+        initDeleteModal();
     });
 }
 
@@ -325,7 +444,11 @@ function loadInvoices() {
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        if (!data.ok || !data.invoices || !data.invoices.length) {
+        if (!data.ok) {
+            wrap.innerHTML = '<div class="empty-state">Could not load invoices.</div>';
+            return;
+        }
+        if (!data.invoices || !data.invoices.length) {
             wrap.innerHTML = '<div class="empty-state">No invoices yet.</div>';
             return;
         }
@@ -341,8 +464,9 @@ function loadInvoices() {
                 '<td>' + currency + ' ' + amount + '</td>' +
                 '<td><span class="invoice-status">Paid</span></td>' +
                 '<td>' +
-                    (inv.pdfUrl ? '<a href="' + inv.pdfUrl + '" target="_blank" rel="noopener">Download PDF</a>' : '') +
-                    (inv.hostedUrl && !inv.pdfUrl ? '<a href="' + inv.hostedUrl + '" target="_blank" rel="noopener">View</a>' : '') +
+                    (inv.pdfUrl
+                        ? '<a href="' + inv.pdfUrl + '" target="_blank" rel="noopener">Download PDF</a>'
+                        : (inv.hostedUrl ? '<a href="' + inv.hostedUrl + '" target="_blank" rel="noopener">View</a>' : '')) +
                 '</td>' +
             '</tr>';
         });
@@ -351,6 +475,65 @@ function loadInvoices() {
     })
     .catch(function() {
         wrap.innerHTML = '<div class="empty-state">Could not load invoices.</div>';
+    });
+}
+
+function initDeleteModal() {
+    var modal   = document.getElementById('deleteModal');
+    var input   = document.getElementById('deleteConfirmInput');
+    var errorEl = document.getElementById('deleteModalError');
+    var confirmBtn = document.getElementById('confirmDeleteBtn');
+
+    document.getElementById('openDeleteModalBtn').addEventListener('click', function() {
+        input.value = '';
+        errorEl.textContent = '';
+        confirmBtn.disabled = true;
+        modal.classList.add('open');
+        input.focus();
+    });
+
+    document.getElementById('cancelDeleteBtn').addEventListener('click', function() {
+        modal.classList.remove('open');
+    });
+
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) modal.classList.remove('open');
+    });
+
+    input.addEventListener('input', function() {
+        confirmBtn.disabled = input.value !== 'DELETE';
+        errorEl.textContent = '';
+    });
+
+    confirmBtn.addEventListener('click', function() {
+        if (input.value !== 'DELETE') return;
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Deleting\u2026';
+        errorEl.textContent = '';
+
+        window.Clerk.session.getToken().then(function(token) {
+            return fetch('/api/account/delete', {
+                method: 'DELETE',
+                headers: { 'Authorization': 'Bearer ' + token },
+            });
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                window.Clerk.signOut().then(function() {
+                    window.location.href = '/';
+                });
+            } else {
+                errorEl.textContent = d.error || 'Deletion failed. Please try again.';
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Delete my account';
+            }
+        })
+        .catch(function() {
+            errorEl.textContent = 'Network error. Please try again.';
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Delete my account';
+        });
     });
 }
 </script>
