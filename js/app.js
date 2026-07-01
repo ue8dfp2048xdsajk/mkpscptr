@@ -8525,10 +8525,11 @@ function updateMinimap(){
     const ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, cvW, cvH);
 
-    // Window cells
+    // Window cells — use cellEl for position (wrapperEl.offsetLeft is always 0
+    // because .window-cell is its offsetParent; cellEl gives correct grid offset)
     const activeSet = new Set(activeIndices);
     canvasData.forEach((data, i) => {
-        const el = data?.wrapperEl;
+        const el = data?.cellEl || data?.wrapperEl;
         if(!el) return;
         const x = _MM_PAD + el.offsetLeft  * ms;
         const y = _MM_PAD + el.offsetTop   * ms;
