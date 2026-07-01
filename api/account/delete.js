@@ -1,19 +1,10 @@
 const { setCorsHeaders, handleOptions } = require('../_cors');
 const { getDb } = require('../_db');
 const { verifyClerkToken } = require('../_verify-clerk-token');
+const { isRateLimited } = require('../_sliding-window');
 
-const _deleteHits = new Map();
-const DELETE_WINDOW_MS = 60_000;
-const DELETE_MAX = 5;
-function deleteRateLimited(userId) {
-    const now = Date.now();
-    const cutoff = now - DELETE_WINDOW_MS;
-    const hits = (_deleteHits.get(userId) || []).filter(t => t > cutoff);
-    if (hits.length >= DELETE_MAX) return true;
-    hits.push(now);
-    _deleteHits.set(userId, hits);
-    return false;
-}
+const DELETE_MAX        = 5;
+const DELETE_WINDOW_SEC = 60;
 
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
@@ -38,7 +29,7 @@ module.exports = async function handler(req, res) {
         return res.status(401).json({ ok: false, error: 'Not authenticated' });
     }
 
-    if (deleteRateLimited(clerkUserId)) {
+    if (await isRateLimited(`ratelimit:delete:${clerkUserId}`, DELETE_MAX, DELETE_WINDOW_SEC)) {
         return res.status(429).json({ ok: false, error: 'Too many requests. Please wait before trying again.' });
     }
 

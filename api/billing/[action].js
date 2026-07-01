@@ -1,19 +1,9 @@
 const { setCorsHeaders, handleOptions } = require('../_cors');
 const { verifyClerkToken } = require('../_verify-clerk-token');
+const { isRateLimited } = require('../_sliding-window');
 
-// Per-user rate limit: max 10 billing requests per minute (in-memory)
-const _billingHits = new Map();
-const BILLING_WINDOW_MS = 60_000;
-const BILLING_MAX = 10;
-function billingRateLimited(userId) {
-    const now = Date.now();
-    const cutoff = now - BILLING_WINDOW_MS;
-    const hits = (_billingHits.get(userId) || []).filter(t => t > cutoff);
-    if (hits.length >= BILLING_MAX) return true;
-    hits.push(now);
-    _billingHits.set(userId, hits);
-    return false;
-}
+const BILLING_MAX        = 10;
+const BILLING_WINDOW_SEC = 60;
 
 // Resolve the Stripe customer ID for a Clerk user from their Clerk public_metadata.
 // Returns { customerId, error } where:
@@ -139,7 +129,7 @@ module.exports = async function handler(req, res) {
         return res.status(401).json({ ok: false, error: 'Not authenticated' });
     }
 
-    if (billingRateLimited(clerkUserId)) {
+    if (await isRateLimited(`ratelimit:billing:${clerkUserId}`, BILLING_MAX, BILLING_WINDOW_SEC)) {
         return res.status(429).json({ ok: false, error: 'Too many requests. Please wait before trying again.' });
     }
 

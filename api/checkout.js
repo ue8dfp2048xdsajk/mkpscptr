@@ -1,19 +1,9 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
 const { verifyClerkToken } = require('./_verify-clerk-token');
+const { isRateLimited } = require('./_sliding-window');
 
-// Per-user checkout rate limit: max 5 sessions per minute (in-memory; resets on cold start)
-const _checkoutHits = new Map();
-const CHECKOUT_WINDOW_MS = 60_000;
-const CHECKOUT_MAX = 5;
-function checkoutRateLimited(userId) {
-    const now = Date.now();
-    const cutoff = now - CHECKOUT_WINDOW_MS;
-    const hits = (_checkoutHits.get(userId) || []).filter(t => t > cutoff);
-    if (hits.length >= CHECKOUT_MAX) return true;
-    hits.push(now);
-    _checkoutHits.set(userId, hits);
-    return false;
-}
+const CHECKOUT_MAX        = 5;
+const CHECKOUT_WINDOW_SEC = 60;
 
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
@@ -77,7 +67,7 @@ module.exports = async function handler(req, res) {
         return res.status(401).json({ ok: false, error: 'Not authenticated' });
     }
 
-    if (checkoutRateLimited(clerkUserId)) {
+    if (await isRateLimited(`ratelimit:checkout:${clerkUserId}`, CHECKOUT_MAX, CHECKOUT_WINDOW_SEC)) {
         return res.status(429).json({ ok: false, error: 'Too many checkout attempts. Please wait a moment and try again.' });
     }
 
