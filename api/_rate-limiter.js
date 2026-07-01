@@ -96,6 +96,7 @@ function denyCacheRemove(ip) {
 }
 
 // --- In-memory fallback ---
+const FAILURE_STORE_MAX_SIZE = 10_000; // evict oldest entry beyond this cap
 const failureStore = new Map();
 
 if (!USE_REDIS && !USE_PG) {
@@ -223,7 +224,14 @@ function memRecordFailure(ip) {
     const now = Date.now();
     const record = failureStore.get(ip);
     if (!record || now - record.windowStart >= WINDOW_SECONDS * 1000) {
+        // Re-insert (delete first) so the entry sits at the "newest" end of the
+        // Map, keeping insertion order accurate for FIFO eviction.
+        if (failureStore.has(ip)) failureStore.delete(ip);
         failureStore.set(ip, { windowStart: now, failures: 1 });
+        // Evict the oldest entry when the cap is exceeded.
+        if (failureStore.size > FAILURE_STORE_MAX_SIZE) {
+            failureStore.delete(failureStore.keys().next().value);
+        }
     } else {
         record.failures += 1;
     }
