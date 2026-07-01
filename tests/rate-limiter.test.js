@@ -348,11 +348,17 @@ describe('Rate limiter — Redis errors fall back to in-memory gracefully', () =
 describe('Rate limiter — PostgreSQL path (mocked pg Pool)', () => {
     let rl;
     let mockQuery;
+    let randomSpy;
 
     beforeEach(() => {
         delete process.env.UPSTASH_REDIS_REST_URL;
         delete process.env.UPSTASH_REDIS_REST_TOKEN;
         process.env.DATABASE_URL = 'postgres://mock/db';
+
+        // Keep Math.random() above the 5% prune gate so pgPruneExpired never
+        // fires during these tests — otherwise it consumes mockResolvedValueOnce
+        // responses queued for SELECT assertions.
+        randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.1);
 
         mockQuery = jest.fn().mockResolvedValue({ rows: [] });
 
@@ -365,6 +371,7 @@ describe('Rate limiter — PostgreSQL path (mocked pg Pool)', () => {
     });
 
     afterEach(() => {
+        randomSpy.mockRestore();
         delete process.env.DATABASE_URL;
         jest.clearAllMocks();
     });

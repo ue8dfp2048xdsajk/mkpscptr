@@ -157,7 +157,9 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
 
     test('a row one millisecond inside the window is NOT pruned', async () => {
         const ip = '10.1.0.3';
-        const recentStart = Date.now() - (WINDOW_SECONDS * 1000 - 1); // 1 ms inside window
+        const T = 1_000_000_000_000;
+        const dateSpy = jest.spyOn(Date, 'now').mockReturnValue(T);
+        const recentStart = T - (WINDOW_SECONDS * 1000 - 1); // 1 ms inside window
         pgStore.set(ip, { failures: 5, window_start: recentStart });
 
         const rl = loadRateLimiter(pgMock);
@@ -165,6 +167,7 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
         await rl.isRateLimited(ip);
         await flushAsync();
 
+        dateSpy.mockRestore();
         expect(pgStore.has(ip)).toBe(true); // still within window → must survive
     });
 

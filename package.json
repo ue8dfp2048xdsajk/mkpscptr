@@ -170,6 +170,9 @@
     "testEnvironment": "jest-environment-jsdom",
     "testMatch": [
       "**/tests/**/*.test.js"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^pg$": "<rootDir>/node_modules/pg"
+    }
   }
 }
