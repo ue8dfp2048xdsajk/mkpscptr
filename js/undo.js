@@ -351,9 +351,11 @@ function _restoreDeletedWindows(saved){
         // right exactly as needed.
         canvasData.splice(originalIdx, 0, data);
 
-        // Re-insert the wrapper DOM node at the correct position.
+        // Re-insert the cell (grid item) at the correct position.
+        // container.children are .window-cell elements, so the index aligns correctly.
         const refChild = container.children[originalIdx] || null;
-        container.insertBefore(data.wrapperEl, refChild);
+        const domEl = data.cellEl || data.wrapperEl;
+        container.insertBefore(domEl, refChild);
 
         // Re-start visibility tracking.
         _visibilityObserver.observe(data.wrapperEl);
@@ -384,8 +386,9 @@ function _reDeleteWindows(saved){
         if(data.wrapperEl){
             _visibilityObserver.unobserve(data.wrapperEl);
             _visibleWrappers.delete(data.wrapperEl);
-            if(data.wrapperEl.parentNode) data.wrapperEl.parentNode.removeChild(data.wrapperEl);
         }
+        const domEl = data.cellEl || data.wrapperEl;
+        if(domEl && domEl.parentNode) domEl.parentNode.removeChild(domEl);
     });
     canvasData = canvasData.filter((_, i) => !toDelete.has(i));
     activeIndices = [];

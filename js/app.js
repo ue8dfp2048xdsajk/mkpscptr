@@ -3252,7 +3252,10 @@ function deleteSelectedWindows(){
     updateUndoRedoButtons();
     _markDirty();
 
-    // Remove wrappers from DOM without destroying Fabric canvas
+    // Remove cell (grid item) from DOM without destroying Fabric canvas.
+    // cellEl is the .window-cell that is the direct CSS-grid child; wrapperEl
+    // lives inside it.  Removing only wrapperEl would leave an empty ghost cell
+    // in the grid and produce a visible gap.
     const toDelete = new Set(sortedIndices);
     sortedIndices.forEach(i => {
         const d = canvasData[i];
@@ -3260,8 +3263,9 @@ function deleteSelectedWindows(){
         if(d.wrapperEl){
             _visibilityObserver.unobserve(d.wrapperEl);
             _visibleWrappers.delete(d.wrapperEl);
-            if(d.wrapperEl.parentNode) d.wrapperEl.parentNode.removeChild(d.wrapperEl);
         }
+        const domEl = d.cellEl || d.wrapperEl;
+        if(domEl && domEl.parentNode) domEl.parentNode.removeChild(domEl);
     });
 
     canvasData = canvasData.filter((_, i) => !toDelete.has(i));
