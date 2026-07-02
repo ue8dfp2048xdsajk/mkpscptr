@@ -182,13 +182,29 @@ function _syncContextPanelTop() {
     panel.style.paddingTop = header.getBoundingClientRect().height + 'px';
 }
 
+// Keep the panel top in sync whenever the sticky-header changes height
+// (banner appears/dismisses, window resizes, text wraps, etc.).
+// A ResizeObserver fires after layout — unlike requestAnimationFrame which
+// can fire before the browser has reflowed the newly-visible banner.
+(function _installHeaderResizeObserver() {
+    var header = document.querySelector('.sticky-header');
+    if (!header) return;
+    if (typeof ResizeObserver === 'undefined') {
+        // Fallback for very old browsers
+        window.addEventListener('resize', _syncContextPanelTop);
+        return;
+    }
+    new ResizeObserver(_syncContextPanelTop).observe(header);
+}());
+
 // Show the top upgrade prompt bar (once per session, dismissible)
 function _showUpgradePromptIfNeeded() {
     if (_userPlan !== 'free') return;
     var el = document.getElementById('upgradePrompt');
     if (el) {
         el.style.display = 'flex';
-        requestAnimationFrame(_syncContextPanelTop);
+        // ResizeObserver handles the panel-top update automatically;
+        // no manual rAF needed here.
     }
 }
 
@@ -6798,7 +6814,8 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
             var bar = document.getElementById('upgradePrompt');
             if(bar) bar.style.display = 'none';
             localStorage.setItem('ms_upgrade_prompt_dismissed', '1');
-            requestAnimationFrame(_syncContextPanelTop);
+            // ResizeObserver on .sticky-header fires automatically when the
+            // banner collapses — no manual requestAnimationFrame needed.
         });
     }
     var link = document.getElementById('upgradePromptLink');
