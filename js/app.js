@@ -7049,10 +7049,14 @@ function buildSnapshot(){
             // applyWarpToData).  The restore path always recreates images with
             // originX:'center', so saving the centre avoids a half-width shift.
             x: mainObj
-                ? (() => { const cp = mainObj.getCenterPoint(); return (cp ? cp.x : mainObj.left) / data.previewScale; })()
+                ? (typeof mainObj.getCenterPoint === 'function'
+                    ? (mainObj.getCenterPoint().x / data.previewScale)
+                    : (mainObj.left / data.previewScale))
                 : (data.x / (data.previewScale || 1)),
             y: mainObj
-                ? (() => { const cp = mainObj.getCenterPoint(); return (cp ? cp.y : mainObj.top)  / data.previewScale; })()
+                ? (typeof mainObj.getCenterPoint === 'function'
+                    ? (mainObj.getCenterPoint().y / data.previewScale)
+                    : (mainObj.top / data.previewScale))
                 : (data.y / (data.previewScale || 1)),
 
             // Persist the reset-target position so the Reset button restores
@@ -7666,8 +7670,11 @@ function autoSaveSession(){
 
     _autoSaveTimer = setTimeout(()=>{
         let snap;
-        try { snap = buildFullSnapshot(); } catch(e) { console.error('[Autosave] buildFullSnapshot failed:', e); return; }
-        _autosaveDB.set('session', snap).catch(e => console.error('[Autosave] IDB write failed:', e));
+        try { snap = buildFullSnapshot(); } catch(e) { console.error('[Autosave] buildFullSnapshot threw:', e); return; }
+        console.log('[Autosave] Saving session —', snap.windows.length, 'window(s)');
+        _autosaveDB.set('session', snap)
+            .then(() => console.log('[Autosave] IDB write OK'))
+            .catch(e => console.error('[Autosave] IDB write failed:', e));
     }, 2500);
 
     // Cloud backup — only when signed in and a UUID is already stored.
@@ -9560,24 +9567,41 @@ function _applyUndoHistoryFromSnapshot(history) {
 
 window.addEventListener('DOMContentLoaded', async ()=>{
 
-    const snapshot = await _autosaveDB.get('session').catch(() => null);
+    const snapshot = await _autosaveDB.get('session').catch(e => {
+        console.error('[Restore] IDB read failed:', e);
+        return null;
+    });
 
-    if(!snapshot) return;
+    if(!snapshot){
+        console.log('[Restore] No session found in IndexedDB — showing drop zone');
+        return;
+    }
 
     const isLegacy = Array.isArray(snapshot);
     const windows  = isLegacy ? snapshot : (snapshot.windows  || []);
     const tboxes   = isLegacy ? []       : (snapshot.textBoxes || []);
 
+    console.log('[Restore] Session found —', windows.length, 'window(s),', tboxes.length, 'text box(es)');
+
     if (!windows.length && !tboxes.length) return;
 
     _applyLayoutFromSnapshot(isLegacy ? null : snapshot.layout);
-    if (windows.length) await createCanvasPreviewsFromSnapshot(windows);
+
+    if (windows.length){
+        try {
+            await createCanvasPreviewsFromSnapshot(windows);
+        } catch(e) {
+            console.error('[Restore] createCanvasPreviewsFromSnapshot threw:', e);
+        }
+    }
+
     if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
     _applyViewportFromSnapshot(isLegacy ? null : snapshot.viewport);
     _applyUndoHistoryFromSnapshot(isLegacy ? null : snapshot.undoHistory);
 
     syncSliders();
     updateWindowBorders();
+    updateDropUI();
 });
 
 
