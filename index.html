@@ -483,7 +483,7 @@
             if (signInLink) {
                 signInLink.addEventListener('click', function (e) {
                     e.preventDefault();
-                    window.Clerk.openSignIn({ afterSignInUrl: '/app.html', afterSignUpUrl: '/app.html' });
+                    window.Clerk.redirectToSignIn({ forceRedirectUrl: '/app.html' });
                 });
             }
             return;

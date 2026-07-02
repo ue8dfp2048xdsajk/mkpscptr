@@ -369,7 +369,7 @@ function initClerk() {
         if (!user) {
             document.getElementById('notSignedIn').style.display = 'block';
             document.getElementById('signInLink').addEventListener('click', function() {
-                window.Clerk.openSignIn();
+                window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href });
             });
             return;
         }
@@ -399,7 +399,7 @@ function initClerk() {
         }
 
         document.getElementById('openProfileBtn').addEventListener('click', function() {
-            window.Clerk.openUserProfile();
+            window.Clerk.redirectToUserProfile();
         });
 
         var portalBtn2 = document.getElementById('openPortalBtn');
