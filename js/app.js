@@ -113,12 +113,15 @@ function _updateProStarBadge(data) {
     host.appendChild(badge);
 }
 
-// Mark a window as using a PRO feature + refresh its badge
+// Mark a window as using a PRO feature + refresh its badge.
+// Always calls _updateProStarBadge so the DOM badge is guaranteed to be present
+// even when hasProEffect was already true (e.g. badge removed by a DOM rebuild).
 function _markProEffect(data) {
-    if (!data || data.hasProEffect) return;
+    if (!data) return;
+    const wasMarked = data.hasProEffect;
     data.hasProEffect = true;
     _updateProStarBadge(data);
-    _markDirty();
+    if (!wasMarked) _markDirty();
 }
 
 // Re-evaluate all PRO effects from current window state and update badge.
@@ -1064,6 +1067,18 @@ function _lqRenderSliders(){
 
             _applyWarpToOneObject(obj, d, srcOriginal, true);
             d.fabricCanvas.requestRenderAll();
+        });
+
+        // Sync PRO star badges for every active window based on the new _fx values.
+        // Mirrors the zero-reset in the window-mode path so stars appear / disappear
+        // correctly when multiple windows are selected in design mode.
+        const _proWarpActive = newFx.warpAmount !== 0 || newFx.arcAmount !== 0 ||
+            newFx.arcTilt !== 0 || newFx.perspectiveTop !== 0 || newFx.perspectiveLeft !== 0;
+        activeIndices.forEach(i => {
+            const d = canvasData[i];
+            if (!d || d.locked) return;
+            if (_proWarpActive) _markProEffect(d);
+            else _recomputeProEffect(d);
         });
 
         return;
