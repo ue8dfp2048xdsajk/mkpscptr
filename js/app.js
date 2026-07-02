@@ -8863,7 +8863,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
     }
 
     rowInput.addEventListener('change', () => {
-        const v = Math.max(0, Math.min(120, parseInt(rowInput.value, 10) || 0));
+        const v = Math.max(0, Math.min(200, parseInt(rowInput.value, 10) || 0));
         rowInput.value = v;
         if (v === _rowGap) return;
         pushLayoutUndo();
@@ -8872,7 +8872,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
     });
 
     colInput.addEventListener('change', () => {
-        const v = Math.max(0, Math.min(120, parseInt(colInput.value, 10) || 0));
+        const v = Math.max(0, Math.min(200, parseInt(colInput.value, 10) || 0));
         colInput.value = v;
         if (v === _colGap) return;
         pushLayoutUndo();
