@@ -7171,10 +7171,15 @@ function buildSnapshot(){
 var _autoSaveTimer = null;
 var _cloudAutoSaveTimer = null;
 
-// ── IndexedDB autosave (no quota limit — safe for large image data URLs) ──────
+// ── IndexedDB autosave with localStorage fallback ─────────────────────────────
+// Design: IDB is the primary store (no size limit).  On ANY IDB failure (open
+// OR put/get/delete), we fall back to localStorage (5 MB limit — sufficient for
+// most sessions).  get() also checks localStorage when IDB opens fine but the
+// key is absent, covering the case where a previous write fell back to LS.
 const _autosaveDB = (() => {
     const DB_NAME = 'mockup_scripter';
     const STORE   = 'autosave';
+    const LS_KEY  = (key) => 'mockup_autosave_' + key;
 
     function _open() {
         return new Promise((res, rej) => {
@@ -7186,44 +7191,57 @@ const _autosaveDB = (() => {
     }
 
     async function get(key) {
+        let idbResult = null;
         try {
             const db = await _open();
-            return new Promise((res, rej) => {
+            idbResult = await new Promise((res, rej) => {
                 const req = db.transaction(STORE).objectStore(STORE).get(key);
-                req.onsuccess = () => res(req.result ?? null);
+                req.onsuccess = () => res(req.result !== undefined ? req.result : null);
                 req.onerror   = () => rej(req.error);
             });
         } catch(e) {
-            try { const r = localStorage.getItem('mockup_autosave'); return r ? JSON.parse(r) : null; } catch(_) { return null; }
+            console.warn('[Autosave] IDB read failed, trying localStorage:', e);
         }
+        if (idbResult !== null) return idbResult;
+        // IDB unavailable or key absent — try localStorage fallback
+        try {
+            const r = localStorage.getItem(LS_KEY(key));
+            return r ? JSON.parse(r) : null;
+        } catch(_) { return null; }
     }
 
     async function set(key, value) {
+        let idbOk = false;
         try {
             const db = await _open();
-            return new Promise((res, rej) => {
+            await new Promise((res, rej) => {
                 const tx  = db.transaction(STORE, 'readwrite');
                 const req = tx.objectStore(STORE).put(value, key);
                 req.onsuccess = () => res();
                 req.onerror   = () => rej(req.error);
             });
+            idbOk = true;
         } catch(e) {
-            try { localStorage.setItem('mockup_autosave', JSON.stringify(value)); } catch(_) {}
+            console.warn('[Autosave] IDB write failed, falling back to localStorage:', e);
+        }
+        if (!idbOk) {
+            try { localStorage.setItem(LS_KEY(key), JSON.stringify(value)); } catch(_) {}
         }
     }
 
     async function del(key) {
         try {
             const db = await _open();
-            return new Promise((res, rej) => {
+            await new Promise((res, rej) => {
                 const tx  = db.transaction(STORE, 'readwrite');
                 const req = tx.objectStore(STORE).delete(key);
                 req.onsuccess = () => res();
                 req.onerror   = () => rej(req.error);
             });
         } catch(e) {
-            try { localStorage.removeItem('mockup_autosave'); } catch(_) {}
+            console.warn('[Autosave] IDB delete failed:', e);
         }
+        try { localStorage.removeItem(LS_KEY(key)); } catch(_) {}
     }
 
     return { get, set, del };
@@ -7668,13 +7686,13 @@ function autoSaveSession(){
 
     clearTimeout(_autoSaveTimer);
 
-    _autoSaveTimer = setTimeout(()=>{
+    _autoSaveTimer = setTimeout(async ()=>{
         let snap;
         try { snap = buildFullSnapshot(); } catch(e) { console.error('[Autosave] buildFullSnapshot threw:', e); return; }
         console.log('[Autosave] Saving session —', snap.windows.length, 'window(s)');
-        _autosaveDB.set('session', snap)
-            .then(() => console.log('[Autosave] IDB write OK'))
-            .catch(e => console.error('[Autosave] IDB write failed:', e));
+        await _autosaveDB.set('session', snap);
+        console.log('[Autosave] Session saved ✓');
+        _showSaveToast('Draft saved ✓');
     }, 2500);
 
     // Cloud backup — only when signed in and a UUID is already stored.
