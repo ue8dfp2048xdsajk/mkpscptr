@@ -172,11 +172,24 @@ function _refreshAllProStarBadges() {
     _updateSaveNewBtn();
 }
 
+// Measure the sticky-header and keep #contextPanel's padding-top in sync so the
+// panel is never covered by the header (whose height grows when the upgrade
+// banner is visible).
+function _syncContextPanelTop() {
+    var header = document.querySelector('.sticky-header');
+    var panel  = document.getElementById('contextPanel');
+    if (!header || !panel) return;
+    panel.style.paddingTop = header.getBoundingClientRect().height + 'px';
+}
+
 // Show the top upgrade prompt bar (once per session, dismissible)
 function _showUpgradePromptIfNeeded() {
     if (_userPlan !== 'free') return;
     var el = document.getElementById('upgradePrompt');
-    if (el) el.style.display = 'flex';
+    if (el) {
+        el.style.display = 'flex';
+        requestAnimationFrame(_syncContextPanelTop);
+    }
 }
 
 var designEraserMode     = false;  // true while design-layer eraser is active
@@ -6785,6 +6798,7 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
             var bar = document.getElementById('upgradePrompt');
             if(bar) bar.style.display = 'none';
             localStorage.setItem('ms_upgrade_prompt_dismissed', '1');
+            requestAnimationFrame(_syncContextPanelTop);
         });
     }
     var link = document.getElementById('upgradePromptLink');
