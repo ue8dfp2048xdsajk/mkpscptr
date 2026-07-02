@@ -8216,6 +8216,12 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             fabricImg._uploadedDesignName = dup.name || '';
                             fabricImg._fx = dup.fx || _defaultFx(data);
 
+                            // Bake this duplicate's own warp/arc/perspective/blur/noise
+                            // pipeline into its pixels — restoring _fx alone only stores
+                            // the values, it doesn't render them (mirrors the per-object
+                            // pass applyWarpToData runs for extraDesignObjects normally).
+                            _applyWarpToOneObject(fabricImg, data, _cachedFlip(data, img), false);
+
                             data.extraDesignOriginals = data.extraDesignOriginals || [];
                             data.extraDesignOriginals.push(img);
 
@@ -8258,6 +8264,12 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             });
 
                             cloned._fx = dup.fx || _defaultFx(data);
+
+                            // Bake this duplicate's own warp/arc/perspective/blur/noise
+                            // pipeline into its pixels — restoring _fx alone only stores
+                            // the values, it doesn't render them (mirrors the per-object
+                            // pass applyWarpToData runs for extraDesignObjects normally).
+                            _applyWarpToOneObject(cloned, data, _cachedFlip(data, data.designOriginal), false);
 
                             data.extraDesignOriginals = data.extraDesignOriginals || [];
                             data.extraDesignOriginals.push(null);
