@@ -4372,7 +4372,7 @@ document.getElementById("selectAllBtn").addEventListener("click", ()=>{
         return;
     }
 
-    if(activeIndices.length > 0){
+    if(activeIndices.length === canvasData.length && canvasData.length > 0){
 
         activeIndices = [];
         selectedDesigns.clear();
