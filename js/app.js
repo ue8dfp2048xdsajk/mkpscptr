@@ -1379,6 +1379,7 @@ document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
             b.classList.toggle('active', b === btn);
         });
         _markDirty();
+        autoSaveSession();
     });
 });
 
@@ -1401,6 +1402,7 @@ document.getElementById('bgCropCustomApply').addEventListener('click', () => {
     });
     document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
     _markDirty();
+    autoSaveSession();
 });
 
 document.getElementById('bgCropResetBtn').addEventListener('click', () => {
@@ -1450,6 +1452,7 @@ document.getElementById('bgCropResetBtn').addEventListener('click', () => {
     document.getElementById('bgCropCustomH').value = '';
     document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
     _markDirty();
+    autoSaveSession();
 });
 
 // ── Pattern mode toggle ────────────────────────────────────────────────────────
@@ -1466,6 +1469,7 @@ document.getElementById('patternModeToggle').addEventListener('change', e => {
         if(on) _markProEffect(d); else _recomputeProEffect(d);
     });
     _markDirty();
+    autoSaveSession();
 });
 
 // ── Pattern type buttons ───────────────────────────────────────────────────────
@@ -1483,6 +1487,7 @@ document.querySelectorAll('.pattern-type-btn').forEach(btn => {
             if(d.patternMode) _renderPattern(d);
         });
         _markDirty();
+        autoSaveSession();
     });
 });
 
@@ -1507,6 +1512,7 @@ document.getElementById('resetPatternBtn').addEventListener('click', () => {
         document.getElementById(id + 'Val').value = 0;
     });
     _markDirty();
+    autoSaveSession();
 });
 
 // ── Bake Pattern Sheet ────────────────────────────────────────────────────────
@@ -1574,6 +1580,7 @@ function _bakePatternSheet(data) {
     refreshFabricHandles();
     updateWindowBorders();
     _markDirty();
+    autoSaveSession();
 }
 
 // ── Export Pattern PNG ────────────────────────────────────────────────────────
@@ -5896,6 +5903,8 @@ document.getElementById("colorLayerOpacityInput").addEventListener("input", e=>{
             d.fabricCanvas.requestRenderAll();
         }
     });
+    _markDirty();
+    autoSaveSession();
 });
 
 document.getElementById("colorLayerModeSelect").addEventListener("mousedown", ()=>{
@@ -5912,6 +5921,8 @@ document.getElementById("colorLayerModeSelect").addEventListener("change", e=>{
             d.fabricCanvas.requestRenderAll();
         }
     });
+    _markDirty();
+    autoSaveSession();
 });
 
 
@@ -6036,6 +6047,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             if(target.patternMode) _renderPattern(target, false);
             target.fabricCanvas.requestRenderAll();
         });
+        autoSaveSession();
     }
 
     // only attach ONE global undo listener
@@ -6524,6 +6536,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             activeIndices.forEach(i => {
                 if(canvasData[i] && canvasData[i].colorLayerFabricObj) _markProEffect(canvasData[i]);
             });
+            autoSaveSession();
         }
         isColorPainting = false;
         lastPaintNorm   = null;

@@ -158,6 +158,7 @@ function _updateBgAdjust(){
         _applyBgAdjust(d);
     });
     _markDirty();
+    autoSaveSession();
 }
 
 let _bgCropAttachDesign = false;
@@ -261,5 +262,6 @@ function _updateBgCrop(){
         }
     });
     _markDirty();
+    autoSaveSession();
 }
 
