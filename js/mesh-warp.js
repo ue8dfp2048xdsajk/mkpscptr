@@ -558,7 +558,7 @@ function exitDesignWarpMode(apply) {
         fc.add(newImg);
 
         if (isMain) applyData.designObject = newImg;
-        newExtras.push(newImg);
+        else newExtras.push(newImg);
         applyData.extraDesignObjects = newExtras;
 
         attachFabricEvents(applyData, newImg);
@@ -625,7 +625,7 @@ function exitDesignWarpMode(apply) {
             grpFc.add(newImg2);
 
             if (grpIsMain) grpData.designObject = newImg2;
-            grpNewExtras.push(newImg2);
+            else grpNewExtras.push(newImg2);
             grpData.extraDesignObjects = grpNewExtras;
 
             attachFabricEvents(grpData, newImg2);
