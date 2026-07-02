@@ -64,6 +64,13 @@
         var container = document.getElementById('clerkAuthContainer');
         if (!container) return;
         container.innerHTML = '';
+        if (window.__clerkLoadFailed) {
+            var msg = document.createElement('span');
+            msg.style.cssText = 'color:#9ca3af;font-size:13px';
+            msg.textContent = 'Sign in unavailable \u2014 please refresh';
+            container.appendChild(msg);
+            return;
+        }
         var btn = document.createElement('button');
         btn.id = 'clerkSignInBtn';
         btn.textContent = 'Sign In';

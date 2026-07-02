@@ -471,14 +471,23 @@
         onScroll();
     })();
 
-    /* Landing page Clerk auth state — show "Open App" when signed in */
+    /* Landing page Clerk auth state — open modal when signed out; show "Open App" when signed in */
     window.__clerkLandingInit = async function () {
         if (!window.Clerk) return;
         await window.Clerk.load();
         var user = window.Clerk.user;
-        if (!user) return;
         var ctas = document.getElementById('landingNavCtas');
         if (!ctas) return;
+        if (!user) {
+            var signInLink = ctas.querySelector('a.btn-ghost');
+            if (signInLink) {
+                signInLink.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    window.Clerk.openSignIn({ afterSignInUrl: '/app.html', afterSignUpUrl: '/app.html' });
+                });
+            }
+            return;
+        }
         var avatarUrl = user.imageUrl || '';
         var firstName = user.firstName || 'Account';
         ctas.innerHTML =
