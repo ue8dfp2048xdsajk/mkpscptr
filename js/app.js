@@ -1737,6 +1737,7 @@ _patternSliderDefs.forEach(([id, key]) => {
             if(d.patternMode) _renderPattern(d);
         });
         _markDirty();
+        autoSaveSession();
     });
     if(valEl){
         valEl.addEventListener('change', () => {
@@ -1753,6 +1754,7 @@ _patternSliderDefs.forEach(([id, key]) => {
                 if(d.patternMode) _renderPattern(d);
             });
             _markDirty();
+            autoSaveSession();
         });
     }
 });
