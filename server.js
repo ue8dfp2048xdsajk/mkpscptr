@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 
 // ── Startup configuration checks ─────────────────────────────────────────────
 const _missingVars = [];
@@ -16,6 +17,22 @@ if (_missingVars.length) {
 
 const app = express();
 const PORT = 5000;
+
+// ── Clerk key injection ───────────────────────────────────────────────────────
+// Allows a pk_test_... dev key to be used in non-production environments while
+// production continues to use the pk_live_... key via the same env var.
+const CLERK_PUBLISHABLE_KEY =
+    process.env.CLERK_PUBLISHABLE_KEY ||
+    'pk_live_Y2xlcmsubW9ja3Vwc2NyaXB0ZXIuY29tJA';
+
+function serveHtmlWithClerkKey(filePath, res) {
+    fs.readFile(path.join(__dirname, filePath), 'utf8', (err, html) => {
+        if (err) return res.status(404).send('Not found');
+        const injected = html.replace(/__CLERK_PUBLISHABLE_KEY__/g, CLERK_PUBLISHABLE_KEY);
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(injected);
+    });
+}
 
 // ── Stripe webhook MUST be registered before express.json() ─────────────────
 // The handler reads the raw request body via req.on('data') for HMAC signature
@@ -86,12 +103,15 @@ app.use((req, res, next) => {
     next();
 });
 
+// ── HTML pages with Clerk key injected ───────────────────────────────────────
+app.get('/',           (req, res) => serveHtmlWithClerkKey('index.html', res));
+app.get('/index.html', (req, res) => serveHtmlWithClerkKey('index.html', res));
+app.get('/app.html',   (req, res) => serveHtmlWithClerkKey('app.html',   res));
+
 app.use(express.static('.'));
 
 // SPA catch-all — serves app.html for any non-API path
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'app.html'));
-});
+app.get('*', (req, res) => serveHtmlWithClerkKey('app.html', res));
 
 // Catch-all error handler (handles PayloadTooLargeError and others)
 app.use((err, req, res, next) => {
