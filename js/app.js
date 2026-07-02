@@ -4548,9 +4548,9 @@ document.getElementById("designWarpBtn").addEventListener("click", () => {
     }
 });
 document.getElementById("warpApplyBtn").addEventListener("click", () => {
-    const _warpTarget = warpActiveData;
+    const _warpTargets = warpAllGroups.map(g => g.ownerData);
     exitDesignWarpMode(true);
-    if (_warpTarget) _markProEffect(_warpTarget);
+    if (_warpTargets.length) _warpTargets.forEach(d => _markProEffect(d));
     else activeIndices.forEach(i => _markProEffect(canvasData[i]));
 });
 document.getElementById("warpCancelBtn").addEventListener("click", () => exitDesignWarpMode(false));
