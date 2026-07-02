@@ -85,7 +85,7 @@
             sessionStorage.setItem('ms_redirect_after_auth', 'home');
             if (!window.Clerk) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); return; }
             var snap; try { snap = buildFullSnapshot(); } catch(e) { console.error('[SignIn] snapshot failed:', e); }
-            var doSignIn = function () { try { window.Clerk.redirectToSignIn({ redirectUrl: window.location.href }); } catch(e) { console.error('[Clerk] redirectToSignIn failed:', e); alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); } };
+            var doSignIn = function () { try { window.Clerk.openSignIn(); } catch(e) { console.error('[Clerk] openSignIn failed:', e); alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); } };
             if (snap) {
                 _autosaveDB.set('session', snap).catch(function(){}).then(doSignIn);
             } else {
