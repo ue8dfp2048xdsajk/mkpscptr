@@ -6883,33 +6883,32 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
             data.designObject._c_persp   = null;
         }
 
-        // ── Restore fabric object to initial transform ────────────────────────
-        if(data.designObject){
-            // Warp apply replaces designObject with a left/top-origin image.
-            // data.initialX/Y are center coords (captured from the original
-            // center-origin object), so restore center origin before using them.
-            data.designObject.set({ originX: 'center', originY: 'center' });
-
-            applyClipMaskToObject(data.designObject, data);
-            data.designObject.set({
-                left:   data.initialX,
-                top:    data.initialY,
-                angle:  data.initialRotation,
-                scaleX: data.initialScale * data.previewScale,
-                scaleY: data.initialScale * data.previewScale,
-                skewX:  0,
-                skewY:  0,
-                opacity: data.initialOpacity,
-                globalCompositeOperation: 'source-over'
-            });
-        }
-
-        // ── Restore designOriginal (undoes eraser baking / invert) ────────────
+        // ── Restore designOriginal (undoes eraser baking / mesh warp / invert) ──
         if(data.initialDesignOriginal){
             data.designOriginal = data.initialDesignOriginal;
         }
 
+        // ── Rebuild designObject from scratch ────────────────────────────────
+        // Mesh warp Apply bakes the warp into a new fabric.Image that has
+        // left/top origin and a DPR-compensated scale.  If we just call
+        // setElement() on that object the baked warp canvas stays as the
+        // element, and origin/scale are wrong.  Instead, drop the old object
+        // and let applyWarpToData() create a fresh center-origin image from
+        // data.designOriginal (now restored to the upload original above).
+        if(data.designObject){
+            data.fabricCanvas.remove(data.designObject);
+            selectedDesigns.delete(data.designObject);
+            data.designObject = null;
+        }
+
         applyWarpToData(data);
+
+        // Re-add the freshly created design to the selection set so that
+        // Fabric handles and sliders reflect the reset state correctly.
+        if(data.designObject && !data.locked){
+            if(!data.designObject._fx) data.designObject._fx = _defaultFx(data);
+            selectedDesigns.add(data.designObject);
+        }
 
         // ── Clear clipping ────────────────────────────────────────────────────
         data.maskEnabled        = false;
