@@ -1,0 +1,397 @@
+# Pre-Launch Manual Testing Checklist
+
+Manual, human-driven QA checklist to run through before opening MockupScripter to real customers. This is complementary to [pre-deploy-checklist.md](pre-deploy-checklist.md) (infra/env verification) — this document is about end-to-end product behavior.
+
+Notes inline (marked with `>`) call out places where the checklist item was verified against the actual code and either doesn't work the way it might be assumed to, or is worth double-checking for that reason. See the "Known gaps" section at the bottom for a summary.
+
+---
+
+## Part 1 — Anonymous user flow
+
+### Landing & editor
+
+- [ ] Open app without signing in
+- [ ] Upload a background
+- [ ] Upload a design
+- [ ] Move/scale/rotate design
+- [ ] Refresh browser → full canvas restores
+- [ ] Close browser → reopen → full canvas restores
+- [ ] Backgrounds restore
+- [ ] Designs restore
+- [ ] All effects restore
+- [ ] Pattern mode restores
+- [ ] Clip masks restore
+- [ ] Color layer restores
+- [ ] Extra design layers restore (including their own warp/blur/noise — see the fix in `js/app.js` `createCanvasPreviewsFromSnapshot`)
+- [ ] Warp/perspective/blur/noise restore correctly
+- [ ] Edit the canvas in two browser tabs at once (same profile) → confirm autosave doesn't silently lose one tab's work
+  > Local autosave is a single global IndexedDB key (`session`), not per-tab — the last tab to autosave wins. Not necessarily a bug, but confirm it's acceptable rather than assumed safe.
+
+### Anonymous gating
+
+- [ ] Export → plans modal opens
+- [ ] Save Progress → plans modal opens
+- [ ] Upgrade buttons open checkout flow
+- [ ] Watermark appears where expected
+
+---
+
+## Part 2 — Sign in & claim anonymous work
+
+- [ ] Sign in
+- [ ] Return to app automatically
+- [ ] Canvas restored exactly
+- [ ] Backgrounds intact
+- [ ] Effects intact
+- [ ] Local autosave restored successfully (via IndexedDB — see note below)
+
+> **There is no server-side "claim" flow.** `api/projects/claim.js` is an unmounted stub that always returns `404`. There is no MongoDB document created, no `expiresAt` field cleared, and no Clerk metadata write tied to signing in. What actually happens: the anonymous session is flushed to IndexedDB (`_autosaveDB.set('session', ...)`) right before the Clerk redirect, and read back on page load after returning — identical mechanism to a plain refresh. If you want real "claim my anonymous work into my account" server-side behavior (e.g. so it survives clearing browser storage), that needs to be built; don't test for it as if it exists today.
+
+- [ ] Click **Save Progress** while signed out → sign in → confirm whether the save auto-completes on return, or whether the user must click Save again
+  > `ms_redirect_after_auth` is set to `'save'` before the redirect, but `_handleAuthRedirect` in `js/clerk-auth.js` only auto-resumes the `'export'` case. `'save'` and `'home'` are stored but never acted on. Confirm this UX gap is acceptable for launch (canvas itself still restores fine — only the "save to cloud" *intent* is lost).
+- [ ] PostHog identify event fires on sign-in (confirm it's driven by Clerk's client-side `session` object, not any claim endpoint)
+
+### Free plan
+
+- [ ] Save blocked
+- [ ] Export blocked
+- [ ] Upgrade banner visible
+
+---
+
+## Part 3 — Free → Starter checkout
+
+### Checkout
+
+- [ ] Checkout opens
+- [ ] Coupon/promo code works
+- [ ] Stripe payment succeeds
+- [ ] Customer created
+- [ ] Subscription created
+- [ ] Invoice paid (verify via Stripe dashboard / billing portal — the webhook handler does **not** listen for `invoice.paid`, so don't expect app-side behavior tied to that specific event; only `checkout.session.completed` drives the plan upgrade)
+
+### Backend
+
+- [ ] `checkout.session.completed` = HTTP 200
+- [ ] MongoDB customer created
+- [ ] Clerk metadata updated
+- [ ] PostHog plan updated
+- [ ] Upgrade banner disappears
+- [ ] Pending checkout state cleared (`ms_pending_checkout_plan` / `ms_pending_checkout_period` / `ms_pending_plan`)
+
+### Starter
+
+- [ ] Save works
+- [ ] Save overwrites existing project (Starter is a single-slot upsert — there is no multi-project storage on this tier)
+- [ ] Save as New blocked (button is Pro-only, disabled for Starter)
+- [ ] Logout/login reloads project
+- [ ] Refresh reloads project
+
+### Starter exports
+
+- [ ] Normal export succeeds
+- [ ] Pro-effect warning appears
+- [ ] Mixed export behaves correctly
+- [ ] All-pro export blocked
+
+### Starter watermark matrix
+
+For each effect, confirm the watermark appears **in the exported/downloaded file itself**, not just in the on-screen editor preview.
+> The on-screen watermark is drawn via a separate Fabric `after:render` hook (`_drawWatermarkOnCanvas`) from the export path (`toDataURL()`). These are two different render passes — visually correct in the editor does not guarantee it's baked into the exported PNG. Verify by opening the actual downloaded file for each row below.
+
+- [ ] Warp
+- [ ] Arc
+- [ ] Perspective
+- [ ] Fisheye (this is the `arcTilt` slider under the hood — confirm the UI label maps to the effect you expect)
+- [ ] Pattern
+- [ ] Clip Mask
+- [ ] Color Layer
+- [ ] Extra Design Layer
+- [ ] Plain placement has no watermark
+
+---
+
+## Part 4 — Starter → Pro
+
+### Checkout
+
+- [ ] Existing Stripe customer reused
+- [ ] Subscription upgraded
+- [ ] Webhook succeeds
+- [ ] Clerk metadata updated
+
+### Pro features
+
+- [ ] Watermark disappears
+- [ ] Export succeeds
+- [ ] Save as New works
+- [ ] Rename works
+- [ ] Multiple projects save
+- [ ] 51st project blocked (limit is enforced at 50 — save #51 is rejected with `project_limit_reached`, both pre-insert and via a post-insert race-condition rollback)
+- [ ] Billing portal opens
+- [ ] Invoice PDF works
+
+---
+
+## Part 5 — Downgrade
+
+- [ ] Downgrade via billing portal
+- [ ] Stripe updates
+- [ ] Webhook succeeds
+- [ ] Clerk metadata becomes Starter
+- [ ] Watermarks return
+- [ ] Save as New blocked
+- [ ] Export restrictions return
+- [ ] If downgrading from Pro with >1 saved project, confirm existing extra projects are handled gracefully (not silently deleted, and not able to be re-saved past the Starter single-slot limit)
+
+---
+
+## Part 6 — Cancel subscription
+
+- [ ] Cancel subscription
+- [ ] `customer.subscription.deleted` fires
+- [ ] Clerk becomes Free
+- [ ] Customer mapping retained
+- [ ] Export blocked
+- [ ] Save blocked
+- [ ] Upgrade shown
+
+---
+
+## Part 7 — Resubscribe
+
+- [ ] Same Stripe customer reused
+- [ ] Same MongoDB customer reused
+- [ ] Features unlocked immediately
+
+---
+
+## Part 8 — Lifetime purchase
+
+- [ ] One-time payment (Stripe checkout `mode: payment`, not `subscription`)
+- [ ] Correct webhook (`checkout.session.completed` — lifetime does not go through subscription events)
+- [ ] Clerk updated
+- [ ] Invoice available
+- [ ] No cancellation option (no subscription exists to cancel — confirm the billing portal reflects this sensibly rather than erroring)
+- [ ] Features unlocked permanently
+- [ ] Promo code field is correctly hidden/disabled at checkout (lifetime checkouts do not enable `allow_promotion_codes`)
+
+---
+
+## Part 9 — Account deletion
+
+- [ ] Delete account
+- [ ] Clerk user removed
+- [ ] MongoDB cleaned (customer mapping + projects)
+- [ ] Stripe customer retained/removed per your intended policy — confirm actual behavior (`api/account/delete.js` deletes the Stripe customer object; it does not separately call subscription-cancel first)
+- [ ] **Delete an account that has an active paid subscription** → confirm no further Stripe charges occur afterward (deleting the Stripe customer should cascade-cancel the subscription, but this should be verified with a real active subscription, not just a free/already-canceled test account)
+- [ ] Redirect to landing
+- [ ] Re-register creates fresh account
+
+---
+
+## Part 10 — Projects
+
+- [ ] Save project
+- [ ] Reload project
+- [ ] UUID works
+- [ ] Different browser restores correctly
+- [ ] Missing local images handled gracefully (toast: "N image(s) need re-uploading on this device")
+- [ ] Large project handled correctly
+- [ ] Project with more than 40 unique images → confirm graceful error, not silent truncation or a hung save (`CLOUD_IMAGE_LIMIT = 40`)
+- [ ] Project near the 4MB client-side / 15MB server-side size limits → confirm graceful error
+- [ ] Delete project works
+- [ ] Fetch a project by UUID while signed out / as a different user (`GET /api/projects/:id` has no auth check) → confirm this is acceptable given UUIDs are unguessable, or flag as a security item to fix
+
+---
+
+## Part 11 — Autosave
+
+- [ ] Refresh restores everything
+- [ ] Browser restart restores everything
+- [ ] Sign in restores everything
+- [ ] Checkout restores everything
+- [ ] Upgrade restores everything
+- [ ] Logout/login restores everything
+- [ ] Duplicate design layers restore effects (warp/blur/noise on the duplicate itself, not just the main design — this was the bug fixed in this session)
+- [ ] Pattern restores
+- [ ] Warp restores
+- [ ] Perspective restores
+- [ ] Clip masks restore
+- [ ] Paint (color layer) restores
+
+---
+
+## Part 12 — Browser compatibility
+
+### Desktop
+
+- [ ] Chrome
+- [ ] Safari (pay particular attention to sign-in — this app recently moved from an embedded Clerk modal to hosted redirects specifically because of a Safari/embedded-UI failure; regression-test Safari sign-in explicitly)
+- [ ] Firefox
+
+### Mobile
+
+- [ ] Landing page usable
+- [ ] Pricing page usable
+- [ ] Sign in works
+- [ ] Account Portal works
+
+---
+
+## Part 13 — Session handling
+
+- [ ] Leave app idle for several hours
+- [ ] Save still works
+- [ ] Export still works
+- [ ] Upgrade still works
+- [ ] Expired session handled gracefully
+
+---
+
+## Part 14 — Failed payments
+
+- [ ] Declined card
+- [ ] Cancel checkout
+- [ ] Browser Back
+- [ ] Close checkout
+- [ ] Close browser during payment
+- [ ] Canvas preserved
+- [ ] Pending plan cleared
+
+---
+
+## Part 15 — Stress tests
+
+- [ ] Double-click Upgrade
+- [ ] Double-click Save
+- [ ] Double-click Export
+- [ ] Multiple rapid checkouts (5 within 60s should succeed; the 6th should return 429 — see Part 18)
+- [ ] No duplicate Stripe sessions
+- [ ] No duplicate MongoDB records
+- [ ] No duplicate projects
+
+---
+
+## Part 16 — Multi-tab
+
+- [ ] Open two tabs
+- [ ] Upgrade in one
+- [ ] Refresh second
+- [ ] Plan syncs
+- [ ] No data loss
+- [ ] Start a sign-in or upgrade flow by opening the link in a **new tab** rather than redirecting the current one → confirm resume-after-auth still works
+  > `ms_redirect_after_auth`, `ms_pending_checkout_plan`, and `ms_pending_checkout_period` live in `sessionStorage`, which is not shared across tabs. The normal flow (same-tab redirect) works fine; a new-tab flow may silently lose the "resume" behavior.
+
+---
+
+## Part 17 — Storage edge cases
+
+- [ ] Clear IndexedDB
+- [ ] Clear localStorage
+- [ ] Open project
+- [ ] Helpful error shown
+- [ ] App doesn't crash
+
+---
+
+## Part 18 — API & Security
+
+- [ ] Rate limiting works
+- [ ] Sixth checkout returns 429 (confirmed: limit is 5 requests / 60s per user in `api/checkout.js`)
+- [ ] JWT validation works
+- [ ] Webhooks reject invalid signatures
+- [ ] Nonce protection works
+- [ ] No exposed secrets
+- [ ] CSP still valid
+- [ ] Remove the stale `https://clerks.mockupscripter.com` (with an "s") entry from `vercel.json` CSP — this was identified as a typo domain during the Clerk migration and is dead weight, not actually needed
+- [ ] No console errors
+- [ ] Confirm rate limiting fails **open** if Redis/Upstash is unreachable (`api/_sliding-window.js`) — not a pre-launch blocker, but be aware that a Redis outage silently disables rate limiting rather than blocking requests
+- [ ] Confirm there is no automated alerting (Slack/Sentry/PagerDuty) on webhook failures today — plan to manually watch Vercel function logs during your first real transactions, since failures currently only surface as `console.error` log lines
+
+---
+
+## Part 19 — Analytics
+
+- [ ] PostHog identify on sign in
+- [ ] Plan changes tracked
+- [ ] Checkout tracked
+- [ ] No duplicate events
+- [ ] No sensitive data captured
+
+---
+
+## Part 20 — Production verification
+
+### Stripe
+
+- [ ] Every webhook = HTTP 200
+- [ ] No webhook retries
+- [ ] No duplicate customers
+
+### Clerk
+
+- [ ] Plan always matches Stripe
+
+### MongoDB
+
+- [ ] Customer records correct
+- [ ] Projects correct
+
+### Vercel
+
+- [ ] No 500 errors
+- [ ] No auth failures
+- [ ] No deployment warnings
+
+### Browser
+
+- [ ] No console errors
+- [ ] No failed network requests
+
+---
+
+## Part 21 — Final customer journey ⭐
+
+This is the one to treat as most important.
+
+Using:
+- Incognito mode
+- A brand-new email
+- A different browser (if possible)
+
+Complete this journey without any manual intervention:
+
+- [ ] Visit landing page
+- [ ] Upload background
+- [ ] Upload design
+- [ ] Apply effects
+- [ ] Refresh (everything restores)
+- [ ] Click Export (paywall appears)
+- [ ] Sign up
+- [ ] Return to app with work intact
+  > This restores via the local IndexedDB autosave, not a server-side claim — see Part 2. Functionally this step should still pass; just don't attribute it to a "claim" mechanism when writing up results.
+- [ ] Upgrade to Starter
+- [ ] Export successfully (verify the exported file, not just the on-screen preview)
+- [ ] Save project
+- [ ] Close browser
+- [ ] Return the next day
+- [ ] Sign in
+- [ ] Resume project exactly where you left off
+
+If that final journey works flawlessly, you're not just testing individual features — you've validated the complete experience your first real customer will have. That's the strongest indicator that you're ready to launch.
+
+---
+
+## Known gaps found during code review (not necessarily blockers — decide deliberately)
+
+1. **No server-side "claim" flow** — `api/projects/claim.js` is an unmounted 404 stub. Anonymous → signed-in continuity is entirely client-side (IndexedDB), with no MongoDB/Clerk-metadata linkage. (Part 2)
+2. **"Save Progress" doesn't auto-resume after sign-in** — only "Export" does, via `ms_redirect_after_auth`. (Part 2)
+3. **Watermark-on-export not structurally guaranteed** — the on-screen watermark overlay and the exported file go through different render paths; verify explicitly per effect. (Part 3)
+4. **`GET /api/projects/:id` has no auth check** — relies on UUID being unguessable. (Part 10)
+5. **Local autosave is a single shared key across tabs** — concurrent-tab editing can silently overwrite. (Part 1, 16)
+6. **`sessionStorage`-based auth/checkout resume breaks across tabs** — same-tab redirect flow only. (Part 16)
+7. **Stale `clerks.mockupscripter.com` CSP entry** — leftover typo domain from the Clerk migration debugging; harmless but should be cleaned up. (Part 18)
+8. **`invoice.paid` is not handled by the Stripe webhook** — only `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. (Part 3)
+9. **No external alerting on webhook/backend failures** — console logs only; plan for manual log-watching at launch. (Part 18)
+10. **Rate limiting fails open, nonce store fails closed** — different failure modes for the two protection layers if their backing store (Redis/Postgres) is unreachable. Worth understanding, not necessarily fixing pre-launch. (Part 18)

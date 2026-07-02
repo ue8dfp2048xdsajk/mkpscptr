@@ -57,12 +57,34 @@ function makeReqRes({ body = {}, env = {}, headers = {} } = {}) {
 const GOOD_ENV = {
     STRIPE_SECRET_KEY:             'sk_test_dummy_for_checkout_tests',
     STRIPE_PRICE_STARTER_MONTHLY:  'price_test_starter_monthly',
-    // Explicitly clear CLERK_SECRET_KEY so the plan-upgrade check is skipped.
-    // These tests mock global.fetch to simulate Stripe errors; if the Clerk
-    // plan-check block ran it would intercept that fetch first and return
-    // CLERK_ERROR before the Stripe call is ever reached.
-    CLERK_SECRET_KEY: '',
+    // checkout.js's "is auth configured" guard requires CLERK_SECRET_KEY to be
+    // truthy (it reuses the same var for that guard AND for the optional
+    // Clerk plan-upgrade lookup below), so it must stay set here. The Clerk
+    // lookup itself is handled by mockFetchClerkThenStripe(), which returns a
+    // benign "free plan" response for the Clerk call and only simulates the
+    // Stripe error for the actual Stripe request — otherwise the Clerk call
+    // would consume the mocked error response first and short-circuit with
+    // CLERK_ERROR before the Stripe call under test is ever reached.
+    CLERK_SECRET_KEY: 'sk_test_dummy_clerk_for_checkout_tests',
 };
+
+// checkout.js calls fetch() twice on the happy path: once to look up the
+// Clerk user (to check their current plan / email), then once to create the
+// Stripe checkout session. Route each call to the right canned response so
+// the Clerk lookup always succeeds and only the Stripe call fails the way
+// each test expects.
+function mockFetchClerkThenStripe(stripeResponse) {
+    return jest.fn().mockImplementation((url) => {
+        if (typeof url === 'string' && url.includes('api.clerk.com')) {
+            return Promise.resolve({
+                ok:     true,
+                status: 200,
+                json:   async () => ({ public_metadata: {}, email_addresses: [] }),
+            });
+        }
+        return Promise.resolve(stripeResponse);
+    });
+}
 
 // ---------------------------------------------------------------------------
 // Server-side tests
@@ -78,6 +100,11 @@ describe('POST /api/checkout — STRIPE_ERROR branch (server)', () => {
         jest.doMock('../api/_verify-clerk-token', () => ({
             verifyClerkToken:     jest.fn().mockResolvedValue('user_test_checkout'),
             verifyClerkTokenFull: jest.fn().mockResolvedValue(null),
+            // checkout.js gates on this flag before ever calling verifyClerkToken —
+            // without it the handler always short-circuits to the 503
+            // "auth not configured" branch and the Stripe-error path under test
+            // (mocked via global.fetch below) is never reached.
+            isConfigured:         true,
         }));
         handler = require('../api/checkout');
     });
@@ -89,7 +116,7 @@ describe('POST /api/checkout — STRIPE_ERROR branch (server)', () => {
         });
 
         const realFetch = global.fetch;
-        global.fetch = jest.fn().mockResolvedValue({
+        global.fetch = mockFetchClerkThenStripe({
             ok:     false,
             status: 402,
             json:   async () => ({ error: { message: 'Your card was declined.' } }),
@@ -115,7 +142,7 @@ describe('POST /api/checkout — STRIPE_ERROR branch (server)', () => {
         });
 
         const realFetch = global.fetch;
-        global.fetch = jest.fn().mockResolvedValue({
+        global.fetch = mockFetchClerkThenStripe({
             ok:     false,
             status: 503,
             json:   async () => ({ error: { message: 'Service temporarily unavailable.' } }),
@@ -141,7 +168,7 @@ describe('POST /api/checkout — STRIPE_ERROR branch (server)', () => {
         });
 
         const realFetch = global.fetch;
-        global.fetch = jest.fn().mockResolvedValue({
+        global.fetch = mockFetchClerkThenStripe({
             ok:     false,
             status: 500,
             json:   async () => ({}),

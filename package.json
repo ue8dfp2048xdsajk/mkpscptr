@@ -175,6 +175,9 @@
     ],
     "moduleNameMapper": {
       "^pg$": "<rootDir>/api/node_modules/pg"
-    }
+    },
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup-env.js"
+    ]
   }
 }

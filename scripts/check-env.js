@@ -69,6 +69,22 @@ const REQUIRED = [
             'Missing → /api/set-plan cannot update user metadata.',
     },
     {
+        name: 'CLERK_JWKS_URL',
+        description: 'Clerk JWKS endpoint (e.g. https://clerk.mockupscripter.com/.well-known/jwks.json). ' +
+            'Missing → all token verification returns null — every authenticated endpoint ' +
+            '(checkout, export, save, billing) rejects requests with 401, and checkout blocks all purchases.',
+        validate: (v) => v.startsWith('https://') || 'value should start with https://',
+    },
+    {
+        name: 'MONGODB_URI',
+        description: 'MongoDB connection string (mongodb://... or mongodb+srv://...). ' +
+            'Missing → the checkout.session.completed webhook cannot store the Stripe customer ' +
+            'mapping and returns 500 before the user\'s plan is activated — the user pays but ' +
+            'has to wait for Stripe\'s automatic webhook retries.',
+        validate: (v) => v.startsWith('mongodb://') || v.startsWith('mongodb+srv://') ||
+            'value should start with mongodb:// or mongodb+srv://',
+    },
+    {
         name: 'UPSTASH_REDIS_REST_URL',
         description: 'Upstash Redis REST URL for the nonce store. ' +
             'Missing → nonce replay protection falls back to in-memory, resets on every cold start, ' +

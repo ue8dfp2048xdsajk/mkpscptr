@@ -33,6 +33,8 @@ const ALL_REQUIRED = {
     STRIPE_WEBHOOK_SECRET: 'whsec_test_dummy_secret',
     SET_PLAN_SECRET: 'set_plan_test_secret',
     CLERK_SECRET_KEY: 'sk_test_clerk_dummy',
+    CLERK_JWKS_URL: 'https://clerk.example.com/.well-known/jwks.json',
+    MONGODB_URI: 'mongodb+srv://user:pass@cluster.example.mongodb.net',
     UPSTASH_REDIS_REST_URL: 'https://redis.example.upstash.io',
     UPSTASH_REDIS_REST_TOKEN: 'token_dummy',
 };
@@ -97,6 +99,48 @@ describe('scripts/check-env.js — child-process integration', () => {
         expect(code).toBe(1);
         expect(stderr).toMatch(/INVALID/);
         expect(stderr).toMatch(/STRIPE_SECRET_KEY/);
+    });
+
+    test('exits 1 when CLERK_JWKS_URL is missing', () => {
+        const env = { ...ALL_REQUIRED };
+        delete env.CLERK_JWKS_URL;
+        const { code, stderr } = run(env);
+        expect(code).toBe(1);
+        expect(stderr).toMatch(/MISSING/);
+        expect(stderr).toMatch(/CLERK_JWKS_URL/);
+    });
+
+    test('exits 1 when CLERK_JWKS_URL has wrong prefix', () => {
+        const env = { ...ALL_REQUIRED, CLERK_JWKS_URL: 'clerk.example.com/.well-known/jwks.json' };
+        const { code, stderr } = run(env);
+        expect(code).toBe(1);
+        expect(stderr).toMatch(/INVALID/);
+        expect(stderr).toMatch(/CLERK_JWKS_URL/);
+        expect(stderr).toMatch(/https:\/\//);
+    });
+
+    test('exits 1 when MONGODB_URI is missing', () => {
+        const env = { ...ALL_REQUIRED };
+        delete env.MONGODB_URI;
+        const { code, stderr } = run(env);
+        expect(code).toBe(1);
+        expect(stderr).toMatch(/MISSING/);
+        expect(stderr).toMatch(/MONGODB_URI/);
+    });
+
+    test('exits 1 when MONGODB_URI has wrong prefix', () => {
+        const env = { ...ALL_REQUIRED, MONGODB_URI: 'postgres://user:pass@host/db' };
+        const { code, stderr } = run(env);
+        expect(code).toBe(1);
+        expect(stderr).toMatch(/INVALID/);
+        expect(stderr).toMatch(/MONGODB_URI/);
+        expect(stderr).toMatch(/mongodb/);
+    });
+
+    test('exits 0 when MONGODB_URI uses the mongodb:// (non-SRV) scheme', () => {
+        const env = { ...ALL_REQUIRED, MONGODB_URI: 'mongodb://localhost:27017/mockupscripter' };
+        const { code } = run(env);
+        expect(code).toBe(0);
     });
 
     test('exits 1 when multiple required variables are missing', () => {
