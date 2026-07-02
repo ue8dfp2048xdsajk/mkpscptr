@@ -945,11 +945,14 @@ function updateFromSliders(event){
         activeSliderType === "perspectiveTop" ||
         activeSliderType === "perspectiveLeft";
 
-    // Always reset HQ debounce on every input event so HQ fires 220 ms after
+    // Always reset HQ debounce on every input event so HQ fires after
     // the user stops — even when the LQ frame is throttled away.
+    // Scale the delay up with selection size: each extra window adds 30 ms so
+    // the HQ mip-chain allocations for many windows don't all land at once.
     if(selectedDesigns.size === 0 || _needsWarp){
         clearTimeout(globalHQTimer);
-        globalHQTimer = setTimeout(_hqRenderSliders, 220);
+        const _hqDelay = 220 + Math.max(0, activeIndices.length - 1) * 30;
+        globalHQTimer = setTimeout(_hqRenderSliders, _hqDelay);
     }
 
     // Gate LQ computation to one per animation frame.

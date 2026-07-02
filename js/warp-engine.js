@@ -21,9 +21,11 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     // drawImage step is tuned. The fix is to work at a higher resolution:
     // upscale the source by 1/(1−perspFactor) so the compressed tip retains
     // approximately the original pixel count, then scale the output back down.
-    // Cap at 4× in HQ (live-drag keeps 1× for speed).
+    // Cap at 4× in single-window HQ; 2× when many windows are selected so the
+    // simultaneous mip-chain allocations don't exhaust GPU memory.
     const perspF  = Math.min(0.75, Math.max(Math.abs(top), Math.abs(left)) / 100);
-    const upScale = lowQuality ? 1 : Math.min(4, Math.max(1, 1 / (1 - perspF)));
+    const _multiWin = typeof activeIndices !== 'undefined' && activeIndices.length > 1;
+    const upScale = lowQuality ? 1 : Math.min(_multiWin ? 2 : 4, Math.max(1, 1 / (1 - perspF)));
 
     let wSrc = src;
     if(upScale > 1.05){
@@ -98,6 +100,10 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
             Math.max(1, Math.ceil(targetW + 1)), Math.ceil(sliceH + 1)
         );
     }
+    // Free pass-1 mip levels (not index 0 — that is the source canvas itself).
+    // Setting width=0 releases the GPU backing store immediately rather than
+    // waiting for GC, which prevents GPU OOM when many windows render at once.
+    for(let i = 1; i < srcMips.length; i++) srcMips[i].width = 0;
 
     // ── Pass 2: left/right perspective (vertical slices) ─────────────────────
     // Operates on the supersampled Pass-1 output; mip chain applied here too.
@@ -147,6 +153,8 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
                 Math.ceil(sliceW + 1),                  Math.max(1, Math.ceil(targetH + 1))
             );
         }
+        // Free pass-2 mip levels immediately (same reason as pass-1 above).
+        for(let i = 1; i < tempMips.length; i++) tempMips[i].width = 0;
     }
 
     // ── Scale back down & trim ────────────────────────────────────────────────
@@ -167,6 +175,10 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     fc.imageSmoothingEnabled = true;
     fc.imageSmoothingQuality = 'high';
     fc.drawImage(trimmedHQ, 0, 0, finalOut.width, finalOut.height);
+    // Free the supersampled intermediate canvas — it is distinct from src/out
+    // and not referenced by the caller, so releasing it here prevents it from
+    // sitting in memory until GC eventually collects it.
+    wSrc.width = 0;
     return finalOut;
 }
 
