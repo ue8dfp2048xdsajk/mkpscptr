@@ -22,7 +22,6 @@
   "routes": [
     { "src": "/api/projects/list",  "dest": "/api/projects/list"  },
     { "src": "/api/projects/save",  "dest": "/api/projects/save"  },
-    { "src": "/api/projects/claim", "dest": "/api/projects/claim" },
     { "src": "/api/projects/([^/]+)", "dest": "/api/projects/[id]?id=$1" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/$1" },

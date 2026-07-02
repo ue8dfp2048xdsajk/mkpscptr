@@ -47,23 +47,6 @@
                 plan: window._userPlan
             });
         }
-        _claimAnonProject();
-    }
-
-    function _claimAnonProject() {
-        var uuid = localStorage.getItem('ms_project_uuid');
-        if (!uuid) return;
-        window._clerkGetToken().then(function (token) {
-            if (!token) return;
-            fetch('/api/projects/claim', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + token,
-                },
-                body: JSON.stringify({ uuid: uuid }),
-            }).catch(function () {});
-        });
     }
 
     function _onClerkSignedOut() {
