@@ -7020,12 +7020,22 @@ function buildSnapshot(){
             // divide by previewScale so the value is in background-image pixels,
             // not in preview-canvas pixels.  The restore path multiplies back up
             // by the new previewScale, keeping the relative position intact.
+            // Use getCenterPoint() so the saved coordinate is always the object
+            // centre, regardless of whether originX is 'left' (mesh-warp Apply
+            // creates images with originX:'left') or 'center' (normal
+            // applyWarpToData).  The restore path always recreates images with
+            // originX:'center', so saving the centre avoids a half-width shift.
             x: mainObj
-                ? (mainObj.left  / data.previewScale)
-                : (data.x        / (data.previewScale || 1)),
+                ? (mainObj.getCenterPoint().x / data.previewScale)
+                : (data.x                     / (data.previewScale || 1)),
             y: mainObj
-                ? (mainObj.top   / data.previewScale)
-                : (data.y        / (data.previewScale || 1)),
+                ? (mainObj.getCenterPoint().y / data.previewScale)
+                : (data.y                     / (data.previewScale || 1)),
+
+            // Persist the reset-target position so the Reset button restores
+            // the design to the correct canvas centre after a save-restore cycle.
+            initialX: data.initialX / (data.previewScale || 1),
+            initialY: data.initialY / (data.previewScale || 1),
 
             scale: data.scale,
 
@@ -7889,6 +7899,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             bgName: saved.bgName,
 
             designOriginal: designImg,
+            initialDesignOriginal: designImg,
             designName: saved.designName,
 
             x: saved.x,
@@ -8012,7 +8023,8 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         data.x = saved.x * previewScale;
         data.y = saved.y * previewScale;
 
-        // initialX/Y used by Reset — must also be in preview-canvas pixels.
+        // initialX/Y used by Reset — temporarily mirror x/y; corrected below
+        // once previewW/H are known (they are computed a few lines later).
         data.initialX = data.x;
         data.initialY = data.y;
 
@@ -8045,6 +8057,17 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         fabricCanvas.setWidth(previewW);
         fabricCanvas.setHeight(previewH);
+
+        // Now that previewW/H are known, set the correct reset-target position.
+        // Use the value saved in the snapshot when available (saved with the fix
+        // that stores getCenterPoint coordinates); fall back to canvas centre for
+        // sessions saved before this fix so old snapshots still work correctly.
+        data.initialX = saved.initialX != null
+            ? saved.initialX * previewScale
+            : previewW / 2;
+        data.initialY = saved.initialY != null
+            ? saved.initialY * previewScale
+            : previewH / 2;
 
         // Shrink Fabric's .canvas-container to the CSS display size so it doesn't
         // overflow the grid cell. Canvas DOM pixel count stays at previewW × DPR,
