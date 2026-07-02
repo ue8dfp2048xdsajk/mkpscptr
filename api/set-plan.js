@@ -55,7 +55,10 @@ module.exports = async function handler(req, res) {
 
     if (!clerkSecretKey || !setPlanSecret) {
         console.error('set-plan: missing env vars CLERK_SECRET_KEY or SET_PLAN_SECRET');
-        return res.status(500).json({ ok: false, error: 'Server misconfiguration' });
+        return res.status(503).json({
+            ok: false,
+            error: 'Authentication is not configured on this server. Please contact support.',
+        });
     }
 
     let body;

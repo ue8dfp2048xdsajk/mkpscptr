@@ -55,9 +55,9 @@ module.exports = async function handler(req, res) {
         });
     }
 
-    // Guard: if CLERK_JWKS_URL is not configured, authentication is impossible.
+    // Guard: if Clerk is not fully configured, authentication is impossible.
     // Return 503 with a readable message instead of a cryptic 401.
-    if (!isClerkConfigured) {
+    if (!isClerkConfigured || !process.env.CLERK_SECRET_KEY) {
         return res.status(503).json({
             ok: false,
             error: 'Authentication is not configured on this server. Please contact support.',
