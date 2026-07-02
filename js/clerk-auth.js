@@ -68,7 +68,8 @@
         btn.textContent = 'Sign In';
         btn.addEventListener('click', function () {
             sessionStorage.setItem('ms_redirect_after_auth', 'home');
-            _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}).then(() => window.Clerk.openSignIn());
+            let snap; try { snap = buildFullSnapshot(); } catch(e) { console.error('[SignIn] snapshot failed:', e); window.Clerk.openSignIn(); return; }
+            _autosaveDB.set('session', snap).catch(()=>{}).then(() => window.Clerk.openSignIn());
         });
         container.appendChild(btn);
     }

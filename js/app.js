@@ -7049,11 +7049,11 @@ function buildSnapshot(){
             // applyWarpToData).  The restore path always recreates images with
             // originX:'center', so saving the centre avoids a half-width shift.
             x: mainObj
-                ? (mainObj.getCenterPoint().x / data.previewScale)
-                : (data.x                     / (data.previewScale || 1)),
+                ? (() => { const cp = mainObj.getCenterPoint(); return (cp ? cp.x : mainObj.left) / data.previewScale; })()
+                : (data.x / (data.previewScale || 1)),
             y: mainObj
-                ? (mainObj.getCenterPoint().y / data.previewScale)
-                : (data.y                     / (data.previewScale || 1)),
+                ? (() => { const cp = mainObj.getCenterPoint(); return (cp ? cp.y : mainObj.top)  / data.previewScale; })()
+                : (data.y / (data.previewScale || 1)),
 
             // Persist the reset-target position so the Reset button restores
             // the design to the correct canvas centre after a save-restore cycle.
@@ -7665,7 +7665,9 @@ function autoSaveSession(){
     clearTimeout(_autoSaveTimer);
 
     _autoSaveTimer = setTimeout(()=>{
-        _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
+        let snap;
+        try { snap = buildFullSnapshot(); } catch(e) { console.error('[Autosave] buildFullSnapshot failed:', e); return; }
+        _autosaveDB.set('session', snap).catch(e => console.error('[Autosave] IDB write failed:', e));
     }, 2500);
 
     // Cloud backup — only when signed in and a UUID is already stored.
@@ -7737,7 +7739,8 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
 
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'save');
-        _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}).then(() => window.Clerk.openSignIn());
+        try { await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}); } catch(e) { console.error('[Save→SignIn] snapshot failed:', e); }
+        window.Clerk.openSignIn();
         return;
     }
     if(_userPlan === 'free'){
@@ -9466,10 +9469,11 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
 
 // ── Export canvas text ────────────────────────────────────────────────────────
-document.getElementById('exportTextBtn').addEventListener('click', () => {
+document.getElementById('exportTextBtn').addEventListener('click', async () => {
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'export');
-        _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}).then(() => window.Clerk.openSignIn());
+        try { await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}); } catch(e) { console.error('[Export→SignIn] snapshot failed:', e); }
+        window.Clerk.openSignIn();
         return;
     }
     if(_userPlan === 'free'){
