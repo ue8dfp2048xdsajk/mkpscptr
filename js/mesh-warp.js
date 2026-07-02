@@ -489,23 +489,18 @@ function exitDesignWarpMode(apply) {
         const { canvas: outCanvas, left, top, dpr = 1 } = renderResult;
         const fc   = applyData.fabricCanvas;
         const ps   = applyData.previewScale || 1;
-        // outCanvas is at physical-pixel resolution; convert back to CSS space for placement
-        const cssW = outCanvas.width  / dpr;
-        const cssH = outCanvas.height / dpr;
-        const cx   = left + cssW / 2;
-        const cy   = top  + cssH / 2;
 
         // Build the new Fabric image synchronously from the canvas element —
         // no async fromURL, so there is zero gap between removing the originals
         // and displaying the warped result.
         // scaleX/scaleY = 1/dpr so the DPR-resolution image displays at CSS size.
+        // Use default left/top origin so data.x/data.y (top-left coords) stay
+        // consistent with applyWarpToData and the Reset handler.
         const newImg = new fabric.Image(outCanvas, {
-            left:            cx,
-            top:             cy,
+            left:            left,
+            top:             top,
             scaleX:          1 / dpr,
             scaleY:          1 / dpr,
-            originX:         'center',
-            originY:         'center',
             selectable:      true,
             evented:         true,
             transparentCorners: false,
@@ -522,8 +517,8 @@ function exitDesignWarpMode(apply) {
         if (isMain) {
             applyData.designOriginal  = outCanvas;   // warped canvas is the new source
             applyData.warpCanvas      = null;         // force recreation
-            applyData.x               = cx;
-            applyData.y               = cy;
+            applyData.x               = left;
+            applyData.y               = top;
             // Effective Fabric scale = data.scaleX * previewScale = (1/dpr)/ps * ps = 1/dpr ✓
             applyData.scaleX          = (1 / dpr) / ps;
             applyData.scaleY          = (1 / dpr) / ps;
@@ -576,15 +571,9 @@ function exitDesignWarpMode(apply) {
             const { canvas: outCanvas2, left: left2, top: top2, dpr: dpr2 = 1 } = grpResult;
             const grpFc  = grpData.fabricCanvas;
             const grpPs  = grpData.previewScale || 1;
-            const cssW2  = outCanvas2.width  / dpr2;
-            const cssH2  = outCanvas2.height / dpr2;
-            const cx2    = left2 + cssW2 / 2;
-            const cy2    = top2  + cssH2 / 2;
-
             const newImg2 = new fabric.Image(outCanvas2, {
-                left: cx2, top: cy2,
+                left: left2, top: top2,
                 scaleX: 1 / dpr2, scaleY: 1 / dpr2,
-                originX: 'center', originY: 'center',
                 selectable: true, evented: true,
                 transparentCorners: false,
                 cornerColor: 'blue', cornerStyle: 'circle',
@@ -596,8 +585,8 @@ function exitDesignWarpMode(apply) {
             if (grpIsMain) {
                 grpData.designOriginal  = outCanvas2;
                 grpData.warpCanvas      = null;
-                grpData.x               = cx2;
-                grpData.y               = cy2;
+                grpData.x               = left2;
+                grpData.y               = top2;
                 grpData.scaleX          = (1 / dpr2) / grpPs;
                 grpData.scaleY          = (1 / dpr2) / grpPs;
                 grpData.rotation        = 0;
