@@ -1110,10 +1110,10 @@ body {
 #contextPanel {
     position: fixed;
     left: 0;
-    top: 0;
-    width: 26px; /* collapsed by default */
-    height: 100vh;
-    padding-top: 84px;
+    top: 84px;                     /* fallback until JS measures real header height */
+    width: 26px;                   /* collapsed by default */
+    height: calc(100vh - 84px);    /* fallback — JS keeps this in sync */
+    padding-top: 0;
     background: #fff;
     border-right: 1px solid #E5E7EB;
     z-index: 999;

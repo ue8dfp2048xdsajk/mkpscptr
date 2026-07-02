@@ -179,7 +179,13 @@ function _syncContextPanelTop() {
     var header = document.querySelector('.sticky-header');
     var panel  = document.getElementById('contextPanel');
     if (!header || !panel) return;
-    panel.style.paddingTop = header.getBoundingClientRect().height + 'px';
+    var h = header.getBoundingClientRect().height;
+    // Position the panel to START below the header and fill the rest of the
+    // viewport.  Using top+height (not padding-top) means the content area is
+    // always the full remaining height — padding-top on a box-sizing:border-box
+    // element with height:100vh eats into the scrollable area.
+    panel.style.top    = h + 'px';
+    panel.style.height = 'calc(100vh - ' + h + 'px)';
 }
 
 // Keep the panel top in sync whenever the sticky-header changes height
