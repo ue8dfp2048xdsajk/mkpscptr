@@ -51,4 +51,4 @@ async function verifyClerkTokenFull(authorizationHeader) {
     }
 }
 
-module.exports = { verifyClerkToken, verifyClerkTokenFull };
+module.exports = { verifyClerkToken, verifyClerkTokenFull, isConfigured: !!JWKS };

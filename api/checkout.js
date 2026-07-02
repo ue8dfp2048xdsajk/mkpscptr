@@ -1,5 +1,5 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
-const { verifyClerkToken } = require('./_verify-clerk-token');
+const { verifyClerkToken, isConfigured: isClerkConfigured } = require('./_verify-clerk-token');
 const { isRateLimited } = require('./_sliding-window');
 
 const CHECKOUT_MAX        = 5;
@@ -52,6 +52,15 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({
             ok: false,
             error: `No Stripe price configured for ${planKey}. Set STRIPE_PRICE_${planKey.toUpperCase()} in environment variables.`,
+        });
+    }
+
+    // Guard: if CLERK_JWKS_URL is not configured, authentication is impossible.
+    // Return 503 with a readable message instead of a cryptic 401.
+    if (!isClerkConfigured) {
+        return res.status(503).json({
+            ok: false,
+            error: 'Authentication is not configured on this server. Please contact support.',
         });
     }
 

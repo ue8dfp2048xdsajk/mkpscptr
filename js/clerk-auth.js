@@ -27,6 +27,7 @@
             if (user) {
                 _onClerkSignedIn(user);
                 _handlePaymentSuccess();
+                _resumePendingCheckout();
             } else {
                 _onClerkSignedOut();
             }
@@ -398,6 +399,17 @@
                 var btn = document.getElementById('exportBtn');
                 if (btn) btn.click();
             }, 400);
+        }
+    }
+
+    function _resumePendingCheckout() {
+        var plan = sessionStorage.getItem('ms_pending_checkout_plan');
+        var period = sessionStorage.getItem('ms_pending_checkout_period') || 'monthly';
+        if (!plan) return;
+        sessionStorage.removeItem('ms_pending_checkout_plan');
+        sessionStorage.removeItem('ms_pending_checkout_period');
+        if (typeof _startCheckout === 'function') {
+            setTimeout(function () { _startCheckout(plan, period); }, 500);
         }
     }
 

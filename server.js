@@ -1,6 +1,19 @@
 const express = require('express');
 const path = require('path');
 
+// ── Startup configuration checks ─────────────────────────────────────────────
+const _missingVars = [];
+if (!process.env.CLERK_JWKS_URL) _missingVars.push('CLERK_JWKS_URL');
+if (!process.env.CLERK_SECRET_KEY) _missingVars.push('CLERK_SECRET_KEY');
+if (_missingVars.length) {
+    console.error(
+        '[CONFIG ERROR] The following required environment variables are not set: ' +
+        _missingVars.join(', ') + '. ' +
+        'Authentication will not work and the /api/checkout endpoint will return 503. ' +
+        'Set these variables in the Replit Secrets panel or your .env file.'
+    );
+}
+
 const app = express();
 const PORT = 5000;
 

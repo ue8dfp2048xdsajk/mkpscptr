@@ -42,6 +42,7 @@
         src="https://clerks.mockupscripter.com/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
         type="text/javascript"
         onload="window.__clerkSdkReady=true; window.__clerkLandingInit && window.__clerkLandingInit()"
+        onerror="window.__clerkLoadFailed=true"
     ></script>
 </head>
 <body>

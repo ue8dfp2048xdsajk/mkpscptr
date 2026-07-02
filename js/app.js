@@ -9886,8 +9886,14 @@ document.getElementById('canvasContainer').addEventListener('input', e => {
 async function _startCheckout(plan, period) {
     if (!window.Clerk || !window.Clerk.user) {
         sessionStorage.setItem('ms_redirect_after_auth', 'home');
+        try { sessionStorage.setItem('ms_pending_checkout_plan', plan || ''); } catch (_) {}
+        try { sessionStorage.setItem('ms_pending_checkout_period', period || 'monthly'); } catch (_) {}
         await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
-        window.Clerk && window.Clerk.openSignIn();
+        if (window.Clerk) {
+            window.Clerk.openSignIn();
+        } else {
+            alert('Sign-in is unavailable \u2014 please refresh the page and try again.');
+        }
         return;
     }
 
