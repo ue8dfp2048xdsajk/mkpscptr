@@ -868,6 +868,12 @@ body {
 }
 .canvas-wrapper canvas { width: 100% !important; height: auto !important; display: block; }
 
+/* Prevent Fabric's upper-canvas from leaking pointer events outside the
+   canvas bounds (especially important when windows in the same row have
+   different heights — the taller neighbour's click area could otherwise
+   be captured by the shorter window's overflowing upper-canvas). */
+.canvas-container { overflow: hidden; }
+
 .filename-input {
     margin-top: 0;
     width: 100%;

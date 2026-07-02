@@ -6885,6 +6885,11 @@ document.getElementById("resetBtn").addEventListener("click", ()=>{
 
         // ── Restore fabric object to initial transform ────────────────────────
         if(data.designObject){
+            // Warp apply replaces designObject with a left/top-origin image.
+            // data.initialX/Y are center coords (captured from the original
+            // center-origin object), so restore center origin before using them.
+            data.designObject.set({ originX: 'center', originY: 'center' });
+
             applyClipMaskToObject(data.designObject, data);
             data.designObject.set({
                 left:   data.initialX,
