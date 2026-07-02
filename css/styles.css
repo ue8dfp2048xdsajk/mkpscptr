@@ -975,7 +975,7 @@ body {
     line-height: 1.6;
 }
 .window-cell:hover .drag-handle { opacity: 1; }
-.canvas-wrapper.drag-source { opacity: 0; }
+.window-cell.drag-source { opacity: 0; }
 
 #brushCursorRing {
     position: fixed;
