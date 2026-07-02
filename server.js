@@ -28,7 +28,10 @@ const CLERK_PUBLISHABLE_KEY =
 function serveHtmlWithClerkKey(filePath, res) {
     fs.readFile(path.join(__dirname, filePath), 'utf8', (err, html) => {
         if (err) return res.status(404).send('Not found');
-        const injected = html.replace(/__CLERK_PUBLISHABLE_KEY__/g, CLERK_PUBLISHABLE_KEY);
+        const injected = html.replace(
+            /pk_live_Y2xlcmsubW9ja3Vwc2NyaXB0ZXIuY29tJA/g,
+            CLERK_PUBLISHABLE_KEY
+        );
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(injected);
     });
@@ -104,9 +107,10 @@ app.use((req, res, next) => {
 });
 
 // ── HTML pages with Clerk key injected ───────────────────────────────────────
-app.get('/',           (req, res) => serveHtmlWithClerkKey('index.html', res));
-app.get('/index.html', (req, res) => serveHtmlWithClerkKey('index.html', res));
-app.get('/app.html',   (req, res) => serveHtmlWithClerkKey('app.html',   res));
+app.get('/',              (req, res) => serveHtmlWithClerkKey('index.html',   res));
+app.get('/index.html',   (req, res) => serveHtmlWithClerkKey('index.html',   res));
+app.get('/app.html',     (req, res) => serveHtmlWithClerkKey('app.html',     res));
+app.get('/settings.html',(req, res) => serveHtmlWithClerkKey('settings.html', res));
 
 app.use(express.static('.'));
 
