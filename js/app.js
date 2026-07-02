@@ -6750,7 +6750,7 @@ async function exportDataToBlob(data, fmt, quality){
         if (window.Clerk && !window.Clerk.user) {
             sessionStorage.setItem('ms_redirect_after_auth', 'export');
             await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
-            window.Clerk.openSignIn();
+            try { window.Clerk.redirectToSignIn({ redirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
             return;
         }
 
@@ -7780,7 +7780,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'save');
         try { await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}); } catch(e) { console.error('[Save→SignIn] snapshot failed:', e); }
-        window.Clerk.openSignIn();
+        try { window.Clerk.redirectToSignIn({ redirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
         return;
     }
     if(_userPlan === 'free'){
@@ -9513,7 +9513,7 @@ document.getElementById('exportTextBtn').addEventListener('click', async () => {
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'export');
         try { await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}); } catch(e) { console.error('[Export→SignIn] snapshot failed:', e); }
-        window.Clerk.openSignIn();
+        try { window.Clerk.redirectToSignIn({ redirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
         return;
     }
     if(_userPlan === 'free'){
@@ -9905,9 +9905,9 @@ async function _startCheckout(plan, period) {
         try { sessionStorage.setItem('ms_pending_checkout_period', period || 'monthly'); } catch (_) {}
         await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
         if (window.Clerk) {
-            window.Clerk.openSignIn();
+            try { window.Clerk.redirectToSignIn({ redirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
         } else {
-            alert('Sign-in is unavailable \u2014 please refresh the page and try again.');
+            alert('Sign-in is temporarily unavailable \u2014 please refresh the page.');
         }
         return;
     }

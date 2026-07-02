@@ -11,7 +11,14 @@
     async function _clerkAuthMain() {
         if (!window.Clerk) return;
 
-        await window.Clerk.load();
+        try {
+            await window.Clerk.load();
+        } catch (err) {
+            console.error('[Clerk] Initialization failed:', err);
+            window.__clerkLoadFailed = true;
+            _renderSignInButton();
+            return;
+        }
 
         _activeSession = window.Clerk.session || null;
 
@@ -76,8 +83,14 @@
         btn.textContent = 'Sign In';
         btn.addEventListener('click', function () {
             sessionStorage.setItem('ms_redirect_after_auth', 'home');
-            let snap; try { snap = buildFullSnapshot(); } catch(e) { console.error('[SignIn] snapshot failed:', e); window.Clerk.openSignIn(); return; }
-            _autosaveDB.set('session', snap).catch(()=>{}).then(() => window.Clerk.openSignIn());
+            if (!window.Clerk) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); return; }
+            var snap; try { snap = buildFullSnapshot(); } catch(e) { console.error('[SignIn] snapshot failed:', e); }
+            var doSignIn = function () { try { window.Clerk.redirectToSignIn({ redirectUrl: window.location.href }); } catch(e) { console.error('[Clerk] redirectToSignIn failed:', e); alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); } };
+            if (snap) {
+                _autosaveDB.set('session', snap).catch(function(){}).then(doSignIn);
+            } else {
+                doSignIn();
+            }
         });
         container.appendChild(btn);
     }
