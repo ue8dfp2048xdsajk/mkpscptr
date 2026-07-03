@@ -66,7 +66,9 @@ The editor is vanilla JavaScript (no React/Vue). Key modules:
 
 | Module | Responsibility |
 |--------|----------------|
-| `app.js` | Main editor: window grid, selection, export, UI wiring |
+| `app.js` | Main editor: window grid, selection, snapshot save/load, UI wiring |
+| `export-ui.js` | Export popover, pattern PNG, canvas text export |
+| `pro-gating.js` | PRO effect detection, watermarks, star badges, export gating helpers |
 | `clerk-auth.js` | Sign-in, plan from Clerk metadata, checkout flow |
 | `plans-modal.js` | Pricing modal and Stripe checkout trigger |
 | `clip.js` | Bezier/polygon clipping masks |

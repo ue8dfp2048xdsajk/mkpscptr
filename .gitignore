@@ -11,3 +11,5 @@ node_modules/
 .upm/
 main.py
 pyproject.toml
+.DS_Store
+**/.DS_Store

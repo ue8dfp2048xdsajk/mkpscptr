@@ -8,6 +8,7 @@
 ## Architecture
 
 - [Overview](architecture/overview.md) — how the pieces fit together
+- [App.js map](architecture/app-js-map.md) — script load order, globals, danger zones
 - [Backend API](architecture/backend-api.md) — all `/api/*` endpoints
 
 ## Features

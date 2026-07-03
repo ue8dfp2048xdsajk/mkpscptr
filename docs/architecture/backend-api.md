@@ -214,5 +214,3 @@ Sensitive endpoints use sliding-window rate limits backed by Redis, PostgreSQL, 
 | `/api/billing/:action` | `api/billing/[action].js` |
 | `/api/account/delete` | `api/account/delete.js` |
 | `/api/admin/:action` | `api/admin/[action].js` |
-
-Note: `api/projects/claim.js` exists but is not mounted in `server.js` or `vercel.json` routes.

@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * Unit tests for PRO effect detection helpers extracted from js/app.js.
+ * Unit tests for PRO effect detection helpers in js/pro-gating.js.
  */
 
 'use strict';
@@ -9,25 +9,15 @@
 const fs   = require('fs');
 const path = require('path');
 
-const APP_JS_PATH = path.join(__dirname, '../js/app.js');
+const PRO_GATING_PATH = path.join(__dirname, '../js/pro-gating.js');
 
 function loadProEffectFunctions() {
-    global.getAllDesignObjects = function (data) {
-        const objs = [];
-        if (data.designObject) objs.push(data.designObject);
-        (data.extraDesignObjects || []).forEach(o => objs.push(o));
-        return objs;
-    };
-    global._markDirty           = jest.fn();
-    global._updateProStarBadge  = jest.fn();
-    global._userPlan            = 'starter';
+    global._markDirty = jest.fn();
+    global._userPlan  = 'starter';
 
-    const src   = fs.readFileSync(APP_JS_PATH, 'utf8');
-    const lines = src.split('\n');
-    // Lines 116-206 (1-indexed): _layerFxIsPro … _recomputeProEffect
-    const snippet = lines.slice(115, 206).join('\n');
+    const src = fs.readFileSync(PRO_GATING_PATH, 'utf8');
     // eslint-disable-next-line no-eval
-    window.eval(snippet);
+    window.eval(src);
 }
 
 function makeData(overrides = {}) {
@@ -61,7 +51,7 @@ function makeData(overrides = {}) {
 describe('PRO effect detection', () => {
     beforeEach(() => {
         loadProEffectFunctions();
-        _updateProStarBadge.mockClear();
+        _markDirty.mockClear();
     });
 
     test('non-normal blend marks PRO', () => {

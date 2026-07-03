@@ -3,40 +3,8 @@
  *
  * End-to-end simulation: watermarks disappear instantly after a plan upgrade.
  *
- * How real production code is loaded
- * ───────────────────────────────────
- * In a browser, js/app.js is loaded as a <script> tag so every top-level `var`
- * becomes window.xxx.  js/clerk-auth.js then writes window._userPlan when the
- * Clerk session refreshes and calls _refreshAllProStarBadges() — resolving via
- * the shared global scope.
- *
- * app.js is ~9 800 lines and registers DOM event listeners, accesses sliders,
- * and calls IntersectionObserver at module initialisation — none of which are
- * available in jsdom.  We therefore extract only the plan/watermark section
- * (lines 34-177) and eval it via window.eval(), which runs code in the jsdom
- * window global scope exactly as a <script> tag would.  After the eval:
- *
- *   window._userPlan               — the real module-level plan variable
- *   window._drawWatermarkOnCanvas  — the real production function
- *   window._refreshAllProStarBadges — the real production function
- *
- * External identifiers referenced by those lines and not present in the snippet
- * are pre-defined as mocks before the eval:
- *   canvasData       (array, line 154 of app.js)
- *   _markDirty       (called by _markProEffect — not under test, but declared)
- *   _updateSaveNewBtn (called at line 169 of app.js)
- *
- * ── What is tested ───────────────────────────────────────────────────────────
- *  1. _drawWatermarkOnCanvas draws on a free plan (fillText called).
- *  2. After upgrade to 'starter' (no PRO effect), drawing is skipped.
- *  3. Starter plan + PRO-effect canvas: drawing still happens.
- *  4. After upgrade to 'pro', drawing is skipped even for PRO-effect canvases.
- *  5. _refreshAllProStarBadges hides #upgradePrompt when plan is 'starter'.
- *  6. _refreshAllProStarBadges hides #upgradePrompt when plan is 'pro'.
- *  7. _refreshAllProStarBadges leaves #upgradePrompt visible on 'free'.
- *  8. _refreshAllProStarBadges calls requestRenderAll() on every fabric canvas.
- *  9. Full upgrade simulation: free → pro → prompt hidden, canvas no watermark.
- * 10. Full upgrade simulation: free → starter (no PRO effect) → same outcome.
+ * Loads js/pro-gating.js (watermark + PRO helpers) and _refreshAllProStarBadges
+ * from js/app.js — matching the browser <script> load order.
  */
 
 'use strict';
@@ -44,41 +12,25 @@
 const fs   = require('fs');
 const path = require('path');
 
-// ---------------------------------------------------------------------------
-// Load the REAL production functions from js/app.js into the jsdom global.
-//
-// We extract lines 34-177 (1-indexed) — the plan/watermark block — and eval
-// them via window.eval() so `var` declarations and function declarations land
-// on window, matching the browser <script> loading model.
-// ---------------------------------------------------------------------------
-
-const APP_JS_PATH = path.join(__dirname, '../js/app.js');
+const PRO_GATING_PATH = path.join(__dirname, '../js/pro-gating.js');
+const APP_JS_PATH     = path.join(__dirname, '../js/app.js');
 
 function loadWatermarkFunctions() {
-    const src   = fs.readFileSync(APP_JS_PATH, 'utf8');
-    const lines = src.split('\n');
-    // Lines 41-226 (1-indexed): watermark + PRO helpers through _refreshAllProStarBadges
-    const snippet = lines.slice(40, 226).join('\n');
-
-    // Pre-define external identifiers the snippet references
     global.canvasData        = [];
     global._markDirty        = jest.fn();
     global._updateSaveNewBtn = jest.fn();
-    global.getAllDesignObjects = function (data) {
-        const objs = [];
-        if (data && data.designObject) objs.push(data.designObject);
-        if (data && data.extraDesignObjects) data.extraDesignObjects.forEach(o => objs.push(o));
-        return objs;
-    };
+    global._userPlan         = 'free';
 
-    // Eval in the window/global scope — equivalent to a <script> tag
+    const proGating = fs.readFileSync(PRO_GATING_PATH, 'utf8');
     // eslint-disable-next-line no-eval
-    window.eval(snippet);
-}
+    window.eval(proGating);
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+    const appSrc = fs.readFileSync(APP_JS_PATH, 'utf8');
+    const match  = appSrc.match(/function _refreshAllProStarBadges\(\)[\s\S]*?\n}\n/);
+    if (!match) throw new Error('_refreshAllProStarBadges not found in app.js');
+    // eslint-disable-next-line no-eval
+    window.eval(match[0]);
+}
 
 function makeFakeCanvas(width, height) {
     return {
@@ -140,28 +92,18 @@ function buildDOM() {
     `;
 }
 
-// ---------------------------------------------------------------------------
-// Suite setup
-// ---------------------------------------------------------------------------
-
 beforeAll(() => {
     loadWatermarkFunctions();
 });
 
 beforeEach(() => {
-    // Reset plan to free before each test (mirrors app.js default)
     window._userPlan = 'free';
-    // Reset canvasData
     global.canvasData = [];
     buildDOM();
     jest.clearAllMocks();
 });
 
-// ---------------------------------------------------------------------------
-// _drawWatermarkOnCanvas — watermark visibility by plan
-// ---------------------------------------------------------------------------
-
-describe('_drawWatermarkOnCanvas (real app.js code) — watermark by plan', () => {
+describe('_drawWatermarkOnCanvas — watermark by plan', () => {
     test('free plan: canvas context fillText is called with watermark text', () => {
         window._userPlan = 'free';
         const fc   = makeFakeCanvas(800, 600);
@@ -220,11 +162,7 @@ describe('_drawWatermarkOnCanvas (real app.js code) — watermark by plan', () =
     });
 });
 
-// ---------------------------------------------------------------------------
-// _refreshAllProStarBadges — #upgradePrompt visibility
-// ---------------------------------------------------------------------------
-
-describe('_refreshAllProStarBadges (real app.js code) — #upgradePrompt bar', () => {
+describe('_refreshAllProStarBadges — #upgradePrompt bar', () => {
     test('free plan: #upgradePrompt remains visible', () => {
         window._userPlan = 'free';
 
@@ -258,11 +196,7 @@ describe('_refreshAllProStarBadges (real app.js code) — #upgradePrompt bar', (
     });
 });
 
-// ---------------------------------------------------------------------------
-// _refreshAllProStarBadges — requestRenderAll on all canvases
-// ---------------------------------------------------------------------------
-
-describe('_refreshAllProStarBadges (real app.js code) — requestRenderAll', () => {
+describe('_refreshAllProStarBadges — requestRenderAll', () => {
     test('calls requestRenderAll on every fabric canvas', () => {
         window._userPlan = 'pro';
         const fc1 = makeFakeCanvas(400, 300);
@@ -277,48 +211,33 @@ describe('_refreshAllProStarBadges (real app.js code) — requestRenderAll', () 
 
     test('entry with no fabricCanvas skips requestRenderAll gracefully', () => {
         window._userPlan = 'pro';
-        // wrapperEl must be present so _updateProStarBadge does not throw
         global.canvasData = [{ fabricCanvas: null, designObject: {}, wrapperEl: null, hasProEffect: false }];
         expect(() => window._refreshAllProStarBadges()).not.toThrow();
     });
 });
 
-// ---------------------------------------------------------------------------
-// Full upgrade simulation
-// ---------------------------------------------------------------------------
-
-describe('full upgrade simulation (real app.js code)', () => {
+describe('full upgrade simulation', () => {
     test('free → pro: upgradePrompt hidden AND canvas no longer draws watermark', () => {
-        // ── Step 1: user is on free plan ─────────────────────────────────
         window._userPlan = 'free';
 
         const fc   = makeFakeCanvas(800, 600);
         const data = makeCanvasData(fc);
         global.canvasData = [data];
 
-        // Simulate after:render on free plan — watermark IS drawn
         window._drawWatermarkOnCanvas(data);
         expect(fc.contextContainer.fillText).toHaveBeenCalled();
         expect(
             fc.contextContainer.fillText.mock.calls.some(([t]) => t === 'MOCKUP SCRIPTER')
         ).toBe(true);
 
-        // upgradePrompt should be visible
         expect(document.getElementById('upgradePrompt').style.display).not.toBe('none');
 
-        // ── Step 2: Clerk session refreshes; clerk-auth.js writes window._userPlan
         window._userPlan = 'pro';
-
-        // ── Step 3: clerk-auth.js calls _refreshAllProStarBadges() ───────
         window._refreshAllProStarBadges();
 
-        // upgradePrompt must be hidden now
         expect(document.getElementById('upgradePrompt').style.display).toBe('none');
-
-        // requestRenderAll must have been called (triggers the re-render)
         expect(fc.requestRenderAll).toHaveBeenCalledTimes(1);
 
-        // ── Step 4: after:render fires again — watermark must NOT appear ─
         fc.contextContainer.fillText.mockClear();
         window._drawWatermarkOnCanvas(data);
         expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
@@ -330,11 +249,9 @@ describe('full upgrade simulation (real app.js code)', () => {
         const data = makeCanvasData(fc, { hasProEffect: false });
         global.canvasData = [data];
 
-        // Watermark drawn on free plan
         window._drawWatermarkOnCanvas(data);
         expect(fc.contextContainer.fillText).toHaveBeenCalled();
 
-        // Plan upgraded to starter
         window._userPlan = 'starter';
         window._refreshAllProStarBadges();
 

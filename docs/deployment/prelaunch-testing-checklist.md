@@ -36,7 +36,7 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 
 ---
 
-## Part 2 — Sign in & claim anonymous work
+## Part 2 — Sign in & session continuity
 
 - [ ] Sign in
 - [ ] Return to app automatically
@@ -46,11 +46,11 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 - [ ] **Sidebar layout:** Appearance = opacity / blur / noise / flip only; **Effects** section title has ⭐ PRO (controls inside have no duplicate badges); order = cylinder warp → vertical arc → fisheye → horizontal perspective → vertical perspective → layer mode → mesh warp → invert colors → copy/paste effects
 - [ ] Local autosave restored successfully (via IndexedDB — see note below)
 
-> **There is no server-side "claim" flow.** `api/projects/claim.js` is an unmounted stub that always returns `404`. There is no MongoDB document created, no `expiresAt` field cleared, and no Clerk metadata write tied to signing in. What actually happens: the anonymous session is flushed to IndexedDB (`_autosaveDB.set('session', ...)`) right before the Clerk redirect, and read back on page load after returning — identical mechanism to a plain refresh. If you want real "claim my anonymous work into my account" server-side behavior (e.g. so it survives clearing browser storage), that needs to be built; don't test for it as if it exists today.
+> **Anonymous → signed-in continuity is client-side only.** Before the Clerk redirect, the session is flushed to IndexedDB (`_autosaveDB.set('session', ...)`) and read back on page load after returning — the same mechanism as a plain refresh. There is no server-side claim endpoint. If you need work to survive clearing browser storage, that would require a future server-side feature.
 
 - [ ] Click **Save Progress** while signed out → sign in → confirm whether the save auto-completes on return, or whether the user must click Save again
   > `ms_redirect_after_auth` is set to `'save'` before the redirect, but `_handleAuthRedirect` in `js/clerk-auth.js` only auto-resumes the `'export'` case. `'save'` and `'home'` are stored but never acted on. Confirm this UX gap is acceptable for launch (canvas itself still restores fine — only the "save to cloud" *intent* is lost).
-- [ ] PostHog identify event fires on sign-in (confirm it's driven by Clerk's client-side `session` object, not any claim endpoint)
+- [ ] PostHog identify event fires on sign-in (confirm it's driven by Clerk's client-side `session` object)
 
 ### Free plan
 
@@ -397,7 +397,7 @@ Complete this journey without any manual intervention:
 - [ ] Click Export (paywall appears)
 - [ ] Sign up
 - [ ] Return to app with work intact
-  > This restores via the local IndexedDB autosave, not a server-side claim — see Part 2. Functionally this step should still pass; just don't attribute it to a "claim" mechanism when writing up results.
+  > This restores via the local IndexedDB autosave, not a server-side claim — see Part 2.
 - [ ] Upgrade to Starter
 - [ ] Export successfully (verify the exported file, not just the on-screen preview)
 - [ ] Save project
@@ -412,7 +412,7 @@ If that final journey works flawlessly, you're not just testing individual featu
 
 ## Known gaps found during code review (not necessarily blockers — decide deliberately)
 
-1. **No server-side "claim" flow** — `api/projects/claim.js` is an unmounted 404 stub. Anonymous → signed-in continuity is entirely client-side (IndexedDB), with no MongoDB/Clerk-metadata linkage. (Part 2)
+1. **No server-side claim flow** — anonymous → signed-in continuity is entirely client-side (IndexedDB), with no MongoDB/Clerk-metadata linkage. (Part 2)
 2. **"Save Progress" doesn't auto-resume after sign-in** — only "Export" does, via `ms_redirect_after_auth`. (Part 2)
 3. **Watermark-on-export not structurally guaranteed** — the on-screen watermark overlay and the exported file go through different render paths; verify explicitly per effect. (Part 3)
 4. **`GET /api/projects/:id` has no auth check** — relies on UUID being unguessable. (Part 10)
