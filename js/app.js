@@ -542,6 +542,20 @@ function _applyWindowClickSelection(index, e) {
     updateSelectButtonState();
 }
 
+// Skip Shift+mousedown layer selection when user is starting a transform on an already-selected object.
+function _shouldSkipShiftLayerSelection(canvas, opt) {
+    const target = opt?.target;
+    if (!canvas || !target) return false;
+
+    if (opt.alreadySelected) return true;
+
+    const active = canvas.getActiveObject();
+    if (active === target) return true;
+
+    const t = canvas._currentTransform;
+    return !!(t && t.target === target && t.corner);
+}
+
 function _attachWrapperClickListener(wrapper, data) {
     wrapper.addEventListener('click', function(e) {
         const index = canvasData.indexOf(data);
@@ -598,10 +612,12 @@ function _attachWindowCanvasSelection(data) {
             }
             lastSelectedIndex = data;
         } else if (isShift) {
-            if (!data.designObject._fx) data.designObject._fx = _defaultFx(data);
-            selectedDesigns.add(data.designObject);
-            if (winIdx !== -1 && !activeIndices.includes(winIdx)) {
-                activeIndices.push(winIdx);
+            if (!_shouldSkipShiftLayerSelection(data.fabricCanvas, opt)) {
+                if (!data.designObject._fx) data.designObject._fx = _defaultFx(data);
+                selectedDesigns.add(data.designObject);
+                if (winIdx !== -1 && !activeIndices.includes(winIdx)) {
+                    activeIndices.push(winIdx);
+                }
             }
         } else {
             if (!selectedDesigns.has(target)) {
