@@ -110,6 +110,23 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
     return Number(timestamp);
 }
 
+// Remove the idempotency claim so Stripe's automatic retry (or a manual
+// "Resend" from the Dashboard, which reuses the same event ID) actually
+// re-runs this handler instead of being silently swallowed as
+// 'duplicate_event'. MUST be called before any non-2xx response that is
+// returned after the event was claimed via tryClaimStripeEvent — otherwise a
+// transient failure (DB hiccup, Clerk API error, nonce store outage, etc.)
+// permanently strands the customer without their paid plan, because every
+// subsequent retry short-circuits with 200 before ever touching set-plan again.
+async function unclaimStripeEvent(eventId) {
+    try {
+        const db = await getDb();
+        await db.collection('idempotency_keys').deleteOne({ _id: eventId });
+    } catch (err) {
+        console.error('stripe-webhook: could not un-claim event for retry', err);
+    }
+}
+
 // Store stripeCustomerId → clerkUserId in MongoDB (upsert).
 // IMPORTANT: this now throws on failure so the caller can return 500 and let
 // Stripe retry — a silently-dropped mapping means future subscription events
@@ -316,15 +333,7 @@ module.exports = async function handler(req, res) {
                 `stripe-webhook: could not determine plan for userId=${userId}; ` +
                 `metadata.plan="${session.metadata && session.metadata.plan}"`
             );
-            // Remove the idempotency claim so Stripe can retry this event.
-            // Without this, the next delivery sees 'duplicate_event' and is
-            // silently swallowed — the user pays but stays on the free plan.
-            try {
-                const db = await getDb();
-                await db.collection('idempotency_keys').deleteOne({ _id: event.id });
-            } catch (unclaimErr) {
-                console.error('stripe-webhook: could not un-claim event for retry', unclaimErr);
-            }
+            await unclaimStripeEvent(event.id);
             return res.status(400).json({ ok: false, error: 'Could not determine plan from Stripe session' });
         }
 
@@ -336,6 +345,7 @@ module.exports = async function handler(req, res) {
                 await storeCustomerMapping(session.customer, userId);
             } catch (err) {
                 console.error('stripe-webhook: failed to store customer mapping — returning 500 so Stripe retries:', err);
+                await unclaimStripeEvent(event.id);
                 return res.status(500).json({ ok: false, error: 'Failed to store customer mapping' });
             }
             // Clerk metadata update is best-effort — non-fatal if it fails.
@@ -355,6 +365,7 @@ module.exports = async function handler(req, res) {
             setPlanRes = await callSetPlan(baseUrl, setPlanSecret, userId, plan, event.id, testHookHeaders);
         } catch (err) {
             console.error('stripe-webhook: set-plan fetch error', err);
+            await unclaimStripeEvent(event.id);
             return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
         }
 
@@ -365,6 +376,7 @@ module.exports = async function handler(req, res) {
                 setPlanError = setPlanBody?.error || setPlanError;
             } catch {}
             console.error('stripe-webhook: set-plan returned', setPlanRes.status, setPlanError);
+            await unclaimStripeEvent(event.id);
             return res.status(502).json({ ok: false, error: setPlanError });
         }
 
@@ -407,12 +419,14 @@ module.exports = async function handler(req, res) {
             setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, newPlan, event.id);
         } catch (err) {
             console.error('stripe-webhook: set-plan fetch error on subscription update', err);
+            await unclaimStripeEvent(event.id);
             return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
         }
 
         if (!setPlanRes.ok) {
             const b = await setPlanRes.json().catch(() => ({}));
             console.error('stripe-webhook: set-plan error on subscription update', b?.error);
+            await unclaimStripeEvent(event.id);
             return res.status(502).json({ ok: false, error: b?.error || 'set-plan error' });
         }
 
@@ -443,12 +457,14 @@ module.exports = async function handler(req, res) {
             setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, 'free', event.id);
         } catch (err) {
             console.error('stripe-webhook: set-plan fetch error on subscription deletion', err);
+            await unclaimStripeEvent(event.id);
             return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
         }
 
         if (!setPlanRes.ok) {
             const b = await setPlanRes.json().catch(() => ({}));
             console.error('stripe-webhook: set-plan error on subscription deletion', b?.error);
+            await unclaimStripeEvent(event.id);
             return res.status(502).json({ ok: false, error: b?.error || 'set-plan error' });
         }
 
@@ -493,12 +509,14 @@ module.exports = async function handler(req, res) {
             setPlanRes = await callSetPlan(baseUrl, setPlanSecret, clerkUserId, 'free', event.id);
         } catch (err) {
             console.error('stripe-webhook: set-plan fetch error on final payment failure', err);
+            await unclaimStripeEvent(event.id);
             return res.status(502).json({ ok: false, error: 'Failed to reach set-plan endpoint' });
         }
 
         if (!setPlanRes.ok) {
             const b = await setPlanRes.json().catch(() => ({}));
             console.error('stripe-webhook: set-plan error on final payment failure', b?.error);
+            await unclaimStripeEvent(event.id);
             return res.status(502).json({ ok: false, error: b?.error || 'set-plan error' });
         }
 

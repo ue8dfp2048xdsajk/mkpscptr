@@ -159,7 +159,8 @@
     "prebuild": "node scripts/check-env.js",
     "build": "echo 'No frontend build step — static files served as-is.'",
     "test": "jest",
-    "verify-stripe": "node scripts/verify-stripe-config.js"
+    "verify-stripe": "node scripts/verify-stripe-config.js",
+    "audit-plans": "node scripts/audit-stuck-plans.js"
   },
   "keywords": [],
   "author": "",
