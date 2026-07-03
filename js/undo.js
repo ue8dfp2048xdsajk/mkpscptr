@@ -408,9 +408,10 @@ async function restoreWindowState(data, state){
     data.fabricCanvas.requestRenderAll();
 }
 
+// Property undo: snapshot affected windows before a value change (sliders, masks, etc.).
 // extraIdx: optional index to always include (e.g. filename/notes edit on a
 // window that may not be in activeIndices)
-function pushGlobalUndo(extraIdx = null){
+function pushPropertyUndo(extraIdx = null){
     if(!canvasData.length) return;
     const affected = [...activeIndices];
     if(extraIdx !== null && !affected.includes(extraIdx) &&
@@ -421,6 +422,35 @@ function pushGlobalUndo(extraIdx = null){
     globalUndoStack.push({
         affected,
         states: affected.map(i => captureWindowState(canvasData[i]))
+    });
+    if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+    globalRedoStack = [];
+    updateUndoRedoButtons();
+    _markDirty();
+}
+
+function pushGlobalUndo(extraIdx = null){
+    pushPropertyUndo(extraIdx);
+}
+
+// Structural undo: windows removed from canvasData + DOM.
+function pushDeletionUndo(savedItems){
+    globalUndoStack.push({ type: 'deletion', saved: savedItems });
+    if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+    globalRedoStack = [];
+    updateUndoRedoButtons();
+    _markDirty();
+}
+
+// Structural undo: windows inserted into canvasData + DOM (duplicate, add window).
+function pushInsertionUndo(saved, { prevActiveDatas, prevLastSelected, nextActiveDatas, nextLastSelected }){
+    globalUndoStack.push({
+        type: 'insertion',
+        saved,
+        prevActiveDatas: [...prevActiveDatas],
+        prevLastSelected: prevLastSelected ?? null,
+        nextActiveDatas: [...nextActiveDatas],
+        nextLastSelected: nextLastSelected ?? null,
     });
     if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
     globalRedoStack = [];
@@ -470,7 +500,28 @@ async function applyLayoutState(state) {
 
 function _applySelectionState(indices) {
     activeIndices = [...indices];
-    lastSelectedIndex = activeIndices[activeIndices.length - 1] ?? null;
+    const lastIdx = activeIndices[activeIndices.length - 1];
+    lastSelectedIndex = (lastIdx !== undefined && canvasData[lastIdx])
+        ? canvasData[lastIdx]
+        : null;
+    selectedDesigns.clear();
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if (d?.designObject && !d.locked) selectedDesigns.add(d.designObject);
+    });
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
+}
+
+// Restore selection by stable window data refs (safe after splice/reorder).
+function _applySelectionFromDatas(datas, lastData){
+    activeIndices = datas
+        .map(d => canvasData.indexOf(d))
+        .filter(i => i !== -1);
+    lastSelectedIndex = (lastData && canvasData.includes(lastData)) ? lastData : null;
     selectedDesigns.clear();
     activeIndices.forEach(i => {
         const d = canvasData[i];
@@ -503,27 +554,17 @@ function _restoreDeletedWindows(saved){
         _visibilityObserver.observe(data.wrapperEl);
     }
 
-    // Restore selection to the re-inserted windows.
-    activeIndices = saved.map(s => s.originalIdx);
-    lastSelectedIndex = activeIndices[activeIndices.length - 1] ?? null;
-    selectedDesigns.clear();
-    activeIndices.forEach(i => {
-        const d = canvasData[i];
-        if(d?.designObject && !d.locked) selectedDesigns.add(d.designObject);
-    });
-
-    refreshFabricHandles();
-    updateWindowBorders();
-    updateLayerButtons();
-    syncSliders();
-    updateSelectButtonState();
+    _applySelectionFromDatas(
+        saved.map(s => s.data),
+        saved[saved.length - 1]?.data ?? null
+    );
     updateDropUI();
 }
 
 // Re-removes windows that were restored by a deletion-undo, without disposing
 // Fabric (so a subsequent undo can restore them again).
 function _reDeleteWindows(saved){
-    const toDelete = new Set(saved.map(s => s.originalIdx));
+    const toDeleteData = new Set(saved.map(s => s.data));
     saved.forEach(({ data }) => {
         if(data.wrapperEl){
             _visibilityObserver.unobserve(data.wrapperEl);
@@ -532,7 +573,7 @@ function _reDeleteWindows(saved){
         const domEl = data.cellEl || data.wrapperEl;
         if(domEl && domEl.parentNode) domEl.parentNode.removeChild(domEl);
     });
-    canvasData = canvasData.filter((_, i) => !toDelete.has(i));
+    canvasData = canvasData.filter(d => !toDeleteData.has(d));
     activeIndices = [];
     lastSelectedIndex = null;
     selectedDesigns.clear();
@@ -553,6 +594,22 @@ async function performGlobalUndo(){
         globalRedoStack.push({ type: 'deletion', saved: entry.saved });
         updateUndoRedoButtons();
         _restoreDeletedWindows(entry.saved);
+        return;
+    }
+
+    if(entry.type === 'insertion'){
+        globalRedoStack.push({
+            type: 'insertion',
+            saved: entry.saved,
+            prevActiveDatas: entry.prevActiveDatas,
+            prevLastSelected: entry.prevLastSelected,
+            nextActiveDatas: entry.nextActiveDatas,
+            nextLastSelected: entry.nextLastSelected,
+        });
+        updateUndoRedoButtons();
+        _reDeleteWindows(entry.saved);
+        _applySelectionFromDatas(entry.prevActiveDatas, entry.prevLastSelected);
+        updateDropUI();
         return;
     }
 
@@ -678,6 +735,21 @@ async function performGlobalRedo(){
         globalUndoStack.push({ type: 'deletion', saved: entry.saved });
         updateUndoRedoButtons();
         _reDeleteWindows(entry.saved);
+        return;
+    }
+
+    if(entry.type === 'insertion'){
+        globalUndoStack.push({
+            type: 'insertion',
+            saved: entry.saved,
+            prevActiveDatas: entry.prevActiveDatas,
+            prevLastSelected: entry.prevLastSelected,
+            nextActiveDatas: entry.nextActiveDatas,
+            nextLastSelected: entry.nextLastSelected,
+        });
+        updateUndoRedoButtons();
+        _restoreDeletedWindows(entry.saved);
+        _applySelectionFromDatas(entry.nextActiveDatas, entry.nextLastSelected);
         return;
     }
 

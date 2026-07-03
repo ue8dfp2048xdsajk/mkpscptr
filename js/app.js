@@ -3396,11 +3396,7 @@ function deleteSelectedWindows(){
     // We do NOT dispose the Fabric canvas — undo will need to re-attach it.
     const savedItems = sortedIndices.map(i => ({ originalIdx: i, data: canvasData[i] }));
 
-    globalUndoStack.push({ type: 'deletion', saved: savedItems });
-    if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
-    globalRedoStack = [];
-    updateUndoRedoButtons();
-    _markDirty();
+    pushDeletionUndo(savedItems);
 
     // Remove cell (grid item) from DOM without destroying Fabric canvas.
     // cellEl is the .window-cell that is the direct CSS-grid child; wrapperEl
@@ -3436,7 +3432,8 @@ function deleteSelectedWindows(){
 async function duplicateSelectedWindows(){
     if(!activeIndices.length) return;
 
-    pushGlobalUndo();
+    const prevActiveDatas  = activeIndices.map(i => canvasData[i]).filter(Boolean);
+    const prevLastSelected = lastSelectedIndex;
 
     const container    = document.getElementById('canvasContainer');
     const sortedOrig   = [...activeIndices].sort((a, b) => a - b);
@@ -3673,6 +3670,18 @@ async function duplicateSelectedWindows(){
     syncSliders();
     updateSelectButtonState();
     updateDropUI();
+
+    const saved = newIndices
+        .map(i => ({ originalIdx: i, data: canvasData[i] }))
+        .filter(s => s.data)
+        .sort((a, b) => a.originalIdx - b.originalIdx);
+
+    pushInsertionUndo(saved, {
+        prevActiveDatas,
+        prevLastSelected,
+        nextActiveDatas: dupDatas,
+        nextLastSelected: lastSelectedIndex,
+    });
 }
 
 
@@ -3733,7 +3742,8 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
             reader.readAsDataURL(file);
         });
 
-        pushGlobalUndo();
+        const prevActiveDatas  = activeIndices.map(i => canvasData[i]).filter(Boolean);
+        const prevLastSelected = lastSelectedIndex;
 
         // 2. Build data object (no design yet)
         const newData = {
@@ -3858,6 +3868,16 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
         updateLayerButtons();
         syncSliders();
         updateSelectButtonState();
+
+        pushInsertionUndo(
+            [{ originalIdx: 0, data: newData }],
+            {
+                prevActiveDatas,
+                prevLastSelected,
+                nextActiveDatas: [newData],
+                nextLastSelected: newData,
+            }
+        );
 
         // 9. Load background into Fabric (fire-and-forget — matches renderBatch)
         fabric.Image.fromURL(bgImg.src, bgFabricImg => {
