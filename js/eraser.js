@@ -85,6 +85,15 @@ function _cloneEraserSource(src){
     return copy;
 }
 
+// Own pipeline source for a duplicated layer (never shares canvas references).
+function _sourceForDuplicateLayer(data, sourceObj) {
+    const srcExtraIdx = (data.extraDesignObjects || []).indexOf(sourceObj);
+    if (srcExtraIdx !== -1) {
+        return _cloneEraserSource(data.extraDesignOriginals?.[srcExtraIdx] ?? data.designOriginal);
+    }
+    return _cloneEraserSource(data.designOriginal);
+}
+
 // Snapshot the designOriginal + every extraDesignOriginal for one window.
 function _captureEraserSnapshot(data){
     return {

@@ -88,6 +88,9 @@ When changing PRO rules, prefer editing `js/pro-gating.js` and running:
 
 - `tests/pro-effect-gating.test.js`
 - `tests/watermark-plan-upgrade.test.js`
+- `tests/duplicate-source.test.js`
+
+Duplicate layers always receive an independent `_cloneEraserSource` copy in `extraDesignOriginals`. Watermark drawing is suppressed during active canvas drag/pan (see `_beginWatermarkInteraction` in `pro-gating.js`).
 
 ## Tests that load editor code
 

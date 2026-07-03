@@ -769,6 +769,33 @@ function _defaultFx(data){
     };
 }
 
+// Clear per-object image pipeline caches (used after duplicate, eraser, etc.).
+function _resetObjectPipelineCaches(obj) {
+    if (!obj) return;
+    delete obj._c_src;
+    delete obj._c_blurR;
+    delete obj._c_blurred;
+    delete obj._c_noisyIn;
+    delete obj._c_noiseP;
+    delete obj._c_noisy;
+    delete obj._c_warpOk;
+    delete obj._c_warpSrc;
+    delete obj._c_warpA;
+    delete obj._c_arcA;
+    delete obj._c_arcT;
+    delete obj._c_warpLQ;
+    delete obj._c_trimmed;
+    delete obj._c_perspT;
+    delete obj._c_perspL;
+    delete obj._c_perspLQ;
+    delete obj._c_persp;
+    delete obj._c_srcTrimSrc;
+    delete obj._c_srcTrimmed;
+    delete obj._warpCanvas;
+    delete obj._perspCanvas;
+    delete obj._perspTempCanvas;
+}
+
 // Apply the full blur → noise → warp → perspective pipeline to ONE design
 // object using its own _fx bag.  Called both from the design-mode slider
 // handler (only the selected object) and from applyWarpToData (extra objects).
@@ -889,7 +916,9 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     // the original eraser-trimmed content and cause an apparent leftward shift.
     let adjLeft = prevLeft;
     let adjTop  = prevTop;
-    if (arcA === 0 && warpA === 0) {
+    // Only when warp output changed — not on perspective-only updates (avoids
+    // re-applying trim offset every frame, which makes layers jump while dragging).
+    if (arcA === 0 && warpA === 0 && warpDirty) {
         // Cache trim of srcOriginal: only re-run getImageData when the source changes
         // (e.g. after an eraser stroke), not on every slider-drag render.
         let srcTrimmed;
@@ -2641,6 +2670,12 @@ function attachFabricEvents(data, targetObject = null){
 
             const target = opt.target;
 
+            // Shift+drag on empty canvas (marquee select) — suppress watermark stacking.
+            if (!target && !designEraserMode && !designWarpMode) {
+                data._watermarkMarqueeActive = true;
+                _beginWatermarkInteraction();
+            }
+
             // No target = blank canvas click; let the wrapper click handler deal with it
             if(!target) return;
 
@@ -2750,6 +2785,13 @@ function attachFabricEvents(data, targetObject = null){
                 }
             }
             _drawWatermarkOnCanvas(data);
+        });
+
+        data.fabricCanvas.on('mouse:up', () => {
+            if (data._watermarkMarqueeActive) {
+                data._watermarkMarqueeActive = false;
+                _endWatermarkInteraction();
+            }
         });
 
         // Design-layer eraser mouse handlers — active only when designEraserMode is true.
@@ -2935,6 +2977,7 @@ function attachFabricEvents(data, targetObject = null){
     designTarget.on('mousedown', ()=>{
 
         suppressNextWrapperClick = true;
+        _beginWatermarkInteraction();
         designTarget.lastLeft = designTarget.left;
         designTarget.lastTop  = designTarget.top;
         designTarget._hadDragMovement = false;
@@ -2949,6 +2992,7 @@ function attachFabricEvents(data, targetObject = null){
     });
 
     designTarget.on('mouseup', ()=>{
+        _endWatermarkInteraction();
         if(designTarget._hadDragMovement && designTarget._preDragUndoEntry){
             globalUndoStack.push(designTarget._preDragUndoEntry);
             if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
@@ -4689,14 +4733,16 @@ document.getElementById("duplicateLayerBtn").addEventListener("click", ()=>{
             data.extraDesignOriginals  = data.extraDesignOriginals  || [];
 
             const srcExtraIdx = (data.extraDesignObjects || []).indexOf(sourceObj);
-            if (srcExtraIdx !== -1) {
-                data.extraDesignOriginals.push(data.extraDesignOriginals[srcExtraIdx] ?? null);
-                if (sourceObj._isOverlay) cloned._isOverlay = true;
-            } else {
-                data.extraDesignOriginals.push(null);
-            }
+            const clonedSrc   = _sourceForDuplicateLayer(data, sourceObj);
+            data.extraDesignOriginals.push(clonedSrc);
+            if (srcExtraIdx !== -1 && sourceObj._isOverlay) cloned._isOverlay = true;
+
+            _resetObjectPipelineCaches(cloned);
 
             data.extraDesignObjects.push(cloned);
+            if (clonedSrc) {
+                _applyWarpToOneObject(cloned, data, _cachedFlip(data, clonedSrc), false);
+            }
             _applyExtraLayerHandleStyle(cloned, _extraLayerKind(data, data.extraDesignObjects.length - 1));
 
             data.fabricCanvas.add(cloned);
@@ -8648,6 +8694,7 @@ function updateMinimap(){
             _vpPanMoved = false;
             _vpPanStart = { x: e.clientX - _vpX, y: e.clientY - _vpY };
             vw.style.cursor = 'grabbing';
+            _beginWatermarkInteraction();
             e.preventDefault();
         }
     });
@@ -8662,6 +8709,7 @@ function updateMinimap(){
     document.addEventListener('mouseup', e => {
         if (!_vpPanning) return;
         _vpPanning = false;
+        _endWatermarkInteraction();
         vw.style.cursor = _vpSpaceDown ? 'grab' : '';
         if (_vpPanMoved) {
             // Suppress the next wrapper click so panning doesn't toggle selection
@@ -8991,6 +9039,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         _vpPanMoved = false;
         _vpPanStart = { x: e.clientX - _vpX, y: e.clientY - _vpY };
         vw.style.cursor = 'grabbing';
+        _beginWatermarkInteraction();
     });
 
     document.addEventListener('mouseup', () => {

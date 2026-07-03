@@ -1,6 +1,22 @@
 // ── PRO effect detection, watermark, and star badges ─────────────────────────
 // Depends on global _userPlan (declared in app.js) and _markDirty (app.js).
 
+var _watermarkInteractionDepth = 0;
+
+function _beginWatermarkInteraction() {
+    _watermarkInteractionDepth++;
+}
+
+function _endWatermarkInteraction() {
+    _watermarkInteractionDepth = Math.max(0, _watermarkInteractionDepth - 1);
+}
+
+function _watermarkInteractionActive() {
+    if (_watermarkInteractionDepth > 0) return true;
+    if (typeof _vpPanning !== 'undefined' && _vpPanning) return true;
+    return false;
+}
+
 function getAllDesignObjects(data){
     const seen = new Set();
     const objs = [];
@@ -21,8 +37,10 @@ function _drawWatermarkOnCanvas(data) {
     var isFree    = _userPlan === 'free';
     var isStarred = _userPlan === 'starter' && _windowIsProGated(data);
     if (!isFree && !isStarred) return;
+    if (_watermarkInteractionActive()) return;
     if (!data.fabricCanvas || !data.designObject) return;
     var fc  = data.fabricCanvas;
+    if (fc._currentTransform) return;
     var ctx = fc.contextContainer;
     var W   = fc.width;
     var H   = fc.height;

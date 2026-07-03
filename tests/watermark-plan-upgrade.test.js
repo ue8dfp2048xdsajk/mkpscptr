@@ -160,6 +160,20 @@ describe('_drawWatermarkOnCanvas — watermark by plan', () => {
         window._drawWatermarkOnCanvas({ fabricCanvas: fc, designObject: null });
         expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
     });
+
+    test('skips drawing while canvas interaction is active', () => {
+        window._userPlan = 'free';
+        const fc   = makeFakeCanvas(800, 600);
+        const data = makeCanvasData(fc);
+
+        _beginWatermarkInteraction();
+        window._drawWatermarkOnCanvas(data);
+        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+
+        _endWatermarkInteraction();
+        window._drawWatermarkOnCanvas(data);
+        expect(fc.contextContainer.fillText).toHaveBeenCalled();
+    });
 });
 
 describe('_refreshAllProStarBadges — #upgradePrompt bar', () => {
