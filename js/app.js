@@ -490,6 +490,106 @@ function _applyExtraLayerHandleStyle(obj, kind) {
     }
 }
 
+// ── Cross-window geometry sync (one selected layer per active window) ─────────
+function _selectedLayersForWindow(data) {
+    if (!data) return [];
+    return [...selectedDesigns].filter(obj =>
+        obj === data.designObject ||
+        (data.extraDesignObjects || []).includes(obj)
+    );
+}
+
+function _canCrossWindowSync() {
+    if (activeIndices.length < 2) return false;
+    for (const i of activeIndices) {
+        const d = canvasData[i];
+        if (!d || d.locked) return false;
+        if (_selectedLayersForWindow(d).length !== 1) return false;
+    }
+    return true;
+}
+
+function _captureFabricGeometry(obj) {
+    return {
+        left:   obj.left,
+        top:    obj.top,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY,
+        angle:  obj.angle ?? 0,
+        skewX:  obj.skewX  || 0,
+        skewY:  obj.skewY  || 0,
+    };
+}
+
+function _applyFabricGeometry(obj, geo) {
+    obj.set({
+        left:   geo.left,
+        top:    geo.top,
+        scaleX: geo.scaleX,
+        scaleY: geo.scaleY,
+        angle:  geo.angle,
+        skewX:  geo.skewX,
+        skewY:  geo.skewY,
+    });
+    obj.setCoords();
+}
+
+function _syncMainDesignDataFromFabric(data) {
+    if (!data?.designObject) return;
+    const ps = data.previewScale || 1;
+    const obj = data.designObject;
+    data.x        = obj.left;
+    data.y        = obj.top;
+    data.scaleX   = obj.scaleX / ps;
+    data.scaleY   = obj.scaleY / ps;
+    data.rotation = obj.angle ?? 0;
+    data.skewX    = obj.skewX || 0;
+    data.skewY    = obj.skewY || 0;
+}
+
+function _syncAttachedLayersInDriverWindow(data, driverObj) {
+    if (driverObj !== data.designObject) return;
+    const geo = _captureFabricGeometry(driverObj);
+    getAllDesignObjects(data).forEach(obj => {
+        if (obj === driverObj) return;
+        if ((data.extraDesignObjects || []).includes(obj) && !selectedDesigns.has(obj)) return;
+        _applyFabricGeometry(obj, geo);
+    });
+}
+
+function _applyCrossWindowGeometrySync(driverObj, driverData) {
+    if (!_canCrossWindowSync()) return;
+    const geo = _captureFabricGeometry(driverObj);
+    const driverIdx = canvasData.indexOf(driverData);
+    activeIndices.forEach(i => {
+        if (i === driverIdx) return;
+        const d = canvasData[i];
+        if (!d || d.locked) return;
+        const peer = _selectedLayersForWindow(d)[0];
+        if (!peer || peer === driverObj) return;
+        _applyFabricGeometry(peer, geo);
+        if (d.patternMode && peer === d.designObject) _renderPattern(d, true);
+        d.fabricCanvas.requestRenderAll();
+    });
+}
+
+function _persistSelectedLayerDataForActiveWindows() {
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if (!d || d.locked) return;
+        const layers = _selectedLayersForWindow(d);
+        if (layers.length !== 1) return;
+        if (layers[0] !== d.designObject) return;
+        _syncMainDesignDataFromFabric(d);
+    });
+}
+
+function _getPrimarySelectedLayer(data) {
+    const layers = _selectedLayersForWindow(data);
+    if (layers.length === 1) return layers[0];
+    return data.designObject || null;
+}
+
 // Show Fabric handles on all selected designs; hide on all others.
 function refreshFabricHandles(){
     canvasData.forEach(d => {
@@ -2910,6 +3010,15 @@ function attachFabricEvents(data, targetObject = null){
         const deltaX = designTarget.left - (designTarget.lastLeft || designTarget.left);
         const deltaY = designTarget.top  - (designTarget.lastTop  || designTarget.top);
 
+        if (_canCrossWindowSync()) {
+            _syncAttachedLayersInDriverWindow(data, designTarget);
+            _applyCrossWindowGeometrySync(designTarget, data);
+            designTarget.lastLeft = designTarget.left;
+            designTarget.lastTop  = designTarget.top;
+            data.fabricCanvas.requestRenderAll();
+            return;
+        }
+
         if(isMainDesign){
 
             // Same-window: only move extra design layers that are also selected.
@@ -3028,6 +3137,15 @@ function attachFabricEvents(data, targetObject = null){
         const deltaX = left - (designTarget.lastLeft || left);
         const deltaY = top  - (designTarget.lastTop  || top);
 
+        if (_canCrossWindowSync()) {
+            _syncAttachedLayersInDriverWindow(data, designTarget);
+            _applyCrossWindowGeometrySync(designTarget, data);
+            designTarget.lastLeft = left;
+            designTarget.lastTop  = top;
+            data.fabricCanvas.requestRenderAll();
+            return;
+        }
+
         if(isMainDesign){
 
             // Same-window: set absolute — all layers share one coordinate space.
@@ -3120,6 +3238,13 @@ function attachFabricEvents(data, targetObject = null){
 
         const angle = designTarget.angle;
 
+        if (_canCrossWindowSync()) {
+            _syncAttachedLayersInDriverWindow(data, designTarget);
+            _applyCrossWindowGeometrySync(designTarget, data);
+            data.fabricCanvas.requestRenderAll();
+            return;
+        }
+
         if(isMainDesign){
 
             // Same-window: extra layers only rotate if they're also selected.
@@ -3183,25 +3308,7 @@ function attachFabricEvents(data, targetObject = null){
 
     // persist position/scale/rotation changes that don't go through applyWarpToData
     designTarget.on('mouseup', ()=>{
-        // Sync every active window's main-design Fabric state back to data.
-        // The moving/scaling/rotating handlers update Fabric objects directly on
-        // peer windows without touching their data.* fields.  If data.* stays stale
-        // and a slider change later calls applyWarpToData, that function reads data.x/y
-        // and would silently teleport the design back to its pre-drag position.
-        if(isMainDesign){
-            activeIndices.forEach(i => {
-                const d = canvasData[i];
-                if(!d || d.locked || !d.designObject) return;
-                const ps = d.previewScale || 1;
-                d.x        = d.designObject.left;
-                d.y        = d.designObject.top;
-                d.scaleX   = d.designObject.scaleX / ps;
-                d.scaleY   = d.designObject.scaleY / ps;
-                d.rotation = d.designObject.angle;
-                d.skewX    = d.designObject.skewX || 0;
-                d.skewY    = d.designObject.skewY || 0;
-            });
-        }
+        _persistSelectedLayerDataForActiveWindows();
         autoSaveSession();
     });
 }
@@ -4499,23 +4606,32 @@ document.getElementById('copyLayerBtn').addEventListener('click', () => {
 var _copiedTransforms = null;
 
 function _captureTransforms(data){
-    const obj = data.designObject;
+    const obj = _getPrimarySelectedLayer(data);
     const ps  = data.previewScale || 1;
     const cW  = data.fabricCanvas ? data.fabricCanvas.getWidth()  : 1;
     const cH  = data.fabricCanvas ? data.fabricCanvas.getHeight() : 1;
-    const absX = obj ? obj.left : data.x;
-    const absY = obj ? obj.top  : data.y;
+    const geo = obj ? _captureFabricGeometry(obj) : {
+        left: data.x, top: data.y,
+        scaleX: (data.scaleX ?? data.scale ?? 1) * ps,
+        scaleY: (data.scaleY ?? data.scale ?? 1) * ps,
+        angle: data.rotation ?? 0,
+        skewX: data.skewX || 0, skewY: data.skewY || 0,
+    };
     return {
-        x:        absX,
-        y:        absY,
-        xFrac:    absX / cW,
-        yFrac:    absY / cH,
+        x:        geo.left,
+        y:        geo.top,
+        xFrac:    geo.left / cW,
+        yFrac:    geo.top  / cH,
+        fabricLeft:   geo.left,
+        fabricTop:    geo.top,
+        fabricScaleX: geo.scaleX,
+        fabricScaleY: geo.scaleY,
         scale:    data.scale,
         scaleX:   obj ? (obj.scaleX / ps) : (data.scaleX ?? data.scale),
         scaleY:   obj ? (obj.scaleY / ps) : (data.scaleY ?? data.scale),
-        skewX:    obj ? (obj.skewX  || 0) : (data.skewX  || 0),
-        skewY:    obj ? (obj.skewY  || 0) : (data.skewY  || 0),
-        rotation: obj ? obj.angle         : data.rotation,
+        skewX:    geo.skewX,
+        skewY:    geo.skewY,
+        rotation: geo.angle,
         warpAmount:    data.warpAmount    ?? 0,
         arcAmount:     data.arcAmount     ?? 0,
         arcTilt:       data.arcTilt       ?? 0,
@@ -4531,47 +4647,94 @@ function _captureTransforms(data){
     };
 }
 
-function _applyTransforms(data, t){
-    if(data.locked || !data.designOriginal) return;
-    // Restore position: use canvas-fraction if available (works across
-    // different-sized canvases), fall back to absolute coords.
-    if(t.xFrac !== undefined && data.fabricCanvas){
-        data.x = t.xFrac * data.fabricCanvas.getWidth();
-        data.y = t.yFrac * data.fabricCanvas.getHeight();
-    } else {
-        data.x = t.x;
-        data.y = t.y;
-    }
-    data.scale       = t.scale;
-    data.scaleX      = t.scaleX;
-    data.scaleY      = t.scaleY;
-    data.rotation    = t.rotation;
-    data.warpAmount  = t.warpAmount;
-    data.arcAmount   = t.arcAmount;
-    data.arcTilt     = t.arcTilt;
+function _applyWindowEffects(data, t) {
+    data.warpAmount      = t.warpAmount;
+    data.arcAmount       = t.arcAmount;
+    data.arcTilt         = t.arcTilt;
     data.perspectiveTop  = t.perspectiveTop;
     data.perspectiveLeft = t.perspectiveLeft;
-    data.opacity     = t.opacity;
-    data.blurAmount  = t.blurAmount;
-    data.noiseAmount = t.noiseAmount;
-    data.blendMode   = t.blendMode;
-    data.skewX       = t.skewX  || 0;
-    data.skewY       = t.skewY  || 0;
-    data.flipX       = t.flipX;
-    data.flipY       = t.flipY;
-    data._flipMap    = null;
-    if(data.designObject && t.designFx){
-        data.designObject._fx = JSON.parse(JSON.stringify(t.designFx));
+    data.opacity         = t.opacity;
+    data.blurAmount      = t.blurAmount;
+    data.noiseAmount     = t.noiseAmount;
+    data.blendMode       = t.blendMode;
+    data.flipX           = t.flipX;
+    data.flipY           = t.flipY;
+    data._flipMap        = null;
+}
+
+function _applyTransformsToSelectedLayer(data, t, useAbsoluteGeometry) {
+    if (data.locked) return;
+    const obj = _getPrimarySelectedLayer(data);
+    if (!obj) return;
+
+    const ps = data.previewScale || 1;
+    const cW = data.fabricCanvas ? data.fabricCanvas.getWidth()  : 1;
+    const cH = data.fabricCanvas ? data.fabricCanvas.getHeight() : 1;
+    const isMain = obj === data.designObject;
+
+    if (useAbsoluteGeometry) {
+        _applyFabricGeometry(obj, {
+            left:   t.fabricLeft   ?? t.left,
+            top:    t.fabricTop    ?? t.top,
+            scaleX: t.fabricScaleX ?? t.scaleX * ps,
+            scaleY: t.fabricScaleY ?? t.scaleY * ps,
+            angle:  t.rotation ?? 0,
+            skewX:  t.skewX  || 0,
+            skewY:  t.skewY  || 0,
+        });
+    } else if (isMain && data.designOriginal) {
+        data.x = (t.xFrac !== undefined ? t.xFrac * cW : t.x);
+        data.y = (t.yFrac !== undefined ? t.yFrac * cH : t.y);
+        data.scaleX  = t.scaleX;
+        data.scaleY  = t.scaleY;
+        data.rotation = t.rotation;
+        data.skewX   = t.skewX  || 0;
+        data.skewY   = t.skewY  || 0;
+    } else {
+        _applyFabricGeometry(obj, {
+            left:   t.xFrac !== undefined ? t.xFrac * cW : t.x,
+            top:    t.yFrac !== undefined ? t.yFrac * cH : t.y,
+            scaleX: t.scaleX * ps,
+            scaleY: t.scaleY * ps,
+            angle:  t.rotation ?? 0,
+            skewX:  t.skewX  || 0,
+            skewY:  t.skewY  || 0,
+        });
     }
-    applyWarpToData(data, false);
+
+    if (t.designFx) {
+        obj._fx = JSON.parse(JSON.stringify(t.designFx));
+    }
+
+    if (isMain) {
+        if (!data.designOriginal) return;
+        if (useAbsoluteGeometry) {
+            _syncMainDesignDataFromFabric(data);
+        } else {
+            data.scale = t.scale;
+        }
+        _applyWindowEffects(data, t);
+        applyWarpToData(data, false);
+    } else {
+        const extraIdx = (data.extraDesignObjects || []).indexOf(obj);
+        const src = data.extraDesignOriginals?.[extraIdx] || data.designOriginal;
+        if (src) {
+            _applyWarpToOneObject(obj, data, _cachedFlip(data, src), false);
+        }
+        applyClipMaskToObject(obj, data);
+        data.fabricCanvas.requestRenderAll();
+    }
+}
+
+function _applyTransforms(data, t){
+    _applyTransformsToSelectedLayer(data, t, false);
 }
 
 document.getElementById('copyTransformsBtn').addEventListener('click', () => {
     const srcData = lastSelectedIndex ?? canvasData[activeIndices[activeIndices.length - 1]] ?? null;
     if(srcData === null) return;
-    const data = srcData;
-    if(!data) return;
-    _copiedTransforms = _captureTransforms(data);
+    if(!_getPrimarySelectedLayer(srcData)) return;
+    _copiedTransforms = _captureTransforms(srcData);
     // Visual feedback on the button
     const btn = document.getElementById('copyTransformsBtn');
     btn.textContent = '✓ Copied';
@@ -4582,7 +4745,12 @@ document.getElementById('copyTransformsBtn').addEventListener('click', () => {
 document.getElementById('pasteTransformsBtn').addEventListener('click', () => {
     if(!_copiedTransforms || !activeIndices.length) return;
     pushGlobalUndo();
-    activeIndices.forEach(i => _applyTransforms(canvasData[i], _copiedTransforms));
+    const useAbsolute = _canCrossWindowSync();
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if (!d || d.locked) return;
+        _applyTransformsToSelectedLayer(d, _copiedTransforms, useAbsolute);
+    });
     syncSliders();
 });
 
