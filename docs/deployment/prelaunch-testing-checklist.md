@@ -52,6 +52,13 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
   > `ms_redirect_after_auth` is set to `'save'` before the redirect, but `_handleAuthRedirect` in `js/clerk-auth.js` only auto-resumes the `'export'` case. `'save'` and `'home'` are stored but never acted on. Confirm this UX gap is acceptable for launch (canvas itself still restores fine — only the "save to cloud" *intent* is lost).
 - [ ] PostHog identify event fires on sign-in (confirm it's driven by Clerk's client-side `session` object)
 
+### Settings & navigation
+
+- [ ] App avatar menu → **Settings** opens `/settings.html`
+- [ ] Settings **← Back to app** goes to `/app.html` (not the marketing landing page), session intact
+- [ ] Settings **Edit Profile** opens Clerk profile in an on-page modal (user stays on settings; no stranded trip to `accounts.mockupscripter.com` unless modal API unavailable)
+- [ ] Signed in → visit `/` → nav and hero show **Open app** → `/app.html` still signed in
+
 ### Free plan
 
 - [ ] Save blocked

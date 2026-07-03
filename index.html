@@ -495,6 +495,11 @@
             (avatarUrl
                 ? '<img src="' + avatarUrl + '" alt="' + firstName + '" class="landing-nav-avatar" />'
                 : '<span class="landing-nav-avatar landing-nav-avatar--initials">' + firstName.charAt(0).toUpperCase() + '</span>');
+        var heroPrimary = document.querySelector('.hero-ctas .btn-primary');
+        if (heroPrimary) {
+            heroPrimary.href = '/app.html';
+            heroPrimary.textContent = 'Open app →';
+        }
     };
     if (window.__clerkSdkReady) window.__clerkLandingInit();
 
