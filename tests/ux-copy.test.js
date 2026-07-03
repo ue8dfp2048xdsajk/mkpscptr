@@ -12,7 +12,7 @@ describe('UX copy contracts (app.html)', () => {
 
     test('reset is left-panel only — no top-bar reset', () => {
         expect(appHtml).not.toContain('id="resetBtnTop"');
-        expect(appHtml).toContain('Reset Selected (R)');
+        expect(appHtml).toMatch(/Reset Selected[\s\S]*\(R\)/);
     });
 
     test('export popover has summary and gate blocks', () => {
@@ -28,7 +28,13 @@ describe('UX copy contracts (app.html)', () => {
         expect(appHtml).toContain('id="shortcutsModal"');
     });
 
-    test('save button is visible in header', () => {
-        expect(appHtml).toMatch(/header-right[\s\S]*id="saveProgressBtn"/);
+    test('save button is visible in header top row (file nav)', () => {
+        expect(appHtml).toMatch(/header-file-nav[\s\S]*id="saveProgressBtn"/);
+        expect(appHtml).toContain('id="shortcutsTopBtn"');
+        expect(appHtml).toContain('More ▾');
+    });
+
+    test('batch hint has dismiss control', () => {
+        expect(appHtml).toContain('id="batchEditHintClose"');
     });
 });

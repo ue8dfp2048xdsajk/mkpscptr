@@ -5,6 +5,7 @@
     var LS_BANNER = 'ms_banner_dismissed';
     var LS_COACH = 'ms_coach_sidebar_seen';
     var LS_FIRST_EXPORT = 'ms_first_export_done';
+    var LS_BATCH_HINT = 'ms_batch_hint_dismissed';
     var _lastComboKey = '';
 
     function _isTypingTarget(el) {
@@ -113,6 +114,18 @@
 
         var shortcutsBtn = document.getElementById('shortcutsHelpBtn');
         if (shortcutsBtn) shortcutsBtn.addEventListener('click', _openShortcuts);
+
+        var shortcutsTopBtn = document.getElementById('shortcutsTopBtn');
+        if (shortcutsTopBtn) shortcutsTopBtn.addEventListener('click', _openShortcuts);
+
+        var batchHintClose = document.getElementById('batchEditHintClose');
+        if (batchHintClose) {
+            batchHintClose.addEventListener('click', function () {
+                try { localStorage.setItem(LS_BATCH_HINT, '1'); } catch (_) {}
+                var hint = document.getElementById('batchEditHint');
+                if (hint) hint.hidden = true;
+            });
+        }
 
         var shortcutsClose = document.getElementById('shortcutsModalClose');
         if (shortcutsClose) shortcutsClose.addEventListener('click', _closeShortcuts);

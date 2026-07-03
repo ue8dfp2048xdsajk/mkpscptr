@@ -3856,11 +3856,13 @@ function updateLayerButtons(){
     }
 
     const batchHint = document.getElementById('batchEditHint');
-    if (batchHint) {
+    const batchHintText = document.getElementById('batchEditHintText');
+    if (batchHint && batchHintText) {
         const n = activeIndices.length;
-        if (n > 1) {
+        const dismissed = localStorage.getItem('ms_batch_hint_dismissed');
+        if (n > 1 && !dismissed) {
             batchHint.hidden = false;
-            batchHint.textContent = 'Editing ' + n + ' mockups — changes apply to all selected mockups.';
+            batchHintText.textContent = 'Editing ' + n + ' mockups — changes apply to all selected mockups.';
         } else {
             batchHint.hidden = true;
         }

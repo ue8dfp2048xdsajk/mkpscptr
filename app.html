@@ -74,10 +74,71 @@
         </script>
         <div class="sticky-header">
             <div class="header-top-row">
-                <a href="/" class="app-nav-logo" aria-label="Mockup Scripter home">
-                    <img class="app-nav-logo-icon" src="/logo.png" alt="" width="24" height="24" aria-hidden="true">
-                    Mockup Scripter
-                </a>
+                <div class="header-top-left">
+                    <a href="/" class="app-nav-logo" aria-label="Mockup Scripter home">
+                        <img class="app-nav-logo-icon" src="/logo.png" alt="" width="24" height="24" aria-hidden="true">
+                        Mockup Scripter
+                    </a>
+                    <nav class="header-file-nav" aria-label="Project">
+                        <button
+                            id="saveProgressBtn"
+                            class="header-file-btn"
+                            title="Save Progress (Ctrl/Cmd+S)"
+                        >
+                            Save
+                        </button>
+                        <button
+                            id="loadProgressBtn"
+                            class="header-file-btn"
+                            title="Load Progress (Ctrl/Cmd+L)"
+                        >
+                            Load
+                        </button>
+                        <button
+                            id="saveLocalBtn"
+                            class="header-file-btn"
+                            title="Save to local file"
+                        >
+                            Save local
+                        </button>
+                        <button
+                            id="openCloudBtn"
+                            class="header-file-btn"
+                            title="Open a saved project"
+                        >
+                            Open cloud
+                        </button>
+                        <input
+                            type="file"
+                            id="loadProgressInput"
+                            accept=".json"
+                            style="display: none"
+                        />
+                        <span class="export-wrap header-more-wrap">
+                            <button id="fileMenuBtn" class="header-file-btn">More ▾</button>
+                            <div id="fileMenuPopover" class="export-popover" hidden>
+                                <span class="file-menu-pro-wrap" id="saveNewWrap">
+                                    <button id="saveNewBtn" title="Save as New">Save as New</button>
+                                    <span class="file-menu-pro-badge" id="saveNewProBadge" aria-hidden="true">PRO</span>
+                                    <span class="file-menu-pro-tooltip" id="saveNewTooltip">Pro plan required — upgrade to save multiple projects</span>
+                                </span>
+                                <button
+                                    id="clearSessionBtn"
+                                    title="Remove the autosaved session so the canvas starts blank on next load"
+                                >
+                                    Clear Session
+                                </button>
+                            </div>
+                        </span>
+                        <button
+                            type="button"
+                            id="shortcutsTopBtn"
+                            class="header-shortcuts-btn"
+                            title="Keyboard shortcuts (?)"
+                            aria-label="Keyboard shortcuts"
+                        >?</button>
+                    </nav>
+                </div>
                 <div id="clerkAuthContainer"></div>
             </div>
             <div id="upgradePrompt" class="upgrade-prompt" style="display:none">
@@ -122,64 +183,20 @@
 
             <div class="header-right">
                 <button id="selectAllBtn" title="Select All (Ctrl/Cmd+A). Deselect: Esc">Select All</button>
-                <input
-                    id="filterByNameInput"
-                    type="text"
-                    placeholder="Select by filename…"
-                    title="Selects every mockup using the same design file. Edits apply to all of them so the design sits consistently on matching mockup photos."
-                    style="width: 160px;"
-                />
-                <span id="headerProMockupCount" class="header-pro-count" hidden></span>
-                <button
-                    id="saveProgressBtn"
-                    class="header-save-btn"
-                    title="Save Progress (Ctrl/Cmd+S)"
-                >
-                    Save
-                </button>
-                <span class="export-wrap">
-                    <button id="fileMenuBtn">File ▾</button>
-                    <div id="fileMenuPopover" class="export-popover" hidden>
-                        <span class="file-menu-pro-wrap" id="saveNewWrap">
-                            <button
-                                id="saveNewBtn"
-                                title="Save as New"
-                            >
-                                Save as New
-                            </button>
-                            <span class="file-menu-pro-badge" id="saveNewProBadge" aria-hidden="true">PRO</span>
-                            <span class="file-menu-pro-tooltip" id="saveNewTooltip">Pro plan required — upgrade to save multiple projects</span>
-                        </span>
-                        <button
-                            id="saveLocalBtn"
-                            title="Save to local file"
-                        >
-                            Save to local file
-                        </button>
-                        <button
-                            id="loadProgressBtn"
-                            title="Load Progress (Ctrl/Cmd+L)"
-                        >
-                            Load local file
-                        </button>
-                        <button id="openCloudBtn" title="Open a saved project">
-                            Open from cloud…
-                        </button>
-                        <input
-                            type="file"
-                            id="loadProgressInput"
-                            accept=".json"
-                            style="display: none"
-                        />
-                        <button
-                            id="clearSessionBtn"
-                            title="Remove the autosaved session so the canvas starts blank on next load"
-                        >
-                            Clear Session
-                        </button>
-                        <button type="button" id="shortcutsHelpBtn" title="Keyboard shortcuts">Keyboard shortcuts…</button>
-                    </div>
+                <span class="filter-by-name-wrap">
+                    <input
+                        id="filterByNameInput"
+                        type="text"
+                        placeholder="Select by filename…"
+                        title="Selects every mockup using the same design file. Edits apply to all of them so the design sits consistently on matching mockup photos."
+                    />
+                    <span
+                        class="hint-icon"
+                        title="Selects every mockup using the same design file. Edits apply to all of them so the design sits consistently on matching mockup photos."
+                        aria-label="How select by filename works"
+                    >i</span>
                 </span>
+                <span id="headerProMockupCount" class="header-pro-count" hidden></span>
                 <span class="export-wrap export-wrap-primary">
                     <button id="exportBtn" class="export-btn-primary" title="Export (Ctrl/Cmd+E)">
                         Export ▾
@@ -373,15 +390,18 @@
             </div>
             <div id="sidebarResizeHandle" title="Drag to resize panel"></div>
             <div id="contextPanelBody">
-                <div id="batchEditHint" class="batch-edit-hint" hidden></div>
+                <div id="batchEditHint" class="batch-edit-hint" hidden>
+                    <span id="batchEditHintText"></span>
+                    <button type="button" id="batchEditHintClose" class="batch-edit-hint-close" aria-label="Dismiss">✕</button>
+                </div>
                 <!-- ── Mockup ──────────────────────────────────────────────────────── -->
-                <div class="cp-section">
-                    <div class="cp-section-title">Mockup</div>
+                <div class="cp-section" data-section-id="mockup">
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Mockup</div>
                     <button
                         id="addWindowBtn"
                         title="Add a single new mockup at the start of the grid (opens file picker)"
                     >
-                        Add Mockup
+                        Add Mockup <span class="btn-kbd">(N)</span>
                     </button>
                     <input
                         type="file"
@@ -397,9 +417,9 @@
                     />
                     <div class="cp-btn-row">
                         <button id="lockWindowsBtn" class="lock-sensitive" title="Lock selected mockups (L)">
-                            Lock
+                            Lock <span class="btn-kbd">(L)</span>
                         </button>
-                        <button id="unlockWindowsBtn" title="Unlock selected mockups (U)">Unlock</button>
+                        <button id="unlockWindowsBtn" title="Unlock selected mockups (U)">Unlock <span class="btn-kbd">(U)</span></button>
                     </div>
                     <button id="changeBgBtn" class="lock-sensitive">
                         Replace mockup photo
@@ -420,24 +440,24 @@
                         style="display: none"
                     />
                     <button id="duplicateWindowsBtn" class="lock-sensitive" title="Duplicate Selected (Ctrl/Cmd+D)">
-                        Duplicate Selected
+                        Duplicate Selected <span class="btn-kbd">(D)</span>
                     </button>
                     <button id="deleteWindowsBtn" class="lock-sensitive" title="Delete Selected (Del)">
-                        Delete Selected
+                        Delete Selected <span class="btn-kbd">(Del)</span>
                     </button>
                     <button id="resetBtn" class="lock-sensitive" title="Reset selected mockups to default (R)">
-                        Reset Selected (R)
+                        Reset Selected <span class="btn-kbd">(R)</span>
                     </button>
                 </div>
 
                 <!-- ── Layers ─────────────────────────────────────────────────────── -->
-                <div class="cp-section lock-sensitive">
-                    <div class="cp-section-title">Layers</div>
+                <div class="cp-section lock-sensitive" data-section-id="layers">
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Layers</div>
                     <button
                         id="addLayerBtn"
-                        title="Upload images as overlay layers onto selected mockups (opens file picker)"
+                        title="Upload images as overlay layers onto selected mockups (Shift+L)"
                     >
-                        Add Layer
+                        Add Layer <span class="btn-kbd">(Shift+L)</span>
                     </button>
                     <input
                         type="file"
@@ -451,33 +471,33 @@
                         disabled
                         title="Copy selected layer (Ctrl/Cmd+C)"
                     >
-                        Copy Layer
+                        Copy Layer <span class="btn-kbd">(Ctrl/Cmd+C)</span>
                     </button>
     <button
                         id="duplicateLayerBtn"
                         disabled
-                        title="Select a layer to duplicate it"
+                        title="Select a layer to duplicate it (D)"
                     >
-                        Duplicate Layer
+                        Duplicate Layer <span class="btn-kbd">(D)</span>
                     </button>
                     <button
                         id="makeMainDesignBtn"
                         disabled
-                        title="Select an overlay layer to make it the main design"
+                        title="Select an overlay layer to make it the main design (M)"
                     >
-                        Make Main Design
+                        Make Main Design <span class="btn-kbd">(M)</span>
                     </button>
                     <button
                         id="deleteLayerBtn"
                         disabled
                         title="Delete selected layer (Backspace/Del)"
                     >
-                        Delete Layer (Backspace/Del)
+                        Delete Layer <span class="btn-kbd">(Backspace/Del)</span>
                     </button>
                 </div>
 
-                <div class="cp-section lock-sensitive">
-                    <div class="cp-section-title">Appearance</div>
+                <div class="cp-section lock-sensitive" data-section-id="appearance">
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Appearance</div>
                     <label
                         >Opacity %
                         <input
@@ -512,17 +532,17 @@
                         />
                     </label>
                     <div class="cp-btn-row">
-                        <button id="flipHBtn" title="Flip selected layer horizontally">
-                            ↔ Flip H
+                        <button id="flipHBtn" title="Flip selected layer horizontally (Shift+H)">
+                            ↔ Flip H <span class="btn-kbd">(Shift+H)</span>
                         </button>
-                        <button id="flipVBtn" title="Flip selected layer vertically">
-                            ↕ Flip V
+                        <button id="flipVBtn" title="Flip selected layer vertically (Shift+V)">
+                            ↕ Flip V <span class="btn-kbd">(Shift+V)</span>
                         </button>
                     </div>
                 </div>
 
-                <div class="cp-section lock-sensitive">
-                    <div class="cp-section-title">Effects <span class="pro-badge">⭐ PRO</span></div>
+                <div class="cp-section lock-sensitive" data-section-id="effects">
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Effects <span class="pro-badge">⭐ PRO</span></div>
                     <label
                         >Cylinder Warp
                         <input
@@ -585,7 +605,7 @@
                             <option value="luminosity">Luminosity</option>
                         </select>
                     </label>
-                    <button id="designWarpBtn" title="Warp mesh (W)">Warp Mesh</button>
+                    <button id="designWarpBtn" title="Warp mesh (W)">Warp Mesh <span class="btn-kbd">(W)</span></button>
 
                     <span
                         id="warpModeControls"
@@ -633,22 +653,22 @@
                         disabled
                         title="Select a layer to invert its colors"
                     >
-                        Invert Colors
+                        Invert Colors <span class="btn-kbd">(I)</span>
                     </button>
                     <div class="cp-btn-row">
                         <button
                             id="copyTransformsBtn"
-                            title="Copy effects (opacity, warp, blend, pattern, invert) from the last selected mockup — not position or scale"
+                            title="Copy effects (Ctrl/Cmd+Shift+C)"
                         >
-                            Copy Effects
+                            Copy Effects <span class="btn-kbd">(Ctrl/Cmd+Shift+C)</span>
                         </button>
                     </div>
                 </div>
 
                 <!-- ── Clipping ───────────────────────────────────────────────────── -->
-                <div class="cp-section lock-sensitive">
-                    <div class="cp-section-title">Clipping <span class="pro-badge">⭐ PRO</span></div>
-                    <button id="editClipBtn">Edit Clipping (C)</button>
+                <div class="cp-section lock-sensitive" data-section-id="clipping" data-block-collapse="clip">
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Clipping <span class="pro-badge">⭐ PRO</span></div>
+                    <button id="editClipBtn">Edit Clipping <span class="btn-kbd">(C)</span></button>
                     <button
                         id="addClipAreaBtn"
                         class="clip-sub-btn"
@@ -687,9 +707,9 @@
                 </div>
 
                 <!-- ── Painting ────────────────────────────────────────────────────── -->
-                <div class="cp-section lock-sensitive">
-                    <div class="cp-section-title">Painting <span class="pro-badge">⭐ PRO</span></div>
-                    <button id="designEraserBtn">Eraser (E)</button>
+                <div class="cp-section lock-sensitive" data-section-id="painting" data-block-collapse="paint">
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Painting <span class="pro-badge">⭐ PRO</span></div>
+                    <button id="designEraserBtn">Eraser <span class="btn-kbd">(E)</span></button>
                     <span
                         id="designEraserControls"
                         style="
@@ -861,16 +881,19 @@
                     </span>
                 </div>
 
-                <div class="cp-section lock-sensitive" id="patternSection">
+                <div class="cp-section lock-sensitive" id="patternSection" data-section-id="pattern">
                     <div
-                        class="cp-section-title"
+                        class="cp-section-title cp-section-title--toggle"
+                        tabindex="0"
+                        role="button"
+                        aria-expanded="true"
                         style="
                             display: flex;
                             justify-content: space-between;
                             align-items: center;
                         "
                     >
-                        <span>Create Pattern <span class="pro-badge">⭐ PRO</span></span>
+                        <span>Create Pattern <span class="pro-badge">⭐ PRO</span> <span class="btn-kbd">(P)</span></span>
                         <label class="cp-toggle-switch">
                             <input type="checkbox" id="patternModeToggle" />
                             <span class="cp-toggle-track"
@@ -1050,8 +1073,8 @@
                     </div>
                 </div>
 
-                <div class="cp-section lock-sensitive" id="bgCropSection">
-                    <div class="cp-section-title">Framing <span class="pro-badge">⭐ PRO</span></div>
+                <div class="cp-section lock-sensitive" id="bgCropSection" data-section-id="framing">
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Framing <span class="pro-badge">⭐ PRO</span></div>
                     <div class="bg-crop-aspect-row">
                         <button class="bg-aspect-btn" data-aspect="1">
                             1:1
@@ -1159,8 +1182,8 @@
                     </button>
                 </div>
 
-                <div class="cp-section lock-sensitive" id="bgAdjustSection">
-                    <div class="cp-section-title">Background Adjustments <span class="pro-badge">⭐ PRO</span></div>
+                <div class="cp-section lock-sensitive" id="bgAdjustSection" data-section-id="bg-adjust">
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Background Adjustments <span class="pro-badge">⭐ PRO</span></div>
                     <div class="bg-adj-row">
                         <label>Hue</label>
                         <input
@@ -1256,6 +1279,16 @@
                     <dt>Add to selection</dt><dd>Shift+click</dd>
                     <dt>Toggle selection</dt><dd>Ctrl/Cmd+click</dd>
                     <dt>Select range</dt><dd>Shift+click between mockups</dd>
+                    <dt>Lock / Unlock mockup</dt><dd>L / U</dd>
+                    <dt>Add mockup</dt><dd>N</dd>
+                    <dt>Edit clipping</dt><dd>C</dd>
+                    <dt>Eraser</dt><dd>E</dd>
+                    <dt>Warp mesh</dt><dd>W</dd>
+                    <dt>Invert colors</dt><dd>I</dd>
+                    <dt>Pattern mode</dt><dd>P</dd>
+                    <dt>Add layer</dt><dd>Shift+L</dd>
+                    <dt>Flip H / V</dt><dd>Shift+H / Shift+V</dd>
+                    <dt>Hide clip layers</dt><dd>H</dd>
                     <dt>Reset selected</dt><dd>R</dd>
                     <dt>Delete layer</dt><dd>Backspace / Del</dd>
                     <dt>Duplicate mockup</dt><dd>Ctrl/Cmd+D</dd>
@@ -1350,6 +1383,7 @@
         <script src="js/app.js"></script>
         <script src="js/export-ui.js"></script>
         <script src="js/onboarding-hints.js"></script>
+        <script src="js/panel-ui.js"></script>
         <script src="js/billing-period.js"></script>
         <script src="js/plans-modal.js"></script>
         <script src="js/clerk-auth.js"></script>
