@@ -179,11 +179,25 @@ describe('paste PRO sync helpers', () => {
         })).toBe(true);
     });
 
-    test('_applyPasteProSync gates Starter immediately', () => {
+    test('_applyPasteProSync does not gate Starter for plain payload', () => {
         const data = makeData();
         _applyPasteProSync(data, 'starter', false);
+        expect(data.forceProBadge).toBe(false);
+        expect(data.hasProEffect).toBe(false);
+    });
+
+    test('_applyPasteProSync gates Starter immediately for PRO payload', () => {
+        const data = makeData();
+        _applyPasteProSync(data, 'starter', true);
         expect(data.forceProBadge).toBe(true);
         expect(data.hasProEffect).toBe(true);
+    });
+
+    test('_finishPasteProSync clears forceProBadge when window has no PRO effects', () => {
+        const data = makeData({ forceProBadge: true });
+        _finishPasteProSync(data);
+        expect(data.forceProBadge).toBe(false);
+        expect(data.hasProEffect).toBe(false);
     });
 
     test('_applyPasteProSync does not gate Pro for plain payload', () => {

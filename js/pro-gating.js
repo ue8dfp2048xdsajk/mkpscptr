@@ -224,11 +224,11 @@ function _copiedLayerPayloadIsPro(cl) {
     });
 }
 
-// Instant ⭐ before heavy applyWarpToData / effect pipeline (Starter paste policy).
+// Instant ⭐ before heavy applyWarpToData / effect pipeline when payload is PRO.
 function _applyPasteProSync(data, plan, payloadIsPro) {
-    if (!data) return;
+    if (!data || !payloadIsPro) return;
     if (plan === 'pro') {
-        if (payloadIsPro) _syncProEffect(data);
+        _syncProEffect(data);
         return;
     }
     data.forceProBadge = true;
@@ -238,6 +238,7 @@ function _applyPasteProSync(data, plan, payloadIsPro) {
 // Reconcile badge + trigger watermark after paste apply completes.
 function _finishPasteProSync(data) {
     if (!data) return;
+    if (!_windowHasProEffect(data)) data.forceProBadge = false;
     _syncProEffect(data);
     if (data.fabricCanvas) data.fabricCanvas.requestRenderAll();
 }

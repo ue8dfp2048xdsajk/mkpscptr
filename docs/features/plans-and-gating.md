@@ -90,10 +90,10 @@ Copies **effects only** from the selected layer on the source window — never p
 - **Copy** alone does not mark a window.
 - **Paste** marking:
 
-| Plan | On Paste Effects |
-|------|------------------|
-| Free / Starter | Target window **always** gets PRO badge |
-| Pro | PRO badge only if pasted payload contains PRO values (`_transformsContainProEffect`) |
+| Plan | On Paste Layer / Paste Effects |
+|------|-------------------------------|
+| Free / Starter | PRO badge only if pasted payload contains PRO values (or live state after apply is PRO) |
+| Pro | PRO badge only if pasted payload contains PRO values (`_transformsContainProEffect` / `_copiedLayerPayloadIsPro`) |
 
 ---
 
@@ -104,7 +104,7 @@ Copies **effects only** from the selected layer on the source window — never p
 Drawn on `after:render` for:
 
 - **Free:** all windows that have a design loaded (not background-only)
-- **Starter:** windows that are PRO-gated (`_windowIsProGated` — live PRO effects or Starter paste policy)
+- **Starter:** windows that are PRO-gated (`_windowIsProGated` — live PRO effects only)
 - **Pro:** none
 
 ### Export (`js/app.js` + `POST /api/export`)
@@ -120,7 +120,7 @@ Export formats: individual files, folder (File System Access API), or ZIP (JSZip
 
 ### PRO effect detection (`_windowHasProEffect` / `_syncProEffect` in `js/app.js`)
 
-PRO status is **derived from live window state**. `_syncProEffect(data)` sets `hasProEffect` and refreshes the ⭐ badge. Watermark (Starter) and export filtering use `_windowIsProGated(data)` — true when any PRO effect is active **or** `forceProBadge` is set (Starter paste policy).
+PRO status is **derived from live window state**. `_syncProEffect(data)` sets `hasProEffect` and refreshes the ⭐ badge. Watermark (Starter) and export filtering use `_windowIsProGated(data)` — true when any PRO effect is active **or** `forceProBadge` is set (temporary flag during PRO payload paste apply).
 
 **Real PRO effects** (`_windowHasProEffect`):
 
@@ -131,9 +131,9 @@ PRO status is **derived from live window state**. `_syncProEffect(data)` sets `h
 - Pattern, clip mask, color layer, eraser-modified design (`designOriginal !== initialDesignOriginal`)  
 - Background adjust / crop non-default  
 
-**Starter paste:** sets `forceProBadge = true` on target (even blur-only) until reset or a real PRO effect clears it. Paste Layer and Paste Effects call `_applyPasteProSync` **before** the warp/effect pipeline so the ⭐ badge is immediate; `_finishPasteProSync` runs after apply for accurate gating and watermark render.
+**Paste gating:** Paste Layer and Paste Effects call `_applyPasteProSync` **before** the warp/effect pipeline so the ⭐ badge is immediate when the payload is PRO; `_finishPasteProSync` reconciles from live state after apply.
 
-**Paste Layer:** copying the main design and pasting onto a window that already has a design stacks it as an overlay layer; pasting onto an empty mockup replaces the main design.
+**Paste Layer:** copying the main design and pasting onto a window that already has a design stacks it as an overlay layer; pasting onto an empty mockup replaces the main design. When only the source mockup is selected, paste duplicates the layer in-place (offset +40/+20, same as Duplicate Layer).
 
 **Layer promotion:** deleting the main design while other layers exist auto-promotes the bottom extra to main; **Make Main Design** swaps a selected overlay with the current main (old main becomes the bottom extra).
 

@@ -4638,8 +4638,25 @@ function _fxFromCopiedLayer(cl) {
     };
 }
 
+function _resolvePasteLayerTargets(srcIdx, indices, windows) {
+    const cross = indices
+        .filter(i => i !== srcIdx)
+        .map(i => windows[i])
+        .filter(d => d && !d.locked);
+
+    if (cross.length) return { targets: cross, sameWindow: false };
+
+    if (indices.includes(srcIdx)) {
+        const src = windows[srcIdx];
+        if (src && !src.locked && src.designObject) {
+            return { targets: [src], sameWindow: true };
+        }
+    }
+    return { targets: [], sameWindow: false };
+}
+
 // Append a copied layer as an overlay (extraDesignObjects) on a window that already has a design.
-function _appendPastedLayerAsExtra(d, cl, srcEl) {
+function _appendPastedLayerAsExtra(d, cl, srcEl, { offsetX = 0, offsetY = 0 } = {}) {
     if (!d.designObject || !srcEl) return null;
 
     let layerSrc = _clonePastedLayerSource(srcEl);
@@ -4654,8 +4671,8 @@ function _appendPastedLayerAsExtra(d, cl, srcEl) {
         : (cl.angle ?? 0);
 
     const fabricImg = new fabric.Image(layerSrc, {
-        left:   cl.srcLeft,
-        top:    cl.srcTop,
+        left:   cl.srcLeft + offsetX,
+        top:    cl.srcTop  + offsetY,
         scaleX: cl.srcScaleX,
         scaleY: cl.srcScaleY,
         angle,
@@ -4687,18 +4704,11 @@ function _appendPastedLayerAsExtra(d, cl, srcEl) {
 async function _pasteLayerToTargets(){
     if (!_copiedLayer || !activeIndices.length) return;
 
-    const srcIdx  = _copiedLayer.srcIdx;
-    const targets = activeIndices
-        .filter(i => i !== srcIdx)
-        .map(i => canvasData[i])
-        .filter(d => d && !d.locked);
+    const srcIdx = _copiedLayer.srcIdx;
+    const { targets, sameWindow } = _resolvePasteLayerTargets(srcIdx, activeIndices, canvasData);
+    if (!targets.length) return;
 
-    if (!targets.length){
-        alert('Select one or more mockups (other than the source) to paste into.');
-        _copiedLayer = null;
-        _updateCopyLayerBtn();
-        return;
-    }
+    const pasteOffset = sameWindow ? { offsetX: 40, offsetY: 20 } : { offsetX: 0, offsetY: 0 };
 
     // Snapshot every target for undo before touching anything
     const undoItems = targets
@@ -4727,7 +4737,7 @@ async function _pasteLayerToTargets(){
         for (const d of targets){
             _applyPasteProSync(d, _userPlan, layerPayloadIsPro);
             if (d.designObject) {
-                const added = _appendPastedLayerAsExtra(d, cl, srcEl);
+                const added = _appendPastedLayerAsExtra(d, cl, srcEl, pasteOffset);
                 if (added) pastedObjs.push(added);
                 _finishPasteProSync(d);
                 continue;
@@ -4768,7 +4778,7 @@ async function _pasteLayerToTargets(){
         for (const d of targets){
             if (!d.designObject) continue;
             _applyPasteProSync(d, _userPlan, layerPayloadIsPro);
-            const added = _appendPastedLayerAsExtra(d, cl, cl.el);
+            const added = _appendPastedLayerAsExtra(d, cl, cl.el, pasteOffset);
             if (added) pastedObjs.push(added);
             _finishPasteProSync(d);
         }
