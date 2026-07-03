@@ -846,7 +846,7 @@ body {
     grid-template-columns: repeat(4, max-content);
     gap: 20px;
     width: max-content;
-    padding: 36px 20px 20px 20px;
+    padding: 20px;
     box-sizing: border-box;
     align-items: start;
 }
@@ -872,7 +872,7 @@ body {
    canvas bounds (especially important when windows in the same row have
    different heights — the taller neighbour's click area could otherwise
    be captured by the shorter window's overflowing upper-canvas). */
-.canvas-wrapper .canvas-container { overflow: hidden; }
+.canvas-container { overflow: hidden; }
 
 .filename-input {
     margin-top: 0;

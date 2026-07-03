@@ -463,40 +463,10 @@ var _marchingAntsOffset = 0;
 
 
 
-// Extra layers: uploaded/pasted overlays → orange handles; cloned main design → transparent.
-function _extraLayerKind(data, index) {
-    const orig = data.extraDesignOriginals?.[index];
-    if (orig != null) return 'overlay';
-    const obj = data.extraDesignObjects?.[index];
-    if (obj?._isOverlay) return 'overlay';
-    return 'clone';
-}
-
-function _applyExtraLayerHandleStyle(obj, kind) {
-    if (kind === 'overlay') {
-        obj.set({
-            transparentCorners: false,
-            cornerColor: '#ff6600',
-            cornerStyle: 'circle',
-        });
-        obj._isOverlay = true;
-    } else {
-        obj.set({
-            transparentCorners: true,
-            cornerColor: 'rgba(0,0,0,0)',
-            borderColor: 'rgba(0,0,0,0)',
-            cornerStyle: 'circle',
-        });
-    }
-}
-
 // Show Fabric handles on all selected designs; hide on all others.
 function refreshFabricHandles(){
     canvasData.forEach(d => {
         if(!d.fabricCanvas) return;
-        (d.extraDesignObjects || []).forEach((obj, i) => {
-            _applyExtraLayerHandleStyle(obj, _extraLayerKind(d, i));
-        });
         // Locked windows never show transform handles
         if(d.locked){
             if(d.fabricCanvas.getActiveObject()){
@@ -4319,16 +4289,18 @@ function _updateCopyLayerBtn(){
     }
 }
 
-function _captureLayerPosition(obj) {
+function _captureLayerPosition(obj, fabricCanvas) {
+    const cW = fabricCanvas.getWidth();
+    const cH = fabricCanvas.getHeight();
     const pt = typeof obj.getCenterPoint === 'function'
         ? obj.getCenterPoint()
         : { x: obj.left, y: obj.top };
     return {
-        srcLeft:   pt.x,
-        srcTop:    pt.y,
-        srcScaleX: obj.scaleX,
-        srcScaleY: obj.scaleY,
-        angle:     obj.angle ?? 0,
+        posXFrac: pt.x / cW,
+        posYFrac: pt.y / cH,
+        fabricScaleXRatio: obj.scaleX / cW,
+        fabricScaleYRatio: obj.scaleY / cH,
+        angle: obj.angle ?? 0,
     };
 }
 
@@ -4350,7 +4322,14 @@ function _copyCurrentLayer(){
         : sourceData.extraDesignOriginals?.[layerIdx];
     if (!srcEl) return;
 
-    const pos = _captureLayerPosition(obj);
+    // Compute a canvas-size-independent scale ratio so the same visual
+    // proportion is reproduced on any target canvas (even different sizes).
+    // ratio = scaleX / fillScale  where fillScale = (1/srcDpr)/srcPs
+    const srcDpr = Math.max(1, sourceData.fabricCanvas.lowerCanvasEl.width / sourceData.fabricCanvas.getWidth());
+    const srcPs  = sourceData.previewScale || 1;
+    const srcSX  = sourceData.scaleX ?? sourceData.scale ?? 1;
+    const srcSY  = sourceData.scaleY ?? sourceData.scale ?? 1;
+    const pos    = _captureLayerPosition(obj, sourceData.fabricCanvas);
 
     _copiedLayer = {
         type:     layerType,
@@ -4358,11 +4337,16 @@ function _copyCurrentLayer(){
         name:     obj._uploadedDesignName || null,
         fx:       obj._fx ? JSON.parse(JSON.stringify(obj._fx)) : null,
         srcIdx:   canvasData.indexOf(sourceData),
-        srcLeft:  pos.srcLeft,
-        srcTop:   pos.srcTop,
-        srcScaleX: pos.srcScaleX,
-        srcScaleY: pos.srcScaleY,
+        srcScaleX: obj.scaleX,
+        srcScaleY: obj.scaleY,
+        posXFrac: pos.posXFrac,
+        posYFrac: pos.posYFrac,
+        fabricScaleXRatio: pos.fabricScaleXRatio,
+        fabricScaleYRatio: pos.fabricScaleYRatio,
         angle:    pos.angle,
+        // canvas-relative scale ratios (1.0 = fills canvas exactly)
+        designScaleXRatio: srcSX * srcPs * srcDpr,
+        designScaleYRatio: srcSY * srcPs * srcDpr,
         designRotation:       sourceData.rotation      ?? 0,
         designWarpAmount:     sourceData.warpAmount     ?? 0,
         designArcAmount:      sourceData.arcAmount      ?? 0,
@@ -4432,12 +4416,14 @@ async function _pasteLayerToTargets(){
             cCtx.drawImage(srcEl, 0, 0, W * dpr, H * dpr);
             d.designOriginal = copy;
             d.warpCanvas     = null;
+            d.x          = (_copiedLayer.posXFrac ?? 0.5) * W;
+            d.y          = (_copiedLayer.posYFrac ?? 0.5) * H;
+            // Apply source transforms, converting canvas-relative ratios to
+            // target scale units: ratio / (tps * dpr) = fillScale × ratio
             const cl = _copiedLayer;
-            const tps = d.previewScale || 1;
-            d.x          = cl.srcLeft;
-            d.y          = cl.srcTop;
-            d.scaleX     = cl.srcScaleX / tps;
-            d.scaleY     = cl.srcScaleY / tps;
+            const fillScale = (1 / dpr) / tps;
+            d.scaleX          = cl.designScaleXRatio !== undefined ? cl.designScaleXRatio * fillScale : fillScale;
+            d.scaleY          = cl.designScaleYRatio !== undefined ? cl.designScaleYRatio * fillScale : fillScale;
             d.rotation        = cl.designRotation       ?? 0;
             d.warpAmount      = cl.designWarpAmount     ?? 0;
             d.arcAmount       = cl.designArcAmount      ?? 0;
@@ -4456,18 +4442,23 @@ async function _pasteLayerToTargets(){
         const cl = _copiedLayer;
         for (const d of targets){
             if (!d.designObject) continue;
-            const cl = _copiedLayer;
+            const canvasW = d.fabricCanvas.getWidth();
+            const canvasH = d.fabricCanvas.getHeight();
             const fabricImg = new fabric.Image(srcEl, {
-                left:   cl.srcLeft,
-                top:    cl.srcTop,
-                scaleX: cl.srcScaleX,
-                scaleY: cl.srcScaleY,
+                left:   (cl.posXFrac ?? 0.5) * canvasW,
+                top:    (cl.posYFrac ?? 0.5) * canvasH,
+                scaleX: (cl.fabricScaleXRatio ?? (cl.srcScaleX / canvasW)) * canvasW,
+                scaleY: (cl.fabricScaleYRatio ?? (cl.srcScaleY / canvasH)) * canvasH,
                 angle:  cl.angle ?? 0,
                 opacity: _copiedLayer.fx?.opacity ?? 1,
                 globalCompositeOperation: 'source-over',
                 originX: 'center',
                 originY: 'center',
+                transparentCorners: false,
+                cornerColor: '#ff6600',
+                cornerStyle: 'circle'
             });
+            fabricImg._isOverlay          = true;
             fabricImg._uploadedDesignName = _copiedLayer.name || 'pasted_layer';
             fabricImg._fx = _copiedLayer.fx
                 ? JSON.parse(JSON.stringify(_copiedLayer.fx))
@@ -4478,7 +4469,6 @@ async function _pasteLayerToTargets(){
             d.extraDesignOriginals = d.extraDesignOriginals || [];
             d.extraDesignObjects.push(fabricImg);
             d.extraDesignOriginals.push(srcEl);
-            _applyExtraLayerHandleStyle(fabricImg, 'overlay');
             applyClipMaskToObject(fabricImg, d);
             d.fabricCanvas.add(fabricImg);
             attachFabricEvents(d, fabricImg);
@@ -4660,16 +4650,8 @@ document.getElementById("duplicateLayerBtn").addEventListener("click", ()=>{
             data.extraDesignObjects   = data.extraDesignObjects   || [];
             data.extraDesignOriginals  = data.extraDesignOriginals  || [];
 
-            const srcExtraIdx = (data.extraDesignObjects || []).indexOf(sourceObj);
-            if (srcExtraIdx !== -1) {
-                data.extraDesignOriginals.push(data.extraDesignOriginals[srcExtraIdx] ?? null);
-                if (sourceObj._isOverlay) cloned._isOverlay = true;
-            } else {
-                data.extraDesignOriginals.push(null);
-            }
-
             data.extraDesignObjects.push(cloned);
-            _applyExtraLayerHandleStyle(cloned, _extraLayerKind(data, data.extraDesignObjects.length - 1));
+            data.extraDesignOriginals.push(null); // clone shares source with original
 
             data.fabricCanvas.add(cloned);
             attachFabricEvents(data, cloned);
@@ -4869,8 +4851,12 @@ document.getElementById("layerUpload").addEventListener("change", async function
                                 globalCompositeOperation: 'source-over',
                                 originX: 'center',
                                 originY: 'center',
+                                transparentCorners: false,
+                                cornerColor: '#ff6600',
+                                cornerStyle: 'circle'
                             });
 
+                            fabricImg._isOverlay          = true;
                             fabricImg._uploadedDesignName = file.name;
                             fabricImg._fx = {
                                 warpAmount: 0, arcAmount: 0, arcTilt: 0,
@@ -4884,7 +4870,6 @@ document.getElementById("layerUpload").addEventListener("change", async function
                             data.extraDesignOriginals = data.extraDesignOriginals || [];
                             data.extraDesignObjects.push(fabricImg);
                             data.extraDesignOriginals.push(finalImg);
-                            _applyExtraLayerHandleStyle(fabricImg, 'overlay');
 
                             applyClipMaskToObject(fabricImg, data);
                             data.fabricCanvas.add(fabricImg);
@@ -8256,6 +8241,9 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                                 globalCompositeOperation: _blendToGCO(dup.blendMode),
                                 originX: 'center',
                                 originY: 'center',
+                                transparentCorners: false,
+                                cornerColor: 'blue',
+                                cornerStyle: 'circle'
                             });
 
                             fabricImg._uploadedDesignName = dup.name || '';
@@ -8271,7 +8259,6 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             data.extraDesignOriginals.push(img);
 
                             data.extraDesignObjects.push(fabricImg);
-                            _applyExtraLayerHandleStyle(fabricImg, 'overlay');
 
                             fabricCanvas.add(fabricImg);
                             attachFabricEvents(data, fabricImg);
@@ -8321,7 +8308,6 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             data.extraDesignOriginals.push(null);
 
                             data.extraDesignObjects.push(cloned);
-                            _applyExtraLayerHandleStyle(cloned, 'clone');
 
                             fabricCanvas.add(cloned);
                             attachFabricEvents(data, cloned);
