@@ -143,6 +143,167 @@ var suppressNextWrapperClick = false;
 // stores clipping masks per background type
 var backgroundMaskTemplates = {};
 
+function _clipCanvasSize(data) {
+    const fc = data?.fabricCanvas;
+    return fc
+        ? { w: fc.getWidth(), h: fc.getHeight() }
+        : { w: 0, h: 0 };
+}
+
+function _scaleMaskPath(path, fromW, fromH, toW, toH) {
+    if (!path?.length) return path || [];
+    const sx = fromW ? toW / fromW : 1;
+    const sy = fromH ? toH / fromH : 1;
+    return path.map(p => ({
+        x:  p.x  * sx,
+        y:  p.y  * sy,
+        ...(p.cx !== undefined ? { cx: p.cx * sx } : {}),
+        ...(p.cy !== undefined ? { cy: p.cy * sy } : {}),
+    }));
+}
+
+function _scaleMaskPaths(paths, fromW, fromH, toW, toH) {
+    return (paths || []).map(path => _scaleMaskPath(path, fromW, fromH, toW, toH));
+}
+
+function _clipEditTargetIndices() {
+    if (activeIndices.length) return [...activeIndices];
+    if (activeClipWindowIndex !== null) return [activeClipWindowIndex];
+    return [];
+}
+
+function _clipDriverIndex() {
+    if (activeClipWindowIndex !== null) return activeClipWindowIndex;
+    const withMask = activeIndices.find(i => (canvasData[i]?.maskPaths?.length || 0) > 0);
+    if (withMask !== undefined) return withMask;
+    return activeIndices[0] ?? null;
+}
+
+function _clipPointsForTargetIndex(targetIdx) {
+    if (!clipCurvePoints.length) return clipCurvePoints;
+    const driverIdx = _clipDriverIndex();
+    if (driverIdx === null || driverIdx === targetIdx) return clipCurvePoints;
+    const driver = canvasData[driverIdx];
+    const target = canvasData[targetIdx];
+    if (!driver || !target) return clipCurvePoints;
+    const from = _clipCanvasSize(driver);
+    const to   = _clipCanvasSize(target);
+    return _scaleMaskPath(clipCurvePoints, from.w, from.h, to.w, to.h);
+}
+
+function _redrawAllClipEditors() {
+    const targets = _clipEditTargetIndices();
+    if (!targets.length) return;
+
+    const driverIdx = _clipDriverIndex();
+
+    targets.forEach(i => {
+        const targetCanvas = canvasData[i]?.fabricCanvas;
+        if (!targetCanvas) return;
+        targetCanvas.getObjects()
+            .filter(obj =>
+                obj.isBezierHelper ||
+                obj.isTempCurvePreview ||
+                obj.isRubberBand
+            )
+            .forEach(obj => targetCanvas.remove(obj));
+    });
+
+    activeBezierHelpers = [];
+
+    targets.forEach(i => {
+        const target = canvasData[i];
+        const targetCanvas = target?.fabricCanvas;
+        if (!targetCanvas) return;
+
+        const points = _clipPointsForTargetIndex(i);
+
+        if (!points.length) {
+            drawInactivePaths(targetCanvas, target);
+            targetCanvas.requestRenderAll();
+            return;
+        }
+
+        const overlays = createCurveOverlay(points, clipPolygonClosed);
+        if (i === driverIdx) activeCurvePreview = overlays;
+        overlays.forEach(o => targetCanvas.add(o));
+
+        if (clipPolygonClosed) {
+            if (i === driverIdx) drawBezierHelpers(targetCanvas, points);
+            drawInactivePaths(targetCanvas, target);
+            overlays.forEach(o => o.bringToFront());
+            if (i === driverIdx) {
+                activeBezierHelpers.forEach(obj => obj.bringToFront());
+            }
+        }
+
+        targetCanvas.requestRenderAll();
+    });
+}
+
+function _finalizeClipPolygon() {
+    const targets = _clipEditTargetIndices();
+    if (!targets.length) return;
+
+    const driverIdx = _clipDriverIndex();
+    const driver = driverIdx !== null ? canvasData[driverIdx] : null;
+    const from = _clipCanvasSize(driver);
+
+    const sourceMask = clipCurvePoints.map(p => ({
+        x: p.x,
+        y: p.y,
+        cx: p.cx,
+        cy: p.cy,
+    }));
+
+    const editingExisting =
+        clipPolygonClosed &&
+        currentMaskIndex !== undefined &&
+        driver?.maskPaths?.[currentMaskIndex];
+
+    targets.forEach(i => {
+        const target = canvasData[i];
+        if (!target?.fabricCanvas) return;
+
+        const to = _clipCanvasSize(target);
+        const finalizedMask = (driverIdx === i)
+            ? sourceMask.map(p => ({ ...p }))
+            : _scaleMaskPath(sourceMask, from.w, from.h, to.w, to.h);
+
+        target.maskEnabled = true;
+        target.maskType = 'bezier';
+        _syncProEffect(target);
+
+        if (!target.maskPaths) target.maskPaths = [];
+
+        if (editingExisting && target.maskPaths[currentMaskIndex]) {
+            target.maskPaths[currentMaskIndex] = finalizedMask;
+        } else {
+            target.maskPaths.push(finalizedMask);
+        }
+
+        target.maskPath = finalizedMask;
+
+        backgroundMaskTemplates[target.bgName] = {
+            maskEnabled: true,
+            maskType: 'bezier',
+            maskPaths: target.maskPaths.map(path => path.map(p => ({ ...p }))),
+            maskPath: finalizedMask.map(p => ({ ...p })),
+        };
+
+        addClipOverlay(target);
+        getAllDesignObjects(target).forEach(obj => applyClipMaskToObject(obj, target));
+        if (target.patternMode) _renderPattern(target, false);
+        target.fabricCanvas.requestRenderAll();
+    });
+
+    if (!editingExisting && driver?.maskPaths?.length) {
+        currentMaskIndex = driver.maskPaths.length - 1;
+    }
+
+    autoSaveSession();
+}
+
 function showClipModeNotice(){
     alert("Please exit clipping mode");
 }
@@ -5899,7 +6060,12 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
 
     activeCurvePreview = null;
 
-    const sourceData = canvasData[activeIndices[0]];
+    const clipSourceIdx = activeIndices.find(i => {
+        const d = canvasData[i];
+        return d?.maskEnabled && d?.maskPath && d.maskType === 'bezier';
+    }) ?? activeIndices[0];
+
+    const sourceData = canvasData[clipSourceIdx];
 
     if(
         sourceData &&
@@ -5916,50 +6082,19 @@ document.getElementById("editClipBtn").addEventListener("click", ()=>{
         }));
 
         clipPolygonClosed = true;
+        currentMaskIndex = sourceData.maskPaths?.length
+            ? sourceData.maskPaths.length - 1
+            : 0;
 
     } else {
 
         clipCurvePoints = [];
         clipPolygonClosed = false;
+        currentMaskIndex = undefined;
     }
 
-    canvasData.forEach(data=>{
-
-        addClipOverlay(data);
-
-        // restore editable handles for selected clipping
-        if(
-            activeIndices.includes(canvasData.indexOf(data)) &&
-            clipCurvePoints.length
-        ){
-
-            clearBezierHelpers(data.fabricCanvas);
-
-            activeCurvePreview =
-                createCurveOverlay(
-                    clipCurvePoints,
-                    true
-                );
-
-            activeCurvePreview.forEach(o=> data.fabricCanvas.add(o));
-
-            drawBezierHelpers(
-                data.fabricCanvas,
-                clipCurvePoints
-            );
-
-            // Show nodes of all OTHER finalized paths alongside the active one
-            drawInactivePaths(data.fabricCanvas, data);
-
-            activeCurvePreview.forEach(o=> o.bringToFront());
-
-            activeBezierHelpers.forEach(obj=>{
-                obj.bringToFront();
-            });
-        }
-
-        data.fabricCanvas.requestRenderAll();
-    });
+    canvasData.forEach(data => addClipOverlay(data));
+    _redrawAllClipEditors();
 
 });
 
@@ -6104,18 +6239,10 @@ document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
     pushGlobalUndo();
 
     const src = canvasData[clipCopySourceIndex];
-
-    // Normalise from canvas-pixel space to bg-image-pixel space
-    const normalisedPaths = src.maskPaths.map(path=>
-        path.map(p=>({
-            x:  p.x  / src.previewScale,
-            y:  p.y  / src.previewScale,
-            ...(p.cx !== undefined ? { cx: p.cx / src.previewScale } : {}),
-            ...(p.cy !== undefined ? { cy: p.cy / src.previewScale } : {})
-        }))
-    );
+    const srcSize = _clipCanvasSize(src);
 
     let copied = 0;
+    const copiedTargetIndices = [];
 
     // Apply to every selected window (excluding the source itself)
     activeIndices.forEach(i=>{
@@ -6123,20 +6250,18 @@ document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
         if(i === clipCopySourceIndex) return;
 
         const data = canvasData[i];
-        const s    = data.previewScale;
+        const destSize = _clipCanvasSize(data);
 
-        data.maskPaths = normalisedPaths.map(path=>
-            path.map(p=>({
-                x:  p.x  * s,
-                y:  p.y  * s,
-                ...(p.cx !== undefined ? { cx: p.cx * s } : {}),
-                ...(p.cy !== undefined ? { cy: p.cy * s } : {})
-            }))
+        data.maskPaths = _scaleMaskPaths(
+            src.maskPaths,
+            srcSize.w, srcSize.h,
+            destSize.w, destSize.h
         );
 
         data.maskPath    = data.maskPaths[data.maskPaths.length - 1];
         data.maskEnabled = true;
         data.maskType    = src.maskType;
+        data.clipPolygonClosed = true;
         _syncProEffect(data);
 
         addClipOverlay(data);
@@ -6148,19 +6273,22 @@ document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
         if(data.patternMode) _renderPattern(data, false);
         data.fabricCanvas.requestRenderAll();
 
+        copiedTargetIndices.push(i);
         copied++;
     });
 
-    // Restore source window as the sole selection and re-lock clip mode
+    // Restore clip mode; select copied targets so batch edit applies to them
     const restoredIndex = clipCopySourceIndex;
     clipCopySelectMode  = false;
     clipCopySourceIndex = null;
-
-    // Allow the user to click any target window to start editing its clipping.
-    // Leaving this set to the source would block switching to any target.
     activeClipWindowIndex = null;
+    clipCurvePoints = [];
+    clipPolygonClosed = false;
+    currentMaskIndex = undefined;
 
-    activeIndices = [restoredIndex];
+    activeIndices = copiedTargetIndices.length
+        ? copiedTargetIndices
+        : [restoredIndex];
 
     updateWindowBorders();
     updateSelectButtonState?.();
@@ -6984,125 +7112,11 @@ document.getElementById("colorLayerModeSelect").addEventListener("change", e=>{
 function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
     function redrawEditor(){
-
-        activeIndices.forEach(i=>{
-
-            const target = canvasData[i];
-            const targetCanvas = target.fabricCanvas;
-
-            // remove ONLY temporary editor visuals
-            // keep finalized clipping overlays visible
-            targetCanvas.getObjects()
-                .filter(obj =>
-                    obj.isBezierHelper ||
-                    obj.isTempCurvePreview ||
-                    obj.isRubberBand
-                )
-                .forEach(obj=>{
-                    targetCanvas.remove(obj);
-                });
-
-            if(!clipCurvePoints.length){
-                // No active path being drawn — show all finalized paths as inactive nodes
-                drawInactivePaths(targetCanvas, target);
-                targetCanvas.requestRenderAll();
-                return;
-            }
-
-            const overlays =
-                createCurveOverlay(
-                    clipCurvePoints,
-                    clipPolygonClosed
-                );
-
-            overlays.forEach(o=> targetCanvas.add(o));
-
-            // Photoshop-style workflow:
-            // while user is still drawing the polygon,
-            // do NOT show anchor handles or bezier controls.
-            // This keeps clicks precise near previous points.
-            if(clipPolygonClosed){
-
-                drawBezierHelpers(
-                    targetCanvas,
-                    clipCurvePoints
-                );
-
-                // Show nodes of all OTHER finalized paths alongside the active one
-                drawInactivePaths(targetCanvas, target);
-
-                overlays.forEach(o=> o.bringToFront());
-
-                activeBezierHelpers.forEach(obj=>{
-                    obj.bringToFront();
-                });
-            }
-
-            targetCanvas.requestRenderAll();
-        });
+        _redrawAllClipEditors();
     }
 
     function finalizePolygon(){
-
-        activeIndices.forEach(i=>{
-
-            const target = canvasData[i];
-
-            target.maskEnabled = true;
-            target.maskType = "bezier";
-            _syncProEffect(target);
-
-            if(!target.maskPaths){
-                target.maskPaths = [];
-            }
-
-            const finalizedMask =
-                clipCurvePoints.map(p=>({
-                    x: p.x,
-                    y: p.y,
-                    cx: p.cx,
-                    cy: p.cy
-                }));
-
-            // editing an existing finalized polygon
-            if(
-                clipPolygonClosed &&
-                currentMaskIndex !== undefined &&
-                target.maskPaths[currentMaskIndex]
-            ){
-
-                target.maskPaths[currentMaskIndex] =
-                    finalizedMask;
-
-            } else {
-
-                // creating a brand new polygon
-                target.maskPaths.push(finalizedMask);
-
-                // remember which polygon is now active
-                currentMaskIndex =
-                    target.maskPaths.length - 1;
-            }
-
-            target.maskPath = finalizedMask;
-
-            backgroundMaskTemplates[target.bgName] = {
-                maskEnabled: true,
-                maskType: "bezier",
-                maskPaths: target.maskPaths.map(path => path.map(p => ({...p}))),
-                maskPath: finalizedMask.map(p => ({...p}))
-            };
-
-            addClipOverlay(target);
-
-            getAllDesignObjects(target).forEach(obj=>{
-                applyClipMaskToObject(obj, target);
-            });
-
-            if(target.patternMode) _renderPattern(target, false);
-            target.fabricCanvas.requestRenderAll();
-        });
-        autoSaveSession();
+        _finalizeClipPolygon();
     }
 
     // only attach ONE global undo listener
@@ -7194,26 +7208,24 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             if(thisData?.maskPath?.length){
                 clipCurvePoints    = thisData.maskPath.map(p => ({ ...p }));
                 clipPolygonClosed  = true;
+                currentMaskIndex   = thisData.maskPaths?.length
+                    ? thisData.maskPaths.length - 1
+                    : 0;
             } else {
                 clipCurvePoints   = [];
                 clipPolygonClosed = false;
-            }
-
-            clearBezierHelpers(fabricCanvas);
-
-            if(clipCurvePoints.length){
-                // Draw the editable overlay (marching-ant path + anchor nodes)
-                activeCurvePreview = createCurveOverlay(clipCurvePoints, true);
-                activeCurvePreview.forEach(o => fabricCanvas.add(o));
-                drawBezierHelpers(fabricCanvas, clipCurvePoints);
-                drawInactivePaths(fabricCanvas, thisData);
-                activeCurvePreview.forEach(o => o.bringToFront());
-                activeBezierHelpers.forEach(obj => obj.bringToFront());
+                currentMaskIndex  = undefined;
             }
 
             window.__activeClipCanvas = fabricCanvas;
             window.__activeClipRedraw = redrawEditor;
-            fabricCanvas.requestRenderAll();
+
+            if(clipCurvePoints.length){
+                _redrawAllClipEditors();
+            } else {
+                clearBezierHelpers(fabricCanvas);
+                fabricCanvas.requestRenderAll();
+            }
 
             // If existing clip data was loaded, stop here — the activation
             // click should not also move an anchor or add a new point.
@@ -7487,8 +7499,6 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
             redrawEditor();
 
-            finalizePolygon();
-
             return;
         }
 
@@ -7520,12 +7530,6 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
         redrawEditor();
 
-        // keep finalized polygon overlays and clip paths
-        // updating live while dragging bezier handles
-        // so curvature changes render in real time
-        if(clipPolygonClosed){
-            finalizePolygon();
-        }
     });
 
     fabricCanvas.on('mouse:up', function(){
