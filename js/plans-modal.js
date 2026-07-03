@@ -119,9 +119,15 @@
         });
     }
 
+    function _billingUtils() {
+        return window._billingPeriodUtils || {};
+    }
+
     function _syncPlanButtons(prices) {
         var plan = (window._userPlan || 'free').toLowerCase();
+        var userBillingPeriod = window._userBillingPeriod || null;
         var rank = { free: 0, starter: 1, pro: 2 };
+        var utils = _billingUtils();
         prices = prices || _configuredPrices || {};
 
         document.querySelectorAll('.ms-plan-card').forEach(function (card) {
@@ -136,10 +142,55 @@
                 return;
             }
 
-            if ((rank[plan] || 0) >= (rank[cardPlan] || 0) && plan !== 'free') {
-                btn.textContent = plan === cardPlan ? 'Current plan' : 'Current plan';
+            var userRank = rank[plan] || 0;
+            var cardRank = rank[cardPlan] || 0;
+
+            if (userRank > cardRank) {
+                btn.textContent = 'Included';
                 btn.disabled = true;
                 btn.className = 'ms-plan-cta ms-plan-cta--current';
+                return;
+            }
+
+            if (userRank < cardRank) {
+                var upgradeCombo = cardPlan + '_' + currentPeriod;
+                var upgradeAvailable = Object.keys(prices).length === 0 || prices[upgradeCombo] !== false;
+                if (!upgradeAvailable) {
+                    btn.disabled = true;
+                    btn.textContent = 'Not available';
+                    btn.className = 'ms-plan-cta ms-plan-cta--current';
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Upgrade to ' + cardPlan.charAt(0).toUpperCase() + cardPlan.slice(1);
+                    btn.className = 'ms-plan-cta ' + (cardPlan === 'pro' ? 'ms-plan-cta--pro' : 'ms-plan-cta--upgrade');
+                }
+                return;
+            }
+
+            if (userRank === cardRank && plan !== 'free') {
+                if (utils.isCurrentPlanCombo && utils.isCurrentPlanCombo(plan, userBillingPeriod, cardPlan, currentPeriod)) {
+                    btn.textContent = 'Current plan';
+                    btn.disabled = true;
+                    btn.className = 'ms-plan-cta ms-plan-cta--current';
+                    return;
+                }
+                if (utils.isPeriodDowngrade && utils.isPeriodDowngrade(userBillingPeriod, currentPeriod)) {
+                    btn.textContent = 'Current plan';
+                    btn.disabled = true;
+                    btn.className = 'ms-plan-cta ms-plan-cta--current';
+                    return;
+                }
+                var switchCombo = cardPlan + '_' + currentPeriod;
+                var switchAvailable = Object.keys(prices).length === 0 || prices[switchCombo] !== false;
+                if (!switchAvailable) {
+                    btn.disabled = true;
+                    btn.textContent = 'Not available';
+                    btn.className = 'ms-plan-cta ms-plan-cta--current';
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = (utils.periodSwitchLabel && utils.periodSwitchLabel(currentPeriod)) || 'Switch plan';
+                    btn.className = 'ms-plan-cta ms-plan-cta--upgrade';
+                }
                 return;
             }
 

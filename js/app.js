@@ -10599,12 +10599,15 @@ async function _startCheckout(plan, period) {
         return;
     }
 
-    const _planRank = { free: 0, starter: 1, pro: 2 };
     const currentPlan = (window._userPlan || 'free').toLowerCase();
     const requestedPlan = (plan || 'free').toLowerCase();
-    if ((_planRank[currentPlan] ?? 0) >= (_planRank[requestedPlan] ?? 0) && currentPlan !== 'free') {
-        const planLabel = requestedPlan.charAt(0).toUpperCase() + requestedPlan.slice(1);
-        alert(`You\u2019re already on the ${planLabel} plan (or higher) \u2014 no need to purchase it again!`);
+    const currentBillingPeriod = window._userBillingPeriod || null;
+    const utils = window._billingPeriodUtils || {};
+    const checkoutBlocked = utils.isCheckoutBlocked
+        ? utils.isCheckoutBlocked(currentPlan, currentBillingPeriod, requestedPlan, period)
+        : false;
+    if (checkoutBlocked) {
+        alert('You\u2019re already on this plan and billing period \u2014 no need to purchase it again!');
         return;
     }
 

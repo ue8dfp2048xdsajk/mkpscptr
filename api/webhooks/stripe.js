@@ -1,5 +1,11 @@
 const crypto = require('crypto');
 const { getDb } = require('../_db');
+const {
+    getPriceMap,
+    resolvePriceId,
+    shouldDowngradeToFree,
+    cancelActiveSubscriptionsExcept,
+} = require('../_stripe-prices');
 
 // TTL index is created once per process lifetime.
 let _idempotencyIndexEnsured = false;
@@ -43,19 +49,56 @@ async function tryClaimStripeEvent(eventId) {
     }
 }
 
-// Built at call time so env-var changes and test overrides (jest.resetModules)
-// are always reflected. A module-level map would bake in undefined values for
-// any price env var that wasn't set at first require(), causing subscription
-// events to silently map to the wrong plan or be dropped entirely.
-function getPriceMap() {
-    return {
-        [process.env.STRIPE_PRICE_STARTER_MONTHLY]:  'starter',
-        [process.env.STRIPE_PRICE_STARTER_ANNUAL]:   'starter',
-        [process.env.STRIPE_PRICE_STARTER_LIFETIME]: 'starter',
-        [process.env.STRIPE_PRICE_PRO_MONTHLY]:      'pro',
-        [process.env.STRIPE_PRICE_PRO_ANNUAL]:       'pro',
-        [process.env.STRIPE_PRICE_PRO_LIFETIME]:     'pro',
-    };
+// Built at call time — see api/_stripe-prices.js for price ID helpers.
+
+const VALID_PERIODS = new Set(['monthly', 'annual', 'lifetime']);
+
+async function expandCheckoutSessionLineItem(sessionId, stripeSecretKey) {
+    const expandRes = await fetch(
+        `https://api.stripe.com/v1/checkout/sessions/${sessionId}?expand[]=line_items`,
+        {
+            headers: { Authorization: `Bearer ${stripeSecretKey}` },
+            signal: AbortSignal.timeout(8000),
+        }
+    );
+    if (!expandRes.ok) return null;
+    const expandedSession = await expandRes.json();
+    const lineItem = expandedSession.line_items?.data?.[0];
+    const priceId = lineItem?.price?.id;
+    if (!priceId) return null;
+    const resolved = resolvePriceId(priceId);
+    return resolved ? { plan: resolved.plan, period: resolved.period, priceId } : null;
+}
+
+async function getClerkPublicMetadata(clerkUserId, clerkSecretKey) {
+    if (!clerkSecretKey) return {};
+    try {
+        const res = await fetch(
+            `https://api.clerk.com/v1/users/${encodeURIComponent(clerkUserId)}`,
+            {
+                headers: { Authorization: `Bearer ${clerkSecretKey}` },
+                signal: AbortSignal.timeout(8000),
+            }
+        );
+        if (!res.ok) return {};
+        const user = await res.json();
+        return user?.public_metadata || {};
+    } catch (err) {
+        console.error('stripe-webhook: failed to read Clerk metadata', err);
+        return {};
+    }
+}
+
+async function resolveDowngradeToFree(stripeCustomerId, clerkUserId, clerkSecretKey, stripeSecretKey) {
+    const meta = await getClerkPublicMetadata(clerkUserId, clerkSecretKey);
+    const clerkBillingPeriod = meta.billingPeriod || null;
+    return shouldDowngradeToFree(
+        stripeCustomerId,
+        clerkUserId,
+        clerkSecretKey,
+        stripeSecretKey,
+        clerkBillingPeriod
+    );
 }
 
 const HANDLED_EVENTS = new Set([
@@ -301,32 +344,25 @@ module.exports = async function handler(req, res) {
 
         const VALID_PLANS = ['starter', 'pro'];
         let plan = session.metadata && session.metadata.plan;
+        let period = session.metadata && session.metadata.period;
+        const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
-        if (!plan || !VALID_PLANS.includes(plan)) {
-            console.warn(
-                `stripe-webhook: session.metadata.plan="${plan}" is missing or invalid; ` +
-                `fetching session with line_items expansion for userId ${userId}`
-            );
-            const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-            if (stripeSecretKey) {
-                try {
-                    const expandRes = await fetch(
-                        `https://api.stripe.com/v1/checkout/sessions/${session.id}?expand[]=line_items`,
-                        {
-                            headers: { Authorization: `Bearer ${stripeSecretKey}` },
-                            signal: AbortSignal.timeout(8000),
-                        }
-                    );
-                    if (expandRes.ok) {
-                        const expandedSession = await expandRes.json();
-                        const lineItem = expandedSession.line_items?.data?.[0];
-                        const priceId = lineItem?.price?.id;
-                        plan = priceId ? getPriceMap()[priceId] : undefined;
-                        if (plan) console.log(`stripe-webhook: resolved plan="${plan}" via line_items expand`);
-                    }
-                } catch (err) {
-                    console.error('stripe-webhook: failed to expand session line_items', err);
+        if ((!plan || !VALID_PLANS.includes(plan) || !period || !VALID_PERIODS.has(period)) && stripeSecretKey) {
+            if (!plan || !VALID_PLANS.includes(plan) || !period || !VALID_PERIODS.has(period)) {
+                console.warn(
+                    `stripe-webhook: session metadata incomplete plan="${plan}" period="${period}"; ` +
+                    `fetching session with line_items expansion for userId ${userId}`
+                );
+            }
+            try {
+                const resolved = await expandCheckoutSessionLineItem(session.id, stripeSecretKey);
+                if (resolved) {
+                    if (!plan || !VALID_PLANS.includes(plan)) plan = resolved.plan;
+                    if (!period || !VALID_PERIODS.has(period)) period = resolved.period;
+                    console.log(`stripe-webhook: resolved plan="${plan}" period="${period}" via line_items expand`);
                 }
+            } catch (err) {
+                console.error('stripe-webhook: failed to expand session line_items', err);
             }
         }
 
@@ -382,8 +418,25 @@ module.exports = async function handler(req, res) {
             return res.status(502).json({ ok: false, error: setPlanError });
         }
 
-        console.log(`stripe-webhook: set plan="${plan}" for userId="${userId}"`);
-        return res.status(200).json({ ok: true, userId, plan });
+        if (clerkSecretKey && period && VALID_PERIODS.has(period)) {
+            const metaPatch = { billingPeriod: period };
+            if (period === 'lifetime') metaPatch.subscriptionEndsAt = null;
+            await patchClerkPublicMetadata(userId, metaPatch, clerkSecretKey);
+        }
+
+        if (stripeSecretKey && session.customer && period && VALID_PERIODS.has(period)) {
+            try {
+                const keepSubId = session.mode === 'subscription' ? session.subscription : null;
+                if (period === 'lifetime' || session.mode === 'subscription') {
+                    await cancelActiveSubscriptionsExcept(session.customer, keepSubId, stripeSecretKey);
+                }
+            } catch (err) {
+                console.error('stripe-webhook: failed to cancel prior subscriptions (non-fatal)', err);
+            }
+        }
+
+        console.log(`stripe-webhook: set plan="${plan}" period="${period || 'unknown'}" for userId="${userId}"`);
+        return res.status(200).json({ ok: true, userId, plan, period: period || null });
     }
 
     // ── customer.subscription.updated ───────────────────────────────────────
@@ -401,14 +454,28 @@ module.exports = async function handler(req, res) {
         }
 
         let newPlan;
+        let billingPeriod;
+        const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
         if (status === 'active') {
             const priceId = sub.items?.data?.[0]?.price?.id;
-            newPlan = priceId ? getPriceMap()[priceId] : null;
+            const resolved = priceId ? resolvePriceId(priceId) : null;
+            newPlan = resolved ? resolved.plan : (priceId ? getPriceMap()[priceId] : null);
+            billingPeriod = resolved ? resolved.period : null;
             if (!newPlan) {
                 console.warn(`stripe-webhook: unknown priceId=${priceId} on subscription update`);
                 return res.status(200).json({ ok: true, ignored: true, reason: 'unknown price' });
             }
         } else if (status === 'canceled' || status === 'unpaid') {
+            const downgrade = await resolveDowngradeToFree(
+                stripeCustomerId,
+                clerkUserId,
+                clerkSecretKey,
+                stripeSecretKey
+            );
+            if (!downgrade) {
+                console.log(`stripe-webhook: subscription ${status} — retained paid entitlement for userId="${clerkUserId}"`);
+                return res.status(200).json({ ok: true, ignored: true, reason: 'retained_entitlement' });
+            }
             newPlan = 'free';
         } else {
             // past_due, paused — leave plan unchanged; subscription.deleted fires on full cancellation
@@ -435,7 +502,9 @@ module.exports = async function handler(req, res) {
         // Store or clear the cancellation date so the UI can show "Cancels on …"
         if (clerkSecretKey) {
             const endsAt = sub.cancel_at_period_end ? (sub.cancel_at || null) : null;
-            await patchClerkPublicMetadata(clerkUserId, { subscriptionEndsAt: endsAt }, clerkSecretKey);
+            const patch = { subscriptionEndsAt: endsAt };
+            if (billingPeriod) patch.billingPeriod = billingPeriod;
+            await patchClerkPublicMetadata(clerkUserId, patch, clerkSecretKey);
         }
 
         console.log(`stripe-webhook: subscription updated — plan="${newPlan}" for userId="${clerkUserId}"`);
@@ -452,6 +521,18 @@ module.exports = async function handler(req, res) {
         if (!clerkUserId) {
             console.warn(`stripe-webhook: no Clerk user found for customer=${stripeCustomerId} on deletion`);
             return res.status(200).json({ ok: true, ignored: true, reason: 'unknown customer' });
+        }
+
+        const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+        const downgrade = await resolveDowngradeToFree(
+            stripeCustomerId,
+            clerkUserId,
+            clerkSecretKey,
+            stripeSecretKey
+        );
+        if (!downgrade) {
+            console.log(`stripe-webhook: subscription deleted — retained paid entitlement for userId="${clerkUserId}"`);
+            return res.status(200).json({ ok: true, ignored: true, reason: 'retained_entitlement' });
         }
 
         let setPlanRes;
@@ -472,7 +553,11 @@ module.exports = async function handler(req, res) {
 
         // Clear cancellation date on deletion
         if (clerkSecretKey) {
-            await patchClerkPublicMetadata(clerkUserId, { subscriptionEndsAt: null }, clerkSecretKey);
+            await patchClerkPublicMetadata(
+                clerkUserId,
+                { subscriptionEndsAt: null, billingPeriod: null },
+                clerkSecretKey
+            );
         }
 
         console.log(`stripe-webhook: subscription deleted — reset to free for userId="${clerkUserId}"`);
@@ -504,6 +589,18 @@ module.exports = async function handler(req, res) {
         if (!clerkUserId) {
             console.warn(`stripe-webhook: no Clerk user found for customer=${stripeCustomerId} on final payment failure`);
             return res.status(200).json({ ok: true, ignored: true, reason: 'unknown customer' });
+        }
+
+        const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+        const downgrade = await resolveDowngradeToFree(
+            stripeCustomerId,
+            clerkUserId,
+            clerkSecretKey,
+            stripeSecretKey
+        );
+        if (!downgrade) {
+            console.log(`stripe-webhook: final payment failure — retained paid entitlement for userId="${clerkUserId}"`);
+            return res.status(200).json({ ok: true, ignored: true, reason: 'retained_entitlement' });
         }
 
         let setPlanRes;

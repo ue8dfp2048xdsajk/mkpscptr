@@ -107,10 +107,13 @@ describe('Stripe webhook idempotency — unclaimStripeEvent releases the claim o
     });
 
     /** Wire global.fetch to route /api/set-plan calls into the real setPlanHandler,
-     *  and Clerk calls through a caller-provided responder. */
-    function installFetchRouter(clerkResponder) {
+     *  Clerk PATCH calls through a caller-provided responder, Clerk GET for
+     *  entitlement reads with a default paid-monthly profile, and Stripe
+     *  list endpoints with empty results (no lifetime / active sub). */
+    function installFetchRouter(clerkPatchResponder) {
         global.fetch = jest.fn(async (url, options) => {
             const urlStr = String(url);
+            const method = ((options && options.method) || 'GET').toUpperCase();
 
             if (urlStr.includes('/api/set-plan')) {
                 const bodyStr = options && options.body ? String(options.body) : '{}';
@@ -135,8 +138,26 @@ describe('Stripe webhook idempotency — unclaimStripeEvent releases the claim o
                 return { ok: isOk, status: setPlanRes._status, json: async () => setPlanRes._body };
             }
 
+            if (urlStr.includes('api.stripe.com')) {
+                if (urlStr.includes('/subscriptions?')) {
+                    return { ok: true, status: 200, json: async () => ({ data: [] }) };
+                }
+                if (urlStr.includes('/checkout/sessions?')) {
+                    return { ok: true, status: 200, json: async () => ({ data: [] }) };
+                }
+            }
+
             if (urlStr.includes('api.clerk.com')) {
-                return clerkResponder(urlStr, options);
+                if (method === 'GET') {
+                    return {
+                        ok: true,
+                        status: 200,
+                        json: async () => ({
+                            public_metadata: { plan: 'starter', billingPeriod: 'monthly' },
+                        }),
+                    };
+                }
+                return clerkPatchResponder(urlStr, options);
             }
 
             throw new Error(`Unexpected fetch to: ${urlStr}`);

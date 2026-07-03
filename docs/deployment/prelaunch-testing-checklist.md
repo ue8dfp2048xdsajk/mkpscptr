@@ -89,6 +89,13 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 - [ ] Upgrade banner disappears
 - [ ] Pending checkout state cleared (`ms_pending_checkout_plan` / `ms_pending_checkout_period` / `ms_pending_plan`)
 
+### Billing period upgrades (same tier)
+
+- [ ] Starter **monthly** → Annual tab → Starter card shows **Switch to annual** (not disabled "Current plan")
+- [ ] Starter **monthly** → Lifetime tab → Starter card shows **Get lifetime**
+- [ ] After annual or lifetime purchase, Clerk `billingPeriod` matches; old subscription canceled (no double billing)
+- [ ] After lifetime purchase, a later `subscription.deleted` webhook does **not** downgrade plan to Free
+
 ### Starter
 
 - [ ] Save works

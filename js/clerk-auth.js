@@ -46,6 +46,7 @@
 
     function _onClerkSignedIn(user) {
         window._userPlan = (user.publicMetadata && user.publicMetadata.plan) || 'free';
+        window._userBillingPeriod = (user.publicMetadata && user.publicMetadata.billingPeriod) || null;
         window._subscriptionEndsAt = (user.publicMetadata && user.publicMetadata.subscriptionEndsAt) || null;
         if (typeof _refreshAllProStarBadges === 'function') _refreshAllProStarBadges();
         _renderUserAvatar(user);
@@ -59,6 +60,7 @@
 
     function _onClerkSignedOut() {
         window._userPlan = 'free';
+        window._userBillingPeriod = null;
         sessionStorage.removeItem('ms_upgrade_toast_shown');
         localStorage.removeItem('ms_payment_pending');
         _cleanupPoll();

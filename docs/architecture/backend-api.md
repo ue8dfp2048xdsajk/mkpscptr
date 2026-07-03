@@ -88,9 +88,9 @@ Create a Stripe Checkout Session.
 | Body | `{ plan: "starter"|"pro", period: "monthly"|"annual"|"lifetime" }` |
 | Response | `{ ok: true, url }` — redirect user to Stripe |
 | Rate limit | 5 requests / 60 s per user |
-| Errors | `409` if user already on same or higher plan; `503` if Clerk/Stripe not configured |
+| Errors | `409` if user already on same plan **and billing period**; tier downgrades blocked; `503` if Clerk/Stripe not configured |
 
-Checkout sets `client_reference_id` to the Clerk user ID and `metadata.plan` for the webhook.
+Checkout sets `client_reference_id` to the Clerk user ID, `metadata.plan`, and `metadata.period` for the webhook. Same-tier billing-period changes (e.g. Starter monthly → annual or lifetime) are allowed; the webhook stores `billingPeriod` in Clerk and cancels superseded subscriptions.
 
 ### `GET /api/billing/invoices`
 

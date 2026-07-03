@@ -1,6 +1,7 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
 const { verifyClerkToken, isConfigured: isClerkConfigured } = require('./_verify-clerk-token');
 const { isRateLimited } = require('./_sliding-window');
+const { getPriceId, isCheckoutBlocked } = require('./_stripe-prices');
 
 const CHECKOUT_MAX        = 5;
 const CHECKOUT_WINDOW_SEC = 60;
@@ -17,18 +18,6 @@ module.exports = async function handler(req, res) {
     if (!stripeSecretKey) {
         return res.status(500).json({ ok: false, error: 'Stripe is not configured on this server' });
     }
-
-    // Read price IDs at request time — not at module load — so that env-var
-    // changes and test overrides (jest.resetModules + per-test env) are picked
-    // up correctly without stale module-level values.
-    const PRICE_MAP = {
-        starter_monthly:  process.env.STRIPE_PRICE_STARTER_MONTHLY,
-        starter_annual:   process.env.STRIPE_PRICE_STARTER_ANNUAL,
-        starter_lifetime: process.env.STRIPE_PRICE_STARTER_LIFETIME,
-        pro_monthly:      process.env.STRIPE_PRICE_PRO_MONTHLY,
-        pro_annual:       process.env.STRIPE_PRICE_PRO_ANNUAL,
-        pro_lifetime:     process.env.STRIPE_PRICE_PRO_LIFETIME,
-    };
 
     let body;
     try {
@@ -47,7 +36,7 @@ module.exports = async function handler(req, res) {
     }
 
     const planKey = `${plan}_${period}`;
-    const priceId = PRICE_MAP[planKey];
+    const priceId = getPriceId(planKey);
     if (!priceId) {
         return res.status(400).json({
             ok: false,
@@ -55,8 +44,6 @@ module.exports = async function handler(req, res) {
         });
     }
 
-    // Guard: if Clerk is not fully configured, authentication is impossible.
-    // Return 503 with a readable message instead of a cryptic 401.
     if (!isClerkConfigured || !process.env.CLERK_SECRET_KEY) {
         return res.status(503).json({
             ok: false,
@@ -64,8 +51,6 @@ module.exports = async function handler(req, res) {
         });
     }
 
-    // Require authentication — checkout without a verified user ID means the
-    // webhook will have no client_reference_id and cannot upgrade the plan.
     let clerkUserId;
     try {
         clerkUserId = await verifyClerkToken(req.headers.authorization);
@@ -82,6 +67,7 @@ module.exports = async function handler(req, res) {
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     let customerEmail = null;
+    let stripeCustomerId = null;
     if (clerkSecretKey) {
         let clerkRes;
         try {
@@ -96,19 +82,15 @@ module.exports = async function handler(req, res) {
         if (clerkRes.ok) {
             const clerkData = await clerkRes.json();
             const currentPlan = (clerkData?.public_metadata?.plan || 'free').toLowerCase();
-            const PLAN_RANK = { free: 0, starter: 1, pro: 2 };
-            const currentRank = PLAN_RANK[currentPlan] ?? 0;
-            const requestedRank = PLAN_RANK[plan] ?? 0;
-            if (currentRank >= requestedRank && currentRank > 0) {
+            const currentBillingPeriod = clerkData?.public_metadata?.billingPeriod || null;
+            if (isCheckoutBlocked(currentPlan, currentBillingPeriod, plan, period)) {
                 return res.status(409).json({
                     ok: false,
-                    error: `You already have the ${currentPlan} plan. No charge has been made.`,
+                    error: `You already have the ${currentPlan} plan on this billing period. No charge has been made.`,
                 });
             }
-            // Pre-fill the checkout form with the user's verified email so they
-            // don't have to type it, reducing abandonment and preventing a second
-            // Stripe customer being created due to a mistyped email address.
             customerEmail = clerkData?.email_addresses?.[0]?.email_address || null;
+            stripeCustomerId = clerkData?.public_metadata?.stripeCustomerId || null;
         } else {
             return res.status(502).json({
                 ok: false,
@@ -121,9 +103,6 @@ module.exports = async function handler(req, res) {
     const isLifetime = period === 'lifetime';
     const mode = isLifetime ? 'payment' : 'subscription';
 
-    // Use the server-side BASE_URL — never trust the Origin request header here,
-    // as it is user-controlled and would allow an attacker to set an arbitrary
-    // success_url/cancel_url (open redirect after real payment).
     const baseUrl = process.env.BASE_URL || 'https://mockupscripter.com';
     const successUrl = `${baseUrl}/app.html?payment=success`;
     const cancelUrl  = `${baseUrl}/app.html`;
@@ -139,7 +118,10 @@ module.exports = async function handler(req, res) {
     }
     params.set('client_reference_id', clerkUserId);
     params.set('metadata[plan]', plan);
-    if (customerEmail) {
+    params.set('metadata[period]', period);
+    if (stripeCustomerId) {
+        params.set('customer', stripeCustomerId);
+    } else if (customerEmail) {
         params.set('customer_email', customerEmail);
     }
 
