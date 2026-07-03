@@ -75,6 +75,7 @@ describe('plans-modal — billing period button states', () => {
         const btn = document.querySelector('.ms-plan-card[data-plan="starter"] .ms-plan-cta');
         expect(btn.disabled).toBe(false);
         expect(btn.textContent).toBe('Switch to annual');
+        expect(btn.classList.contains('ms-plan-cta--pro')).toBe(true);
     });
 
     test('starter monthly user sees Get lifetime on lifetime tab', async () => {

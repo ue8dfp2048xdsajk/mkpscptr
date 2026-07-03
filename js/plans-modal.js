@@ -231,7 +231,7 @@
                 } else {
                     btn.disabled = false;
                     btn.textContent = 'Upgrade to ' + cardPlan.charAt(0).toUpperCase() + cardPlan.slice(1);
-                    btn.className = 'ms-plan-cta ' + (cardPlan === 'pro' ? 'ms-plan-cta--pro' : 'ms-plan-cta--upgrade');
+                    btn.className = 'ms-plan-cta ms-plan-cta--pro';
                 }
                 return;
             }
@@ -258,7 +258,7 @@
                 } else {
                     btn.disabled = false;
                     btn.textContent = (utils.periodSwitchLabel && utils.periodSwitchLabel(currentPeriod)) || 'Switch plan';
-                    btn.className = 'ms-plan-cta ms-plan-cta--upgrade';
+                    btn.className = 'ms-plan-cta ms-plan-cta--pro';
                 }
                 return;
             }
@@ -272,7 +272,7 @@
             } else {
                 btn.disabled = false;
                 btn.textContent = 'Upgrade to ' + cardPlan.charAt(0).toUpperCase() + cardPlan.slice(1);
-                btn.className = 'ms-plan-cta ' + (cardPlan === 'pro' ? 'ms-plan-cta--pro' : 'ms-plan-cta--upgrade');
+                btn.className = 'ms-plan-cta ms-plan-cta--pro';
             }
         });
     }
