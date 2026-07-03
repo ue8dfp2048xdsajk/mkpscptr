@@ -409,18 +409,6 @@
                             value="0"
                         />
                     </label>
-                    <label
-                        >Layer Mode <span class="pro-badge">⭐ PRO</span>
-                        <select id="blendMode">
-                            <option value="normal">Normal</option>
-                            <option value="multiply">Multiply</option>
-                            <option value="screen">Screen</option>
-                            <option value="overlay">Overlay</option>
-                            <option value="soft-light">Soft Light</option>
-                            <option value="color">Color</option>
-                            <option value="luminosity">Luminosity</option>
-                        </select>
-                    </label>
                     <div class="cp-btn-row">
                         <button id="flipHBtn" title="Flip design horizontally">
                             ↔ Flip H
@@ -539,6 +527,18 @@
                             value="0"
                         />
                     </label>
+                    <label
+                        >Layer Mode
+                        <select id="blendMode">
+                            <option value="normal">Normal</option>
+                            <option value="multiply">Multiply</option>
+                            <option value="screen">Screen</option>
+                            <option value="overlay">Overlay</option>
+                            <option value="soft-light">Soft Light</option>
+                            <option value="color">Color</option>
+                            <option value="luminosity">Luminosity</option>
+                        </select>
+                    </label>
                     <button id="designWarpBtn">Warp Mesh (W)</button>
 
                     <span
@@ -584,28 +584,28 @@
                             >Drag grid points to warp</span
                         >
                     </span>
+                    <button
+                        id="invertColorsBtn"
+                        disabled
+                        title="Select a layer to invert its colors"
+                    >
+                        Invert Colors
+                    </button>
                     <div class="cp-btn-row">
                         <button
                             id="copyTransformsBtn"
                             title="Copy position, scale, rotation and effects from the last selected mockup"
                         >
-                            Copy Effects <span class="pro-badge">⭐ PRO</span>
+                            Copy Effects
                         </button>
                         <button
                             id="pasteTransformsBtn"
                             title="Paste copied effects to all selected mockups"
                             disabled
                         >
-                            Paste Effects <span class="pro-badge">⭐ PRO</span>
+                            Paste Effects
                         </button>
                     </div>
-                    <button
-                        id="invertColorsBtn"
-                        disabled
-                        title="Select a layer to invert its colors"
-                    >
-                        Invert Colors <span class="pro-badge">⭐ PRO</span>
-                    </button>
                 </div>
 
                 <!-- ── Clipping ───────────────────────────────────────────────────── -->

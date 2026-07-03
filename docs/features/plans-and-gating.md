@@ -8,49 +8,85 @@ The frontend reads plan on sign-in (`js/clerk-auth.js` → `window._userPlan`). 
 
 ## Plan summary
 
-| Feature | Free | Starter | Pro |
-|---------|------|---------|-----|
+| Feature | Free / anon | Starter | Pro |
+|---------|-------------|---------|-----|
 | Editor access | ✓ | ✓ | ✓ |
+| Add text | ✓ | ✓ | ✓ |
 | Basic effects (opacity, blur, noise; layer mode = Normal) | ✓ | ✓ | ✓ |
-| Canvas watermark | ✓ (on windows with designs) | On PRO-effect windows only | ✗ |
-| Export (PNG/JPEG/ZIP) | ✗ | Non-PRO windows | All windows |
+| PRO effects in editor | ✓ (try) | ✓ (try) | ✓ |
+| Canvas watermark | On windows **with a design** | On PRO-effect windows only | None |
+| Per-window ⭐ badge | Yellow when PRO used | Yellow when PRO used | Green when PRO used |
+| Export images (PNG/JPEG/ZIP/folder) | ✗ | Non-PRO windows only | All windows |
 | Export text | ✗ | ✓ | ✓ |
-| PRO effects (see below) | Can use in editor | Can use; **blocked at export** | ✓ |
-| Cloud project save | ✗ | 1 project (upsert) | Up to 50 projects |
-| "Save as New" | ✗ | ✗ | ✓ |
-| Email / priority support | — | Email | Priority |
+| Local JSON save/load | ✓ | ✓ | ✓ |
+| Cloud save | ✗ | 1 project (upsert) | Up to 50 + Save as New |
+| Oversized cloud project | Save JSON locally → upload | Same | Same |
 
 Pricing and marketing copy live on `index.html`. This document describes **enforced behavior** in code.
 
 ---
 
-## Sidebar layout (editor)
+## Left sidebar layout (editor)
 
-| Section | Contents |
-|---------|----------|
-| **Appearance** | Opacity, blur, noise (basic); **Layer Mode** (Normal = basic, else PRO); flip H/V |
-| **Effects** ⭐ PRO | Cylinder warp, arc, fisheye, perspective, mesh warp; **Copy Effects / Paste Effects**; **Invert Colors** |
-| Other PRO sections | Clipping, Painting, Pattern, Framing, Background Adjustments |
+PRO sections show a **⭐ PRO** label on the **section title** only (turns green on Pro plan). Individual controls inside **Effects** do not repeat the badge — the section title is sufficient.
+
+### Layers
+- Add Layer, Copy Layer, Duplicate Layer, Delete Layer
+
+### Appearance (basic — no section PRO badge)
+- Opacity, blur, noise
+- Flip H / Flip V
+
+### Mockup
+- Add mockup, lock/unlock, change bg/design, duplicate/delete/reset windows
+
+### Effects (section title ⭐ PRO)
+
+Controls in order:
+
+1. Cylinder Warp  
+2. Vertical Arc  
+3. Fisheye  
+4. Horizontal Perspective  
+5. Vertical Perspective  
+6. Layer Mode (Normal = basic; any other blend = PRO)  
+7. Warp Mesh (W) + Apply / Cancel  
+8. Invert Colors  
+9. Copy Effects / Paste Effects  
+
+### Other PRO sections (section title ⭐ PRO each)
+- Clipping, Painting, Pattern, Framing, Background Adjustments
 
 ---
 
-## Where plan is stored
+## Effect categories
 
-```
-Stripe payment
-    → webhook (api/webhooks/stripe.js)
-    → POST /api/set-plan
-    → Clerk PATCH /v1/users/{id}/metadata
-    → public_metadata: { plan, stripeCustomerId?, subscriptionEndsAt? }
-```
+### Basic (never PRO-mark a window)
+- Opacity, blur, noise
+- Layer mode = **Normal**
+- Flip H / Flip V
 
-Valid plan values: `free`, `starter`, `pro`.
+### PRO effects (mark window when active; Starter → watermark + export block)
 
-Subscription lifecycle:
+| Effect | Notes |
+|--------|--------|
+| Cylinder warp, arc, fisheye, perspective sliders | Non-zero values |
+| Mesh warp | PRO only **after Apply** (not on enter/cancel) |
+| Layer mode ≠ Normal | Main or any extra layer |
+| Invert colors | Main or any extra layer |
+| Pattern, clipping, color layer, design eraser | |
+| Background adjust / crop | |
+| Copy / Paste Effects | See paste rules below |
 
-- **Monthly/annual:** `customer.subscription.updated` / `deleted` webhooks sync plan
-- **Lifetime:** one-time `checkout.session.completed` sets plan permanently (no recurring subscription)
-- **Cancellation pending:** `subscriptionEndsAt` unix timestamp shown in UI until period ends
+### Copy / Paste Effects
+
+- **Copy** alone does not mark a window.
+- **Paste** marking:
+
+| Plan | On Paste Effects |
+|------|------------------|
+| Free / Starter | Target window **always** gets PRO badge |
+| Pro | PRO badge only if pasted payload contains PRO values (`_transformsContainProEffect`) |
 
 ---
 
@@ -62,109 +98,85 @@ Drawn on `after:render` for:
 
 - **Free:** all windows that have a design loaded (not background-only)
 - **Starter:** windows with `hasProEffect === true`
-
-Pro users: no watermarks.
+- **Pro:** none
 
 ### Export (`js/app.js` + `POST /api/export`)
 
 1. User must be signed in
-2. **Free:** plans modal opens; export blocked
-3. **Starter:** if any selected window has PRO effects, plans modal offers skip or upgrade
-4. **All paid:** client calls `POST /api/export` — server returns `403 upgrade_required` for free plans (cannot bypass in devtools)
+2. **Free:** plans modal; export blocked (server `403 upgrade_required`)
+3. **Starter:** PRO windows → upgrade prompt; mixed selection → “Skip PRO windows & export the rest”
+4. **Pro:** all selected windows export without watermark
 
-Export formats: individual files, folder (File System Access API), or ZIP (JSZip).
+Export uses `fabricCanvas.toDataURL()` after `after:render` (same watermark as on-screen for tiers that watermarked).
 
-### PRO effect detection
+### PRO detection (`_recomputeProEffect` in `js/app.js`)
 
-A window is marked `hasProEffect` when any of these are active (`_recomputeProEffect` in `app.js`):
+Sets `hasProEffect` and refreshes per-window ⭐ badge when any of:
 
-| Effect | PRO? |
-|--------|------|
-| Warp (cylinder), arc, fisheye, perspective | ✓ |
-| Mesh warp (after Apply) | ✓ |
-| Pattern mode | ✓ |
-| Clipping mask enabled | ✓ |
-| Color layer | ✓ |
-| Design eraser (modified pixels) | ✓ |
-| Background adjust / crop | ✓ |
-| Layer mode ≠ Normal (main or any extra layer) | ✓ |
-| Invert colors (main or any extra layer) | ✓ |
-| Opacity, blur, noise | ✗ (basic) |
-| Layer mode = Normal | ✗ (basic) |
+- Warp / arc / fisheye / perspective sliders non-zero  
+- `meshWarpApplied === true`  
+- `blendMode !== 'normal'` on window or any layer `_fx`  
+- `invertedMain` or any `invertedExtras[]`  
+- Pattern, clip mask, color layer, eraser-modified design (`designOriginal !== initialDesignOriginal`)  
+- Background adjust / crop non-default  
 
-**Copy / Paste Effects:** PRO-labeled tools in the Effects section. Copy alone does not mark a window. **Paste** marking:
+**Reset** (button or zeroing PRO levers) clears badge when no PRO effects remain.
 
-| Plan | On Paste Effects |
-|------|------------------|
-| Free / Starter | Target window **always** gets PRO badge |
-| Pro | PRO badge only if pasted payload contains PRO values (`_transformsContainProEffect`) |
+**After JSON or cloud load:** `_recomputeProEffect` runs per window (live state is authoritative, not stale saved `hasProEffect`).
 
-PRO windows show a ⭐ badge. Green badge on Pro plan; yellow on Free/Starter. Sidebar ⭐ PRO labels turn green on Pro plan.
+Snapshot fields: `meshWarpApplied`, `invertedMain`, `invertedExtras`, `hasProEffect`.
 
-### Load / save
+---
 
-- **Local JSON:** all tiers; no plan gate
-- **After JSON or cloud load:** `_recomputeProEffect` runs per window (badges derived from live state, not stale `hasProEffect` alone)
-- Snapshot fields: `meshWarpApplied`, `invertedMain`, `invertedExtras`, `hasProEffect`
-
-### Reset
-
-Reset Selected or zeroing PRO levers clears badge/watermark when no PRO effects remain.
-
-### Downgrade (Pro → Starter / Free)
-
-- All cloud projects **remain in the database** (not auto-deleted)
-- Users are warned to **open each project → Save Local (JSON)** before downgrading
-- Starter: only **one** cloud slot editable (upsert); extra projects listable but effectively read-only for editing
-- Export/watermark rules revert to the lower tier immediately
-
-### Save / projects UI
+## Save / load / cloud
 
 | Action | Free | Starter | Pro |
 |--------|------|---------|-----|
-| Save (overwrite) | Local only | Cloud (1 slot) | Cloud |
-| Save as New | Locked | Locked | ✓ |
-| Open cloud project | Sign-in required | ✓ | ✓ |
+| Save Local (JSON) | ✓ | ✓ | ✓ |
+| Load Local (JSON) | ✓ | ✓ | ✓ |
+| Cloud save | ✗ | 1 slot (upsert) | Up to 50 |
+| Save as New | ✗ | ✗ | ✓ |
+| Open cloud project | Sign-in | ✓ (all in DB) | ✓ |
+
+Client ~4 MB guard; server **15 MB** per save. Too large → toast, save JSON locally.
+
+---
+
+## Downgrade (Pro → Starter / Free)
+
+- All cloud projects **remain in the database**
+- UI warns: open each project → **Save Local (JSON)** before downgrading
+- Starter: only **one** editable cloud slot; extra projects listable, effectively read-only for editing
+- Export/watermark/badge rules revert immediately to the lower tier
 
 ---
 
 ## Server-side gating
 
 ### `POST /api/export`
-
-Returns `403 { error: "upgrade_required" }` if Clerk plan is `free`.
-
-Verifies JWT; may fall back to Clerk REST API if JWT lacks `public_metadata`.
+Returns `403 { error: "upgrade_required" }` if plan is `free`.
 
 ### `POST /api/projects/save`
-
 | Plan | Behavior |
 |------|----------|
 | `free` | `403 upgrade_required` |
-| `starter` | Upsert single project per user (atomic find-or-create) |
-| `pro` | Insert new project; max **50** per user (`403 project_limit_reached`) |
-
-Snapshot limit: **15 MB** per save.
+| `starter` | Upsert single project per user |
+| `pro` | Insert; max **50** (`403 project_limit_reached`) |
 
 ### `POST /api/checkout`
-
-- Requires authenticated Clerk user
-- Blocks checkout if user already on same or higher plan (`409`)
-- Sets `client_reference_id` = Clerk user ID for webhook attribution
+Authenticated; blocks same/higher plan (`409`).
 
 ---
 
 ## Stripe price → plan mapping
 
-Webhook maps Stripe Price IDs to plans via environment variables:
-
 ```
-STRIPE_PRICE_STARTER_MONTHLY  → starter
-STRIPE_PRICE_STARTER_ANNUAL   → starter
-STRIPE_PRICE_STARTER_LIFETIME → starter
-STRIPE_PRICE_PRO_MONTHLY      → pro
-STRIPE_PRICE_PRO_ANNUAL       → pro
-STRIPE_PRICE_PRO_LIFETIME     → pro
+STRIPE_PRICE_STARTER_MONTHLY   → starter
+STRIPE_PRICE_STARTER_ANNUAL    → starter
+STRIPE_PRICE_STARTER_LIFETIME  → starter
+STRIPE_PRICE_PRO_MONTHLY       → pro
+STRIPE_PRICE_PRO_ANNUAL        → pro
+STRIPE_PRICE_PRO_LIFETIME      → pro
 ```
 
 Defined in `api/webhooks/stripe.js` (`getPriceMap()`).
@@ -173,20 +185,17 @@ Defined in `api/webhooks/stripe.js` (`getPriceMap()`).
 
 ## Changing tiers safely
 
-If you change gating rules or add a new tier:
-
 1. Update client gates in `js/app.js` and `js/clerk-auth.js`
 2. Update server gates in `api/export.js`, `api/projects/save.js`, `api/checkout.js`
 3. Update `VALID_PLANS` in `api/set-plan.js` and webhook handlers
-4. Update landing page copy in `index.html` if user-facing limits change
-5. Run tests: `npm test` (especially `pro-effect-gating.test.js`, `export.test.js`, watermark tests)
-
-Existing Stripe subscribers keep access as long as Clerk `public_metadata.plan` remains correct — billing is independent of the editor stack.
+4. Update `index.html` / this doc / prelaunch checklist if user-facing limits change
+5. Run `npm test` (`pro-effect-gating.test.js`, `watermark-plan-upgrade.test.js`, `export.test.js`)
 
 ---
 
 ## Related docs
 
+- [Prelaunch testing checklist](../deployment/prelaunch-testing-checklist.md)
 - [Backend API — export & checkout](../architecture/backend-api.md)
 - [Environment variables — Stripe prices](../getting-started/environment-variables.md)
 - [Set-plan security QA](../set-plan-security-qa.md)

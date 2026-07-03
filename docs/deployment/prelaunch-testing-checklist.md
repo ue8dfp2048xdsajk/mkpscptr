@@ -43,6 +43,7 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 - [ ] Canvas restored exactly
 - [ ] Backgrounds intact
 - [ ] Effects intact
+- [ ] **Sidebar layout:** Appearance = opacity / blur / noise / flip only; **Effects** section title has ⭐ PRO (controls inside have no duplicate badges); order = cylinder warp → vertical arc → fisheye → horizontal perspective → vertical perspective → layer mode → mesh warp → invert colors → copy/paste effects
 - [ ] Local autosave restored successfully (via IndexedDB — see note below)
 
 > **There is no server-side "claim" flow.** `api/projects/claim.js` is an unmounted stub that always returns `404`. There is no MongoDB document created, no `expiresAt` field cleared, and no Clerk metadata write tied to signing in. What actually happens: the anonymous session is flushed to IndexedDB (`_autosaveDB.set('session', ...)`) right before the Clerk redirect, and read back on page load after returning — identical mechanism to a plain refresh. If you want real "claim my anonymous work into my account" server-side behavior (e.g. so it survives clearing browser storage), that needs to be built; don't test for it as if it exists today.
