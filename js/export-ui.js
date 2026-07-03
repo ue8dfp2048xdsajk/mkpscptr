@@ -121,6 +121,94 @@ async function exportDataToBlob(data, fmt, quality){
     const qualSlider  = document.getElementById('exportQualitySlider');
     const qualVal     = document.getElementById('exportQualityVal');
     const goBtn       = document.getElementById('exportGoBtn');
+    const signInBlock = document.getElementById('exportSignInBlock');
+    const plansBlock  = document.getElementById('exportPlansBlock');
+    const summaryEl   = document.getElementById('exportSummary');
+    const proGateRow  = document.getElementById('exportProGateRow');
+    const proGateText = document.getElementById('exportProGateText');
+
+    var _exportExcludeProGated = false;
+
+    function _isSignedIn() {
+        return window.Clerk && window.Clerk.user;
+    }
+
+    function _resolveScopeIndices() {
+        const scopeBtn = document.querySelector('#exportScopeToggle .seg-active');
+        const scope    = scopeBtn ? scopeBtn.dataset.val : 'selected';
+        let indices;
+        if (scope === 'all') {
+            indices = canvasData.map((_, i) => i);
+        } else {
+            if (!activeIndices.length) return null;
+            indices = [...activeIndices];
+        }
+        return typeof _resolveExportIndices === 'function'
+            ? _resolveExportIndices(indices)
+            : indices;
+    }
+
+    function _formatSummaryLine() {
+        const indices = _resolveScopeIndices();
+        if (!indices || !indices.length) return '';
+        const fmt = _exportFormat === 'jpeg' ? 'JPEG' : 'PNG';
+        const out = _exportOutput === 'zip' ? 'ZIP download' : 'individual files';
+        const scopeBtn = document.querySelector('#exportScopeToggle .seg-active');
+        const scopeLabel = scopeBtn && scopeBtn.dataset.val === 'all' ? 'All mockups' : 'Selected mockups';
+        return scopeLabel + ': ' + indices.length + ' mockup' + (indices.length !== 1 ? 's' : '') +
+            ' · ' + fmt + ' · ' + out;
+    }
+
+    function refreshExportPopover(opts) {
+        opts = opts || {};
+        if (opts.resetProSkip) _exportExcludeProGated = false;
+        const anon = window.Clerk && !_isSignedIn();
+        const free = _isSignedIn() && _userPlan === 'free';
+        const canExport = _isSignedIn() && _userPlan !== 'free';
+
+        if (signInBlock) signInBlock.hidden = !anon;
+        if (plansBlock) plansBlock.hidden = !free;
+
+        const summary = _formatSummaryLine();
+        if (summaryEl) {
+            if (summary && canvasData.length) {
+                summaryEl.hidden = false;
+                summaryEl.textContent = summary;
+            } else {
+                summaryEl.hidden = true;
+                summaryEl.textContent = '';
+            }
+        }
+
+        let blocked = [];
+        if (_userPlan === 'starter' && canExport) {
+            const indices = _resolveScopeIndices();
+            if (indices) {
+                indices.forEach(i => _syncProEffect(canvasData[i]));
+                blocked = indices.filter(i => _windowIsProGated(canvasData[i]));
+            }
+        }
+
+        if (proGateRow && proGateText) {
+            if (blocked.length && !_exportExcludeProGated) {
+                proGateRow.hidden = false;
+                const n = blocked.length;
+                proGateText.textContent = n + ' mockup' + (n > 1 ? 's use' : ' uses') + ' PRO effects.';
+            } else if (blocked.length && _exportExcludeProGated) {
+                proGateRow.hidden = false;
+                proGateText.textContent = 'Exporting without PRO mockups (' + blocked.length + ' skipped).';
+            } else {
+                proGateRow.hidden = true;
+            }
+        }
+
+        if (goBtn) {
+            goBtn.disabled = anon || free || !canvasData.length ||
+                (!_resolveScopeIndices() || !_resolveScopeIndices().length);
+        }
+    }
+
+    window.refreshExportPopover = refreshExportPopover;
 
     function _showExportStatus(msg) {
         const el = document.getElementById('loadingIndicator');
@@ -143,8 +231,44 @@ async function exportDataToBlob(data, fmt, quality){
     // Toggle popover
     triggerBtn.addEventListener('click', e => {
         e.stopPropagation();
+        const opening = popover.hidden;
         popover.hidden = !popover.hidden;
+        if (opening) refreshExportPopover({ resetProSkip: true });
     });
+
+    document.querySelectorAll('#exportOutputToggle .seg-btn, #exportScopeToggle .seg-btn, #exportFormatToggle .seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!popover.hidden) setTimeout(function () { refreshExportPopover({ resetProSkip: false }); }, 0);
+        });
+    });
+
+    var exportSignInBtn = document.getElementById('exportSignInBtn');
+    if (exportSignInBtn) {
+        exportSignInBtn.addEventListener('click', async () => {
+            sessionStorage.setItem('ms_redirect_after_auth', 'export');
+            await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {});
+            try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
+        });
+    }
+    var exportPlansBtn = document.getElementById('exportPlansBtn');
+    if (exportPlansBtn) {
+        exportPlansBtn.addEventListener('click', () => {
+            if (typeof openPlansModal === 'function') openPlansModal();
+        });
+    }
+    var exportProUpgradeBtn = document.getElementById('exportProUpgradeBtn');
+    if (exportProUpgradeBtn) {
+        exportProUpgradeBtn.addEventListener('click', () => {
+            if (typeof openPlansModal === 'function') openPlansModal();
+        });
+    }
+    var exportProSkipBtn = document.getElementById('exportProSkipBtn');
+    if (exportProSkipBtn) {
+        exportProSkipBtn.addEventListener('click', () => {
+            _exportExcludeProGated = true;
+            refreshExportPopover({ resetProSkip: false });
+        });
+    }
 
     // Close on outside click
     document.addEventListener('click', e => {
@@ -189,7 +313,7 @@ async function exportDataToBlob(data, fmt, quality){
         if(_userPlan === 'starter'){
             indices = indices.filter(i => !_windowIsProGated(canvasData[i]));
             if(!indices.length){
-                alert('All selected windows use PRO-only features. Upgrade to PRO to export them.');
+                alert('All selected mockups use PRO-only features. Upgrade to PRO to export them.');
                 return;
             }
         }
@@ -264,6 +388,9 @@ async function exportDataToBlob(data, fmt, quality){
             }
             exportSucceeded = true;
             _setExportProgress('Export complete ✓');
+            if (typeof window._onFirstExportSuccess === 'function') {
+                window._onFirstExportSuccess();
+            }
         } catch(err) {
             console.error('Export failed:', err);
             alert('Export failed — ' + (err.message || 'unknown error'));
@@ -280,6 +407,7 @@ async function exportDataToBlob(data, fmt, quality){
 
     goBtn.addEventListener('click', async () => {
         if(clipEditMode){ showClipModeNotice(); return; }
+        if (typeof window._markExportAttempted === 'function') window._markExportAttempted();
 
         // Unauthenticated users must sign in before exporting
         if (window.Clerk && !window.Clerk.user) {
@@ -304,7 +432,7 @@ async function exportDataToBlob(data, fmt, quality){
             indices = canvasData.map((_, i) => i);
         } else {
             if(!activeIndices.length){
-                alert('Select at least one window before exporting.');
+                alert('Select at least one mockup before exporting.');
                 return;
             }
             indices = [...activeIndices];
@@ -313,23 +441,31 @@ async function exportDataToBlob(data, fmt, quality){
             ? _resolveExportIndices(indices)
             : indices;
 
-        // STARTER users: show plans modal for PRO-gated windows with option to skip them
+        // STARTER users: PRO-gated mockups — popover skip or plans modal fallback
         if(_userPlan === 'starter'){
             indices.forEach(i => _syncProEffect(canvasData[i]));
             const blocked    = indices.filter(i => _windowIsProGated(canvasData[i]));
             if(blocked.length){
                 const blockedSet = new Set(blocked);
-                const n = blocked.length;
-                const msg = n + ' window' + (n > 1 ? 's' : '') + ' you\'re trying to export ' +
-                    (n > 1 ? 'use' : 'uses') + ' PRO-only effects (\u2b50). ' +
-                    'Upgrade to export them, or skip those windows and continue with the rest.';
-                if(typeof openPlansModal === 'function'){
-                    openPlansModal({
-                        context: msg,
-                        onSkip: () => _runExportWithIndices(indices.filter(i => !blockedSet.has(i)))
-                    });
+                if (_exportExcludeProGated) {
+                    indices = indices.filter(i => !blockedSet.has(i));
+                    if (!indices.length) {
+                        alert('All selected mockups use PRO-only features. Upgrade to PRO to export them.');
+                        return;
+                    }
+                } else {
+                    const n = blocked.length;
+                    const msg = n + ' mockup' + (n > 1 ? 's' : '') + ' you\'re trying to export ' +
+                        (n > 1 ? 'use' : 'uses') + ' PRO-only effects (\u2b50). ' +
+                        'Upgrade to export them, or skip those mockups and continue with the rest.';
+                    if(typeof openPlansModal === 'function'){
+                        openPlansModal({
+                            context: msg,
+                            onSkip: () => _runExportWithIndices(indices.filter(i => !blockedSet.has(i)))
+                        });
+                    }
+                    return;
                 }
-                return;
             }
         }
 

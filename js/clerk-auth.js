@@ -144,15 +144,8 @@
             '<div class="ms-avatar-plan">Plan: <strong>' + planLabel + '</strong></div>' +
             cancelLine +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
-            (!showUpgradeBtn ? '<button class="ms-avatar-billing-btn" id="clerkBillingBtn">Manage Billing</button>' : '') +
             (periodSwitchLabel ? '<button class="ms-avatar-period-btn" id="clerkPeriodSwitchBtn">' + periodSwitchLabel + '</button>' : '') +
-            '<div class="ms-invoice-panel" id="msInvoicePanel"><span class="ms-invoice-loading">Loading invoices…</span></div>' +
             '<button class="ms-avatar-settings-btn" id="clerkSettingsBtn">⚙ Settings</button>' +
-            '<div class="ms-projects-section">' +
-              '<div class="ms-projects-label">My Projects</div>' +
-              '<div class="ms-projects-limit">' + projectLimitHint + '</div>' +
-              '<div class="ms-projects-list" id="msProjectsList"><span class="ms-projects-loading">Loading…</span></div>' +
-            '</div>' +
             '<button id="clerkSignOutBtn">Log Out</button>';
 
         function _apiWithToken(url, opts) {
@@ -307,9 +300,7 @@
 
         window._reloadCloudProjects = _loadProjects;
         window._openCloudProjectsUI = function () {
-            dropdown.classList.add('open');
-            _loadProjects();
-            _loadInvoices();
+            window.location.href = '/settings.html#projects';
         };
 
         function _loadInvoices() {
@@ -351,12 +342,7 @@
 
         avatar.addEventListener('click', function (e) {
             e.stopPropagation();
-            var opening = !dropdown.classList.contains('open');
             dropdown.classList.toggle('open');
-            if (opening) {
-                _loadProjects();
-                _loadInvoices();
-            }
         });
 
         var _dropdownHovered = false;
@@ -371,6 +357,35 @@
 
         wrap.appendChild(avatar);
         wrap.appendChild(dropdown);
+
+        var identity = document.createElement('div');
+        identity.className = 'ms-header-identity';
+
+        var planChip = document.createElement('span');
+        planChip.className = 'ms-header-plan-chip' + (plan !== 'free' ? ' ms-header-plan-chip--' + plan : '');
+        planChip.textContent = planLabel;
+
+        var displayName = document.createElement('span');
+        displayName.className = 'ms-header-display-name';
+        displayName.textContent = user.firstName || (email ? email.split('@')[0] : 'Account');
+        displayName.title = email;
+
+        identity.appendChild(planChip);
+        identity.appendChild(displayName);
+
+        if (plan === 'starter') {
+            var upChip = document.createElement('button');
+            upChip.type = 'button';
+            upChip.className = 'ms-header-upgrade-chip';
+            upChip.textContent = 'Upgrade to Pro';
+            upChip.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (typeof openPlansModal === 'function') openPlansModal();
+            });
+            identity.appendChild(upChip);
+        }
+
+        container.appendChild(identity);
         container.appendChild(wrap);
 
         var upgradeBtn = dropdown.querySelector('#clerkUpgradeBtn');
@@ -391,38 +406,6 @@
                     ? utils.defaultPeriodForProUpsell(window._userBillingPeriod)
                     : 'annual';
                 openPlansModal({ layout: 'pro', initialPeriod: initialPeriod });
-            });
-        }
-
-        var billingBtn = dropdown.querySelector('#clerkBillingBtn');
-        if (billingBtn) {
-            billingBtn.addEventListener('click', function () {
-                billingBtn.disabled = true;
-                billingBtn.textContent = 'Loading…';
-                window._clerkGetToken().then(function (token) {
-                    return fetch('/api/billing/portal', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + token,
-                        },
-                    });
-                })
-                .then(function (r) { return r.json(); })
-                .then(function (d) {
-                    if (d.ok && d.url) {
-                        window.location.href = d.url;
-                    } else {
-                        alert(d.error || 'Could not open billing portal. Please try again.');
-                        billingBtn.disabled = false;
-                        billingBtn.textContent = 'Manage Billing';
-                    }
-                })
-                .catch(function () {
-                    alert('Network error. Please try again.');
-                    billingBtn.disabled = false;
-                    billingBtn.textContent = 'Manage Billing';
-                });
             });
         }
 

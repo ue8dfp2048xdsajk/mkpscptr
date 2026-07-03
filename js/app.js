@@ -52,6 +52,7 @@ function _refreshAllProStarBadges() {
     }
     // Update Save as New button lock state
     _updateSaveNewBtn();
+    if (typeof _updateHeaderProMockupCount === 'function') _updateHeaderProMockupCount();
 }
 
 // Measure the sticky-header and keep #contextPanel's padding-top in sync so the
@@ -1302,11 +1303,17 @@ function updateWindowBorders(){
     // Update Change Design button label: "Add Design" if any selected window
     // has no design, "Change Design" if all selected windows have designs.
     const changeDesignBtn = document.getElementById('changeDesignBtn');
+    const changeBgBtn = document.getElementById('changeBgBtn');
     if(changeDesignBtn && activeIndices.length > 0){
         const anyNoDesign = activeIndices.some(i => !canvasData[i]?.designOriginal);
-        changeDesignBtn.textContent = anyNoDesign ? 'Add Design' : 'Change Design';
+        changeDesignBtn.textContent = anyNoDesign ? 'Add design' : 'Replace design';
     } else if(changeDesignBtn){
-        changeDesignBtn.textContent = 'Change Design';
+        changeDesignBtn.textContent = 'Replace design';
+    }
+    if (changeBgBtn && activeIndices.length > 0) {
+        changeBgBtn.textContent = 'Replace mockup photo';
+    } else if (changeBgBtn) {
+        changeBgBtn.textContent = 'Replace mockup photo';
     }
     _scheduleMinimapUpdate();
     _updateWindowCountBadge();
@@ -1320,8 +1327,24 @@ function _updateWindowCountBadge(){
     badge.hidden = false;
     const sel = activeIndices.length;
     badge.textContent = sel > 0
-        ? `${total} window${total !== 1 ? 's' : ''} · ${sel} selected`
-        : `${total} window${total !== 1 ? 's' : ''}`;
+        ? `${total} mockup${total !== 1 ? 's' : ''} · ${sel} selected`
+        : `${total} mockup${total !== 1 ? 's' : ''}`;
+}
+
+function _updateHeaderProMockupCount() {
+    const el = document.getElementById('headerProMockupCount');
+    if (!el || typeof _windowIsProGated !== 'function') return;
+    if (_userPlan === 'pro' || !canvasData.length) {
+        el.hidden = true;
+        return;
+    }
+    const n = canvasData.filter(d => _windowIsProGated(d)).length;
+    if (!n) {
+        el.hidden = true;
+        return;
+    }
+    el.hidden = false;
+    el.textContent = n + ' PRO mockup' + (n !== 1 ? 's' : '');
 }
 
 // Reset all left-panel controls to upload defaults (no canvas selection required).
@@ -2931,20 +2954,15 @@ function updateDropUI(){
     const bgBtn = document.getElementById('bgUploadBtn');
     const dsBtn = document.getElementById('designUploadBtn');
     bgBtn.textContent = backgrounds.length > 0
-        ? `Upload Backgrounds (${backgrounds.length})`
-        : 'Upload Backgrounds';
+        ? `Upload mockup photos (${backgrounds.length})`
+        : 'Upload mockup photos';
     dsBtn.textContent = designs.length > 0
-        ? `Upload Designs (${designs.length})`
-        : 'Upload Designs';
+        ? `Upload designs (${designs.length})`
+        : 'Upload designs';
 
-    // Auto-expand sidebar when designs are first loaded
-    if (designs.length > 0 && !document.body.classList.contains('sidebar-expanded')) {
-        if (window.setSidebarExpanded) {
-            window.setSidebarExpanded(true);
-        } else {
-            document.body.classList.add('sidebar-expanded');
-            const tb = document.getElementById('sidebarToggleBtn');
-            if (tb) { tb.textContent = '◀'; tb.title = 'Collapse panel'; }
+    if (backgrounds.length > 0 && designs.length > 0 && canvasData.length > 0) {
+        if (typeof window._onGridReady === 'function') {
+            window._onGridReady(canvasData.length, backgrounds.length, designs.length);
         }
     }
 }
@@ -3819,13 +3837,36 @@ function updateLayerButtons(){
             : "Controls";
     }
 
-    // Gray out lock-sensitive controls when all selected windows are locked
+    // Gray out lock-sensitive controls when all selected mockups are locked
     const body = document.getElementById('contextPanelBody');
     if(body){
         const allLocked = activeIndices.length > 0 &&
                           activeIndices.every(i => canvasData[i]?.locked);
         body.classList.toggle('all-locked', allLocked);
     }
+
+    // Auto-expand sidebar when user selects a mockup (can still collapse manually)
+    if (hasActive && !document.body.classList.contains('sidebar-expanded')) {
+        if (window.setSidebarExpanded) {
+            window.setSidebarExpanded(true);
+        }
+        if (typeof window._showSidebarCoachIfNeeded === 'function') {
+            window._showSidebarCoachIfNeeded();
+        }
+    }
+
+    const batchHint = document.getElementById('batchEditHint');
+    if (batchHint) {
+        const n = activeIndices.length;
+        if (n > 1) {
+            batchHint.hidden = false;
+            batchHint.textContent = 'Editing ' + n + ' mockups — changes apply to all selected mockups.';
+        } else {
+            batchHint.hidden = true;
+        }
+    }
+
+    if (typeof _updateHeaderProMockupCount === 'function') _updateHeaderProMockupCount();
 
     refreshNotesPanel();
 }
@@ -7642,9 +7683,6 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
 
 
 
-document.getElementById("resetBtnTop").addEventListener("click", () =>
-    document.getElementById("resetBtn").click());
-
 document.getElementById("resetBtn").addEventListener("click", async ()=>{
 
     if(!activeIndices.length) return;
@@ -9140,7 +9178,7 @@ document.getElementById("loadProgressInput").addEventListener("change", function
 
 document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
 
-    if(!confirm("Clear the autosaved session? The canvas will start blank on the next page load.")) return;
+    if(!confirm("Clear this session? This removes all mockup photos, designs, and edits from this browser tab. Saved cloud projects are not affected. The canvas will start blank on the next page load.")) return;
 
     _exitAllEditModes();
 

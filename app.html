@@ -81,20 +81,65 @@
                 <div id="clerkAuthContainer"></div>
             </div>
             <div id="upgradePrompt" class="upgrade-prompt" style="display:none">
-                <span>🚀 <strong>Free plan</strong> — watermarks appear on canvas and export is disabled. <a href="#plans" id="upgradePromptLink">See plans</a></span>
+                <span>Remove watermarks and export mockups — <a href="#plans" id="upgradePromptLink">see plans</a></span>
                 <button id="upgradePromptClose" aria-label="Dismiss" class="upgrade-prompt-close">✕</button>
+            </div>
+            <div id="workflowBanner" class="workflow-banner" hidden>
+                <span class="workflow-banner-steps">
+                    <span>1. Upload mockup photos</span>
+                    <span class="workflow-banner-arrow" aria-hidden="true">→</span>
+                    <span>2. Upload designs</span>
+                    <span class="workflow-banner-arrow" aria-hidden="true">→</span>
+                    <span>3. Export mockups</span>
+                </span>
+                <button id="workflowBannerClose" type="button" aria-label="Dismiss workflow guide" class="workflow-banner-close">✕</button>
             </div>
             <div class="header-controls-row">
             <div class="header-left">
+                <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">
+                    ↩ Undo
+                </button>
+                <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">
+                    ↪ Redo
+                </button>
+                <button id="bgUploadBtn">Upload mockup photos</button>
+                <input
+                    type="file"
+                    id="bgUpload"
+                    accept="image/png, image/jpeg"
+                    multiple
+                    style="display: none"
+                />
+                <button id="designUploadBtn">Upload designs</button>
+                <input
+                    type="file"
+                    id="designUpload"
+                    accept="image/png, image/jpeg"
+                    multiple
+                    style="display: none"
+                />
+            </div>
+
+            <div class="header-right">
+                <button id="selectAllBtn" title="Select All (Ctrl/Cmd+A). Deselect: Esc">Select All</button>
+                <input
+                    id="filterByNameInput"
+                    type="text"
+                    placeholder="Select by filename…"
+                    title="Selects every mockup using the same design file. Edits apply to all of them so the design sits consistently on matching mockup photos."
+                    style="width: 160px;"
+                />
+                <span id="headerProMockupCount" class="header-pro-count" hidden></span>
+                <button
+                    id="saveProgressBtn"
+                    class="header-save-btn"
+                    title="Save Progress (Ctrl/Cmd+S)"
+                >
+                    Save
+                </button>
                 <span class="export-wrap">
                     <button id="fileMenuBtn">File ▾</button>
                     <div id="fileMenuPopover" class="export-popover" hidden>
-                        <button
-                            id="saveProgressBtn"
-                            title="Save Progress (Ctrl/Cmd+S)"
-                        >
-                            Save
-                        </button>
                         <span class="file-menu-pro-wrap" id="saveNewWrap">
                             <button
                                 id="saveNewBtn"
@@ -132,53 +177,28 @@
                         >
                             Clear Session
                         </button>
+                        <button type="button" id="shortcutsHelpBtn" title="Keyboard shortcuts">Keyboard shortcuts…</button>
                     </div>
                 </span>
-                <button id="undoBtn" disabled title="Undo (Cmd/Ctrl+Z)">
-                    ↩ Undo
-                </button>
-                <button id="redoBtn" disabled title="Redo (Cmd/Ctrl+Shift+Z)">
-                    ↪ Redo
-                </button>
-                <button id="bgUploadBtn">Upload Backgrounds</button>
-                <input
-                    type="file"
-                    id="bgUpload"
-                    accept="image/png, image/jpeg"
-                    multiple
-                    style="display: none"
-                />
-                <button id="designUploadBtn">Upload Designs</button>
-                <input
-                    type="file"
-                    id="designUpload"
-                    accept="image/png, image/jpeg"
-                    multiple
-                    style="display: none"
-                />
-            </div>
-
-            <div class="header-right">
-                <button id="selectAllBtn" title="Select All (Ctrl/Cmd+A). Deselect: Esc">Select All</button>
-                <input
-                    id="filterByNameInput"
-                    type="text"
-                    placeholder="Select by filename…"
-                    style="width: 160px;"
-                />
-                <button
-                    id="resetBtnTop"
-                    class="lock-sensitive"
-                    title="Reset selected mockups to default (R)"
-                >
-                    Reset Selected
-                </button>
-                <span class="header-section-div"></span>
-                <span class="export-wrap">
-                    <button id="exportBtn" title="Export (Ctrl/Cmd+E)">
+                <span class="export-wrap export-wrap-primary">
+                    <button id="exportBtn" class="export-btn-primary" title="Export (Ctrl/Cmd+E)">
                         Export ▾
                     </button>
                     <div id="exportPopover" class="export-popover" hidden>
+                        <div id="exportSignInBlock" class="export-gate-block" hidden>
+                            <p class="export-gate-msg">Sign in to export your mockups.</p>
+                            <button type="button" id="exportSignInBtn" class="export-gate-btn">Sign in</button>
+                        </div>
+                        <div id="exportPlansBlock" class="export-gate-block" hidden>
+                            <p class="export-gate-msg">Pick a plan to export.</p>
+                            <button type="button" id="exportPlansBtn" class="export-gate-btn">See plans</button>
+                        </div>
+                        <div id="exportSummary" class="export-summary" hidden></div>
+                        <div id="exportProGateRow" class="export-pro-gate" hidden>
+                            <span id="exportProGateText"></span>
+                            <button type="button" id="exportProUpgradeBtn" class="export-gate-link">Upgrade</button>
+                            <button type="button" id="exportProSkipBtn" class="export-gate-link">Export without them</button>
+                        </div>
                         <div class="export-row">
                             <span class="export-label">Output</span>
                             <span class="export-seg" id="exportOutputToggle">
@@ -240,7 +260,7 @@
                                 Export Text Boxes
                             </button>
                         </div>
-                        <button id="exportGoBtn">Export</button>
+                        <button id="exportGoBtn" class="export-go-btn-full">Export</button>
                     </div>
                 </span>
             </div>
@@ -296,16 +316,16 @@
             <div id="dropZone">
                 <div id="dropZoneInner">
                     <div class="dz-icon">&#8659;</div>
-                    <p class="dz-title">Drag background images here</p>
+                    <p class="dz-title">Drag mockup photos here</p>
                     <p class="dz-sub">
-                        or use the <strong>Upload Backgrounds</strong> button
+                        or use the <strong>Upload mockup photos</strong> button
                         above
                     </p>
                 </div>
             </div>
             <div id="designPrompt">
                 <span
-                    >Backgrounds ready - drag your designs here, or
+                    >Mockup photos ready — drag your designs here, or
                     <button id="designPromptBtn">
                         click to upload designs
                     </button></span
@@ -331,6 +351,8 @@
                 Preparing designs...
             </div>
 
+            <div id="comboToast" class="combo-toast" hidden aria-live="polite"></div>
+
             <div id="canvasContainer"></div>
             <div id="textLayer"></div>
             <div id="guideOverlay" hidden aria-hidden="true">
@@ -345,8 +367,69 @@
         <!-- ── Context Panel ─────────────────────────────────────────────────── -->
         <div id="contextPanel">
             <button id="sidebarToggleBtn" title="Open panel" aria-label="Toggle side panel">▶</button>
+            <div id="sidebarCoach" class="sidebar-coach" hidden>
+                <p>Your controls are here — adjust placement, layers, and effects for the selected mockup.</p>
+                <button id="sidebarCoachClose" type="button" aria-label="Dismiss">✕</button>
+            </div>
             <div id="sidebarResizeHandle" title="Drag to resize panel"></div>
             <div id="contextPanelBody">
+                <div id="batchEditHint" class="batch-edit-hint" hidden></div>
+                <!-- ── Mockup ──────────────────────────────────────────────────────── -->
+                <div class="cp-section">
+                    <div class="cp-section-title">Mockup</div>
+                    <button
+                        id="addWindowBtn"
+                        title="Add a single new mockup at the start of the grid (opens file picker)"
+                    >
+                        Add Mockup
+                    </button>
+                    <input
+                        type="file"
+                        id="addWindowBgInput"
+                        accept="image/png, image/jpeg"
+                        style="display: none"
+                    />
+                    <input
+                        type="file"
+                        id="addWindowDesignInput"
+                        accept="image/png, image/jpeg"
+                        style="display: none"
+                    />
+                    <div class="cp-btn-row">
+                        <button id="lockWindowsBtn" class="lock-sensitive" title="Lock selected mockups (L)">
+                            Lock
+                        </button>
+                        <button id="unlockWindowsBtn" title="Unlock selected mockups (U)">Unlock</button>
+                    </div>
+                    <button id="changeBgBtn" class="lock-sensitive">
+                        Replace mockup photo
+                    </button>
+                    <input
+                        type="file"
+                        id="changeBgInput"
+                        accept="image/*"
+                        style="display: none"
+                    />
+                    <button id="changeDesignBtn" class="lock-sensitive">
+                        Replace design
+                    </button>
+                    <input
+                        type="file"
+                        id="changeDesignInput"
+                        accept="image/*"
+                        style="display: none"
+                    />
+                    <button id="duplicateWindowsBtn" class="lock-sensitive" title="Duplicate Selected (Ctrl/Cmd+D)">
+                        Duplicate Selected
+                    </button>
+                    <button id="deleteWindowsBtn" class="lock-sensitive" title="Delete Selected (Del)">
+                        Delete Selected
+                    </button>
+                    <button id="resetBtn" class="lock-sensitive" title="Reset selected mockups to default (R)">
+                        Reset Selected (R)
+                    </button>
+                </div>
+
                 <!-- ── Layers ─────────────────────────────────────────────────────── -->
                 <div class="cp-section lock-sensitive">
                     <div class="cp-section-title">Layers</div>
@@ -354,7 +437,7 @@
                         id="addLayerBtn"
                         title="Upload images as overlay layers onto selected mockups (opens file picker)"
                     >
-                        Add Layer (Shift+L)
+                        Add Layer
                     </button>
                     <input
                         type="file"
@@ -368,28 +451,28 @@
                         disabled
                         title="Copy selected layer (Ctrl/Cmd+C)"
                     >
-                        Copy Layer (Ctrl/Cmd+C)
+                        Copy Layer
                     </button>
     <button
                         id="duplicateLayerBtn"
                         disabled
                         title="Select a layer to duplicate it"
                     >
-                        Duplicate Layer (D)
+                        Duplicate Layer
                     </button>
                     <button
                         id="makeMainDesignBtn"
                         disabled
                         title="Select an overlay layer to make it the main design"
                     >
-                        Make Main Design (M)
+                        Make Main Design
                     </button>
                     <button
                         id="deleteLayerBtn"
                         disabled
-                        title="Select a layer to delete it (Del)"
+                        title="Delete selected layer (Backspace/Del)"
                     >
-                        Delete Layer
+                        Delete Layer (Backspace/Del)
                     </button>
                 </div>
 
@@ -430,68 +513,12 @@
                     </label>
                     <div class="cp-btn-row">
                         <button id="flipHBtn" title="Flip selected layer horizontally">
-                            ↔ Flip H (Shift+H)
+                            ↔ Flip H
                         </button>
                         <button id="flipVBtn" title="Flip selected layer vertically">
-                            ↕ Flip V (Shift+V)
+                            ↕ Flip V
                         </button>
                     </div>
-                </div>
-
-                <!-- ── Mockup ──────────────────────────────────────────────────────── -->
-                <div class="cp-section">
-                    <div class="cp-section-title">Mockup</div>
-                    <button
-                        id="addWindowBtn"
-                        title="Add a single new mockup at the start of the grid (opens file picker)"
-                    >
-                        Add Mockup (N)
-                    </button>
-                    <input
-                        type="file"
-                        id="addWindowBgInput"
-                        accept="image/png, image/jpeg"
-                        style="display: none"
-                    />
-                    <input
-                        type="file"
-                        id="addWindowDesignInput"
-                        accept="image/png, image/jpeg"
-                        style="display: none"
-                    />
-                    <div class="cp-btn-row">
-                        <button id="lockWindowsBtn" class="lock-sensitive">
-                            Lock (L)
-                        </button>
-                        <button id="unlockWindowsBtn">Unlock (U)</button>
-                    </div>
-                    <button id="changeBgBtn" class="lock-sensitive">
-                        Change Background
-                    </button>
-                    <input
-                        type="file"
-                        id="changeBgInput"
-                        accept="image/*"
-                        style="display: none"
-                    />
-                    <button id="changeDesignBtn" class="lock-sensitive">
-                        Change Design
-                    </button>
-                    <input
-                        type="file"
-                        id="changeDesignInput"
-                        accept="image/*"
-                        style="display: none"
-                    />
-                    <button id="duplicateWindowsBtn" class="lock-sensitive" title="Duplicate Selected (Ctrl/Cmd+D)">
-                        Duplicate Selected
-                    </button>
-                    <button id="deleteWindowsBtn" class="lock-sensitive" title="Delete Selected (Del)">
-                        Delete Selected
-                    </button>
-                    <button id="resetBtn" class="lock-sensitive" title="Reset Selected (R)">
-                        Reset Selected
-                    </button>
                 </div>
 
                 <div class="cp-section lock-sensitive">
@@ -558,7 +585,7 @@
                             <option value="luminosity">Luminosity</option>
                         </select>
                     </label>
-                    <button id="designWarpBtn">Warp Mesh (W)</button>
+                    <button id="designWarpBtn" title="Warp mesh (W)">Warp Mesh</button>
 
                     <span
                         id="warpModeControls"
@@ -599,23 +626,21 @@
                         >
                             Cancel
                         </button>
-                        <span style="font-size: 11px; color: #9CA3AF"
-                            >Drag grid points to warp</span
-                        >
+                        <span class="cp-hint">Drag grid points to warp</span>
                     </span>
                     <button
                         id="invertColorsBtn"
                         disabled
                         title="Select a layer to invert its colors"
                     >
-                        Invert Colors (I)
+                        Invert Colors
                     </button>
                     <div class="cp-btn-row">
                         <button
                             id="copyTransformsBtn"
                             title="Copy effects (opacity, warp, blend, pattern, invert) from the last selected mockup — not position or scale"
                         >
-                            Copy Effects (Ctrl/Cmd+Shift+C)
+                            Copy Effects
                         </button>
                     </div>
                 </div>
@@ -845,7 +870,7 @@
                             align-items: center;
                         "
                     >
-                        <span>Create Pattern (P) <span class="pro-badge">⭐ PRO</span></span>
+                        <span>Create Pattern <span class="pro-badge">⭐ PRO</span></span>
                         <label class="cp-toggle-switch">
                             <input type="checkbox" id="patternModeToggle" />
                             <span class="cp-toggle-track"
@@ -1057,14 +1082,7 @@
                             step="1"
                             placeholder="W"
                         />
-                        <span
-                            style="
-                                font-size: 13px;
-                                color: #9CA3AF;
-                                font-weight: 600;
-                            "
-                            >:</span
-                        >
+                        <span class="bgcrop-dim-sep">:</span>
                         <input
                             type="number"
                             id="bgCropCustomH"
@@ -1129,28 +1147,10 @@
                         />
                         <span id="bgCropYVal">0</span>
                     </div>
-                    <label
-                        style="
-                            display: flex;
-                            flex-direction: row;
-                            align-items: center;
-                            gap: 6px;
-                            margin-top: 6px;
-                            font-size: 12px;
-                            color: #D1D5DB;
-                            cursor: pointer;
-                            user-select: none;
-                        "
-                    >
+                    <label class="bgcrop-attach-label" for="bgCropAttachDesign">
                         <input
                             type="checkbox"
                             id="bgCropAttachDesign"
-                            style="
-                                width: 14px;
-                                height: 14px;
-                                cursor: pointer;
-                                accent-color: #4F6EF7;
-                            "
                         />
                         Attach design to background
                     </label>
@@ -1242,6 +1242,30 @@
         <script src="js/pattern.js"></script>
         <script src="js/background.js"></script>
         <script src="js/alignment-guides.js"></script>
+        <!-- Keyboard shortcuts modal -->
+        <div id="shortcutsModal" class="shortcuts-overlay" hidden aria-hidden="true">
+            <div class="shortcuts-dialog" role="dialog" aria-labelledby="shortcutsModalTitle">
+                <button type="button" class="shortcuts-close" id="shortcutsModalClose" aria-label="Close">&times;</button>
+                <h2 id="shortcutsModalTitle">Keyboard shortcuts</h2>
+                <dl class="shortcuts-list">
+                    <dt>Save</dt><dd>Ctrl/Cmd+S</dd>
+                    <dt>Export</dt><dd>Ctrl/Cmd+E</dd>
+                    <dt>Load local file</dt><dd>Ctrl/Cmd+L</dd>
+                    <dt>Select all mockups</dt><dd>Ctrl/Cmd+A</dd>
+                    <dt>Deselect</dt><dd>Esc</dd>
+                    <dt>Add to selection</dt><dd>Shift+click</dd>
+                    <dt>Toggle selection</dt><dd>Ctrl/Cmd+click</dd>
+                    <dt>Select range</dt><dd>Shift+click between mockups</dd>
+                    <dt>Reset selected</dt><dd>R</dd>
+                    <dt>Delete layer</dt><dd>Backspace / Del</dd>
+                    <dt>Duplicate mockup</dt><dd>Ctrl/Cmd+D</dd>
+                    <dt>Undo / Redo</dt><dd>Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z</dd>
+                    <dt>Pan canvas</dt><dd>Space + drag</dd>
+                    <dt>Fit selection</dt><dd>F</dd>
+                </dl>
+            </div>
+        </div>
+
         <!-- Plans modal -->
         <div id="plansModal" class="ms-plans-overlay" aria-hidden="true">
             <div class="ms-plans-dialog" role="dialog" aria-labelledby="plansModalTitle">
@@ -1252,7 +1276,7 @@
                 </div>
                 <div class="ms-plans-header">
                     <h2 id="plansModalTitle">Choose your plan</h2>
-                    <p class="ms-plans-subtitle">Upgrade anytime. No hidden fees.</p>
+                    <p class="ms-plans-subtitle">Built for Etsy and print-on-demand sellers. Upgrade anytime. No hidden fees.</p>
                     <div class="ms-billing-tabs" role="tablist">
                         <button class="ms-billing-tab" data-period="monthly" role="tab">Monthly</button>
                         <button class="ms-billing-tab active" data-period="annual" role="tab">Annual <span class="ms-billing-save">Save 34%</span></button>
@@ -1325,6 +1349,7 @@
         <script src="js/migrations.js"></script>
         <script src="js/app.js"></script>
         <script src="js/export-ui.js"></script>
+        <script src="js/onboarding-hints.js"></script>
         <script src="js/billing-period.js"></script>
         <script src="js/plans-modal.js"></script>
         <script src="js/clerk-auth.js"></script>

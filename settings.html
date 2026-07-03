@@ -277,6 +277,48 @@
         }
         .footer a { color: #4B5563; text-decoration: none; margin: 0 6px; }
         .footer a:hover { color: #9CA3AF; }
+        .settings-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #1F2937;
+        }
+        .settings-tab {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: #6B7280;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: 'Inter', Arial, sans-serif;
+            margin-bottom: -1px;
+        }
+        .settings-tab:hover { color: #D1D5DB; }
+        .settings-tab.active { color: #E5E7EB; border-bottom-color: #818CF8; }
+        .settings-tab-panel[hidden] { display: none !important; }
+        .project-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #1F2937;
+            font-size: 13px;
+        }
+        .project-row:last-child { border-bottom: none; }
+        .project-name { color: #E5E7EB; font-weight: 500; }
+        .project-date { color: #6B7280; font-size: 12px; }
+        .project-open {
+            background: #6366F1;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 12px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -286,36 +328,20 @@
 
     <div id="settingsContent" style="display:none">
 
+        <div class="settings-tabs" role="tablist">
+            <button type="button" class="settings-tab active" data-tab="account" role="tab">Account</button>
+            <button type="button" class="settings-tab" data-tab="billing" role="tab">Billing</button>
+            <button type="button" class="settings-tab" data-tab="projects" role="tab">Projects</button>
+            <button type="button" class="settings-tab" data-tab="invoices" role="tab">Invoices</button>
+        </div>
+
+        <div id="tabAccount" class="settings-tab-panel" role="tabpanel">
         <div class="card">
             <div class="card-header">
                 <span class="card-title">Account</span>
             </div>
             <p class="card-desc">Update your name, email, password, and profile photo.</p>
             <button class="btn btn-secondary" id="openProfileBtn">Edit Profile</button>
-        </div>
-
-        <div class="card" id="billingCard">
-            <div class="card-header">
-                <span class="card-title">Plan &amp; Billing</span>
-                <span class="plan-badge" id="planBadge">Free</span>
-            </div>
-            <p class="card-desc" id="billingDesc">Manage your subscription, payment methods, and billing address.</p>
-            <p class="card-desc" id="downgradeNotice" style="display:none;margin-top:8px;color:#F59E0B;font-size:13px;">
-                Before cancelling or downgrading, open each cloud project and use <strong>Save Local (JSON)</strong> so you keep editable copies. Cloud projects stay stored but lower plans may not be able to edit them all.
-            </p>
-            <button class="btn btn-primary" id="openPortalBtn">Manage Billing</button>
-        </div>
-
-        <div class="card" id="invoiceSection">
-            <div class="card-header">
-                <span class="card-title">Invoice History</span>
-            </div>
-            <p class="card-desc">Download PDF receipts for all your past payments.</p>
-            <div id="invoiceTableWrap">
-                <div class="empty-state">
-                    <span class="spinner"></span> Loading invoices…
-                </div>
-            </div>
         </div>
 
         <div class="card-danger">
@@ -328,6 +354,47 @@
                 billing records. <strong style="color:#E5E7EB">This cannot be undone.</strong>
             </p>
             <button class="btn-danger" id="openDeleteModalBtn">Delete my account</button>
+        </div>
+        </div>
+
+        <div id="tabBilling" class="settings-tab-panel" role="tabpanel" hidden>
+        <div class="card" id="billingCard">
+            <div class="card-header">
+                <span class="card-title">Plan &amp; Billing</span>
+                <span class="plan-badge" id="planBadge">Free</span>
+            </div>
+            <p class="card-desc" id="billingDesc">Manage your subscription, payment methods, and billing address.</p>
+            <p class="card-desc" id="downgradeNotice" style="display:none;margin-top:8px;color:#F59E0B;font-size:13px;">
+                Before cancelling or downgrading, open each cloud project and use <strong>Save Local (JSON)</strong> so you keep editable copies. Cloud projects stay stored but lower plans may not be able to edit them all.
+            </p>
+            <button class="btn btn-primary" id="openPortalBtn">Manage Billing</button>
+        </div>
+        </div>
+
+        <div id="tabProjects" class="settings-tab-panel" role="tabpanel" hidden>
+        <div class="card" id="projectsSection">
+            <div class="card-header">
+                <span class="card-title">Cloud Projects</span>
+            </div>
+            <p class="card-desc" id="projectsDesc">Open, rename, or delete saved projects.</p>
+            <div id="projectsListWrap">
+                <div class="empty-state"><span class="spinner"></span> Loading projects…</div>
+            </div>
+        </div>
+        </div>
+
+        <div id="tabInvoices" class="settings-tab-panel" role="tabpanel" hidden>
+        <div class="card" id="invoiceSection">
+            <div class="card-header">
+                <span class="card-title">Invoice History</span>
+            </div>
+            <p class="card-desc">Download PDF receipts for all your past payments.</p>
+            <div id="invoiceTableWrap">
+                <div class="empty-state">
+                    <span class="spinner"></span> Loading invoices…
+                </div>
+            </div>
+        </div>
         </div>
 
     </div>
@@ -446,15 +513,69 @@ function initClerk() {
         }
 
         loadInvoices();
+        loadProjects();
+        initSettingsTabs();
 
-        if (window.location.hash === '#invoices') {
-            setTimeout(function() {
-                var el = document.getElementById('invoiceSection');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }, 200);
+        var hashTab = (window.location.hash || '').replace('#', '');
+        if (hashTab === 'invoices' || hashTab === 'billing' || hashTab === 'projects' || hashTab === 'account') {
+            switchSettingsTab(hashTab);
         }
 
         initDeleteModal();
+    });
+}
+
+function initSettingsTabs() {
+    document.querySelectorAll('.settings-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            switchSettingsTab(btn.getAttribute('data-tab'));
+        });
+    });
+}
+
+function switchSettingsTab(tab) {
+    document.querySelectorAll('.settings-tab').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+    });
+    ['account', 'billing', 'projects', 'invoices'].forEach(function(name) {
+        var panel = document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1));
+        if (panel) panel.hidden = name !== tab;
+    });
+}
+
+function loadProjects() {
+    var wrap = document.getElementById('projectsListWrap');
+    if (!wrap) return;
+    window.Clerk.session.getToken().then(function(token) {
+        return fetch('/api/projects/list', {
+            headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+        });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.ok || !data.projects || !data.projects.length) {
+            wrap.innerHTML = '<div class="empty-state">No saved projects yet.</div>';
+            return;
+        }
+        var html = '';
+        data.projects.forEach(function(p) {
+            var name = p.name || 'Untitled';
+            var date = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+            html += '<div class="project-row">' +
+                '<div><div class="project-name">' + name + '</div><div class="project-date">' + date + '</div></div>' +
+                '<button type="button" class="project-open" data-uuid="' + p.uuid + '">Open in app</button>' +
+            '</div>';
+        });
+        wrap.innerHTML = html;
+        wrap.querySelectorAll('.project-open').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                localStorage.setItem('ms_project_uuid', btn.getAttribute('data-uuid'));
+                window.location.href = '/app.html';
+            });
+        });
+    })
+    .catch(function() {
+        wrap.innerHTML = '<div class="empty-state">Could not load projects.</div>';
     });
 }
 
