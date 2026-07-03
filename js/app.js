@@ -4289,6 +4289,21 @@ function _updateCopyLayerBtn(){
     }
 }
 
+function _captureLayerPosition(obj, fabricCanvas) {
+    const cW = fabricCanvas.getWidth();
+    const cH = fabricCanvas.getHeight();
+    const pt = typeof obj.getCenterPoint === 'function'
+        ? obj.getCenterPoint()
+        : { x: obj.left, y: obj.top };
+    return {
+        posXFrac: pt.x / cW,
+        posYFrac: pt.y / cH,
+        fabricScaleXRatio: obj.scaleX / cW,
+        fabricScaleYRatio: obj.scaleY / cH,
+        angle: obj.angle ?? 0,
+    };
+}
+
 function _copyCurrentLayer(){
     if (!selectedDesigns.size) return;
 
@@ -4314,6 +4329,7 @@ function _copyCurrentLayer(){
     const srcPs  = sourceData.previewScale || 1;
     const srcSX  = sourceData.scaleX ?? sourceData.scale ?? 1;
     const srcSY  = sourceData.scaleY ?? sourceData.scale ?? 1;
+    const pos    = _captureLayerPosition(obj, sourceData.fabricCanvas);
 
     _copiedLayer = {
         type:     layerType,
@@ -4323,6 +4339,11 @@ function _copyCurrentLayer(){
         srcIdx:   canvasData.indexOf(sourceData),
         srcScaleX: obj.scaleX,
         srcScaleY: obj.scaleY,
+        posXFrac: pos.posXFrac,
+        posYFrac: pos.posYFrac,
+        fabricScaleXRatio: pos.fabricScaleXRatio,
+        fabricScaleYRatio: pos.fabricScaleYRatio,
+        angle:    pos.angle,
         // canvas-relative scale ratios (1.0 = fills canvas exactly)
         designScaleXRatio: srcSX * srcPs * srcDpr,
         designScaleYRatio: srcSY * srcPs * srcDpr,
@@ -4395,8 +4416,8 @@ async function _pasteLayerToTargets(){
             cCtx.drawImage(srcEl, 0, 0, W * dpr, H * dpr);
             d.designOriginal = copy;
             d.warpCanvas     = null;
-            d.x          = W / 2;
-            d.y          = H / 2;
+            d.x          = (_copiedLayer.posXFrac ?? 0.5) * W;
+            d.y          = (_copiedLayer.posYFrac ?? 0.5) * H;
             // Apply source transforms, converting canvas-relative ratios to
             // target scale units: ratio / (tps * dpr) = fillScale × ratio
             const cl = _copiedLayer;
@@ -4418,16 +4439,17 @@ async function _pasteLayerToTargets(){
     } else {
         // ── Append as an overlay layer in each target window ───────────────
         const srcEl = _copiedLayer.el;
+        const cl = _copiedLayer;
         for (const d of targets){
             if (!d.designObject) continue;
             const canvasW = d.fabricCanvas.getWidth();
             const canvasH = d.fabricCanvas.getHeight();
             const fabricImg = new fabric.Image(srcEl, {
-                left:   canvasW / 2,
-                top:    canvasH / 2,
-                scaleX: _copiedLayer.srcScaleX,
-                scaleY: _copiedLayer.srcScaleY,
-                angle:  0,
+                left:   (cl.posXFrac ?? 0.5) * canvasW,
+                top:    (cl.posYFrac ?? 0.5) * canvasH,
+                scaleX: (cl.fabricScaleXRatio ?? (cl.srcScaleX / canvasW)) * canvasW,
+                scaleY: (cl.fabricScaleYRatio ?? (cl.srcScaleY / canvasH)) * canvasH,
+                angle:  cl.angle ?? 0,
                 opacity: _copiedLayer.fx?.opacity ?? 1,
                 globalCompositeOperation: 'source-over',
                 originX: 'center',
