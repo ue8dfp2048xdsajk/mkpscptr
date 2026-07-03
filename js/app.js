@@ -2883,14 +2883,15 @@ function createCanvasPreviews(){
 
 
 
+function _isMainDesignObject(obj, data) {
+    return !!(obj && data && obj === data.designObject);
+}
+
 function attachFabricEvents(data, targetObject = null){
 
     const designTarget = targetObject || data.designObject;
 
     if(!designTarget) return;
-
-    // Is this the main window design or an extra/overlay layer?
-    const isMainDesign = (designTarget === data.designObject);
 
     // Tag this object with its owning window data for cross-window effect lookups
     designTarget._ownerData = data;
@@ -2913,7 +2914,7 @@ function attachFabricEvents(data, targetObject = null){
             return;
         }
 
-        if(isMainDesign){
+        if (_isMainDesignObject(designTarget, data)) {
 
             // Same-window: only move extra design layers that are also selected.
             // The color layer always travels with the main design (it's an overlay,
@@ -3040,7 +3041,7 @@ function attachFabricEvents(data, targetObject = null){
             return;
         }
 
-        if(isMainDesign){
+        if (_isMainDesignObject(designTarget, data)) {
 
             // Same-window: set absolute — all layers share one coordinate space.
             // Extra design layers only scale/move if they're also selected.
@@ -3139,7 +3140,7 @@ function attachFabricEvents(data, targetObject = null){
             return;
         }
 
-        if(isMainDesign){
+        if (_isMainDesignObject(designTarget, data)) {
 
             // Same-window: extra layers only rotate if they're also selected.
             getAllDesignObjects(data).forEach(obj=>{
