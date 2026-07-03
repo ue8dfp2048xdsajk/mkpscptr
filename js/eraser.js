@@ -46,16 +46,24 @@ function _flipImageSource(src, flipX, flipY) {
     return c;
 }
 
-// Returns a (cached) flipped version of src using data.flipX / data.flipY.
-// Cache is keyed on the source object so each unique source gets its own entry.
-function _cachedFlip(data, src) {
-    if(!data.flipX && !data.flipY) return src;
-    if(!data._flipMap) data._flipMap = new WeakMap();
-    const hit = data._flipMap.get(src);
-    if(hit && hit.fX === !!data.flipX && hit.fY === !!data.flipY) return hit.canvas;
-    const canvas = _flipImageSource(src, !!data.flipX, !!data.flipY);
-    data._flipMap.set(src, { fX: !!data.flipX, fY: !!data.flipY, canvas });
+// Returns a (cached) flipped version of src for explicit flip flags.
+// cacheHolder is per-window (main) or per-object (extras) so clone layers
+// sharing the same source can cache independently.
+function _cachedFlipFromFlags(flipFlags, cacheHolder, src) {
+    const flipX = !!flipFlags.flipX;
+    const flipY = !!flipFlags.flipY;
+    if(!flipX && !flipY) return src;
+    if(!cacheHolder._flipMap) cacheHolder._flipMap = new WeakMap();
+    const hit = cacheHolder._flipMap.get(src);
+    if(hit && hit.fX === flipX && hit.fY === flipY) return hit.canvas;
+    const canvas = _flipImageSource(src, flipX, flipY);
+    cacheHolder._flipMap.set(src, { fX: flipX, fY: flipY, canvas });
     return canvas;
+}
+
+// Window-level flip (main design) — backward-compatible entry point.
+function _cachedFlip(data, src) {
+    return _cachedFlipFromFlags(data, data, src);
 }
 
 function ensureErasableCanvas(obj) {
@@ -216,6 +224,7 @@ function _invalidateEraserPipelineCaches(data, obj) {
     data._dsSrc     = null;
     data._hqCanvas  = null;
     data._flipMap   = null;
+    if (obj) obj._flipMap = null;
     data._tileEpoch = (data._tileEpoch || 0) + 1;
     obj._c_src      = null;
     obj._c_warpOk   = false;
@@ -225,7 +234,7 @@ function _invalidateEraserPipelineCaches(data, obj) {
 function _rebuildEraserTarget(data, obj, lowQuality) {
     const src = _eraserPipelineSource(data, obj);
     if (!src) return;
-    _applyWarpToOneObject(obj, data, _cachedFlip(data, src), lowQuality, { skipTrimComp: true });
+    _applyWarpToOneObject(obj, data, _cachedFlipForLayer(data, src, obj), lowQuality, { skipTrimComp: true });
     data.fabricCanvas.requestRenderAll();
 }
 

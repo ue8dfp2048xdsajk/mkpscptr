@@ -1412,6 +1412,43 @@ function _defaultFx(data){
     };
 }
 
+function _getLayerFlip(obj, data) {
+    if (obj === data.designObject) {
+        return { flipX: !!data.flipX, flipY: !!data.flipY };
+    }
+    const fx = obj._fx;
+    return { flipX: !!(fx && fx.flipX), flipY: !!(fx && fx.flipY) };
+}
+
+function _setLayerFlip(obj, data, axis) {
+    if (obj === data.designObject) {
+        if (axis === 'H') data.flipX = !data.flipX;
+        else              data.flipY = !data.flipY;
+        if (!obj._fx) obj._fx = _defaultFx(data);
+        obj._fx.flipX = !!data.flipX;
+        obj._fx.flipY = !!data.flipY;
+        data._flipMap = null;
+    } else {
+        if (!obj._fx) obj._fx = _defaultFx(data);
+        if (axis === 'H') obj._fx.flipX = !obj._fx.flipX;
+        else              obj._fx.flipY = !obj._fx.flipY;
+        obj._flipMap = null;
+    }
+}
+
+function _cachedFlipForLayer(data, src, obj) {
+    const flags = _getLayerFlip(obj, data);
+    const cacheHolder = (obj === data.designObject) ? data : obj;
+    return _cachedFlipFromFlags(flags, cacheHolder, src);
+}
+
+function _layerPipelineSource(data, obj) {
+    if (obj === data.designObject) return data.designOriginal;
+    const idx = (data.extraDesignObjects || []).indexOf(obj);
+    if (idx === -1) return null;
+    return data.extraDesignOriginals?.[idx] || data.designOriginal;
+}
+
 // Clear per-object image pipeline caches (used after duplicate, eraser, etc.).
 function _resetObjectPipelineCaches(obj) {
     if (!obj) return;
@@ -1439,6 +1476,7 @@ function _resetObjectPipelineCaches(obj) {
     delete obj._warpCanvas;
     delete obj._perspCanvas;
     delete obj._perspTempCanvas;
+    delete obj._flipMap;
 }
 
 // Apply the full blur → noise → warp → perspective pipeline to ONE design
@@ -1635,7 +1673,9 @@ async function applyWarpToData(data, lowQuality = false){
 
     // Apply flip before the rest of the pipeline so all effects (blur, noise,
     // warp, perspective) operate on the already-flipped image.
-    const pipelineSrc = _cachedFlip(data, data.designOriginal);
+    const pipelineSrc = data.designObject
+        ? _cachedFlipForLayer(data, data.designOriginal, data.designObject)
+        : _cachedFlip(data, data.designOriginal);
 
     const blurredSource = applyGaussianBlurToImage(
         pipelineSrc,
@@ -1737,7 +1777,7 @@ async function applyWarpToData(data, lowQuality = false){
                 const srcForObj =
                     data.extraDesignOriginals?.[i] || data.designOriginal;
 
-                _applyWarpToOneObject(obj, data, _cachedFlip(data, srcForObj), lowQuality);
+                _applyWarpToOneObject(obj, data, _cachedFlipForLayer(data, srcForObj, obj), lowQuality);
             });
         }
 
@@ -1934,7 +1974,7 @@ function _lqRenderSliders(){
 
             if(inPattern){
                 // Warp/blur/noise apply to the whole tiled canvas
-                const _pSrc   = _cachedFlip(d, srcOriginal);
+                const _pSrc   = _cachedFlipForLayer(d, srcOriginal, obj);
                 const _pBlur  = applyGaussianBlurToImage(_pSrc, (newFx.blurAmount || 0) / 5);
                 const _pNoise = applyNoiseToImage(_pBlur, newFx.noiseAmount || 0);
                 d._patternTileSource = _pNoise;
@@ -1946,7 +1986,7 @@ function _lqRenderSliders(){
                 return;
             }
 
-            _applyWarpToOneObject(obj, d, _cachedFlip(d, srcOriginal), true);
+            _applyWarpToOneObject(obj, d, _cachedFlipForLayer(d, srcOriginal, obj), true);
             d.fabricCanvas.requestRenderAll();
         });
 
@@ -2055,7 +2095,7 @@ function _lqRenderSliders(){
 
         // Pattern mode: recompute pre-warp tile source and re-render full canvas
         if(data.patternMode && data.patternFabricObj){
-            const _pSrc   = _cachedFlip(data, data.designOriginal);
+            const _pSrc   = _cachedFlipForLayer(data, data.designOriginal, data.designObject);
             const _pBlur  = applyGaussianBlurToImage(_pSrc, (_blurV || 0) / 5);
             const _pNoise = applyNoiseToImage(_pBlur, _noiseV || 0);
             data._patternTileSource = _pNoise;
@@ -2072,12 +2112,12 @@ function _lqRenderSliders(){
         // Ensure _fx exists on the main design object so caching can compare params
         if(!data.designObject._fx) data.designObject._fx = _defaultFx(data);
 
-        _applyWarpToOneObject(data.designObject, data, _cachedFlip(data, data.designOriginal), true);
+        _applyWarpToOneObject(data.designObject, data, _cachedFlipForLayer(data, data.designOriginal, data.designObject), true);
 
         if(data.extraDesignObjects?.length){
             data.extraDesignObjects.forEach((obj, i) => {
                 const src = data.extraDesignOriginals?.[i] || data.designOriginal;
-                _applyWarpToOneObject(obj, data, _cachedFlip(data, src), true);
+                _applyWarpToOneObject(obj, data, _cachedFlipForLayer(data, src, obj), true);
             });
         }
 
@@ -2106,7 +2146,7 @@ async function _hqRenderSliders(){
                 applyWarpToData(d, false);
                 return;
             }
-            _applyWarpToOneObject(obj, d, _cachedFlip(d, srcOriginal), false);
+            _applyWarpToOneObject(obj, d, _cachedFlipForLayer(d, srcOriginal, obj), false);
             d.fabricCanvas.requestRenderAll();
         });
         autoSaveSession();
@@ -4512,17 +4552,38 @@ document.getElementById("invertColorsBtn").addEventListener("click", ()=>{
 });
 
 // ── Flip H / Flip V ───────────────────────────────────────────────────────────
-function flipSelectedDesigns(axis){
-    if(!activeIndices.length) return;
-    pushGlobalUndo();
-    activeIndices.forEach(i => {
+function _flipTargets() {
+    if (selectedDesigns.size) {
+        return [...selectedDesigns].map(obj => {
+            const data = canvasData.find(cd =>
+                cd && (cd.designObject === obj ||
+                       (cd.extraDesignObjects && cd.extraDesignObjects.includes(obj)))
+            );
+            return data && !data.locked ? { obj, data } : null;
+        }).filter(Boolean);
+    }
+    return activeIndices.map(i => {
         const data = canvasData[i];
-        if(!data || data.locked || !data.designOriginal) return;
-        if(axis === 'H') data.flipX = !data.flipX;
-        else             data.flipY = !data.flipY;
-        data._flipMap = null; // invalidate cached flipped sources
-        applyWarpToData(data, false);
+        if (!data?.designObject || data.locked) return null;
+        return { obj: data.designObject, data };
+    }).filter(Boolean);
+}
+
+function flipSelectedDesigns(axis){
+    const targets = _flipTargets();
+    if (!targets.length) return;
+    pushGlobalUndo();
+    const rendered = new Set();
+    targets.forEach(({ obj, data }) => {
+        const src = _layerPipelineSource(data, obj);
+        if (!src) return;
+        _setLayerFlip(obj, data, axis);
+        _resetObjectPipelineCaches(obj);
+        _applyWarpToOneObject(obj, data, _cachedFlipForLayer(data, src, obj), false);
+        applyClipMaskToObject(obj, data);
+        rendered.add(data);
     });
+    rendered.forEach(data => data.fabricCanvas.requestRenderAll());
 }
 
 document.getElementById('flipHBtn').addEventListener('click', () => flipSelectedDesigns('H'));
@@ -4604,8 +4665,12 @@ function _copyCurrentLayer(){
         designPerspectiveLeft:sourceData.perspectiveLeft?? 0,
         designSkewX:  sourceData.skewX  ?? 0,
         designSkewY:  sourceData.skewY  ?? 0,
-        designFlipX:  !!sourceData.flipX,
-        designFlipY:  !!sourceData.flipY,
+        designFlipX:  layerType === 'design'
+            ? !!sourceData.flipX
+            : !!obj._fx?.flipX,
+        designFlipY:  layerType === 'design'
+            ? !!sourceData.flipY
+            : !!obj._fx?.flipY,
         srcCarriesBakedPro: _layerCarriesBakedProWork(sourceData, obj, layerType, layerIdx),
     };
 
@@ -4661,12 +4726,15 @@ function _appendPastedLayerAsExtra(d, cl, srcEl, { offsetX = 0, offsetY = 0 } = 
     if (!d.designObject || !srcEl) return null;
 
     let layerSrc = _clonePastedLayerSource(srcEl);
+    const fx = _fxFromCopiedLayer(cl);
     if (cl.type === 'design') {
         const flipStub = { flipX: !!cl.designFlipX, flipY: !!cl.designFlipY };
-        layerSrc = _cachedFlip(flipStub, layerSrc);
+        layerSrc = _cachedFlipFromFlags(flipStub, flipStub, layerSrc);
+    } else if (cl.designFlipX || cl.designFlipY) {
+        fx.flipX = !!cl.designFlipX;
+        fx.flipY = !!cl.designFlipY;
     }
 
-    const fx    = _fxFromCopiedLayer(cl);
     const angle = cl.type === 'design'
         ? (cl.designRotation ?? cl.angle ?? 0)
         : (cl.angle ?? 0);
@@ -4694,7 +4762,10 @@ function _appendPastedLayerAsExtra(d, cl, srcEl, { offsetX = 0, offsetY = 0 } = 
     d.extraDesignObjects.push(fabricImg);
     d.extraDesignOriginals.push(layerSrc);
 
-    _applyWarpToOneObject(fabricImg, d, layerSrc, false);
+    const pipedSrc = (cl.type === 'design')
+        ? layerSrc
+        : _cachedFlipForLayer(d, layerSrc, fabricImg);
+    _applyWarpToOneObject(fabricImg, d, pipedSrc, false);
     _applyExtraLayerHandleStyle(fabricImg, 'overlay');
     applyClipMaskToObject(fabricImg, d);
     d.fabricCanvas.add(fabricImg);
@@ -4940,7 +5011,7 @@ function _applyEffectPayload(data, payload) {
     } else {
         const src = data.extraDesignOriginals?.[extraIdx] || data.designOriginal;
         if (src) {
-            _applyWarpToOneObject(obj, data, _cachedFlip(data, src), false);
+            _applyWarpToOneObject(obj, data, _cachedFlipForLayer(data, src, obj), false);
         }
         applyClipMaskToObject(obj, data);
     }
@@ -5059,7 +5130,7 @@ document.getElementById("duplicateLayerBtn").addEventListener("click", ()=>{
 
             data.extraDesignObjects.push(cloned);
             if (clonedSrc) {
-                _applyWarpToOneObject(cloned, data, _cachedFlip(data, clonedSrc), false);
+                _applyWarpToOneObject(cloned, data, _cachedFlipForLayer(data, clonedSrc, cloned), false);
             }
             _applyExtraLayerHandleStyle(cloned, isOverlayDup ? 'overlay' : 'clone');
 
@@ -5162,8 +5233,12 @@ function _promoteLayerToMain(data, obj) {
     data.warpCanvas = null;
     data._flipMap = null;
     data.meshWarpApplied = _objectCarriesBakedPro(obj);
-    data.flipX = false;
-    data.flipY = false;
+    data.flipX = !!(obj._fx && obj._fx.flipX);
+    data.flipY = !!(obj._fx && obj._fx.flipY);
+    if (!obj._fx) obj._fx = _defaultFx(data);
+    obj._fx.flipX = data.flipX;
+    obj._fx.flipY = data.flipY;
+    data._flipMap = null;
 
     delete obj._uploadedDesignName;
     _syncWindowFieldsFromLayerFx(data, obj);
@@ -5199,6 +5274,10 @@ function _demoteMainToExtra(data) {
     if (data.patternMode || data.patternFabricObj) _togglePatternMode(data, false);
 
     if (!obj._fx) obj._fx = _defaultFx(data);
+    obj._fx.flipX = !!data.flipX;
+    obj._fx.flipY = !!data.flipY;
+    data.flipX = false;
+    data.flipY = false;
 
     data.designObject = null;
     data.designOriginal = null;
@@ -5218,7 +5297,7 @@ function _demoteMainToExtra(data) {
     _applyExtraLayerHandleStyle(obj, 'clone');
     _resetObjectPipelineCaches(obj);
     if (original) {
-        _applyWarpToOneObject(obj, data, original, false);
+        _applyWarpToOneObject(obj, data, _cachedFlipForLayer(data, original, obj), false);
     }
     applyClipMaskToObject(obj, data);
     data.fabricCanvas.requestRenderAll();
@@ -6574,7 +6653,7 @@ document.addEventListener('keydown', function(e){
     if(!e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
     if(_kbdTypingTarget()) return;
     if(_kbdCanvasModesBlocked()) return;
-    if(!activeIndices.length) return;
+    if(!_flipTargets().length) return;
 
     e.preventDefault();
     document.getElementById(key === 'h' ? 'flipHBtn' : 'flipVBtn').click();
@@ -8739,6 +8818,12 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         // Restore per-object effects on the main design (saved by design mode)
         if(saved.designFx && data.designObject){
             data.designObject._fx = saved.designFx;
+            if (data.designObject._fx.flipX === undefined) {
+                data.designObject._fx.flipX = !!data.flipX;
+            }
+            if (data.designObject._fx.flipY === undefined) {
+                data.designObject._fx.flipY = !!data.flipY;
+            }
         }
         if ((saved.carriesBakedPro || saved.meshWarpApplied) && data.designObject) {
             _markObjectBakedPro(data.designObject);
@@ -8778,7 +8863,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             fabricImg._fx = dup.fx || _defaultFx(data);
                             if (dup.carriesBakedPro) _markObjectBakedPro(fabricImg);
 
-                            _applyWarpToOneObject(fabricImg, data, _cachedFlip(data, img), false);
+                            _applyWarpToOneObject(fabricImg, data, _cachedFlipForLayer(data, img, fabricImg), false);
 
                             data.extraDesignOriginals = data.extraDesignOriginals || [];
                             data.extraDesignOriginals.push(img);
@@ -8820,7 +8905,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             fabricImg._fx = dup.fx || _defaultFx(data);
                             if (dup.carriesBakedPro) _markObjectBakedPro(fabricImg);
 
-                            _applyWarpToOneObject(fabricImg, data, _cachedFlip(data, img), false);
+                            _applyWarpToOneObject(fabricImg, data, _cachedFlipForLayer(data, img, fabricImg), false);
 
                             data.extraDesignOriginals = data.extraDesignOriginals || [];
                             data.extraDesignOriginals.push(img);
@@ -8868,7 +8953,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             // pipeline into its pixels — restoring _fx alone only stores
                             // the values, it doesn't render them (mirrors the per-object
                             // pass applyWarpToData runs for extraDesignObjects normally).
-                            _applyWarpToOneObject(cloned, data, _cachedFlip(data, data.designOriginal), false);
+                            _applyWarpToOneObject(cloned, data, _cachedFlipForLayer(data, data.designOriginal, cloned), false);
 
                             data.extraDesignOriginals = data.extraDesignOriginals || [];
                             data.extraDesignOriginals.push(null);
