@@ -22,6 +22,7 @@
 
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
+const { makeFakeDb } = require('./_helpers/mongo-mock');
 
 function makeReqRes({ method = 'GET', headers = {}, env = {} } = {}) {
     const saved = {};
@@ -211,7 +212,7 @@ describe('scripts/check-env.js — STRIPE_WEBHOOK_SECRET validate()', () => {
     });
 });
 
-describe('Stripe webhook retry — nonce released on Clerk 500, second attempt succeeds', () => {
+describe('Stripe webhook retry & idempotency — MongoDB-backed claim and nonce store', () => {
     const WEBHOOK_SECRET = 'whsec_test_retry_integration_secret';
     const SET_PLAN_SECRET = 'retry_test_set_plan_secret';
     const BASE_URL = 'https://mkpscptr.vercel.app';
@@ -238,13 +239,12 @@ describe('Stripe webhook retry — nonce released on Clerk 500, second attempt s
         delete process.env.UPSTASH_REDIS_REST_TOKEN;
         delete process.env.DATABASE_URL;
 
-        // Simulate MongoDB being unavailable so tryClaimStripeEvent always returns
-        // true (allows processing through to callSetPlan).  This isolates the
-        // nonce store as the sole deduplication layer under test, which is the
-        // code path exercised by these suites.
-        jest.doMock('../api/_db', () => ({
-            getDb: () => Promise.reject(new Error('MongoDB unavailable in test')),
-        }));
+        // Both the webhook's idempotency_keys claim and set-plan's nonce store
+        // are MongoDB-backed — share one fake db across the whole describe
+        // block so idempotency/nonce state persists across deliveries exactly
+        // like it would against a real MongoDB instance.
+        const fakeDb = makeFakeDb();
+        jest.doMock('../api/_db', () => ({ getDb: async () => fakeDb }));
 
         webhookHandler = require('../api/webhooks/stripe');
         setPlanHandler = require('../api/set-plan');
@@ -380,10 +380,15 @@ describe('Stripe webhook retry — nonce released on Clerk 500, second attempt s
         }
     });
 
-    test('second delivery of same event ID is blocked by nonce — Clerk called exactly once', async () => {
-        // Using event.id as nonce: both deliveries carry the same nonce, so the
-        // nonce store (in-memory here, Redis/PG in production) blocks the second
-        // one even when the MongoDB idempotency check is unavailable.
+    test('second delivery of same event ID is blocked by MongoDB idempotency claim — Clerk called exactly once', async () => {
+        // Both deliveries share the same event.id. The first claims the event
+        // in the shared MongoDB idempotency_keys collection (tryClaimStripeEvent);
+        // the second delivery's claim attempt hits the same _id and is rejected
+        // as a duplicate, short-circuiting with 200 before set-plan/Clerk are
+        // ever called again. The set-plan nonce store (also MongoDB-backed,
+        // keyed on the same event.id) is a second, independent layer of
+        // defense that would also reject it if this first layer were ever
+        // bypassed — see tests/nonce-replay.test.js and tests/nonce-race.test.js.
         const stripeEvent = {
             id: 'evt_test_idempotent_001',
             type: 'checkout.session.completed',
@@ -452,16 +457,17 @@ describe('Stripe webhook retry — nonce released on Clerk 500, second attempt s
             expect(res1._body.ok).toBe(true);
             expect(clerkCallCount).toBe(1);
 
-            // Second delivery of the same event: MongoDB unavailable so
-            // tryClaimStripeEvent returns true, but the nonce store sees the
-            // event.id is already recorded and rejects with 400, causing the
-            // webhook to return 502.  Clerk is NOT called a second time.
+            // Second delivery of the same event: the MongoDB idempotency claim
+            // for this event.id already exists, so tryClaimStripeEvent returns
+            // false and the webhook short-circuits with 200 (ignored,
+            // duplicate_event) without ever calling set-plan/Clerk again.
             const sig2 = buildStripeSignature(rawBody);
             const req2 = makeStreamReq(sig2, rawBody);
             const res2 = makeRes();
             await webhookHandler(req2, res2);
-            expect(res2._status).toBe(502);
-            expect(res2._body.ok).toBe(false);
+            expect(res2._status).toBe(200);
+            expect(res2._body.ok).toBe(true);
+            expect(res2._body.reason).toBe('duplicate_event');
             expect(clerkCallCount).toBe(1); // Clerk was NOT called again
         } finally {
             global.fetch = realFetch;
@@ -470,9 +476,10 @@ describe('Stripe webhook retry — nonce released on Clerk 500, second attempt s
 
     test('concurrent deliveries of same Stripe event are deduplicated — Clerk called exactly once', async () => {
         // Two deliveries of the SAME event arrive simultaneously (e.g. Stripe
-        // fires twice due to a network blip).  Both carry the same event.id, so
-        // the nonce store's atomic SET NX / in-memory Map ensures exactly one
-        // reaches Clerk.
+        // fires twice due to a network blip). Both carry the same event.id, so
+        // MongoDB's atomic unique _id index on idempotency_keys ensures only one
+        // wins tryClaimStripeEvent; the other is short-circuited with 200
+        // (ignored, duplicate_event) before ever reaching set-plan/Clerk.
         const stripeEvent = {
             id: 'evt_test_concurrent_001',
             type: 'checkout.session.completed',
@@ -545,11 +552,19 @@ describe('Stripe webhook retry — nonce released on Clerk 500, second attempt s
                 webhookHandler(req2, res2),
             ]);
 
-            const statuses = [res1._status, res2._status].sort();
-            // Exactly one should succeed (200); the other should be blocked (502
-            // because set-plan rejected the duplicate nonce with 400).
-            expect(statuses.filter(s => s === 200)).toHaveLength(1);
-            expect(statuses.filter(s => s >= 400)).toHaveLength(1);
+            // Both responses are 200: the winner processes the payment normally,
+            // the loser is short-circuited as an acknowledged duplicate. Only
+            // one side actually reaches set-plan/Clerk, which is what matters
+            // for correctness (no double-processing).
+            expect(res1._status).toBe(200);
+            expect(res2._status).toBe(200);
+            const bodies = [res1._body, res2._body];
+            const duplicateResponses = bodies.filter(b => b.reason === 'duplicate_event');
+            const processedResponses = bodies.filter(b => b.reason !== 'duplicate_event');
+            expect(duplicateResponses).toHaveLength(1);
+            expect(processedResponses).toHaveLength(1);
+            expect(processedResponses[0].userId).toBe('user_concurrent_001');
+            expect(processedResponses[0].plan).toBe('starter');
 
             // Clerk must have been called exactly once — no duplicate upgrade.
             expect(clerkCallCount).toBe(1);

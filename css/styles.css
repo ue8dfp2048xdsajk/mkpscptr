@@ -2042,6 +2042,24 @@ body.sidebar-expanded #contextPanelBody {
     min-height: 16px;
     margin-bottom: 20px;
 }
+/* Reuses the .ms-plan-billing-note text-swap mechanism in setPeriod() (same
+   class + data-<period> attrs), so it needs no extra JS to show/hide per
+   billing period — :empty collapses it entirely on monthly/annual. */
+.ms-plan-earlybird-badge {
+    display: inline-block;
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 50px;
+    margin-bottom: 10px;
+    min-height: 0;
+}
+.ms-plan-earlybird-badge:empty {
+    display: none;
+    margin-bottom: 0;
+}
 .ms-plan-features {
     list-style: none;
     padding: 0;
@@ -2068,6 +2086,13 @@ body.sidebar-expanded #contextPanelBody {
 .ms-plan-features li.ms-feature-no {
     color: #d1d5db;
     text-decoration: line-through;
+}
+.ms-plan-features li.ms-feature-highlight {
+    color: #b45309;
+    font-weight: 700;
+}
+.ms-plan-features li.ms-feature-highlight::before {
+    color: #b45309;
 }
 .ms-plan-features li.ms-feature-no::before {
     content: '✕';

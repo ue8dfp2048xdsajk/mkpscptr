@@ -307,6 +307,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Remove the stale `https://clerks.mockupscripter.com` (with an "s") entry from `vercel.json` CSP — this was identified as a typo domain during the Clerk migration and is dead weight, not actually needed
 - [ ] No console errors
 - [ ] Confirm rate limiting fails **open** if Redis/Upstash is unreachable (`api/_sliding-window.js`) — not a pre-launch blocker, but be aware that a Redis outage silently disables rate limiting rather than blocking requests
+- [ ] Confirm plan-activation replay protection (`api/_nonce-store.js`) is MongoDB-backed and independent of Redis/Upstash health — a broken or missing Upstash credential can no longer prevent a paying customer's plan from activating (see the "Consolidate nonce store onto MongoDB" change). The only durable dependency for this is `MONGODB_URI`.
 - [ ] Confirm there is no automated alerting (Slack/Sentry/PagerDuty) on webhook failures today — plan to manually watch Vercel function logs during your first real transactions, since failures currently only surface as `console.error` log lines
 
 ---
@@ -394,4 +395,4 @@ If that final journey works flawlessly, you're not just testing individual featu
 7. **Stale `clerks.mockupscripter.com` CSP entry** — leftover typo domain from the Clerk migration debugging; harmless but should be cleaned up. (Part 18)
 8. **`invoice.paid` is not handled by the Stripe webhook** — only `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. (Part 3)
 9. **No external alerting on webhook/backend failures** — console logs only; plan for manual log-watching at launch. (Part 18)
-10. **Rate limiting fails open, nonce store fails closed** — different failure modes for the two protection layers if their backing store (Redis/Postgres) is unreachable. Worth understanding, not necessarily fixing pre-launch. (Part 18)
+10. **Rate limiting fails open, nonce store fails closed** — different failure modes for the two protection layers. Rate limiting (`api/_sliding-window.js`, `api/_rate-limiter.js`) still uses optional Redis/Postgres and fails open if unreachable. The nonce store (`api/_nonce-store.js`) is now MongoDB-only and fails closed if `MONGODB_URI` is unreachable — the same store that's already required for the rest of the payment pipeline, so there's no longer a separate Redis/Postgres credential that can silently break plan activation. (Part 18)

@@ -802,7 +802,8 @@ async function applyWarpToData(data, lowQuality = false){
     const noisySource = applyNoiseToImage(blurredSource, data.noiseAmount || 0);
 
     // ── Pattern mode: warp/perspective apply to the whole tiled canvas, not tiles ──
-    if(data.patternMode && data.patternFabricObj){
+    // Requires designObject — reset clears pattern before dropping the object.
+    if(data.patternMode && data.patternFabricObj && data.designObject){
         data._patternTileSource = noisySource;
         if(data.designObject){
             data.designObject.setElement(noisySource);
@@ -2138,6 +2139,7 @@ function createCanvasData(bgObj, designObj){
         initialArcTilt: 0,
         initialOpacity: 1,
         initialBlurAmount: 0,
+        initialNoiseAmount: 0,
         initialBlendMode: "normal",
         initialBlendIntensity: 100,
         initialPerspectiveTop: 0,
@@ -6853,150 +6855,15 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
 document.getElementById("resetBtnTop").addEventListener("click", () =>
     document.getElementById("resetBtn").click());
 
-document.getElementById("resetBtn").addEventListener("click", ()=>{
+document.getElementById("resetBtn").addEventListener("click", async ()=>{
 
     if(!activeIndices.length) return;
 
     pushGlobalUndo();
 
-    activeIndices.forEach(index=>{
-
-        const data = canvasData[index];
-        if(data.locked) return;
-
-        // ── Remove extra/duplicate layers ─────────────────────────────────────
-        if(data.extraDesignObjects){
-            data.extraDesignObjects.forEach(obj=>{
-                selectedDesigns.delete(obj); // remove from selection too
-                data.fabricCanvas.remove(obj);
-            });
-            data.extraDesignObjects   = [];
-            data.extraDesignOriginals = [];
-        }
-
-        // ── Restore original position/state ───────────────────────────────────
-        data.x    = data.initialX;
-        data.y    = data.initialY;
-        data.scale  = data.initialScale;
-        data.scaleX = null;
-        data.scaleY = null;
-        data.rotation     = data.initialRotation;
-        data.warpAmount   = data.initialWarpAmount;
-        data.arcAmount    = data.initialArcAmount;
-        data.arcTilt      = data.initialArcTilt     ?? 0;
-        data.opacity      = data.initialOpacity;
-        data.blurAmount   = data.initialBlurAmount;
-        data.noiseAmount  = data.initialNoiseAmount ?? 0;
-        data.blendMode    = data.initialBlendMode   ?? "normal";
-        data.perspectiveTop  = data.initialPerspectiveTop  ?? 0;
-        data.perspectiveLeft = data.initialPerspectiveLeft ?? 0;
-        data.flipX = false;
-        data.flipY = false;
-        data._flipMap = null;
-        data.skewX = 0;
-        data.skewY = 0;
-
-        // ── Reset _fx on the main design object ──────────────────────────────
-        // syncSliders() reads from _fx when selectedDesigns is non-empty, so _fx
-        // must be updated here — otherwise sliders show stale values after reset.
-        if(data.designObject){
-            data.designObject._fx = {
-                warpAmount:      data.warpAmount,
-                arcAmount:       data.arcAmount,
-                arcTilt:         data.arcTilt,
-                perspectiveTop:  data.perspectiveTop,
-                perspectiveLeft: data.perspectiveLeft,
-                opacity:         data.opacity,
-                blurAmount:      data.blurAmount,
-                noiseAmount:     data.noiseAmount,
-                blendMode:       data.blendMode
-            };
-
-            // Invalidate the LQ pipeline cache so the next render runs clean.
-            data.designObject._c_src     = null;
-            data.designObject._c_blurred = null;
-            data.designObject._c_noisy   = null;
-            data.designObject._c_warpOk  = false;
-            data.designObject._c_trimmed = null;
-            data.designObject._c_persp   = null;
-        }
-
-        // ── Restore designOriginal (undoes eraser baking / mesh warp / invert) ──
-        if(data.initialDesignOriginal){
-            data.designOriginal = data.initialDesignOriginal;
-        }
-
-        // ── Rebuild designObject from scratch ────────────────────────────────
-        // Mesh warp Apply bakes the warp into a new fabric.Image that has
-        // left/top origin and a DPR-compensated scale.  If we just call
-        // setElement() on that object the baked warp canvas stays as the
-        // element, and origin/scale are wrong.  Instead, drop the old object
-        // and let applyWarpToData() create a fresh center-origin image from
-        // data.designOriginal (now restored to the upload original above).
-        if(data.designObject){
-            data.fabricCanvas.remove(data.designObject);
-            selectedDesigns.delete(data.designObject);
-            data.designObject = null;
-        }
-
-        applyWarpToData(data);
-
-        // Re-add the freshly created design to the selection set so that
-        // Fabric handles and sliders reflect the reset state correctly.
-        if(data.designObject && !data.locked){
-            if(!data.designObject._fx) data.designObject._fx = _defaultFx(data);
-            selectedDesigns.add(data.designObject);
-        }
-
-        // ── Clear clipping ────────────────────────────────────────────────────
-        data.maskEnabled        = false;
-        data.maskType           = null;
-        data.maskPath           = null;
-        data.maskPaths          = [];
-        data.clipCurvePoints    = [];
-        data.clipPolygonClosed  = false;
-
-        getAllDesignObjects(data).forEach(obj=>{
-            applyClipMaskToObject(obj, data);
-        });
-        addClipOverlay(data);
-
-        // ── Clear color layer ─────────────────────────────────────────────────
-        if(data.colorLayerFabricObj){
-            data.fabricCanvas.remove(data.colorLayerFabricObj);
-            data.colorLayerFabricObj = null;
-        }
-        if(data.colorLayerCtx){
-            data.colorLayerCtx.clearRect(
-                0, 0,
-                data.colorLayerCanvas.width,
-                data.colorLayerCanvas.height
-            );
-        }
-        data.colorLayerCanvas  = null;
-        data.colorLayerCtx     = null;
-        data.colorLayerHistory = [];
-
-        // ── Reset pattern ─────────────────────────────────────────────────────
-        if(data.patternMode || data.patternFabricObj) _togglePatternMode(data, false);
-        data.patternMode = false;
-        data.patternSettings = _defaultPattern();
-
-        // ── Reset background adjustments ──────────────────────────────────────
-        data.bgAdjust = { hue: 0, saturation: 0, brightness: 0, contrast: 0 };
-
-        // ── Reset framing (bgCrop) ────────────────────────────────────────────
-        data.bgCrop = { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 };
-        _applyBgAdjust(data);
-        _updateCropOverlay(data);
-
-        // ── Clear PRO star (all effects were reset above) ────────────────────────
-        data.hasProEffect = false;
-        _updateProStarBadge(data);
-
-        data.fabricCanvas.discardActiveObject();
-        data.fabricCanvas.requestRenderAll();
-    });
+    for (const index of activeIndices) {
+        await resetWindowToBaseline(canvasData[index]);
+    }
 
     // ── Sync bgAdjust UI ──────────────────────────────────────────────────────
     bgHue.valueAsNumber        = 0;
@@ -7078,6 +6945,21 @@ function buildSnapshot(){
             // the design to the correct canvas centre after a save-restore cycle.
             initialX: data.initialX / (data.previewScale || 1),
             initialY: data.initialY / (data.previewScale || 1),
+
+            // Full reset baseline — pristine upload defaults, independent of
+            // current effect values (fixes reset after autosave / JSON load).
+            initialScale: data.initialScale,
+            initialRotation: data.initialRotation ?? 0,
+            initialWarpAmount: data.initialWarpAmount ?? 0,
+            initialArcAmount: data.initialArcAmount ?? 0,
+            initialArcTilt: data.initialArcTilt ?? 0,
+            initialOpacity: data.initialOpacity ?? 1,
+            initialBlurAmount: data.initialBlurAmount ?? 0,
+            initialNoiseAmount: data.initialNoiseAmount ?? 0,
+            initialBlendMode: data.initialBlendMode ?? 'normal',
+            initialPerspectiveTop: data.initialPerspectiveTop ?? 0,
+            initialPerspectiveLeft: data.initialPerspectiveLeft ?? 0,
+            initialDesignSrc: _originalToSrc(data.initialDesignOriginal),
 
             scale: data.scale,
 
@@ -7947,6 +7829,16 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             }
         }
 
+        let baselineDesignImg = designImg;
+        if (saved.initialDesignSrc && saved.initialDesignSrc !== saved.designSrc) {
+            baselineDesignImg = await new Promise(resolve => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => resolve(designImg);
+                img.src = saved.initialDesignSrc;
+            });
+        }
+
         // restore background source pool
         if(
             !backgrounds.some(
@@ -7965,7 +7857,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             bgName: saved.bgName,
 
             designOriginal: designImg,
-            initialDesignOriginal: designImg,
+            initialDesignOriginal: baselineDesignImg ?? designImg,
             designName: saved.designName,
 
             x: saved.x,
@@ -8020,18 +7912,6 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             hasProEffect: saved.hasProEffect ?? false,
 
             extraDesignObjects: [],
-
-            initialX: saved.x,
-            initialY: saved.y,
-
-            initialScale: saved.scale,
-            initialRotation: saved.rotation,
-            initialWarpAmount: saved.warpAmount,
-            initialArcAmount: saved.arcAmount,
-            initialOpacity: saved.opacity ?? 1,
-            initialBlurAmount: saved.blurAmount ?? 0,
-            initialNoiseAmount: saved.noiseAmount ?? 0,
-            initialBlendMode: saved.blendMode ?? "normal"
         };
 
         canvasData.push(data);
@@ -8124,16 +8004,29 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         fabricCanvas.setWidth(previewW);
         fabricCanvas.setHeight(previewH);
 
-        // Now that previewW/H are known, set the correct reset-target position.
-        // Use the value saved in the snapshot when available (saved with the fix
-        // that stores getCenterPoint coordinates); fall back to canvas centre for
-        // sessions saved before this fix so old snapshots still work correctly.
+        // Now that previewW/H are known, set the correct reset baseline.
+        // Use persisted baseline from snapshot when available; fall back to
+        // pristine defaults for sessions saved before baseline was persisted.
         data.initialX = saved.initialX != null
             ? saved.initialX * previewScale
             : previewW / 2;
         data.initialY = saved.initialY != null
             ? saved.initialY * previewScale
             : previewH / 2;
+        data.initialScale = saved.initialScale ?? saved.scale ?? 1;
+        data.initialRotation = saved.initialRotation ?? 0;
+        data.initialWarpAmount = saved.initialWarpAmount ?? 0;
+        data.initialArcAmount = saved.initialArcAmount ?? 0;
+        data.initialArcTilt = saved.initialArcTilt ?? 0;
+        data.initialOpacity = saved.initialOpacity ?? 1;
+        data.initialBlurAmount = saved.initialBlurAmount ?? 0;
+        data.initialNoiseAmount = saved.initialNoiseAmount ?? 0;
+        data.initialBlendMode = saved.initialBlendMode ?? 'normal';
+        data.initialPerspectiveTop = saved.initialPerspectiveTop ?? 0;
+        data.initialPerspectiveLeft = saved.initialPerspectiveLeft ?? 0;
+        if (baselineDesignImg) {
+            data.initialDesignOriginal = baselineDesignImg;
+        }
 
         // Shrink Fabric's .canvas-container to the CSS display size so it doesn't
         // overflow the grid cell. Canvas DOM pixel count stays at previewW × DPR,

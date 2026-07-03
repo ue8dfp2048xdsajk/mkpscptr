@@ -19,20 +19,23 @@ Mockup Scripter is a static-first web app with a serverless API backend. There i
 │  /api/* → serverless functions in api/                           │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
-        ┌───────────────────┼───────────────────┐
-        ▼                   ▼                   ▼
-   ┌─────────┐        ┌──────────┐       ┌───────────┐
-   │  Clerk  │        │  Stripe  │       │  MongoDB  │
-   │  (auth) │        │ (billing)│       │ (projects)│
-   └─────────┘        └──────────┘       └───────────┘
-                            │
-                            ▼
-                   ┌─────────────────┐
-                   │ Upstash Redis   │
-                   │ or PostgreSQL   │
-                   │ (nonces, limits)│
-                   └─────────────────┘
+        ┌───────────────────┼───────────────────┬───────────────────┐
+        ▼                   ▼                   ▼                   ▼
+   ┌─────────┐        ┌──────────┐       ┌──────────────┐   ┌─────────────────┐
+   │  Clerk  │        │  Stripe  │       │   MongoDB     │   │ Upstash Redis   │
+   │  (auth) │        │ (billing)│       │ projects,     │   │ or PostgreSQL   │
+   │         │        │          │       │ customers,    │   │ (rate limits    │
+   │         │        │          │       │ idempotency_  │   │  only — fails   │
+   │         │        │          │       │ keys,         │   │  open, optional)│
+   │         │        │          │       │ nonce_seen    │   │                 │
+   └─────────┘        └──────────┘       └──────────────┘   └─────────────────┘
 ```
+
+MongoDB is the **only** durable dependency in the payment-to-plan-update path
+(besides Stripe and Clerk themselves) — replay-protection nonces
+(`nonce_seen`) and webhook idempotency (`idempotency_keys`) both live there.
+Upstash/Postgres back the rate limiters only, which fail open, so they are
+optional and cannot block a payment from activating a plan.
 
 ## Production vs local development
 
@@ -99,8 +102,8 @@ API handlers live in `api/` as Vercel serverless functions. Shared utilities:
 | `_verify-clerk-token.js` | JWT verification via Clerk JWKS |
 | `_db.js` | MongoDB connection pool |
 | `_cors.js` | CORS headers |
-| `_nonce-store.js` | Webhook replay protection |
-| `_rate-limiter.js` / `_sliding-window.js` | IP and per-user rate limits |
+| `_nonce-store.js` | `/api/set-plan` replay protection — MongoDB-only (`nonce_seen` collection) |
+| `_rate-limiter.js` / `_sliding-window.js` | IP and per-user rate limits — Redis/Postgres, falls back to in-memory (fails open) |
 
 See [backend-api.md](backend-api.md) for the full endpoint catalog.
 

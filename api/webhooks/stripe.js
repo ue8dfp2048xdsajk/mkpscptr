@@ -181,8 +181,10 @@ function storeStripeCustomerInClerk(clerkUserId, stripeCustomerId, clerkSecretKe
 // Call the internal set-plan endpoint.
 // `nonce` should be the Stripe event ID (event.id) so that two concurrent
 // deliveries of the same event are deduplicated atomically by the nonce store
-// (Redis SET NX / PG INSERT ON CONFLICT DO NOTHING), even if the MongoDB
-// idempotency check in tryClaimStripeEvent is temporarily unavailable.
+// (api/_nonce-store.js — MongoDB unique _id index on the `nonce_seen`
+// collection), independent of the MongoDB idempotency check in
+// tryClaimStripeEvent above (same database, different collection — this is
+// defense-in-depth, not a fallback to a different backend).
 async function callSetPlan(baseUrl, setPlanSecret, userId, plan, nonce, extraHeaders = {}) {
     const timestamp = Math.floor(Date.now() / 1000);
     return fetch(`${baseUrl}/api/set-plan`, {

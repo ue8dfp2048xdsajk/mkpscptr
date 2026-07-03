@@ -11,7 +11,9 @@
  *  1. All required vars present with valid values → exits 0
  *  2. One required var missing                   → exits 1
  *  3. STRIPE_WEBHOOK_SECRET with wrong prefix    → exits 1  (INVALID, not MISSING)
- *  4. Optional vars absent (OPTIONAL=[])         → exits 0  (no-op today; structure tested)
+ *  4. Optional vars (UPSTASH_REDIS_REST_URL/TOKEN) absent → exits 0 with a warning,
+ *     since the payment-to-plan nonce store is MongoDB-backed and no longer
+ *     depends on Upstash (only the rate limiters do, and they fail open).
  */
 
 'use strict';
@@ -35,8 +37,6 @@ const ALL_REQUIRED = {
     CLERK_SECRET_KEY: 'sk_test_clerk_dummy',
     CLERK_JWKS_URL: 'https://clerk.example.com/.well-known/jwks.json',
     MONGODB_URI: 'mongodb+srv://user:pass@cluster.example.mongodb.net',
-    UPSTASH_REDIS_REST_URL: 'https://redis.example.upstash.io',
-    UPSTASH_REDIS_REST_TOKEN: 'token_dummy',
 };
 
 function run(env) {
@@ -152,10 +152,23 @@ describe('scripts/check-env.js — child-process integration', () => {
         expect(stderr).toMatch(/2 required variable/i);
     });
 
-    test('exits 0 and prints no warnings when OPTIONAL is empty', () => {
-        const { code, stdout } = run(ALL_REQUIRED);
+    test('exits 0 with a warning when UPSTASH_REDIS_REST_URL/TOKEN are absent (optional, not required)', () => {
+        const { code, stdout, stderr } = run(ALL_REQUIRED);
         expect(code).toBe(0);
         expect(stdout).toMatch(/checking optional environment variables/i);
-        expect(stdout).not.toMatch(/MISSING.*optional/i);
+        // console.warn writes to stderr, not stdout.
+        expect(stderr).toMatch(/MISSING\s+UPSTASH_REDIS_REST_URL \(optional\)/);
+        expect(stderr).toMatch(/MISSING\s+UPSTASH_REDIS_REST_TOKEN \(optional\)/);
+    });
+
+    test('exits 0 with no optional warnings when UPSTASH_REDIS_REST_URL/TOKEN are present', () => {
+        const env = {
+            ...ALL_REQUIRED,
+            UPSTASH_REDIS_REST_URL: 'https://redis.example.upstash.io',
+            UPSTASH_REDIS_REST_TOKEN: 'token_dummy',
+        };
+        const { code, stderr } = run(env);
+        expect(code).toBe(0);
+        expect(stderr).not.toMatch(/MISSING.*optional/i);
     });
 });

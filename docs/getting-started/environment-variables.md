@@ -17,16 +17,16 @@ This runs automatically as `prebuild` before `npm run build`.
 | `CLERK_JWKS_URL` | Yes | Yes (for auth) | Clerk JWKS endpoint URL |
 | `CLERK_SECRET_KEY` | Yes | Yes (for auth) | `sk_live_...` or `sk_test_...` |
 | `CLERK_PUBLISHABLE_KEY` | Recommended | Recommended | Injected into HTML by `server.js` |
-| `MONGODB_URI` | Yes | For cloud saves | Projects + customer mapping |
+| `MONGODB_URI` | Yes | For cloud saves | Projects, customer mapping, webhook idempotency, **and set-plan replay-protection nonces** |
 | `MONGODB_DB_NAME` | No | No | Default: `mockupscripter` |
 | `STRIPE_SECRET_KEY` | Yes | For checkout | `sk_live_...` or `sk_test_...` |
 | `STRIPE_WEBHOOK_SECRET` | Yes | For webhooks | `whsec_...` |
 | `STRIPE_PRICE_*` (6 vars) | Yes | For checkout | See Stripe section |
 | `BASE_URL` | Yes | For webhooks | No trailing slash |
 | `SET_PLAN_SECRET` | Yes | For webhooks | Shared webhook ↔ set-plan secret |
-| `UPSTASH_REDIS_REST_URL` | Yes | No | Nonce store + rate limits |
-| `UPSTASH_REDIS_REST_TOKEN` | Yes | No | Pair with URL above |
-| `DATABASE_URL` | Alternative | No | PG fallback if Redis unset |
+| `UPSTASH_REDIS_REST_URL` | Optional | No | Rate-limit counters only (fails open if unset) |
+| `UPSTASH_REDIS_REST_TOKEN` | Optional | No | Pair with URL above |
+| `DATABASE_URL` | Optional | No | PG fallback for rate limits if Redis unset |
 | `ENABLE_WEBHOOK_TEST_HOOKS` | Never in prod | Test only | Simulates Clerk failures |
 
 ---
@@ -61,7 +61,7 @@ Clerk publishable key (`pk_test_...` or `pk_live_...`). `server.js` replaces the
 
 Connection string for MongoDB Atlas or local MongoDB.
 
-**If missing:** cloud project save/load fails; Stripe customer mapping and webhook idempotency degrade.
+**If missing:** cloud project save/load fails; Stripe customer mapping and webhook idempotency degrade; `/api/set-plan` fails closed (returns 500) because the nonce store below has no backend to write to — payments succeed on Stripe's side but the user's plan is never activated.
 
 ### `MONGODB_DB_NAME`
 
@@ -72,6 +72,7 @@ Collections used:
 - `projects` — saved editor snapshots
 - `customers` — `stripeCustomerId` ↔ `clerkUserId` mapping
 - `idempotency_keys` — Stripe webhook deduplication (TTL 4 days)
+- `nonce_seen` — `/api/set-plan` replay-protection nonces (TTL 15 min). This is the entire durable backend for the payment-to-plan-update pipeline's replay protection — it no longer touches Upstash/Postgres at all (see the "Consolidate nonce store onto MongoDB" change).
 
 Run `node scripts/setup-mongo-indexes.js` after first setup.
 
@@ -129,19 +130,26 @@ Generate: `openssl rand -hex 32`
 
 ---
 
-## Upstash Redis / PostgreSQL
+## Upstash Redis / PostgreSQL (rate limiting only)
+
+These are **optional**. They back the rate limiters only — `/api/checkout`,
+`/api/billing`, `/api/account-delete` request throttling and `/api/set-plan`
+auth-failure lockout tracking. They are **not** used by the payment-to-plan
+nonce store (`api/_nonce-store.js`), which is MongoDB-backed and always uses
+`MONGODB_URI` above — so a misconfigured or missing Upstash credential can
+no longer block a customer's plan from activating after payment.
 
 ### `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`
 
-Durable store for nonce replay protection and rate-limit counters across serverless instances.
+Durable store for rate-limit counters across serverless instances.
 
 Create a free database at [console.upstash.com](https://console.upstash.com).
 
-**If missing in production:** falls back to in-memory store — resets on cold start, not shared across instances. Acceptable for local dev only.
+**If missing in production:** rate limiting falls back to an in-memory counter — resets on cold start, not shared across instances — and fails **open** (requests are still served, just without durable lockout tracking). Safe to leave unset pre-launch; add it later for stronger abuse protection.
 
 ### `DATABASE_URL`
 
-PostgreSQL connection string. Alternative durable backend for nonces and rate limits when Redis is not configured.
+PostgreSQL connection string. Alternative durable backend for rate limits when Redis is not configured. Same fail-open behavior as above if also unset.
 
 ---
 

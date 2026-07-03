@@ -79,28 +79,30 @@ const REQUIRED = [
         name: 'MONGODB_URI',
         description: 'MongoDB connection string (mongodb://... or mongodb+srv://...). ' +
             'Missing → the checkout.session.completed webhook cannot store the Stripe customer ' +
-            'mapping and returns 500 before the user\'s plan is activated — the user pays but ' +
-            'has to wait for Stripe\'s automatic webhook retries.',
+            'mapping, claim webhook-event idempotency, or record the replay-protection nonce used ' +
+            'by /api/set-plan, and returns 500 before the user\'s plan is activated — the user pays ' +
+            'but has to wait for Stripe\'s automatic webhook retries.',
         validate: (v) => v.startsWith('mongodb://') || v.startsWith('mongodb+srv://') ||
             'value should start with mongodb:// or mongodb+srv://',
     },
+];
+
+const OPTIONAL = [
     {
         name: 'UPSTASH_REDIS_REST_URL',
-        description: 'Upstash Redis REST URL for the nonce store. ' +
-            'Missing → nonce replay protection falls back to in-memory, resets on every cold start, ' +
-            'allowing webhook replay attacks across serverless restarts. ' +
-            'Create a free database at https://console.upstash.com.',
-        validate: (v) => v.startsWith('https://') || 'value should start with https://',
+        description: 'Upstash Redis REST URL. Used only by the rate limiters ' +
+            '(checkout/billing/account-delete and set-plan auth-failure lockout). ' +
+            'The payment-to-plan nonce store no longer depends on this — it is backed by ' +
+            'MongoDB (already required above). Missing → rate limiting falls back to ' +
+            'in-memory counters, which reset on cold start and are not shared across ' +
+            'serverless instances; rate limiting fails OPEN in this case (requests are ' +
+            'still served, just without durable lockout tracking).',
     },
     {
         name: 'UPSTASH_REDIS_REST_TOKEN',
-        description: 'Upstash Redis REST token for the nonce store. ' +
-            'Missing → nonce store falls back to in-memory, replay protection resets on cold starts. ' +
-            'Copy the token from the REST API section of your Upstash database.',
+        description: 'Pairs with UPSTASH_REDIS_REST_URL above.',
     },
 ];
-
-const OPTIONAL = [];
 
 let missing = 0;
 

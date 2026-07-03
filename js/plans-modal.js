@@ -67,6 +67,10 @@
             el.textContent = el.getAttribute('data-' + period) || '';
         });
 
+        document.querySelectorAll('[data-lifetime-only]').forEach(function (el) {
+            el.style.display = (period === 'lifetime') ? '' : 'none';
+        });
+
         document.querySelectorAll('.ms-plan-cta[data-plan]').forEach(function (btn) {
             btn.dataset.period = period;
         });

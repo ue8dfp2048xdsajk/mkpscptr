@@ -13,8 +13,8 @@ Browser-based SaaS for bulk product mockup creation. Users upload backgrounds an
 | Production hosting | Vercel (static files + serverless API in `api/`) |
 | Auth | Clerk |
 | Payments | Stripe |
-| Database | MongoDB |
-| Rate limiting / nonces | Upstash Redis or PostgreSQL (in-memory fallback for local dev) |
+| Database | MongoDB (also backs webhook/set-plan replay-protection nonces) |
+| Rate limiting | Upstash Redis or PostgreSQL, optional (in-memory fallback, fails open) |
 
 There is **no frontend build step**. Static files are served as-is.
 

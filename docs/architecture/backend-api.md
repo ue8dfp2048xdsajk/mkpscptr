@@ -174,7 +174,7 @@ Returns Stripe price configuration status and rate-limiter backend info. Used by
 
 ### `POST /api/admin/clear-nonce`
 
-Clear a stuck webhook nonce (recovery tool when a user paid but plan wasn't set).
+Clear a stuck webhook nonce (recovery tool when a user paid but plan wasn't set). The nonce store (`api/_nonce-store.js`) is MongoDB-backed (`nonce_seen` collection) — independent of the Redis/PostgreSQL rate limiters described below.
 
 Body: `{ nonce }` or `{ userId, plan, reason? }`
 

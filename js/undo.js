@@ -142,6 +142,98 @@ async function restoreDuplicatesFromState(data, savedDups){
     }
 }
 
+// Snapshot of the reset target for one window — same shape as captureWindowState().
+function captureWindowBaseline(data) {
+    const scale = data.initialScale ?? data.scale ?? 1;
+    return {
+        x: data.initialX ?? data.x,
+        y: data.initialY ?? data.y,
+        scale,
+        scaleX: scale,
+        scaleY: scale,
+        skewX: 0,
+        skewY: 0,
+        rotation: data.initialRotation ?? 0,
+        warpAmount: data.initialWarpAmount ?? 0,
+        arcAmount: data.initialArcAmount ?? 0,
+        arcTilt: data.initialArcTilt ?? 0,
+        perspectiveTop: data.initialPerspectiveTop ?? 0,
+        perspectiveLeft: data.initialPerspectiveLeft ?? 0,
+        opacity: data.initialOpacity ?? 1,
+        blurAmount: data.initialBlurAmount ?? 0,
+        noiseAmount: data.initialNoiseAmount ?? 0,
+        blendMode: data.initialBlendMode ?? 'normal',
+        maskEnabled: false,
+        maskType: null,
+        maskPath: null,
+        maskPaths: [],
+        colorLayerImageData: null,
+        colorLayerOpacity: 1,
+        colorLayerBlendMode: 'source-over',
+        filename: data.filename || '',
+        notes: data.notes || '',
+        bgAdjust: { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
+        bgCrop: { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
+        patternMode: false,
+        patternSettings: _defaultPattern(),
+        locked: !!data.locked,
+        flipX: false,
+        flipY: false,
+        designFx: {
+            warpAmount: data.initialWarpAmount ?? 0,
+            arcAmount: data.initialArcAmount ?? 0,
+            arcTilt: data.initialArcTilt ?? 0,
+            perspectiveTop: data.initialPerspectiveTop ?? 0,
+            perspectiveLeft: data.initialPerspectiveLeft ?? 0,
+            opacity: data.initialOpacity ?? 1,
+            blurAmount: data.initialBlurAmount ?? 0,
+            noiseAmount: data.initialNoiseAmount ?? 0,
+            blendMode: data.initialBlendMode ?? 'normal',
+        },
+        duplicates: [],
+    };
+}
+
+// Restore one window to its upload baseline via the same path as undo/redo.
+async function resetWindowToBaseline(data) {
+    if (!data || data.locked) return;
+
+    if (data.initialDesignOriginal) {
+        data.designOriginal = data.initialDesignOriginal;
+    }
+
+    if (data.patternMode || data.patternFabricObj) {
+        _togglePatternMode(data, false);
+    }
+
+    if (data.extraDesignObjects?.length) {
+        data.extraDesignObjects.forEach(obj => {
+            selectedDesigns.delete(obj);
+            data.fabricCanvas.remove(obj);
+        });
+        data.extraDesignObjects = [];
+        data.extraDesignOriginals = [];
+    }
+
+    if (data.designObject) {
+        data.fabricCanvas.remove(data.designObject);
+        selectedDesigns.delete(data.designObject);
+        data.designObject = null;
+    }
+
+    data._flipMap = null;
+
+    await restoreWindowState(data, captureWindowBaseline(data));
+
+    data.clipCurvePoints = [];
+    data.clipPolygonClosed = false;
+
+    if (data.designObject && !data.locked) {
+        if (!data.designObject._fx) data.designObject._fx = _defaultFx(data);
+        selectedDesigns.add(data.designObject);
+    }
+}
+
 async function restoreWindowState(data, state){
     data.x = state.x;   data.y = state.y;
     data.scale  = state.scale;

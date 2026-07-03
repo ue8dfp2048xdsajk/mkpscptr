@@ -11,7 +11,7 @@ REAL_USER_ID=<a real Clerk userId from your dashboard>
 
 ### Required environment variables
 
-All four variables below must be set in **Vercel → Project → Settings → Environment Variables** before going live.
+All five variables below must be set in **Vercel → Project → Settings → Environment Variables** before going live.
 A missing variable causes the webhook to return 500 on every event — payments will not be activated.
 
 | Variable | Where to get it | Effect if missing |
@@ -20,6 +20,9 @@ A missing variable causes the webhook to return 500 on every event — payments 
 | `STRIPE_WEBHOOK_SECRET` | Stripe dashboard → Developers → Webhooks → your endpoint → Signing secret | Webhook returns 500 — all events rejected |
 | `SET_PLAN_SECRET` | A random string you generate, e.g. `openssl rand -hex 32` | Webhook returns 500; `set-plan` endpoint also refuses all calls |
 | `CLERK_SECRET_KEY` | Clerk dashboard → API keys | `set-plan` endpoint cannot update user metadata |
+| `MONGODB_URI` | MongoDB Atlas (or self-hosted) connection string | `set-plan`'s replay-protection nonce store (`api/_nonce-store.js`, MongoDB-backed) fails closed — every request returns 500 with `"Failed to record nonce; request not processed"`, even with a valid secret |
+
+`UPSTASH_REDIS_REST_URL`/`TOKEN` and `DATABASE_URL` are **not** required for this endpoint — they only back the rate limiters (a separate, lower-stakes concern that fails open). The nonce store described in cases 13–14 and the clear-nonce endpoint below are entirely MongoDB-backed; see the "Consolidate nonce store onto MongoDB" change.
 
 > **Quick validation:** after deploying, run `node scripts/check-env.js` locally (or as a Vercel build command) to confirm all required variables are present.
 
@@ -281,7 +284,7 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 **Expected (second request):** `400`
 **Expected body:** `{"ok":false,"error":"Duplicate nonce — request already processed"}`
 
-**Code path:** `api/set-plan.js` — after auth succeeds, `isNonceSeen(nonce)` checks the in-memory store (`api/_nonce-store.js`). A nonce is stored with a 300 s TTL on first use; any subsequent request carrying the same nonce within that window is rejected before the Clerk call is made. This closes the gap where a captured request could be replayed immediately (within the timestamp window).
+**Code path:** `api/set-plan.js` — after auth succeeds, `isNonceSeen(nonce)` checks the MongoDB-backed store (`api/_nonce-store.js`, `nonce_seen` collection). A nonce is recorded with a 900 s TTL on first use (via MongoDB's atomic unique `_id` index, not Redis/Postgres); any subsequent request carrying the same nonce within that window is rejected before the Clerk call is made. This closes the gap where a captured request could be replayed immediately (within the timestamp window).
 
 ---
 
@@ -298,7 +301,7 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 | Clerk userId path-traversal | ✅ `encodeURIComponent` applied before constructing the Clerk URL |
 | Replay attack (captured request re-sent later) | ✅ `X-Timestamp` header required; requests older than 300 s are rejected with 400 |
 | Far-future timestamp bypassing the window | ✅ Window is symmetric (`Math.abs`); future timestamps beyond 300 s are also rejected |
-| Within-window replay (immediate re-send of captured request) | ✅ `X-Nonce` header required; each nonce is one-time-use with a 300 s TTL (`api/_nonce-store.js`) |
+| Within-window replay (immediate re-send of captured request) | ✅ `X-Nonce` header required; each nonce is one-time-use with a 900 s TTL, MongoDB-backed (`api/_nonce-store.js`) |
 
 **Callers** must send the secret, a current Unix timestamp, and a per-request nonce:
 ```
@@ -359,22 +362,22 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/webhooks/stripe" \
 
 ---
 
-## POST /api/clear-nonce — Admin endpoint for stuck nonces
+## POST /api/admin/clear-nonce — Admin endpoint for stuck nonces
 
 ### Background
 
-`set-plan.js` deletes the nonce from the store **after a successful Clerk update** so that Stripe's webhook retry is not blocked by a "Duplicate nonce" error.  If the nonce store (Redis / PostgreSQL) is unreachable at that moment, `deleteNonce()` retries up to **3 times with exponential back-off** (100 ms → 200 ms → 400 ms).
+`set-plan.js` deletes the nonce from the store **after a successful Clerk update** so that Stripe's webhook retry is not blocked by a "Duplicate nonce" error.  The nonce store (`api/_nonce-store.js`) is MongoDB-backed (`nonce_seen` collection, same database as `customers`/`idempotency_keys` — not Redis/Postgres). If MongoDB is unreachable at that moment, `deleteNonce()` retries up to **3 times with exponential back-off** (100 ms → 200 ms → 400 ms).
 
 If all retries fail the nonce remains recorded and every subsequent Stripe retry is rejected with `400 Duplicate nonce — request already processed`.  The user's Clerk metadata was already updated on the first successful call, but the webhook keeps retrying and the user could appear "stuck" in Stripe's retry dashboard.
 
-`POST /api/clear-nonce` is the manual escape hatch for this situation.
+`POST /api/admin/clear-nonce` is the manual escape hatch for this situation.
 
 ### Alert pattern — detecting a permanently stuck nonce
 
 When `deleteNonce()` exhausts all retries it emits a structured log line at the `error` level that begins with `[ALERT]`:
 
 ```
-[ALERT] nonce-store: deleteNonce failed permanently for nonce=<value> userId=<id> plan=<plan> — the nonce is still recorded; Stripe retries will be rejected with 400 until the nonce expires or is manually cleared via POST /api/clear-nonce. Last error: <message>
+[ALERT] nonce-store: deleteNonce failed permanently for nonce=<value> userId=<id or "unknown"> plan=<plan or "unknown"> — the nonce is still recorded; Stripe retries will be rejected with 400 until the nonce expires (900s) or is manually cleared via POST /api/admin/clear-nonce. Last error: <message>
 ```
 
 **What to grep / alert on:** `[ALERT] nonce-store: deleteNonce failed permanently`
@@ -386,18 +389,18 @@ When `deleteNonce()` exhausts all retries it emits a structured log line at the 
 2. Call the clear-nonce admin endpoint to unblock future Stripe retries (see QA cases 16–17 below):
    ```bash
    # By nonce value (preferred — copy from the log line):
-   curl -s -X POST "$BASE_URL/api/clear-nonce" \
+   curl -s -X POST "$BASE_URL/api/admin/clear-nonce" \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer $SECRET" \
-     -d '{"nonce":"<value from log>","reason":"deleteNonce retries exhausted after Redis connectivity issue on <date>"}'
+     -d '{"nonce":"<value from log>","reason":"deleteNonce retries exhausted after MongoDB connectivity issue on <date>"}'
 
    # By userId + plan (use when the nonce value is not in the log):
-   curl -s -X POST "$BASE_URL/api/clear-nonce" \
+   curl -s -X POST "$BASE_URL/api/admin/clear-nonce" \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer $SECRET" \
-     -d '{"userId":"<id from log>","plan":"<plan from log>","reason":"deleteNonce retries exhausted after Redis connectivity issue on <date>"}'
+     -d '{"userId":"<id from log>","plan":"<plan from log>","reason":"deleteNonce retries exhausted after MongoDB connectivity issue on <date>"}'
    ```
-3. Investigate why Redis / PostgreSQL was unreachable; fix the connectivity issue so `deleteNonce()` succeeds on subsequent events.
+3. Investigate why MongoDB was unreachable (check `MONGODB_URI` and Atlas/network status); fix the connectivity issue so `deleteNonce()` succeeds on subsequent events.
 
 ### ⚠️ Timing warning — race-condition window
 
@@ -406,7 +409,7 @@ When `deleteNonce()` exhausts all retries it emits a structured log line at the 
 Here is the risk if you call it too early:
 
 1. Stripe fires a `checkout.session.completed` event → `set-plan` receives it, records the nonce, and starts updating Clerk.
-2. An admin calls `POST /api/clear-nonce` while the Clerk update is still in-flight.
+2. An admin calls `POST /api/admin/clear-nonce` while the Clerk update is still in-flight.
 3. The nonce is wiped from the store.
 4. The Clerk update fails (network blip, timeout, etc.) and the endpoint returns a non-200 — but the nonce is already gone.
 5. Stripe retries. The retry arrives with the same nonce → the nonce store reports "not seen" → the request is treated as fresh → Clerk is updated a second time (usually a no-op) **and** any Stripe-side deduplication is bypassed.
@@ -415,7 +418,7 @@ In normal failure recovery the nonce remains recorded so Stripe retries are stil
 
 **Safe procedure:**
 1. Confirm in the Clerk dashboard (or via `GET /api/user-plan`) that `publicMetadata.plan` is already set to the expected value for the affected user.
-2. Only then call `POST /api/clear-nonce` to unblock future retries.
+2. Only then call `POST /api/admin/clear-nonce` to unblock future retries.
 
 If Clerk shows the correct plan, clearing the nonce is safe — the upgrade already happened and a second Clerk write is idempotent. If Clerk does **not** yet show the correct plan, wait or investigate before clearing.
 
@@ -476,7 +479,7 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 echo ""
 
 # Now clear it via the admin endpoint.
-curl -s -X POST "$BASE_URL/api/clear-nonce" \
+curl -s -X POST "$BASE_URL/api/admin/clear-nonce" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
   -d "{\"nonce\":\"$STUCK_NONCE\",\"reason\":\"QA test — clearing simulated stuck nonce\"}"
@@ -492,7 +495,7 @@ curl -s -X POST "$BASE_URL/api/clear-nonce" \
 #### Case 17. Clear a stuck nonce by userId + plan → 200
 
 ```bash
-curl -s -X POST "$BASE_URL/api/clear-nonce" \
+curl -s -X POST "$BASE_URL/api/admin/clear-nonce" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
   -d "{\"userId\":\"$REAL_USER_ID\",\"plan\":\"pro\",\"reason\":\"QA test — clearing by userId+plan\"}"
@@ -508,7 +511,7 @@ curl -s -X POST "$BASE_URL/api/clear-nonce" \
 #### Case 18. Wrong secret → 401
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/clear-nonce" \
+curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/admin/clear-nonce" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer WRONG_SECRET" \
   -d '{"nonce":"anything"}'
@@ -522,7 +525,7 @@ curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/clear-nonce" \
 #### Case 19. Missing body fields → 400
 
 ```bash
-curl -s -X POST "$BASE_URL/api/clear-nonce" \
+curl -s -X POST "$BASE_URL/api/admin/clear-nonce" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $SECRET" \
   -d '{}'
