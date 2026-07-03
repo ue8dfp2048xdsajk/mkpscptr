@@ -130,6 +130,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] After Make Main Design, demoted layer moves independently (new main does not follow)
 - [ ] Main design → solid blue handles; all stacked extras (paste, duplicate, demoted main) → orange handles
 - [ ] Shift+skew/scale extra layer → main does not join selection or transform
+- [ ] Transform handle cursors: corner = diagonal resize, side = stretch, Shift+side = skew hint, rotation handle = rotate
 - [ ] Copy/Paste Effects copies opacity, warp, blend, pattern settings, invert (not flip H/V)
 - [ ] Invert → undo → no ⭐, Starter export allowed, image not inverted
 - [ ] Eraser → undo (pristine art) → no ⭐, Starter export allowed

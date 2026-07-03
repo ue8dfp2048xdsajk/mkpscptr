@@ -542,6 +542,48 @@ function _applyWindowClickSelection(index, e) {
     updateSelectButtonState();
 }
 
+var _fabricTransformCursorsInstalled = false;
+var _fabricTransformCursorKeysBound  = false;
+
+function _transformCursorsAllowed() {
+    if (designEraserMode || colorLayerMode || clipEditMode || designWarpMode) return false;
+    if (_activeTool) return false;
+    return true;
+}
+
+function _refreshAllTransformCursors() {
+    if (!_transformCursorsAllowed()) return;
+    canvasData.forEach(d => {
+        const fc = d?.fabricCanvas;
+        const e  = fc?._msLastPointerEvent;
+        if (!fc || !e || typeof fc._setCursorFromEvent !== 'function') return;
+        fc._setCursorFromEvent(e, fc.findTarget(e, true));
+    });
+}
+
+function _installFabricTransformCursors() {
+    if (_fabricTransformCursorsInstalled || typeof fabric === 'undefined') return;
+    _fabricTransformCursorsInstalled = true;
+
+    const cu = fabric.controlsUtils;
+    if (!cu) return;
+
+    const ctl = fabric.Object.prototype.controls;
+    ['tl', 'tr', 'bl', 'br'].forEach(k => { ctl[k].cursorStyleHandler = cu.scaleCursorStyleHandler; });
+    ['ml', 'mr', 'mt', 'mb'].forEach(k => { ctl[k].cursorStyleHandler = cu.scaleSkewCursorStyleHandler; });
+    if (ctl.mtr) ctl.mtr.cursorStyleHandler = cu.rotationStyleHandler;
+
+    if (!_fabricTransformCursorKeysBound) {
+        _fabricTransformCursorKeysBound = true;
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Shift') _refreshAllTransformCursors();
+        });
+        document.addEventListener('keyup', e => {
+            if (e.key === 'Shift') _refreshAllTransformCursors();
+        });
+    }
+}
+
 // Skip Shift+mousedown layer selection when user is starting a transform on an already-selected object.
 function _shouldSkipShiftLayerSelection(canvas, opt) {
     const target = opt?.target;
@@ -638,6 +680,21 @@ function _attachWindowCanvasSelection(data) {
         updateWindowBorders();
         updateLayerButtons();
         syncSliders();
+    });
+
+    data.fabricCanvas.on('mouse:move', (opt) => {
+        if (!_transformCursorsAllowed()) return;
+        data.fabricCanvas._msLastPointerEvent = opt.e;
+    });
+
+    data.fabricCanvas.on('object:rotating', (opt) => {
+        if (!_transformCursorsAllowed()) return;
+        const cu = fabric.controlsUtils;
+        const fc = data.fabricCanvas;
+        const e  = fc._msLastPointerEvent;
+        if (!cu?.rotationStyleHandler || !e || !opt.target) return;
+        const mtr = fabric.Object.prototype.controls.mtr;
+        fc.setCursor(cu.rotationStyleHandler(e, mtr, opt.target));
     });
 
     data.fabricCanvas.on('after:render', () => {
@@ -9633,6 +9690,8 @@ function _applyUndoHistoryFromSnapshot(history) {
 
 
 window.addEventListener('DOMContentLoaded', async ()=>{
+
+    _installFabricTransformCursors();
 
     const snapshot = await _autosaveDB.get('session').catch(e => {
         console.error('[Restore] IDB read failed:', e);

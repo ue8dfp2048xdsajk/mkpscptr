@@ -855,7 +855,7 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
-    cursor: pointer;
+    cursor: default;
     border: 2px solid transparent;
     width: 300px;
     overflow: hidden;
