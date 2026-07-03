@@ -2977,7 +2977,6 @@ function attachFabricEvents(data, targetObject = null){
     designTarget.on('mousedown', ()=>{
 
         suppressNextWrapperClick = true;
-        _beginWatermarkInteraction();
         designTarget.lastLeft = designTarget.left;
         designTarget.lastTop  = designTarget.top;
         designTarget._hadDragMovement = false;
@@ -2992,7 +2991,6 @@ function attachFabricEvents(data, targetObject = null){
     });
 
     designTarget.on('mouseup', ()=>{
-        _endWatermarkInteraction();
         if(designTarget._hadDragMovement && designTarget._preDragUndoEntry){
             globalUndoStack.push(designTarget._preDragUndoEntry);
             if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();

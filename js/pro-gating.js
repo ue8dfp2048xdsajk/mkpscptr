@@ -37,10 +37,10 @@ function _drawWatermarkOnCanvas(data) {
     var isFree    = _userPlan === 'free';
     var isStarred = _userPlan === 'starter' && _windowIsProGated(data);
     if (!isFree && !isStarred) return;
+    // Suppress only during viewport/hand pan and shift+drag marquee — not design transforms.
     if (_watermarkInteractionActive()) return;
     if (!data.fabricCanvas || !data.designObject) return;
     var fc  = data.fabricCanvas;
-    if (fc._currentTransform) return;
     var ctx = fc.contextContainer;
     var W   = fc.width;
     var H   = fc.height;

@@ -161,7 +161,7 @@ describe('_drawWatermarkOnCanvas — watermark by plan', () => {
         expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
     });
 
-    test('skips drawing while canvas interaction is active', () => {
+    test('skips drawing during pan/marquee interaction only', () => {
         window._userPlan = 'free';
         const fc   = makeFakeCanvas(800, 600);
         const data = makeCanvasData(fc);
@@ -171,6 +171,16 @@ describe('_drawWatermarkOnCanvas — watermark by plan', () => {
         expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
 
         _endWatermarkInteraction();
+        window._drawWatermarkOnCanvas(data);
+        expect(fc.contextContainer.fillText).toHaveBeenCalled();
+    });
+
+    test('still draws during Fabric transform (design drag/scale)', () => {
+        window._userPlan = 'free';
+        const fc   = makeFakeCanvas(800, 600);
+        fc._currentTransform = { action: 'drag' };
+        const data = makeCanvasData(fc);
+
         window._drawWatermarkOnCanvas(data);
         expect(fc.contextContainer.fillText).toHaveBeenCalled();
     });
