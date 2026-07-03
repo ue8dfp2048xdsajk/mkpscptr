@@ -380,6 +380,12 @@ function _selectedLayersForWindow(data) {
     );
 }
 
+function _windowHasAnyLayerSelected(data) {
+    if (!data) return false;
+    if (data.designObject && selectedDesigns.has(data.designObject)) return true;
+    return (data.extraDesignObjects || []).some(o => selectedDesigns.has(o));
+}
+
 function _canCrossWindowSync() {
     if (activeIndices.length < 2) return false;
     for (const i of activeIndices) {
@@ -491,7 +497,10 @@ function refreshFabricHandles(){
             (d.extraDesignObjects||[]).includes(obj)
         );
         if(ownSelected.length > 0){
-            const toActivate = ownSelected[ownSelected.length - 1];
+            const current = d.fabricCanvas.getActiveObject();
+            const toActivate = (current && ownSelected.includes(current))
+                ? current
+                : ownSelected[ownSelected.length - 1];
             if(d.fabricCanvas.getActiveObject() !== toActivate){
                 d.fabricCanvas.setActiveObject(toActivate);
             }
@@ -2620,7 +2629,7 @@ function createCanvasPreviews(){
                         // Window already in selection — keep everything, just ensure
                         // its design is represented in selectedDesigns (skip locked)
                         const d = canvasData[index];
-                        if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
+                        if(d?.designObject && !d.locked && !_windowHasAnyLayerSelected(d)){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
@@ -2702,6 +2711,8 @@ function attachFabricEvents(data, targetObject = null){
             const isDesign = target === data.designObject ||
                              (data.extraDesignObjects||[]).includes(target);
             if(!isDesign) return;
+
+            suppressNextWrapperClick = true;
 
             const isCmd   = opt.e?.metaKey || opt.e?.ctrlKey;
             const isShift = opt.e?.shiftKey;
@@ -3459,7 +3470,7 @@ function _attachWrapperClickListener(wrapper, data){
                 }
             } else {
                 const d = canvasData[index];
-                if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
+                if(d?.designObject && !d.locked && !_windowHasAnyLayerSelected(d)){
                     if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                     selectedDesigns.add(d.designObject);
                 }
@@ -8365,7 +8376,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                         // Window already in selection — keep everything, just ensure
                         // its design is represented in selectedDesigns (skip locked)
                         const d = canvasData[index];
-                        if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
+                        if(d?.designObject && !d.locked && !_windowHasAnyLayerSelected(d)){
                             if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
                             selectedDesigns.add(d.designObject);
                         }
