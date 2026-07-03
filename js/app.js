@@ -40,7 +40,7 @@ var _userPlan = 'free';
 // uniform across the whole canvas with no edge-clipping gaps.
 function _drawWatermarkOnCanvas(data) {
     var isFree    = _userPlan === 'free';
-    var isStarred = _userPlan === 'starter' && data.hasProEffect;
+    var isStarred = _userPlan === 'starter' && _windowIsProGated(data);
     if (!isFree && !isStarred) return;
     if (!data.fabricCanvas || !data.designObject) return;
     var fc  = data.fabricCanvas;
@@ -113,15 +113,15 @@ function _updateProStarBadge(data) {
     host.appendChild(badge);
 }
 
-// Mark a window as using a PRO feature + refresh its badge.
-// Always calls _updateProStarBadge so the DOM badge is guaranteed to be present
-// even when hasProEffect was already true (e.g. badge removed by a DOM rebuild).
-function _markProEffect(data) {
-    if (!data) return;
-    const wasMarked = data.hasProEffect;
-    data.hasProEffect = true;
-    _updateProStarBadge(data);
-    if (!wasMarked) _markDirty();
+function _layerFxIsPro(fx) {
+    if (!fx) return false;
+    if ((fx.warpAmount || 0) !== 0) return true;
+    if ((fx.arcAmount || 0) !== 0) return true;
+    if ((fx.arcTilt || 0) !== 0) return true;
+    if ((fx.perspectiveTop || 0) !== 0) return true;
+    if ((fx.perspectiveLeft || 0) !== 0) return true;
+    if ((fx.blendMode || 'normal') !== 'normal') return true;
+    return false;
 }
 
 function _windowHasProBlend(data) {
@@ -130,6 +130,55 @@ function _windowHasProBlend(data) {
     return getAllDesignObjects(data).some(function (obj) {
         return obj && obj._fx && (obj._fx.blendMode || 'normal') !== 'normal';
     });
+}
+
+// Pure detector: true when live window state uses any PRO effect (spec list).
+function _windowHasProEffect(data) {
+    if (!data) return false;
+    if ((data.warpAmount    || 0) !== 0) return true;
+    if ((data.arcAmount     || 0) !== 0) return true;
+    if ((data.arcTilt       || 0) !== 0) return true;
+    if ((data.perspectiveTop  || 0) !== 0) return true;
+    if ((data.perspectiveLeft || 0) !== 0) return true;
+    if (data.patternMode) return true;
+    if (data.maskEnabled) return true;
+    if (data.colorLayerFabricObj) return true;
+    if (data.designOriginal && data.initialDesignOriginal &&
+        data.designOriginal !== data.initialDesignOriginal) return true;
+    if (data.bgAdjust) {
+        var a = data.bgAdjust;
+        if ((a.hue || 0) !== 0 || (a.saturation || 0) !== 0 ||
+            (a.brightness || 0) !== 0 || (a.contrast || 0) !== 0) return true;
+    }
+    if (data.bgCrop) {
+        var bc = data.bgCrop;
+        if ((bc.x || 0) !== 0 || (bc.y || 0) !== 0 || (bc.scale || 1) !== 1 ||
+            (bc.rotation || 0) !== 0 || (bc.aspect || 0) !== 0) return true;
+    }
+    if (data.meshWarpApplied) return true;
+    if (_windowHasProBlend(data)) return true;
+    if (_windowHasInvert(data)) return true;
+    return getAllDesignObjects(data).some(function (obj) {
+        return _layerFxIsPro(obj && obj._fx);
+    });
+}
+
+// Starter paste policy: force gate even when payload is blur-only (spec).
+function _windowIsProGated(data) {
+    if (!data) return false;
+    return _windowHasProEffect(data) || !!data.forceProBadge;
+}
+
+// Sync cached hasProEffect + DOM badge from live state. Single write path.
+function _syncProEffect(data) {
+    if (!data) return false;
+    if (_windowHasProEffect(data)) data.forceProBadge = false;
+    const gated = _windowIsProGated(data);
+    const wasMarked = data.hasProEffect;
+    data.hasProEffect = gated;
+    _updateProStarBadge(data);
+    if (gated !== wasMarked) _markDirty();
+    return gated;
 }
 
 function _transformsContainProEffect(t) {
@@ -152,41 +201,14 @@ function _windowHasInvert(data) {
     return (data.invertedExtras || []).some(Boolean);
 }
 
-// Re-evaluate all PRO effects from current window state and update badge.
-// Call this whenever an effect is removed (pattern off, reset framing, etc.)
-// so the badge disappears if no other PRO effects remain.
 function _recomputeProEffect(data) {
-    if (!data) return;
-    var pro = false;
-    if ((data.warpAmount    || 0) !== 0) pro = true;
-    if ((data.arcAmount     || 0) !== 0) pro = true;
-    if ((data.arcTilt       || 0) !== 0) pro = true;
-    if ((data.perspectiveTop  || 0) !== 0) pro = true;
-    if ((data.perspectiveLeft || 0) !== 0) pro = true;
-    if (data.patternMode)         pro = true;
-    if (data.maskEnabled)         pro = true;
-    if (data.colorLayerFabricObj) pro = true;
-    if (data.designOriginal && data.initialDesignOriginal &&
-        data.designOriginal !== data.initialDesignOriginal) pro = true;
-    if (data.bgAdjust) {
-        var a = data.bgAdjust;
-        if ((a.hue||0)!==0||(a.saturation||0)!==0||(a.brightness||0)!==0||(a.contrast||0)!==0) pro = true;
-    }
-    if (data.bgCrop) {
-        var bc = data.bgCrop;
-        if ((bc.x||0)!==0||(bc.y||0)!==0||(bc.scale||1)!==1||(bc.rotation||0)!==0||(bc.aspect||0)!==0) pro = true;
-    }
-    if (data.meshWarpApplied) pro = true;
-    if (_windowHasProBlend(data)) pro = true;
-    if (_windowHasInvert(data)) pro = true;
-    data.hasProEffect = pro;
-    _updateProStarBadge(data);
+    return _syncProEffect(data);
 }
 
 // Refresh all star badges (called when _userPlan changes in Phase 7)
 function _refreshAllProStarBadges() {
     canvasData.forEach(function(d) {
-        _updateProStarBadge(d);
+        _syncProEffect(d);
         if (d && d.fabricCanvas) d.fabricCanvas.requestRenderAll();
     });
     // Sidebar PRO labels: green for Pro users, yellow for everyone else
@@ -1280,7 +1302,7 @@ function updateFromSliders(event){
         activeSliderType === "perspectiveTop" ||
         activeSliderType === "perspectiveLeft";
     if (_isWarpProSlider && event?.target && parseFloat(event.target.value) !== 0) {
-        activeIndices.forEach(i => _markProEffect(canvasData[i]));
+        activeIndices.forEach(i => _syncProEffect(canvasData[i]));
     }
 
     // Determine whether this slider type needs a warp re-render.
@@ -1423,8 +1445,7 @@ function _lqRenderSliders(){
         activeIndices.forEach(i => {
             const d = canvasData[i];
             if (!d || d.locked) return;
-            if (_proWarpActive || _proBlendActive) _markProEffect(d);
-            else _recomputeProEffect(d);
+            _syncProEffect(d);
         });
 
         return;
@@ -1466,8 +1487,7 @@ function _lqRenderSliders(){
         const _proWarpActive = _warpV !== 0 || _arcV !== 0 || _arcTV !== 0 ||
             _perspT !== 0 || _perspL !== 0;
         const _proBlendActive = (_blendV || 'normal') !== 'normal';
-        if (_proWarpActive || _proBlendActive) _markProEffect(data);
-        else _recomputeProEffect(data);
+        _syncProEffect(data);
 
         // Skip all expensive render work for off-screen windows (O(1) Set lookup).
         const wrapper = data.wrapperEl || data.fabricCanvas.lowerCanvasEl.parentElement;
@@ -1684,7 +1704,7 @@ document.querySelectorAll('.bg-aspect-btn').forEach(btn => {
             d.bgCrop.aspect = aspect;
             _applyBgAdjust(d);
             _updateCropOverlay(d);
-            _markProEffect(d);
+            _syncProEffect(d);
         });
         document.querySelectorAll('.bg-aspect-btn').forEach(b => {
             b.classList.toggle('active', b === btn);
@@ -1709,7 +1729,7 @@ document.getElementById('bgCropCustomApply').addEventListener('click', () => {
         d.bgCrop.aspect = aspect;
         _applyBgAdjust(d);
         _updateCropOverlay(d);
-        _markProEffect(d);
+        _syncProEffect(d);
     });
     document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
     _markDirty();
@@ -1777,7 +1797,7 @@ document.getElementById('patternModeToggle').addEventListener('change', e => {
         if(d.locked) return;
         if(!d.patternSettings) d.patternSettings = _defaultPattern();
         _togglePatternMode(d, on);
-        if(on) _markProEffect(d); else _recomputeProEffect(d);
+        _syncProEffect(d);
     });
     _markDirty();
     autoSaveSession();
@@ -2433,6 +2453,7 @@ function createCanvasData(bgObj, designObj){
         bgCrop:   { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
 
         hasProEffect: false,
+        forceProBadge: false,
         meshWarpApplied: false,
         invertedMain: false,
         invertedExtras: [],
@@ -3007,7 +3028,7 @@ function attachFabricEvents(data, targetObject = null){
         data.fabricCanvas.on('mouse:up', () => {
             if (designEraserMode) {
                 designEraserDown = false;
-                _markProEffect(data);
+                _syncProEffect(data);
                 // When warp was active during erasing, applyDesignEraserAt only
                 // updated the display element for performance.  Now that the stroke
                 // is finished, rebuild the full pipeline from the erased source so
@@ -4443,7 +4464,7 @@ function invertSelectedDesigns(){
         _invertMarked.add(d);
     });
 
-    _invertMarked.forEach(d => _markProEffect(d));
+    _invertMarked.forEach(d => _syncProEffect(d));
 
     // Refresh the blend mode dropdown to reflect any mode resets above
     syncSliders();
@@ -4829,10 +4850,10 @@ document.getElementById('pasteTransformsBtn').addEventListener('click', () => {
         if (!d || d.locked) return;
         _applyEffectPayload(d, _copiedTransforms);
         if (_userPlan === 'pro') {
-            if (_transformsContainProEffect(_copiedTransforms)) _markProEffect(d);
-            else _recomputeProEffect(d);
+            _syncProEffect(d);
         } else {
-            _markProEffect(d);
+            d.forceProBadge = true;
+            _syncProEffect(d);
         }
     });
     _markDirty();
@@ -5019,8 +5040,8 @@ document.getElementById("designWarpBtn").addEventListener("click", () => {
 document.getElementById("warpApplyBtn").addEventListener("click", () => {
     const _warpTargets = warpAllGroups.map(g => g.ownerData);
     exitDesignWarpMode(true);
-    if (_warpTargets.length) _warpTargets.forEach(d => _markProEffect(d));
-    else activeIndices.forEach(i => _markProEffect(canvasData[i]));
+    if (_warpTargets.length) _warpTargets.forEach(d => _syncProEffect(d));
+    else activeIndices.forEach(i => _syncProEffect(canvasData[i]));
 });
 document.getElementById("warpCancelBtn").addEventListener("click", () => exitDesignWarpMode(false));
 
@@ -5629,7 +5650,7 @@ document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
         data.maskPath    = data.maskPaths[data.maskPaths.length - 1];
         data.maskEnabled = true;
         data.maskType    = src.maskType;
-        _markProEffect(data);
+        _syncProEffect(data);
 
         addClipOverlay(data);
 
@@ -6432,7 +6453,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
             target.maskEnabled = true;
             target.maskType = "bezier";
-            _markProEffect(target);
+            _syncProEffect(target);
 
             if(!target.maskPaths){
                 target.maskPaths = [];
@@ -6971,7 +6992,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
         if(isColorPainting){
             // Mark every window that received paint strokes as a PRO window
             activeIndices.forEach(i => {
-                if(canvasData[i] && canvasData[i].colorLayerFabricObj) _markProEffect(canvasData[i]);
+                if(canvasData[i] && canvasData[i].colorLayerFabricObj) _syncProEffect(canvasData[i]);
             });
             autoSaveSession();
         }
@@ -7094,9 +7115,10 @@ async function exportDataToBlob(data, fmt, quality){
     async function _runExportWithIndices(indices) {
         const ext = _exportFormat === 'jpeg' ? 'jpg' : 'png';
 
-        // Safety net: Starter plan — silently drop any PRO windows that slipped through
+        // Safety net: Starter plan — silently drop any PRO-gated windows that slipped through
         if(_userPlan === 'starter'){
-            indices = indices.filter(i => !canvasData[i]?.hasProEffect);
+            indices.forEach(i => _syncProEffect(canvasData[i]));
+            indices = indices.filter(i => !_windowIsProGated(canvasData[i]));
             if(!indices.length){
                 alert('All selected windows use PRO-only features. Upgrade to PRO to export them.');
                 return;
@@ -7210,9 +7232,10 @@ async function exportDataToBlob(data, fmt, quality){
             indices = [...activeIndices];
         }
 
-        // STARTER users: show plans modal for PRO-effect windows with option to skip them
+        // STARTER users: show plans modal for PRO-gated windows with option to skip them
         if(_userPlan === 'starter'){
-            const blocked    = indices.filter(i => canvasData[i]?.hasProEffect);
+            indices.forEach(i => _syncProEffect(canvasData[i]));
+            const blocked    = indices.filter(i => _windowIsProGated(canvasData[i]));
             if(blocked.length){
                 const blockedSet = new Set(blocked);
                 const n = blocked.length;
@@ -7389,6 +7412,7 @@ function buildSnapshot(){
             bgAdjust:  data.bgAdjust  ? { ...data.bgAdjust } : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
             bgCrop:    data.bgCrop    ? { ...data.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
             hasProEffect: data.hasProEffect ?? false,
+            forceProBadge: !!data.forceProBadge,
             meshWarpApplied: !!data.meshWarpApplied,
             invertedMain: !!data.invertedMain,
             invertedExtras: [...(data.invertedExtras || [])],
@@ -8316,6 +8340,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
             filename: saved.filename,
             notes: saved.notes || '',
             hasProEffect: saved.hasProEffect ?? false,
+            forceProBadge: !!saved.forceProBadge,
             meshWarpApplied: !!saved.meshWarpApplied,
             invertedMain: !!saved.invertedMain,
             invertedExtras: [...(saved.invertedExtras || [])],
@@ -8634,7 +8659,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         attachClipDrawing(wrapper, fabricCanvas, data, index);
 
-        _recomputeProEffect(data);
+        _syncProEffect(data);
 
         wrapper.addEventListener('click', function(e){
 
@@ -8795,7 +8820,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
     updateSelectButtonState();
     updateDropUI();
 
-    canvasData.forEach(function (d) { _recomputeProEffect(d); });
+    canvasData.forEach(function (d) { _syncProEffect(d); });
 
     loadingIndicator.innerText =
         "Session restored";

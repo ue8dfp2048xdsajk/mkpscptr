@@ -104,7 +104,7 @@ Copies **effects only** from the selected layer on the source window — never p
 Drawn on `after:render` for:
 
 - **Free:** all windows that have a design loaded (not background-only)
-- **Starter:** windows with `hasProEffect === true`
+- **Starter:** windows that are PRO-gated (`_windowIsProGated` — live PRO effects or Starter paste policy)
 - **Pro:** none
 
 ### Export (`js/app.js` + `POST /api/export`)
@@ -118,22 +118,26 @@ Export formats: individual files, folder (File System Access API), or ZIP (JSZip
 
 **Export Pattern PNG** (`exportPatternBtn` in Pattern section): client-side download of the tiled pattern sheet. Requires sign-in and **Pro** plan (`_userPlan === 'pro'`). Free and Starter users see the plans modal. Only works while Pattern mode is active on the selected window (no fallback export of `designOriginal`).
 
-### PRO effect detection (`_recomputeProEffect` in `js/app.js`)
+### PRO effect detection (`_windowHasProEffect` / `_syncProEffect` in `js/app.js`)
 
-Sets `hasProEffect` and refreshes per-window ⭐ badge when any of:
+PRO status is **derived from live window state**. `_syncProEffect(data)` sets `hasProEffect` and refreshes the ⭐ badge. Watermark (Starter) and export filtering use `_windowIsProGated(data)` — true when any PRO effect is active **or** `forceProBadge` is set (Starter paste policy).
 
-- Warp / arc / fisheye / perspective sliders non-zero  
+**Real PRO effects** (`_windowHasProEffect`):
+
+- Warp / arc / fisheye / perspective non-zero (window or any layer `_fx`)  
 - `meshWarpApplied === true`  
 - `blendMode !== 'normal'` on window or any layer `_fx`  
 - `invertedMain` or any `invertedExtras[]`  
 - Pattern, clip mask, color layer, eraser-modified design (`designOriginal !== initialDesignOriginal`)  
 - Background adjust / crop non-default  
 
-**Reset** (button or zeroing PRO levers) clears badge when no PRO effects remain.
+**Starter paste:** sets `forceProBadge = true` on target (even blur-only) until reset or a real PRO effect clears it.
 
-**After JSON or cloud load:** `_recomputeProEffect` runs per window (live state is authoritative, not stale saved `hasProEffect`).
+**Undo:** snapshots `designOriginal` / extra originals; eraser and standard undo call `_syncProEffect` after restore.
 
-Snapshot fields: `meshWarpApplied`, `invertedMain`, `invertedExtras`, `hasProEffect`.
+**After JSON or cloud load:** `_syncProEffect` runs per window (live state is authoritative).
+
+Snapshot fields: `meshWarpApplied`, `invertedMain`, `invertedExtras`, `hasProEffect`, `forceProBadge`.
 
 ---
 

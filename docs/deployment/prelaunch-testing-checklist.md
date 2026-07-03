@@ -116,6 +116,9 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Paste Effects (Starter: always marks window PRO)
 - [ ] Copy/Paste Effects does **not** change position, scale, or rotation on target
 - [ ] Copy/Paste Effects copies opacity, warp, blend, pattern settings, invert (not flip H/V)
+- [ ] Invert → undo → no ⭐, Starter export allowed, image not inverted
+- [ ] Eraser → undo (pristine art) → no ⭐, Starter export allowed
+- [ ] Extra-layer warp only → ⭐ + Starter export block; undo warp to 0 → ⭐ clears
 - [ ] Mesh warp (after Apply only; cancel does not mark)
 
 ### PRO effect badges & load

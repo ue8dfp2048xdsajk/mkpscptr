@@ -57,8 +57,8 @@ const APP_JS_PATH = path.join(__dirname, '../js/app.js');
 function loadWatermarkFunctions() {
     const src   = fs.readFileSync(APP_JS_PATH, 'utf8');
     const lines = src.split('\n');
-    // Lines 41-204 (1-indexed): watermark + PRO helpers through _refreshAllProStarBadges
-    const snippet = lines.slice(40, 204).join('\n');
+    // Lines 41-226 (1-indexed): watermark + PRO helpers through _refreshAllProStarBadges
+    const snippet = lines.slice(40, 226).join('\n');
 
     // Pre-define external identifiers the snippet references
     global.canvasData        = [];
@@ -103,8 +103,31 @@ function makeFakeCanvas(width, height) {
     };
 }
 
-function makeCanvasData(fc, { hasProEffect = false } = {}) {
-    return { fabricCanvas: fc, designObject: {}, hasProEffect };
+function makeCanvasData(fc, overrides = {}) {
+    const sharedOriginal = overrides.designOriginal ?? {};
+    return {
+        fabricCanvas: fc,
+        designObject: {},
+        hasProEffect: false,
+        forceProBadge: false,
+        warpAmount: 0,
+        arcAmount: 0,
+        arcTilt: 0,
+        perspectiveTop: 0,
+        perspectiveLeft: 0,
+        patternMode: false,
+        maskEnabled: false,
+        meshWarpApplied: false,
+        invertedMain: false,
+        invertedExtras: [],
+        blendMode: 'normal',
+        bgAdjust: { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
+        bgCrop: { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
+        designOriginal: sharedOriginal,
+        initialDesignOriginal: overrides.initialDesignOriginal ?? sharedOriginal,
+        extraDesignObjects: [],
+        ...overrides,
+    };
 }
 
 function buildDOM() {
@@ -155,7 +178,7 @@ describe('_drawWatermarkOnCanvas (real app.js code) — watermark by plan', () =
     test('after upgrade to starter (no PRO effect): fillText is NOT called', () => {
         window._userPlan = 'starter';
         const fc   = makeFakeCanvas(800, 600);
-        const data = makeCanvasData(fc, { hasProEffect: false });
+        const data = makeCanvasData(fc);
 
         window._drawWatermarkOnCanvas(data);
 
@@ -165,7 +188,7 @@ describe('_drawWatermarkOnCanvas (real app.js code) — watermark by plan', () =
     test('starter plan + PRO-effect canvas: fillText IS still called', () => {
         window._userPlan = 'starter';
         const fc   = makeFakeCanvas(800, 600);
-        const data = makeCanvasData(fc, { hasProEffect: true });
+        const data = makeCanvasData(fc, { warpAmount: 10 });
 
         window._drawWatermarkOnCanvas(data);
 
@@ -175,7 +198,7 @@ describe('_drawWatermarkOnCanvas (real app.js code) — watermark by plan', () =
     test('after upgrade to pro: fillText is NOT called even for PRO-effect canvas', () => {
         window._userPlan = 'pro';
         const fc   = makeFakeCanvas(800, 600);
-        const data = makeCanvasData(fc, { hasProEffect: true });
+        const data = makeCanvasData(fc, { warpAmount: 10 });
 
         window._drawWatermarkOnCanvas(data);
 

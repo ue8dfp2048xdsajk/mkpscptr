@@ -24,8 +24,8 @@ function loadProEffectFunctions() {
 
     const src   = fs.readFileSync(APP_JS_PATH, 'utf8');
     const lines = src.split('\n');
-    // Lines 127-184 (1-indexed): _windowHasProBlend … _recomputeProEffect
-    const snippet = lines.slice(126, 184).join('\n');
+    // Lines 116-206 (1-indexed): _layerFxIsPro … _recomputeProEffect
+    const snippet = lines.slice(115, 206).join('\n');
     // eslint-disable-next-line no-eval
     window.eval(snippet);
 }
@@ -51,6 +51,7 @@ function makeData(overrides = {}) {
         invertedExtras: [],
         designObject: null,
         extraDesignObjects: [],
+        forceProBadge: false,
         hasProEffect: false,
         wrapperEl: null,
         ...overrides,
@@ -137,5 +138,28 @@ describe('PRO effect detection', () => {
             extraDesignObjects: [{ _fx: { blendMode: 'overlay' } }],
         });
         expect(_windowHasProBlend(data)).toBe(true);
+    });
+
+    test('extra-layer warp in _fx marks PRO via _windowHasProEffect', () => {
+        const data = makeData({
+            designObject: { _fx: { blendMode: 'normal', warpAmount: 0 } },
+            extraDesignObjects: [{ _fx: { warpAmount: 25, blendMode: 'normal' } }],
+        });
+        expect(_windowHasProEffect(data)).toBe(true);
+    });
+
+    test('forceProBadge gates without real PRO effects', () => {
+        const data = makeData({ forceProBadge: true });
+        expect(_windowHasProEffect(data)).toBe(false);
+        expect(_windowIsProGated(data)).toBe(true);
+        _syncProEffect(data);
+        expect(data.hasProEffect).toBe(true);
+    });
+
+    test('_syncProEffect clears forceProBadge when real PRO effect appears', () => {
+        const data = makeData({ forceProBadge: true, warpAmount: 10 });
+        _syncProEffect(data);
+        expect(data.forceProBadge).toBe(false);
+        expect(data.hasProEffect).toBe(true);
     });
 });

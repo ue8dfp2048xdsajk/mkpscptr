@@ -477,7 +477,7 @@ function _restoreBakedMeshWarpItem(d, item) {
 
     d.designOriginal = outCanvas;
     _swapInBakedDesign(d, applyObjs, outCanvas, left, top, dpr, false);
-    _markProEffect(d);
+    _syncProEffect(d);
 }
 
 function exitDesignWarpMode(apply) {

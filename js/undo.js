@@ -61,9 +61,12 @@ function captureWindowState(data){
         meshWarpApplied: !!data.meshWarpApplied,
         invertedMain: !!data.invertedMain,
         invertedExtras: [...(data.invertedExtras || [])],
+        forceProBadge: !!data.forceProBadge,
         designOriginalSrc: data.meshWarpApplied
             ? _originalToSrc(data.designOriginal)
             : null,
+        designOriginalSnap: _cloneEraserSource(data.designOriginal),
+        extraOriginalsSnap: (data.extraDesignOriginals || []).map(_cloneEraserSource),
         designFx: data.designObject?._fx
             ? JSON.parse(JSON.stringify(data.designObject._fx))
             : null,
@@ -207,6 +210,7 @@ async function resetWindowToBaseline(data) {
     data.meshWarpApplied = false;
     data.invertedMain = false;
     data.invertedExtras = [];
+    data.forceProBadge = false;
 
     if (data.initialDesignOriginal) {
         data.designOriginal = data.initialDesignOriginal;
@@ -248,14 +252,23 @@ async function restoreWindowState(data, state){
     if (state.meshWarpApplied !== undefined) data.meshWarpApplied = !!state.meshWarpApplied;
     if (state.invertedMain !== undefined) data.invertedMain = !!state.invertedMain;
     if (state.invertedExtras) data.invertedExtras = [...state.invertedExtras];
+    if (state.forceProBadge !== undefined) data.forceProBadge = !!state.forceProBadge;
 
-    if (state.designOriginalSrc) {
+    if (state.designOriginalSnap !== undefined) {
+        data.designOriginal = state.designOriginalSnap;
+        data.warpCanvas = null;
+        data._flipMap = null;
+    } else if (state.designOriginalSrc) {
         await new Promise(resolve => {
             const img = new Image();
             img.onload = () => { data.designOriginal = img; resolve(); };
             img.onerror = () => resolve();
             img.src = state.designOriginalSrc;
         });
+    }
+
+    if (state.extraOriginalsSnap) {
+        data.extraDesignOriginals = state.extraOriginalsSnap.slice();
     }
 
     data.x = state.x;   data.y = state.y;
@@ -374,8 +387,8 @@ async function restoreWindowState(data, state){
     const filenameInp = data.wrapperEl?.querySelector('.filename-input');
     if(filenameInp) filenameInp.disabled = !!data.locked;
 
-    // Recompute PRO badge so it reflects the restored state
-    _recomputeProEffect(data);
+    // Sync PRO badge / export gate from restored live state
+    _syncProEffect(data);
 
     data.fabricCanvas.discardActiveObject();
     data.fabricCanvas.requestRenderAll();
@@ -590,6 +603,7 @@ async function performGlobalUndo(){
             const d = canvasData[item.idx];
             _applyEraserSnapshot(d, item.snap);
             await applyWarpToData(d, false);
+            _syncProEffect(d);
         }
         syncSliders();
         updateUndoRedoButtons();
@@ -714,6 +728,7 @@ async function performGlobalRedo(){
             const d = canvasData[item.idx];
             _applyEraserSnapshot(d, item.snap);
             await applyWarpToData(d, false);
+            _syncProEffect(d);
         }
         syncSliders();
         updateUndoRedoButtons();
