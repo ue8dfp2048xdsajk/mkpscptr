@@ -2018,6 +2018,13 @@ body.sidebar-expanded #contextPanelBody {
     gap: 20px;
     align-items: start;
 }
+.ms-plans-grid--cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+.ms-plans-grid--cols-1 {
+    grid-template-columns: minmax(0, 420px);
+    justify-content: center;
+}
 .ms-plan-card {
     border: 1.5px solid #e5e7eb;
     border-radius: 16px;
@@ -2230,6 +2237,23 @@ body.sidebar-expanded #contextPanelBody {
     transition: background 0.15s;
 }
 .ms-avatar-upgrade-btn:hover { background: #4338ca; }
+
+.ms-avatar-period-btn {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 7px 0;
+    background: #4f46e5;
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s;
+}
+.ms-avatar-period-btn:hover { background: #4338ca; }
 
 .ms-avatar-billing-btn {
     display: block;

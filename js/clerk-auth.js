@@ -114,6 +114,10 @@
         var email = (user.primaryEmailAddress && user.primaryEmailAddress.emailAddress) || '';
         var planLabel = window._userPlan.charAt(0).toUpperCase() + window._userPlan.slice(1);
         var showUpgradeBtn = window._userPlan === 'free' || window._userPlan === 'starter';
+        var billingUtils = window._billingPeriodUtils || {};
+        var periodSwitchLabel = window._userPlan === 'pro' && billingUtils.proPeriodAvatarLabel
+            ? billingUtils.proPeriodAvatarLabel(window._userBillingPeriod)
+            : null;
 
         var dropdown = document.createElement('div');
         dropdown.className = 'ms-avatar-dropdown';
@@ -141,6 +145,7 @@
             cancelLine +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
             (!showUpgradeBtn ? '<button class="ms-avatar-billing-btn" id="clerkBillingBtn">Manage Billing</button>' : '') +
+            (periodSwitchLabel ? '<button class="ms-avatar-period-btn" id="clerkPeriodSwitchBtn">' + periodSwitchLabel + '</button>' : '') +
             '<div class="ms-invoice-panel" id="msInvoicePanel"><span class="ms-invoice-loading">Loading invoices…</span></div>' +
             '<button class="ms-avatar-settings-btn" id="clerkSettingsBtn">⚙ Settings</button>' +
             '<div class="ms-projects-section">' +
@@ -373,6 +378,19 @@
             upgradeBtn.addEventListener('click', function () {
                 dropdown.classList.remove('open');
                 if (typeof openPlansModal === 'function') openPlansModal();
+            });
+        }
+
+        var periodSwitchBtn = dropdown.querySelector('#clerkPeriodSwitchBtn');
+        if (periodSwitchBtn) {
+            periodSwitchBtn.addEventListener('click', function () {
+                dropdown.classList.remove('open');
+                if (typeof openPlansModal !== 'function') return;
+                var utils = window._billingPeriodUtils || {};
+                var initialPeriod = utils.defaultPeriodForProUpsell
+                    ? utils.defaultPeriodForProUpsell(window._userBillingPeriod)
+                    : 'annual';
+                openPlansModal({ layout: 'pro', initialPeriod: initialPeriod });
             });
         }
 

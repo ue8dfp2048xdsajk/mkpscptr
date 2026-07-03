@@ -42,10 +42,33 @@
         return 'Switch plan';
     }
 
+    function modalLayoutForPlan(plan) {
+        var p = (plan || 'free').toLowerCase();
+        if (p === 'pro') return 'pro';
+        if (p === 'starter') return 'starter';
+        return 'full';
+    }
+
+    function proPeriodAvatarLabel(billingPeriod) {
+        var bp = normalizePeriod(billingPeriod) || 'monthly';
+        if (bp === 'lifetime') return null;
+        if (bp === 'annual') return 'Switch to lifetime';
+        return 'Switch to annual or lifetime';
+    }
+
+    function defaultPeriodForProUpsell(billingPeriod) {
+        var bp = normalizePeriod(billingPeriod) || 'monthly';
+        if (bp === 'annual') return 'lifetime';
+        return 'annual';
+    }
+
     window._billingPeriodUtils = {
         isCheckoutBlocked: isCheckoutBlocked,
         isCurrentPlanCombo: isCurrentPlanCombo,
         isPeriodDowngrade: isPeriodDowngrade,
         periodSwitchLabel: periodSwitchLabel,
+        modalLayoutForPlan: modalLayoutForPlan,
+        proPeriodAvatarLabel: proPeriodAvatarLabel,
+        defaultPeriodForProUpsell: defaultPeriodForProUpsell,
     };
 })();

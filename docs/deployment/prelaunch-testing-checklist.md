@@ -96,6 +96,14 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 - [ ] After annual or lifetime purchase, Clerk `billingPeriod` matches; old subscription canceled (no double billing)
 - [ ] After lifetime purchase, a later `subscription.deleted` webhook does **not** downgrade plan to Free
 
+### Plan-aware modal & avatar (paid users)
+
+- [ ] **Starter** avatar → **Upgrade plan** opens modal with **Starter + Pro only** (Free hidden)
+- [ ] **Pro monthly** avatar → **Manage Billing** + **Switch to annual or lifetime**; modal shows **Pro only**
+- [ ] **Pro annual** avatar → **Switch to lifetime** only (no redundant period button for lifetime)
+- [ ] **Pro lifetime** avatar → **Manage Billing** only
+- [ ] Close modal → reopen as **Free** user still sees all three plan cards
+
 ### Starter
 
 - [ ] Save works

@@ -2,6 +2,71 @@
 
     var currentPeriod = 'monthly';
 
+    var MODAL_COPY = {
+        full: {
+            title: 'Choose your plan',
+            subtitle: 'Upgrade anytime. No hidden fees.',
+        },
+        starter: {
+            title: 'Upgrade your plan',
+            subtitle: 'Switch billing period or upgrade to Pro.',
+        },
+        pro: {
+            title: 'Change billing',
+            subtitle: 'Switch to a longer billing period anytime.',
+        },
+    };
+
+    function _billingUtils() {
+        return window._billingPeriodUtils || {};
+    }
+
+    function _resolveLayout(opts) {
+        if (opts && opts.layout) return opts.layout;
+        var plan = (window._userPlan || 'free').toLowerCase();
+        var utils = _billingUtils();
+        if (utils.modalLayoutForPlan) return utils.modalLayoutForPlan(plan);
+        if (plan === 'pro') return 'pro';
+        if (plan === 'starter') return 'starter';
+        return 'full';
+    }
+
+    function _applyModalLayout(layout) {
+        var copy = MODAL_COPY[layout] || MODAL_COPY.full;
+        var titleEl = document.getElementById('plansModalTitle');
+        var subtitleEl = document.querySelector('.ms-plans-subtitle');
+        var grid = document.querySelector('.ms-plans-grid');
+
+        if (titleEl) titleEl.textContent = copy.title;
+        if (subtitleEl) subtitleEl.textContent = copy.subtitle;
+
+        if (grid) {
+            grid.classList.remove('ms-plans-grid--cols-2', 'ms-plans-grid--cols-1');
+            if (layout === 'starter') grid.classList.add('ms-plans-grid--cols-2');
+            else if (layout === 'pro') grid.classList.add('ms-plans-grid--cols-1');
+        }
+
+        document.querySelectorAll('.ms-plan-card').forEach(function (card) {
+            var cardPlan = card.dataset.plan || '';
+            var show = true;
+            if (layout === 'starter' && cardPlan === 'free') show = false;
+            if (layout === 'pro' && (cardPlan === 'free' || cardPlan === 'starter')) show = false;
+            card.style.display = show ? '' : 'none';
+        });
+    }
+
+    function _resetModalLayout() {
+        var grid = document.querySelector('.ms-plans-grid');
+        if (grid) grid.classList.remove('ms-plans-grid--cols-2', 'ms-plans-grid--cols-1');
+        document.querySelectorAll('.ms-plan-card').forEach(function (card) {
+            card.style.display = '';
+        });
+        var titleEl = document.getElementById('plansModalTitle');
+        var subtitleEl = document.querySelector('.ms-plans-subtitle');
+        if (titleEl) titleEl.textContent = MODAL_COPY.full.title;
+        if (subtitleEl) subtitleEl.textContent = MODAL_COPY.full.subtitle;
+    }
+
     function openPlansModal(opts) {
         var modal = document.getElementById('plansModal');
         if (!modal) return;
@@ -31,6 +96,11 @@
             }
         }
 
+        _applyModalLayout(_resolveLayout(opts));
+
+        var initialPeriod = (opts && opts.initialPeriod) || 'annual';
+        setPeriod(initialPeriod);
+
         modal.classList.add('ms-plans-overlay--open');
         document.body.style.overflow = 'hidden';
         _fetchConfiguredPrices().then(function (prices) {
@@ -46,6 +116,7 @@
         if (!modal) return;
         modal.classList.remove('ms-plans-overlay--open');
         document.body.style.overflow = '';
+        _resetModalLayout();
     }
 
     function setPeriod(period) {
@@ -110,6 +181,7 @@
 
     function _setButtonsLoading() {
         document.querySelectorAll('.ms-plan-card').forEach(function (card) {
+            if (card.style.display === 'none') return;
             var btn = card.querySelector('.ms-plan-cta');
             var cardPlan = card.dataset.plan || 'free';
             if (!btn || cardPlan === 'free') return;
@@ -117,10 +189,6 @@
             btn.textContent = 'Loading…';
             btn.className = 'ms-plan-cta ms-plan-cta--loading';
         });
-    }
-
-    function _billingUtils() {
-        return window._billingPeriodUtils || {};
     }
 
     function _syncPlanButtons(prices) {
@@ -131,6 +199,7 @@
         prices = prices || _configuredPrices || {};
 
         document.querySelectorAll('.ms-plan-card').forEach(function (card) {
+            if (card.style.display === 'none') return;
             var btn = card.querySelector('.ms-plan-cta');
             var cardPlan = card.dataset.plan || 'free';
             if (!btn) return;
