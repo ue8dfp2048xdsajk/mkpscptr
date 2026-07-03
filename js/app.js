@@ -889,6 +889,145 @@ function _applyCrossWindowGeometrySync(driverObj, driverData) {
     });
 }
 
+// Shared delta application for drag and keyboard nudge (driver already moved by caller).
+function _applyDesignMoveDelta(data, driverObj, deltaX, deltaY) {
+    if (_canCrossWindowSync()) {
+        _syncAttachedLayersInDriverWindow(data, driverObj);
+        _applyCrossWindowGeometrySync(driverObj, data);
+        return;
+    }
+
+    if (_isMainDesignObject(driverObj, data)) {
+
+        getAllDesignObjects(data).forEach(obj=>{
+            if(obj === driverObj) return;
+            if((data.extraDesignObjects||[]).includes(obj) && !selectedDesigns.has(obj)) return;
+            obj.left += deltaX;
+            obj.top  += deltaY;
+        });
+
+        activeIndices.forEach(index=>{
+
+            if(canvasData[index] === data) return;
+            if(canvasData[index].locked) return;
+
+            const target = canvasData[index];
+
+            getAllDesignObjects(target).forEach(obj=>{
+                if((target.extraDesignObjects||[]).includes(obj)){
+                    const idx     = (target.extraDesignObjects||[]).indexOf(obj);
+                    const srcPeer = (data.extraDesignObjects||[])[idx];
+                    if(srcPeer && !selectedDesigns.has(srcPeer)) return;
+                }
+                obj.left += deltaX;
+                obj.top  += deltaY;
+            });
+
+            if(target.patternMode) _renderPattern(target, true);
+            target.fabricCanvas.requestRenderAll();
+        });
+
+    } else {
+
+        const layerIdx = (data.extraDesignObjects || []).indexOf(driverObj);
+
+        selectedDesigns.forEach(obj => {
+            if(obj === driverObj) return;
+            if(obj._ownerData !== data) return;
+            obj.left += deltaX;
+            obj.top  += deltaY;
+            obj.setCoords();
+        });
+
+        activeIndices.forEach(index=>{
+
+            if(canvasData[index] === data) return;
+            if(canvasData[index].locked) return;
+
+            const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
+
+            if(peer){
+                peer.left += deltaX;
+                peer.top  += deltaY;
+                peer.setCoords();
+            }
+
+            canvasData[index].fabricCanvas.requestRenderAll();
+        });
+    }
+}
+
+function _collectNudgeDrivers() {
+    if (_canCrossWindowSync()) {
+        let data = null;
+        if (lastSelectedIndex != null && canvasData.includes(lastSelectedIndex)) {
+            data = lastSelectedIndex;
+        } else if (activeIndices.length) {
+            data = canvasData[activeIndices[0]];
+        }
+        if (!data || data.locked) return [];
+        const driver = _selectedLayersForWindow(data)[0];
+        if (!driver) return [];
+        return [{ data, driver }];
+    }
+
+    const drivers = [];
+    const seenExtraIdx = new Set();
+
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if (!d || d.locked) return;
+        const layers = _selectedLayersForWindow(d);
+        if (!layers.length) return;
+
+        if (d.designObject && layers.includes(d.designObject)) {
+            drivers.push({ data: d, driver: d.designObject });
+        } else {
+            layers.forEach(obj => {
+                const idx = (d.extraDesignObjects || []).indexOf(obj);
+                if (idx === -1) return;
+                if (seenExtraIdx.has(idx)) return;
+                seenExtraIdx.add(idx);
+                drivers.push({ data: d, driver: obj });
+            });
+        }
+    });
+
+    return drivers;
+}
+
+function _nudgeSelectedDesigns(dx, dy) {
+    if (!selectedDesigns.size || !activeIndices.length) return;
+
+    const drivers = _collectNudgeDrivers();
+    if (!drivers.length) return;
+
+    pushGlobalUndo();
+
+    drivers.forEach(({ data, driver }) => {
+        driver.left += dx;
+        driver.top  += dy;
+        driver.setCoords();
+        _applyDesignMoveDelta(data, driver, dx, dy);
+    });
+
+    refreshFabricHandles();
+    _persistSelectedLayerDataForActiveWindows();
+
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if (!d?.fabricCanvas) return;
+        const mainNudged = drivers.some(
+            ({ data, driver }) => data === d && driver === d.designObject
+        );
+        if (d.patternMode && mainNudged) _renderPattern(d, true);
+        d.fabricCanvas.requestRenderAll();
+    });
+
+    _markDirty();
+    autoSaveSession();
+}
+
 function _persistSelectedLayerDataForActiveWindows() {
     activeIndices.forEach(i => {
         const d = canvasData[i];
@@ -2993,83 +3132,7 @@ function attachFabricEvents(data, targetObject = null){
         const deltaX = designTarget.left - (designTarget.lastLeft || designTarget.left);
         const deltaY = designTarget.top  - (designTarget.lastTop  || designTarget.top);
 
-        if (_canCrossWindowSync()) {
-            _syncAttachedLayersInDriverWindow(data, designTarget);
-            _applyCrossWindowGeometrySync(designTarget, data);
-            designTarget.lastLeft = designTarget.left;
-            designTarget.lastTop  = designTarget.top;
-            data.fabricCanvas.requestRenderAll();
-            return;
-        }
-
-        if (_isMainDesignObject(designTarget, data)) {
-
-            // Same-window: only move extra design layers that are also selected.
-            // The color layer always travels with the main design (it's an overlay,
-            // not an independently-selectable layer the user picks separately).
-            getAllDesignObjects(data).forEach(obj=>{
-                if(obj === designTarget) return;
-                if((data.extraDesignObjects||[]).includes(obj) && !selectedDesigns.has(obj)) return;
-                obj.left += deltaX;
-                obj.top  += deltaY;
-            });
-
-            activeIndices.forEach(index=>{
-
-                if(canvasData[index] === data) return;
-                if(canvasData[index].locked) return;
-
-                const target = canvasData[index];
-
-                getAllDesignObjects(target).forEach(obj=>{
-                    // Mirror same-window selection filter: only move an extra layer in
-                    // the peer window if its same-index counterpart is selected in the source.
-                    if((target.extraDesignObjects||[]).includes(obj)){
-                        const idx     = (target.extraDesignObjects||[]).indexOf(obj);
-                        const srcPeer = (data.extraDesignObjects||[])[idx];
-                        if(srcPeer && !selectedDesigns.has(srcPeer)) return;
-                    }
-                    obj.left += deltaX;
-                    obj.top  += deltaY;
-                });
-
-                if(target.patternMode) _renderPattern(target, true);
-                target.fabricCanvas.requestRenderAll();
-            });
-
-        } else {
-
-            // Extra layer: move other selected objects in the SAME window first,
-            // then sync same-index peers in other selected windows.
-            const layerIdx = (data.extraDesignObjects || []).indexOf(designTarget);
-
-            selectedDesigns.forEach(obj => {
-                if(obj === designTarget) return;
-                if(obj._ownerData !== data) return; // only same-window peers
-                obj.left += deltaX;
-                obj.top  += deltaY;
-                obj.setCoords();
-            });
-
-            activeIndices.forEach(index=>{
-
-                if(canvasData[index] === data) return;
-                if(canvasData[index].locked) return;
-
-                const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
-
-                if(peer){
-                    peer.left += deltaX;
-                    peer.top  += deltaY;
-                    peer.setCoords();
-                }
-
-                // Always render — no visibility gate. The peer positions accumulate
-                // correctly in memory but won't show until re-rendered; gating on
-                // isElementVisible caused the "jumps on click" symptom.
-                canvasData[index].fabricCanvas.requestRenderAll();
-            });
-        }
+        _applyDesignMoveDelta(data, designTarget, deltaX, deltaY);
 
         designTarget.lastLeft = designTarget.left;
         designTarget.lastTop  = designTarget.top;
@@ -6321,6 +6384,30 @@ document.addEventListener('keydown', function(e){
 
     e.preventDefault();
     document.getElementById('invertColorsBtn').click();
+});
+
+// Arrow keys — nudge selected layer(s) (1 px; Shift+Arrow 10 px)
+document.addEventListener('keydown', function(e){
+    const ARROW = {
+        ArrowUp:    [0, -1],
+        ArrowDown:  [0,  1],
+        ArrowLeft:  [-1, 0],
+        ArrowRight: [1,  0],
+    };
+    if (!ARROW[e.key]) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (_kbdTypingTarget()) return;
+    if (_kbdModalOpen()) return;
+    if (_kbdCanvasModesBlocked()) return;
+    if (colorLayerMode && !colorCopySelectMode) return;
+    if (window._getSelectedTextBoxForShortcut?.()) return;
+    if (!selectedDesigns.size || !activeIndices.length) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    const step = e.shiftKey ? 10 : 1;
+    const [sx, sy] = ARROW[e.key];
+    _nudgeSelectedDesigns(sx * step, sy * step);
 });
 
 // M — make selected overlay the main design

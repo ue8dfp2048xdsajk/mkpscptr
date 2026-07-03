@@ -429,6 +429,14 @@ Quick manual pass after loading a project with multiple mockups and layers.
 - [ ] **Shift+H** / **Shift+V** flip selected mockup(s)
 - [ ] In clip mode: **H** hides layers; **Shift+H** does not flip
 
+### Position nudge
+
+- [ ] **Arrow keys** nudge selected layer(s) 1 px; **Shift+Arrow** nudge 10 px
+- [ ] Multi-window: main nudge moves peer mockups; extra nudge syncs same-index peers
+- [ ] Cross-window sync (one layer per active mockup): layers stay aligned after nudge
+- [ ] No nudge in clip/eraser/warp/color-paint modes, while typing, or with text box selected
+- [ ] **Ctrl/Cmd+Z** restores pre-nudge positions
+
 ### Unchanged sanity checks
 
 - [ ] **C** toggles clip (plain C); **Ctrl/Cmd+C** does not open clip
