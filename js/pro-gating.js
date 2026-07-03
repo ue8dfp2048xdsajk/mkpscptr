@@ -192,6 +192,40 @@ function _transformsContainProEffect(t) {
     return false;
 }
 
+// True when a Copy Layer clipboard payload contains PRO effect values.
+function _copiedLayerPayloadIsPro(cl) {
+    if (!cl) return false;
+    if (cl.type === 'extra') return _layerFxIsPro(cl.fx);
+    return _transformsContainProEffect({
+        designFx: {
+            warpAmount:      cl.designWarpAmount      ?? 0,
+            arcAmount:       cl.designArcAmount       ?? 0,
+            arcTilt:         cl.designArcTilt         ?? 0,
+            perspectiveTop:  cl.designPerspectiveTop  ?? 0,
+            perspectiveLeft: cl.designPerspectiveLeft ?? 0,
+            blendMode: 'normal',
+        },
+    });
+}
+
+// Instant ⭐ before heavy applyWarpToData / effect pipeline (Starter paste policy).
+function _applyPasteProSync(data, plan, payloadIsPro) {
+    if (!data) return;
+    if (plan === 'pro') {
+        if (payloadIsPro) _syncProEffect(data);
+        return;
+    }
+    data.forceProBadge = true;
+    _syncProEffect(data);
+}
+
+// Reconcile badge + trigger watermark after paste apply completes.
+function _finishPasteProSync(data) {
+    if (!data) return;
+    _syncProEffect(data);
+    if (data.fabricCanvas) data.fabricCanvas.requestRenderAll();
+}
+
 function _windowHasInvert(data) {
     if (!data) return false;
     if (data.invertedMain) return true;

@@ -4375,6 +4375,8 @@ async function _pasteLayerToTargets(){
         updateUndoRedoButtons();
     }
 
+    const layerPayloadIsPro = _copiedLayerPayloadIsPro(_copiedLayer);
+
     if (_copiedLayer.type === 'design'){
         // ── Replace main design in each target window ──────────────────────
         let srcEl = _copiedLayer.el;
@@ -4386,6 +4388,7 @@ async function _pasteLayerToTargets(){
             srcEl = tmp;
         }
         for (const d of targets){
+            _applyPasteProSync(d, _userPlan, layerPayloadIsPro);
             if (d.patternMode || d.patternFabricObj) _togglePatternMode(d, false);
             const fc   = d.fabricCanvas;
             const W    = fc.getWidth();
@@ -4417,6 +4420,7 @@ async function _pasteLayerToTargets(){
             d.flipX           = cl.designFlipX          ?? false;
             d.flipY           = cl.designFlipY          ?? false;
             applyWarpToData(d, false);
+            _finishPasteProSync(d);
         }
     } else {
         // ── Append as an overlay layer in each target window ───────────────
@@ -4424,6 +4428,7 @@ async function _pasteLayerToTargets(){
         const cl = _copiedLayer;
         for (const d of targets){
             if (!d.designObject) continue;
+            _applyPasteProSync(d, _userPlan, layerPayloadIsPro);
             const fabricImg = new fabric.Image(srcEl, {
                 left:   cl.srcLeft,
                 top:    cl.srcTop,
@@ -4449,7 +4454,7 @@ async function _pasteLayerToTargets(){
             applyClipMaskToObject(fabricImg, d);
             d.fabricCanvas.add(fabricImg);
             attachFabricEvents(d, fabricImg);
-            d.fabricCanvas.requestRenderAll();
+            _finishPasteProSync(d);
         }
     }
 
@@ -4620,16 +4625,13 @@ document.getElementById('copyTransformsBtn').addEventListener('click', () => {
 document.getElementById('pasteTransformsBtn').addEventListener('click', () => {
     if(!_copiedTransforms || !activeIndices.length) return;
     pushGlobalUndo();
+    const effectsPayloadIsPro = _transformsContainProEffect(_copiedTransforms);
     activeIndices.forEach(i => {
         const d = canvasData[i];
         if (!d || d.locked) return;
+        _applyPasteProSync(d, _userPlan, effectsPayloadIsPro);
         _applyEffectPayload(d, _copiedTransforms);
-        if (_userPlan === 'pro') {
-            _syncProEffect(d);
-        } else {
-            d.forceProBadge = true;
-            _syncProEffect(d);
-        }
+        _finishPasteProSync(d);
     });
     _markDirty();
     syncSliders();

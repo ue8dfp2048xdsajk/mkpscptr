@@ -131,7 +131,7 @@ PRO status is **derived from live window state**. `_syncProEffect(data)` sets `h
 - Pattern, clip mask, color layer, eraser-modified design (`designOriginal !== initialDesignOriginal`)  
 - Background adjust / crop non-default  
 
-**Starter paste:** sets `forceProBadge = true` on target (even blur-only) until reset or a real PRO effect clears it.
+**Starter paste:** sets `forceProBadge = true` on target (even blur-only) until reset or a real PRO effect clears it. Paste Layer and Paste Effects call `_applyPasteProSync` **before** the warp/effect pipeline so the ⭐ badge is immediate; `_finishPasteProSync` runs after apply for accurate gating and watermark render.
 
 **Undo:** snapshots `designOriginal` / extra originals; eraser and standard undo call `_syncProEffect` after restore.
 

@@ -153,3 +153,51 @@ describe('PRO effect detection', () => {
         expect(data.hasProEffect).toBe(true);
     });
 });
+
+describe('paste PRO sync helpers', () => {
+    beforeEach(() => {
+        loadProEffectFunctions();
+        _markDirty.mockClear();
+        _userPlan = 'starter';
+    });
+
+    test('_copiedLayerPayloadIsPro detects design warp', () => {
+        expect(_copiedLayerPayloadIsPro({
+            type: 'design',
+            designWarpAmount: 15,
+        })).toBe(true);
+        expect(_copiedLayerPayloadIsPro({
+            type: 'design',
+            designWarpAmount: 0,
+        })).toBe(false);
+    });
+
+    test('_copiedLayerPayloadIsPro detects extra-layer PRO _fx', () => {
+        expect(_copiedLayerPayloadIsPro({
+            type: 'extra',
+            fx: { warpAmount: 0, blendMode: 'multiply' },
+        })).toBe(true);
+    });
+
+    test('_applyPasteProSync gates Starter immediately', () => {
+        const data = makeData();
+        _applyPasteProSync(data, 'starter', false);
+        expect(data.forceProBadge).toBe(true);
+        expect(data.hasProEffect).toBe(true);
+    });
+
+    test('_applyPasteProSync does not gate Pro for plain payload', () => {
+        _userPlan = 'pro';
+        const data = makeData();
+        _applyPasteProSync(data, 'pro', false);
+        expect(data.forceProBadge).toBe(false);
+        expect(data.hasProEffect).toBe(false);
+    });
+
+    test('_applyPasteProSync gates Pro when payload is PRO', () => {
+        _userPlan = 'pro';
+        const data = makeData();
+        _applyPasteProSync(data, 'pro', true);
+        expect(data.forceProBadge).toBe(false);
+    });
+});

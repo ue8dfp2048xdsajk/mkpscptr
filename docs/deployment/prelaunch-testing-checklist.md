@@ -121,6 +121,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Layer mode ≠ Normal (multiply, screen, etc.)
 - [ ] Invert colors (main or extra layer)
 - [ ] Paste Effects (Starter: always marks window PRO)
+- [ ] Starter: Paste Layer / Paste Effects from PRO source → ⭐ appears immediately (no slider nudge); watermark on first canvas render after paste
 - [ ] Copy/Paste Effects does **not** change position, scale, or rotation on target
 - [ ] Copy/Paste Effects copies opacity, warp, blend, pattern settings, invert (not flip H/V)
 - [ ] Invert → undo → no ⭐, Starter export allowed, image not inverted
