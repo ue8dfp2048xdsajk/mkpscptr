@@ -94,6 +94,7 @@ async function restoreDuplicatesFromState(data, savedDups){
                   angle: s.angle });
         if(s.fx) obj._fx = JSON.parse(JSON.stringify(s.fx));
         obj.setCoords();
+        _applyExtraLayerHandleStyle(obj, s.src ? 'overlay' : 'clone');
     }
 
     // Re-create missing objects
@@ -107,9 +108,6 @@ async function restoreDuplicatesFromState(data, savedDups){
                     skewX: s.skewX || 0, skewY: s.skewY || 0,
                     angle: s.angle,
                     originX: 'center', originY: 'center',
-                    transparentCorners: false,
-                    cornerColor: 'blue',
-                    cornerStyle: 'circle',
                     selectable: true, evented: true
                 });
                 fImg._fx = s.fx ? JSON.parse(JSON.stringify(s.fx)) : _defaultFx(data);
@@ -122,6 +120,8 @@ async function restoreDuplicatesFromState(data, savedDups){
                 // pipeline can use it directly.  Storing a plain { src } object
                 // here would break ctx.drawImage during any later render.
                 data.extraDesignOriginals.push(imgEl || null);
+
+                _applyExtraLayerHandleStyle(fImg, s.src ? 'overlay' : 'clone');
 
                 data.fabricCanvas.add(fImg);
                 attachFabricEvents(data, fImg);
