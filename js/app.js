@@ -317,6 +317,8 @@ document.addEventListener('click', function(e){
     if(e.target.closest('#contextPanel')) return;
     // Ignore clicks on the minimap (panning shouldn't deselect windows)
     if(e.target.closest('#minimap')) return;
+    // Ignore clicks on canvas text boxes (grab/drag fires click → must keep selection)
+    if(e.target.closest('.canvas-text-box')) return;
     _deselectAll();
 });
 
@@ -9515,6 +9517,14 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         return !!_copiedTextBox;
     };
 
+    function _commitTextBoxMoveMode(box) {
+        if (!box?.textEl) return;
+        box.textEl.blur();
+        _selectTextBox(box);
+        const sel = window.getSelection();
+        if (sel) sel.removeAllRanges();
+    }
+
     window._copySelectedTextBox = function() {
         const box = window._getSelectedTextBoxForShortcut();
         if (!box) return;
@@ -9682,8 +9692,9 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
             if (e.key === 'Escape') { e.preventDefault(); textEl.blur(); }
         });
 
-        // ── Stop wrapper mousedown from bubbling to vw ────────────────────────
+        // ── Stop wrapper mousedown/click from bubbling (keeps selection for shortcuts)
         el.addEventListener('mousedown', e => e.stopPropagation());
+        el.addEventListener('click', e => e.stopPropagation());
 
         // ── Delete button ─────────────────────────────────────────────────────
         del.addEventListener('mousedown', e => {
@@ -9718,6 +9729,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
                 el.style.cursor = '';
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup',   onUp);
+                _commitTextBoxMoveMode(box);
                 if (moved) {
                     globalUndoStack.push({ type: 'textboxes', state: preDragState });
                     if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
@@ -9758,6 +9770,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
             function onUp() {
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup',   onUp);
+                _commitTextBoxMoveMode(box);
                 if (resizedR) {
                     globalUndoStack.push({ type: 'textboxes', state: preResStateR });
                     if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
@@ -9789,6 +9802,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
             function onUp() {
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup',   onUp);
+                _commitTextBoxMoveMode(box);
                 if (resizedB) {
                     globalUndoStack.push({ type: 'textboxes', state: preResStateB });
                     if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();

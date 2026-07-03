@@ -437,7 +437,7 @@ Quick manual pass after loading a project with multiple mockups and layers.
 
 ### Canvas text boxes
 
-- [ ] Click grab bar → box shows selected ring; **Ctrl/Cmd+C** then **Ctrl/Cmd+V** pastes duplicate offset
+- [ ] Click grab bar → box stays selected; **Ctrl/Cmd+C** then **Ctrl/Cmd+V** pastes duplicate offset (works after click-only or drag)
 - [ ] Click inside text while typing → **Ctrl/Cmd+C** copies selected words only (browser default)
 - [ ] **Ctrl/Cmd+C/V** with text box selected does not trigger layer copy/paste
 - [ ] **Esc** or click empty canvas clears text-box selection
