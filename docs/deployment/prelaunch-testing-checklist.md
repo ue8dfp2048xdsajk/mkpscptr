@@ -243,6 +243,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Large project handled correctly
 - [ ] Project with more than 40 unique images → confirm graceful error, not silent truncation or a hung save (`CLOUD_IMAGE_LIMIT = 40`)
 - [ ] Project near the 4MB client-side / 15MB server-side size limits → confirm graceful error
+- [ ] Duplicate many windows → delete most → cloud save succeeds (no false "too large" when remaining payload is under 4 MB)
 - [ ] Delete project works
 - [ ] Fetch a project by UUID while signed out / as a different user (`GET /api/projects/:id` has no auth check) → confirm this is acceptable given UUIDs are unguessable, or flag as a security item to fix
 

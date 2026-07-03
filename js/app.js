@@ -7159,6 +7159,7 @@ async function buildCloudSnapshot() {
     for (const w of full.windows) {
         _registerSrc(w.bgSrc);
         _registerSrc(w.designSrc);
+        _registerSrc(w.initialDesignSrc);
         _registerSrc(w.colorLayerDataURL);
         for (const d of (w.duplicates || [])) _registerSrc(d.src);
     }
@@ -7185,9 +7186,11 @@ async function buildCloudSnapshot() {
     }
 
     const compressedWindows = full.windows.map(function (w) {
+        const sameBaseline = w.initialDesignSrc && w.initialDesignSrc === w.designSrc;
         return Object.assign({}, w, {
             bgSrc:             _toKey(w.bgSrc),
             designSrc:         _toKey(w.designSrc),
+            initialDesignSrc:  sameBaseline ? null : _toKey(w.initialDesignSrc),
             colorLayerDataURL: _toKey(w.colorLayerDataURL),
             duplicates: (w.duplicates || []).map(function (d) {
                 return Object.assign({}, d, { src: _toKey(d.src) });
@@ -7430,6 +7433,7 @@ async function _loadProjectByUuid(uuid) {
             return Object.assign({}, w, {
                 bgSrc:             _fromKey(w.bgSrc),
                 designSrc:         _fromKey(w.designSrc),
+                initialDesignSrc:  _fromKey(w.initialDesignSrc),
                 colorLayerDataURL: _fromKey(w.colorLayerDataURL),
                 duplicates: (w.duplicates || []).map(function (d) {
                     return Object.assign({}, d, { src: _fromKey(d.src) });
