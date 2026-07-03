@@ -253,6 +253,7 @@ document.addEventListener('click', function(e){
 
 // Shared deselect logic — called by both click handlers below
 function _deselectAll(){
+    window._clearTextBoxSelection?.();
     if(!activeIndices.length && !selectedDesigns.size) return;
     activeIndices = [];
     selectedDesigns.clear();
@@ -483,6 +484,8 @@ function _applyWindowClickSelection(index, e) {
         updateWindowBorders();
         return;
     }
+
+    window._clearTextBoxSelection?.();
 
     const isModifierMultiSelect = e.metaKey || e.ctrlKey;
 
@@ -6541,26 +6544,42 @@ document.addEventListener('keydown', function(e){
     document.getElementById('exportBtn').click();
 });
 
-// Ctrl/Cmd+C — copy layer
+// Ctrl/Cmd+C — copy text box (move mode) or design layer
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 'c') return;
     if(e.shiftKey || e.altKey) return;
     if(_kbdTypingTarget()) return;
     if(_kbdCanvasModesBlocked()) return;
+
+    const tb = window._getSelectedTextBoxForShortcut?.();
+    if (tb) {
+        e.preventDefault();
+        window._copySelectedTextBox();
+        return;
+    }
     if(!selectedDesigns.size) return;
 
     e.preventDefault();
     _copyCurrentLayer();
 });
 
-// Ctrl/Cmd+V — paste layer
+// Ctrl/Cmd+V — paste text box or design layer
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 'v') return;
     if(e.shiftKey || e.altKey) return;
     if(_kbdTypingTarget()) return;
     if(_kbdCanvasModesBlocked()) return;
+
+    const tb = window._getSelectedTextBoxForShortcut?.();
+    if (tb) {
+        if (window._hasCopiedTextBox?.()) {
+            e.preventDefault();
+            window._pasteTextBox();
+        }
+        return;
+    }
     if(!_copiedLayer || !activeIndices.length) return;
 
     e.preventDefault();
@@ -8840,6 +8859,7 @@ var _textBoxes = [];  // { id, x, y, w, h, content, el }
 var _tbNextId  = 1;
 
 function deleteTextBox(box) {
+    window._clearTextBoxIfDeleted?.(box);
     if (box.el && box.el.parentNode) box.el.parentNode.removeChild(box.el);
     const idx = _textBoxes.indexOf(box);
     if (idx !== -1) _textBoxes.splice(idx, 1);
@@ -9457,6 +9477,78 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
     document.body.appendChild(fontToolbar);
 
     let _activeTbText = null;  // the currently focused .tb-text element
+    let _selectedTextBox = null;
+    let _copiedTextBox = null;
+    const _TB_PASTE_OFFSET = 12;
+
+    function _selectTextBox(box) {
+        if (_selectedTextBox && _selectedTextBox !== box && _selectedTextBox.el) {
+            _selectedTextBox.el.classList.remove('tb-selected');
+        }
+        _selectedTextBox = box;
+        if (box?.el) box.el.classList.add('tb-selected');
+    }
+
+    function _clearTextBoxSelection() {
+        if (_selectedTextBox?.el) _selectedTextBox.el.classList.remove('tb-selected');
+        _selectedTextBox = null;
+    }
+
+    function _textBoxInTypeMode(box) {
+        return box?.textEl === document.activeElement;
+    }
+
+    window._clearTextBoxSelection = _clearTextBoxSelection;
+
+    window._clearTextBoxIfDeleted = function(box) {
+        if (_selectedTextBox === box) _clearTextBoxSelection();
+    };
+
+    window._getSelectedTextBoxForShortcut = function() {
+        const box = _selectedTextBox;
+        if (!box || !box.el?.isConnected) return null;
+        if (_textBoxInTypeMode(box)) return null;
+        return box;
+    };
+
+    window._hasCopiedTextBox = function() {
+        return !!_copiedTextBox;
+    };
+
+    window._copySelectedTextBox = function() {
+        const box = window._getSelectedTextBoxForShortcut();
+        if (!box) return;
+        const text = box.textEl?.innerText ?? '';
+        if (!text.trim()) return;
+        _copiedTextBox = {
+            x: box.x,
+            y: box.y,
+            w: box.w,
+            h: box.h,
+            content: box.textEl ? box.textEl.innerHTML : box.content,
+            autoWidth: box.el.classList.contains('tb-auto-width'),
+        };
+    };
+
+    window._pasteTextBox = function() {
+        if (!_copiedTextBox) return;
+        pushTextBoxUndo();
+        const cl = _copiedTextBox;
+        const newBox = createTextBox(
+            cl.x + _TB_PASTE_OFFSET,
+            cl.y + _TB_PASTE_OFFSET,
+            cl.w,
+            cl.h,
+            cl.content
+        );
+        if (cl.w <= 0 && cl.autoWidth) {
+            newBox.el.classList.add('tb-auto-width');
+            newBox.el.style.width = '';
+        }
+        newBox._skipFocusUndo = true;
+        _selectTextBox(newBox);
+        autoSaveSession();
+    };
 
     // Position toolbar above the selection / box
     function positionFontToolbar(anchorEl) {
@@ -9562,6 +9654,10 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         });
 
         // ── Focus / blur styling ──────────────────────────────────────────────
+        textEl.addEventListener('mousedown', () => {
+            _selectTextBox(box);
+        });
+
         textEl.addEventListener('focus', () => {
             el.classList.add('tb-focused');
             _activeTbText = textEl;
@@ -9590,13 +9686,19 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         el.addEventListener('mousedown', e => e.stopPropagation());
 
         // ── Delete button ─────────────────────────────────────────────────────
-        del.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+        del.addEventListener('mousedown', e => {
+            e.stopPropagation();
+            e.preventDefault();
+            _selectTextBox(box);
+        });
         del.addEventListener('click',     e => { e.stopPropagation(); pushTextBoxUndo(); deleteTextBox(box); });
 
         // ── Drag: grab bar OR border drag (click target is the outer el) ──────
         function startDrag(e) {
             e.stopPropagation();
             e.preventDefault();
+            _selectTextBox(box);
+            textEl.blur();
             el.style.cursor = 'grabbing';
             const startCX = e.clientX, startCY = e.clientY;
             const startBX = box.x,     startBY = box.y;
@@ -9640,6 +9742,8 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         resizeR.addEventListener('mousedown', e => {
             e.stopPropagation();
             e.preventDefault();
+            _selectTextBox(box);
+            textEl.blur();
             const startCX      = e.clientX;
             const startW       = el.getBoundingClientRect().width / _vpScale;
             const preResStateR = captureTextBoxState();
@@ -9670,6 +9774,8 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         resizeB.addEventListener('mousedown', e => {
             e.stopPropagation();
             e.preventDefault();
+            _selectTextBox(box);
+            textEl.blur();
             const startCY      = e.clientY;
             const startH       = el.getBoundingClientRect().height / _vpScale;
             const preResStateB = captureTextBoxState();
@@ -9700,6 +9806,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
     // Expose restore helpers for load/autorestore and undo/redo paths
     window._restoreTextBoxes = function(boxes) {
+        _clearTextBoxSelection();
         _textBoxes.forEach(b => { if (b.el.parentNode) b.el.parentNode.removeChild(b.el); });
         _textBoxes = [];
         _tbNextId  = 1;
@@ -9708,6 +9815,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
     // Used by the undo/redo engine to apply a textboxes snapshot
     window._applyTextBoxState = function(state) {
+        _clearTextBoxSelection();
         _textBoxes.forEach(b => { if (b.el && b.el.parentNode) b.el.parentNode.removeChild(b.el); });
         _textBoxes = [];
         (state || []).forEach(b => createTextBox(b.x, b.y, b.w || 0, b.h || 0, b.content || ''));

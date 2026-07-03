@@ -1392,6 +1392,11 @@ body.sidebar-expanded #contextPanelBody {
     border-color: #4F6EF7;
     box-shadow: 0 0 0 2px rgba(79,110,247,0.18), 0 2px 8px rgba(0,0,0,0.10);
 }
+.canvas-text-box.tb-selected {
+    background: rgba(255,255,255,0.92);
+    border-color: #4F6EF7;
+    box-shadow: 0 0 0 2px rgba(79,110,247,0.12), 0 2px 8px rgba(0,0,0,0.08);
+}
 
 /* Thin grab bar at top */
 .tb-drag-bar {

@@ -435,6 +435,15 @@ Quick manual pass after loading a project with multiple mockups and layers.
 - [ ] **E** toggles eraser; **Ctrl/Cmd+E** exports
 - [ ] **Ctrl/Cmd+Z** / **Shift+Z** undo/redo still work
 
+### Canvas text boxes
+
+- [ ] Click grab bar → box shows selected ring; **Ctrl/Cmd+C** then **Ctrl/Cmd+V** pastes duplicate offset
+- [ ] Click inside text while typing → **Ctrl/Cmd+C** copies selected words only (browser default)
+- [ ] **Ctrl/Cmd+C/V** with text box selected does not trigger layer copy/paste
+- [ ] **Esc** or click empty canvas clears text-box selection
+- [ ] **Ctrl/Cmd+Z** after paste removes duplicated text box
+- [ ] Free plan: copy/paste text boxes works; Export Text Boxes still paywalled
+
 ---
 
 ## Part 21 — Final customer journey ⭐
