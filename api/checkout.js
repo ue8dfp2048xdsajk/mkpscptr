@@ -125,8 +125,8 @@ module.exports = async function handler(req, res) {
     // as it is user-controlled and would allow an attacker to set an arbitrary
     // success_url/cancel_url (open redirect after real payment).
     const baseUrl = process.env.BASE_URL || 'https://mockupscripter.com';
-    const successUrl = `${baseUrl}/?payment=success`;
-    const cancelUrl  = `${baseUrl}/`;
+    const successUrl = `${baseUrl}/app.html?payment=success`;
+    const cancelUrl  = `${baseUrl}/app.html`;
 
     const params = new URLSearchParams();
     params.set('mode', mode);
