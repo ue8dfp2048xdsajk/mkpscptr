@@ -257,6 +257,7 @@ function _flushEraserPendingRebuild() {
     if (data && data._erasePendingRebuild) {
         data._erasePendingRebuild = false;
         _rebuildEraserTarget(data, obj, false);
+        if (obj) _markObjectBakedPro(obj);
     }
     canvasData.forEach(d => { if (d) d._erasePendingRebuild = false; });
 }

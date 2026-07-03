@@ -168,9 +168,10 @@ async function exportDataToBlob(data, fmt, quality){
     async function _runExportWithIndices(indices) {
         const ext = _exportFormat === 'jpeg' ? 'jpg' : 'png';
 
+        indices.forEach(i => _syncProEffect(canvasData[i]));
+
         // Safety net: Starter plan — silently drop any PRO-gated windows that slipped through
         if(_userPlan === 'starter'){
-            indices.forEach(i => _syncProEffect(canvasData[i]));
             indices = indices.filter(i => !_windowIsProGated(canvasData[i]));
             if(!indices.length){
                 alert('All selected windows use PRO-only features. Upgrade to PRO to export them.');

@@ -405,6 +405,7 @@ function _swapInBakedDesign(data, applyObjs, outCanvas, left, top, dpr, wasPatte
         cornerColor:     'blue',
         cornerStyle:     'circle',
     });
+    _markObjectBakedPro(newImg);
 
     const isMain    = applyObjs.includes(data.designObject);
     const newExtras = (data.extraDesignObjects || []).filter(o => !applyObjs.includes(o));

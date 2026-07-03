@@ -74,6 +74,7 @@ function captureWindowState(data){
         invertedMain: !!data.invertedMain,
         invertedExtras: [...(data.invertedExtras || [])],
         forceProBadge: !!data.forceProBadge,
+        carriesBakedProMain: !!data.designObject?._carriesBakedPro,
         designOriginalSrc: data.meshWarpApplied
             ? _originalToSrc(data.designOriginal)
             : null,
@@ -90,7 +91,8 @@ function captureWindowState(data){
             src:  _originalToSrc(data.extraDesignOriginals?.[i]),
             name: obj._uploadedDesignName ?? null,
             isClone: !_extraObjectIsOverlay(obj),
-            fx:   obj._fx ? JSON.parse(JSON.stringify(obj._fx)) : null
+            fx:   obj._fx ? JSON.parse(JSON.stringify(obj._fx)) : null,
+            carriesBakedPro: !!obj._carriesBakedPro
         }))
     };
 }
@@ -115,6 +117,8 @@ async function restoreDuplicatesFromState(data, savedDups){
                   skewX: s.skewX || 0, skewY: s.skewY || 0,
                   angle: s.angle });
         if(s.fx) obj._fx = JSON.parse(JSON.stringify(s.fx));
+        if (s.carriesBakedPro) _markObjectBakedPro(obj);
+        else delete obj._carriesBakedPro;
         obj.setCoords();
         _applyExtraLayerHandleStyle(obj, _dupStateIsOverlay(s) ? 'overlay' : 'clone');
     }
@@ -133,6 +137,7 @@ async function restoreDuplicatesFromState(data, savedDups){
                     selectable: true, evented: true
                 });
                 fImg._fx = s.fx ? JSON.parse(JSON.stringify(s.fx)) : _defaultFx(data);
+                if (s.carriesBakedPro) _markObjectBakedPro(fImg);
                 if(s.name) fImg._uploadedDesignName = s.name;
 
                 data.extraDesignObjects  = data.extraDesignObjects  || [];
@@ -356,6 +361,11 @@ async function restoreWindowState(data, state){
     }
 
     await restoreDuplicatesFromState(data, state.duplicates || []);
+
+    if (data.designObject) {
+        if (state.carriesBakedProMain) _markObjectBakedPro(data.designObject);
+        else delete data.designObject._carriesBakedPro;
+    }
 
     // Restore filename
     if(state.filename !== undefined){

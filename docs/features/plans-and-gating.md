@@ -130,6 +130,9 @@ PRO status is **derived from live window state**. `_syncProEffect(data)` sets `h
 - `invertedMain` or any `invertedExtras[]`  
 - Pattern, clip mask, color layer, eraser-modified design (`designOriginal !== initialDesignOriginal`)  
 - Background adjust / crop non-default  
+- Baked mesh warp or eraser work on any layer (`obj._carriesBakedPro`; propagated via Copy Layer, paste, Make Main, Duplicate Layer)
+
+**Baked PRO lineage:** Mesh warp Apply and eraser strokes set `_carriesBakedPro` on the affected fabric object. Copy/paste and Make Main **move layers freely** and propagate the flag so gating (⭐, watermark, Starter export) follows the work — editor preview of all effects remains available on every plan.
 
 **Paste gating:** Paste Layer and Paste Effects call `_applyPasteProSync` **before** the warp/effect pipeline so the ⭐ badge is immediate when the payload is PRO; `_finishPasteProSync` reconciles from live state after apply.
 
@@ -141,7 +144,7 @@ PRO status is **derived from live window state**. `_syncProEffect(data)` sets `h
 
 **After JSON or cloud load:** `_syncProEffect` runs per window (live state is authoritative).
 
-Snapshot fields: `meshWarpApplied`, `invertedMain`, `invertedExtras`, `hasProEffect`, `forceProBadge`.
+Snapshot fields: `meshWarpApplied`, `invertedMain`, `invertedExtras`, `hasProEffect`, `forceProBadge`, `carriesBakedPro` (main + duplicates).
 
 ---
 

@@ -214,4 +214,35 @@ describe('paste PRO sync helpers', () => {
         _applyPasteProSync(data, 'pro', true);
         expect(data.forceProBadge).toBe(false);
     });
+
+    test('_carriesBakedPro on designObject marks PRO', () => {
+        const data = makeData({ designObject: { _carriesBakedPro: true } });
+        _recomputeProEffect(data);
+        expect(data.hasProEffect).toBe(true);
+    });
+
+    test('_copiedLayerPayloadIsPro detects srcCarriesBakedPro', () => {
+        expect(_copiedLayerPayloadIsPro({ srcCarriesBakedPro: true })).toBe(true);
+        expect(_copiedLayerPayloadIsPro({
+            type: 'design',
+            designWarpAmount: 0,
+            srcCarriesBakedPro: false,
+        })).toBe(false);
+    });
+
+    test('_layerCarriesBakedProWork detects meshWarpApplied main', () => {
+        const obj = {};
+        const data = makeData({ meshWarpApplied: true, designObject: obj });
+        expect(_layerCarriesBakedProWork(data, obj, 'design', -1)).toBe(true);
+    });
+
+    test('_layerCarriesBakedProWork detects eraser-modified main', () => {
+        const obj = {};
+        const data = makeData({
+            designObject: obj,
+            designOriginal: { id: 'erased' },
+            initialDesignOriginal: { id: 'original' },
+        });
+        expect(_layerCarriesBakedProWork(data, obj, 'design', -1)).toBe(true);
+    });
 });

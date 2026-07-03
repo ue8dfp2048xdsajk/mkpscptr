@@ -137,6 +137,23 @@ function _layerFxIsPro(fx) {
     return false;
 }
 
+function _markObjectBakedPro(obj) {
+    if (obj) obj._carriesBakedPro = true;
+}
+
+function _objectCarriesBakedPro(obj) {
+    return !!(obj && obj._carriesBakedPro);
+}
+
+function _layerCarriesBakedProWork(data, obj, layerType, layerIdx) {
+    if (_objectCarriesBakedPro(obj)) return true;
+    if (layerType === 'design' && data.meshWarpApplied) return true;
+    if (layerType === 'design' &&
+        data.designOriginal && data.initialDesignOriginal &&
+        data.designOriginal !== data.initialDesignOriginal) return true;
+    return false;
+}
+
 function _windowHasProBlend(data) {
     if (!data) return false;
     if ((data.blendMode || 'normal') !== 'normal') return true;
@@ -171,12 +188,13 @@ function _windowHasProEffect(data) {
     if (data.meshWarpApplied) return true;
     if (_windowHasProBlend(data)) return true;
     if (_windowHasInvert(data)) return true;
+    if (getAllDesignObjects(data).some(_objectCarriesBakedPro)) return true;
     return getAllDesignObjects(data).some(function (obj) {
         return _layerFxIsPro(obj && obj._fx);
     });
 }
 
-// Starter paste policy: force gate even when payload is blur-only (spec).
+// True when window or any layer uses PRO gating (live effects or baked lineage).
 function _windowIsProGated(data) {
     if (!data) return false;
     return _windowHasProEffect(data) || !!data.forceProBadge;
@@ -211,6 +229,7 @@ function _transformsContainProEffect(t) {
 // True when a Copy Layer clipboard payload contains PRO effect values.
 function _copiedLayerPayloadIsPro(cl) {
     if (!cl) return false;
+    if (cl.srcCarriesBakedPro) return true;
     if (cl.type === 'extra') return _layerFxIsPro(cl.fx);
     return _transformsContainProEffect({
         designFx: {

@@ -4606,6 +4606,7 @@ function _copyCurrentLayer(){
         designSkewY:  sourceData.skewY  ?? 0,
         designFlipX:  !!sourceData.flipX,
         designFlipY:  !!sourceData.flipY,
+        srcCarriesBakedPro: _layerCarriesBakedProWork(sourceData, obj, layerType, layerIdx),
     };
 
     _updateCopyLayerBtn();
@@ -4685,6 +4686,7 @@ function _appendPastedLayerAsExtra(d, cl, srcEl, { offsetX = 0, offsetY = 0 } = 
     });
     fabricImg._uploadedDesignName = cl.name || 'pasted_layer';
     fabricImg._fx = fx;
+    if (cl.srcCarriesBakedPro) _markObjectBakedPro(fabricImg);
     _resetObjectPipelineCaches(fabricImg);
 
     d.extraDesignObjects   = d.extraDesignObjects   || [];
@@ -4772,6 +4774,10 @@ async function _pasteLayerToTargets(){
             d.flipX           = cl.designFlipX          ?? false;
             d.flipY           = cl.designFlipY          ?? false;
             applyWarpToData(d, false);
+            if (cl.srcCarriesBakedPro && d.designObject) {
+                _markObjectBakedPro(d.designObject);
+                d.meshWarpApplied = true;
+            }
             _finishPasteProSync(d);
         }
     } else {
@@ -5036,6 +5042,7 @@ document.getElementById("duplicateLayerBtn").addEventListener("click", ()=>{
                 opacity: fx.opacity ?? 1,
                 globalCompositeOperation: _blendToGCO(fx.blendMode)
             });
+            if (sourceObj._carriesBakedPro) _markObjectBakedPro(cloned);
 
             data.extraDesignObjects   = data.extraDesignObjects   || [];
             data.extraDesignOriginals  = data.extraDesignOriginals  || [];
@@ -5154,7 +5161,7 @@ function _promoteLayerToMain(data, obj) {
     data.designOriginal = original;
     data.warpCanvas = null;
     data._flipMap = null;
-    data.meshWarpApplied = false;
+    data.meshWarpApplied = _objectCarriesBakedPro(obj);
     data.flipX = false;
     data.flipY = false;
 
@@ -5184,6 +5191,10 @@ function _demoteMainToExtra(data) {
     if (!data?.designObject) return;
     const obj      = data.designObject;
     const original = data.designOriginal;
+
+    if (data.meshWarpApplied || _objectCarriesBakedPro(obj)) {
+        _markObjectBakedPro(obj);
+    }
 
     if (data.patternMode || data.patternFabricObj) _togglePatternMode(data, false);
 
@@ -7626,6 +7637,7 @@ function buildSnapshot(){
             bgCrop:    data.bgCrop    ? { ...data.bgCrop   } : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
             hasProEffect: data.hasProEffect ?? false,
             forceProBadge: !!data.forceProBadge,
+            carriesBakedPro: !!data.designObject?._carriesBakedPro,
             meshWarpApplied: !!data.meshWarpApplied,
             invertedMain: !!data.invertedMain,
             invertedExtras: [...(data.invertedExtras || [])],
@@ -7686,7 +7698,8 @@ function buildSnapshot(){
                 isClone: !_extraObjectIsOverlay(obj),
 
                 // Per-object effects set in design mode
-                fx: obj._fx ?? null
+                fx: obj._fx ?? null,
+                carriesBakedPro: !!obj._carriesBakedPro
             })),
 
             // Color layer — save as data URL (bg-image scale); null if never painted
@@ -8727,6 +8740,9 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         if(saved.designFx && data.designObject){
             data.designObject._fx = saved.designFx;
         }
+        if ((saved.carriesBakedPro || saved.meshWarpApplied) && data.designObject) {
+            _markObjectBakedPro(data.designObject);
+        }
 
         if(saved.duplicates?.length){
 
@@ -8760,6 +8776,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
                             fabricImg._uploadedDesignName = dup.name || '';
                             fabricImg._fx = dup.fx || _defaultFx(data);
+                            if (dup.carriesBakedPro) _markObjectBakedPro(fabricImg);
 
                             _applyWarpToOneObject(fabricImg, data, _cachedFlip(data, img), false);
 
@@ -8801,6 +8818,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             });
                             if (dup.name) fabricImg._uploadedDesignName = dup.name;
                             fabricImg._fx = dup.fx || _defaultFx(data);
+                            if (dup.carriesBakedPro) _markObjectBakedPro(fabricImg);
 
                             _applyWarpToOneObject(fabricImg, data, _cachedFlip(data, img), false);
 
@@ -8844,6 +8862,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             });
 
                             cloned._fx = dup.fx || _defaultFx(data);
+                            if (dup.carriesBakedPro) _markObjectBakedPro(cloned);
 
                             // Bake this duplicate's own warp/arc/perspective/blur/noise
                             // pipeline into its pixels — restoring _fx alone only stores
