@@ -13,6 +13,8 @@ Mockupscripter uses a **hybrid undo stack**: per-window property snapshots for v
 | **Special** | `{ type: 'eraser' }`, `{ type: 'warp' }` | Pixel or baked-geometry mutations |
 | **Meta** | `{ type: 'layout' }`, `{ type: 'pan' }`, `{ type: 'selection' }`, `{ type: 'textboxes' }` | UI-only state |
 
+Reorder undo/redo re-appends **`cellEl`** (the grid item), not `wrapperEl`. Matches drag-drop and deletion restore.
+
 **Rule:** If `canvasData.length` or DOM grid order changes, **never** use bare `pushPropertyUndo()`.
 
 ## New feature checklist

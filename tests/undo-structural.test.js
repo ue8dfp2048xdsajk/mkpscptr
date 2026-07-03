@@ -149,3 +149,70 @@ describe('_restoreDeletedWindows + _reDeleteWindows round-trip', () => {
         expect(container.children.length).toBe(1);
     });
 });
+
+describe('_applyReorderOrder', () => {
+    beforeEach(() => {
+        loadStructuralHelpers();
+        canvasData = [];
+    });
+
+    test('reorders cellEl nodes and keeps wrapper inside cell', () => {
+        const a = makeWindow('a');
+        const b = makeWindow('b');
+        canvasData = [a, b];
+
+        const container = document.getElementById('canvasContainer');
+        container.appendChild(a.cellEl);
+        container.appendChild(b.cellEl);
+
+        _applyReorderOrder([b, a]);
+
+        expect(canvasData).toEqual([b, a]);
+        expect(container.children[0]).toBe(b.cellEl);
+        expect(container.children[1]).toBe(a.cellEl);
+        expect(b.cellEl.contains(b.wrapperEl)).toBe(true);
+        expect(a.cellEl.contains(a.wrapperEl)).toBe(true);
+        expect(container.contains(b.wrapperEl)).toBe(true);
+        expect(b.wrapperEl.parentElement).toBe(b.cellEl);
+    });
+
+    test('does not append bare wrapperEl to canvasContainer', () => {
+        const a = makeWindow('a');
+        const b = makeWindow('b');
+        canvasData = [a, b];
+
+        const container = document.getElementById('canvasContainer');
+        container.appendChild(a.cellEl);
+        container.appendChild(b.cellEl);
+
+        _applyReorderOrder([b, a]);
+
+        [...container.children].forEach(child => {
+            expect(child.classList.contains('window-cell')).toBe(true);
+        });
+    });
+});
+
+describe('_applyReorderSelectionFromBefore', () => {
+    beforeEach(() => {
+        loadStructuralHelpers();
+        canvasData = [];
+        lastSelectedIndex = null;
+    });
+
+    test('resolves window selection by data ref after reorder', () => {
+        const a = makeWindow('a');
+        const b = makeWindow('b');
+        canvasData = [a, b];
+
+        const container = document.getElementById('canvasContainer');
+        container.appendChild(a.cellEl);
+        container.appendChild(b.cellEl);
+
+        _applyReorderOrder([b, a]);
+        _applyReorderSelectionFromBefore([b], b);
+
+        expect(activeIndices).toEqual([0]);
+        expect(lastSelectedIndex).toBe(b);
+    });
+});

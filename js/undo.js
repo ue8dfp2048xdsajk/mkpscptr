@@ -585,6 +585,25 @@ function _reDeleteWindows(saved){
     updateDropUI();
 }
 
+// Reorder undo/redo: move grid items (cellEl), not inner wrappers — matches drag-drop.
+function _applyReorderOrder(order){
+    const cont = document.getElementById('canvasContainer');
+    if(!cont) return;
+    order.forEach(d => {
+        if(!d) return;
+        const domEl = d.cellEl || d.wrapperEl;
+        if(domEl) cont.appendChild(domEl);
+    });
+    canvasData = order.filter(Boolean);
+}
+
+function _applyReorderSelectionFromBefore(selDatas, lastData){
+    activeIndices = selDatas
+        .map(d => canvasData.indexOf(d))
+        .filter(i => i !== -1);
+    lastSelectedIndex = (lastData && canvasData.includes(lastData)) ? lastData : null;
+}
+
 async function performGlobalUndo(){
     if(!globalUndoStack.length) return;
     const entry = globalUndoStack.pop();
@@ -645,12 +664,9 @@ async function performGlobalUndo(){
     if(entry.type === 'reorder'){
         globalRedoStack.push({ type: 'reorder', order: [...canvasData] });
         const selDatas = activeIndices.map(i => canvasData[i]).filter(Boolean);
-        const lastSel  = lastSelectedIndex !== null ? canvasData[lastSelectedIndex] : null;
-        const cont = document.getElementById('canvasContainer');
-        entry.order.forEach(d => { if(d.wrapperEl) cont.appendChild(d.wrapperEl); });
-        canvasData = [...entry.order];
-        activeIndices     = selDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
-        lastSelectedIndex = lastSel ? canvasData.indexOf(lastSel) : null;
+        const lastData = lastSelectedIndex;
+        _applyReorderOrder(entry.order);
+        _applyReorderSelectionFromBefore(selDatas, lastData);
         updateWindowBorders();
         updateUndoRedoButtons();
         return;
@@ -785,12 +801,9 @@ async function performGlobalRedo(){
     if(entry.type === 'reorder'){
         globalUndoStack.push({ type: 'reorder', order: [...canvasData] });
         const selDatas = activeIndices.map(i => canvasData[i]).filter(Boolean);
-        const lastSel  = lastSelectedIndex !== null ? canvasData[lastSelectedIndex] : null;
-        const cont = document.getElementById('canvasContainer');
-        entry.order.forEach(d => { if(d.wrapperEl) cont.appendChild(d.wrapperEl); });
-        canvasData = [...entry.order];
-        activeIndices     = selDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
-        lastSelectedIndex = lastSel ? canvasData.indexOf(lastSel) : null;
+        const lastData = lastSelectedIndex;
+        _applyReorderOrder(entry.order);
+        _applyReorderSelectionFromBefore(selDatas, lastData);
         updateWindowBorders();
         updateUndoRedoButtons();
         return;

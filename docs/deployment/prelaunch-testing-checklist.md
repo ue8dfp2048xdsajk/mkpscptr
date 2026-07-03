@@ -130,6 +130,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Click mockup background (not design) → that window selects
 - [ ] Duplicate 2 windows → click other backgrounds → correct window (not off-by-N); shift+range includes dupes; Starter export selected plain duplicate → no false PRO modal (no refresh)
 - [ ] Duplicate window(s) → undo removes dupes → redo restores; add window → undo removes → redo restores; delete → undo → redo
+- [ ] Drag-reorder window → undo restores order and content → redo re-applies reorder (no empty cells / badge-only ghosts)
 - [ ] Exit eraser → layer re-selected → re-enter with E works
 - [ ] 0 or 2 layers selected → eraser blocked (alert)
 - [ ] Extra-layer warp only → ⭐ + Starter export block; undo warp to 0 → ⭐ clears
