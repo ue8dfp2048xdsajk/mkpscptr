@@ -636,6 +636,10 @@ body {
     box-shadow: 0 3px 12px rgba(0,0,0,.45);
     user-select: none;
     backdrop-filter: blur(3px);
+    transition: bottom 0.18s ease;
+}
+body.vpc-panel-collapsed #minimap {
+    bottom: 100px;
 }
 #minimapCanvas { display: block; }
 

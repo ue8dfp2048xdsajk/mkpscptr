@@ -10696,6 +10696,7 @@ document.getElementById('canvasContainer').addEventListener('input', e => {
     function setVpcHidden(hidden) {
         panel.classList.toggle('vpc-hidden', hidden);
         teaser.hidden = !hidden;
+        document.body.classList.toggle('vpc-panel-collapsed', hidden);
     }
 
     collapseBtn.addEventListener('click', function(e) {
