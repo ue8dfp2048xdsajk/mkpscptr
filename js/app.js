@@ -3633,10 +3633,13 @@ function updateLayerButtons(){
         _updateCopyLayerBtn();
     }
 
-    const copyBtn  = document.getElementById('copyTransformsBtn');
-    if(copyBtn)  copyBtn.disabled  = (activeIndices.length !== 1);
-    const pasteBtn = document.getElementById('pasteTransformsBtn');
-    if(pasteBtn) pasteBtn.disabled = !(_copiedTransforms && activeIndices.length > 0);
+    const effectsBtn = document.getElementById('copyTransformsBtn');
+    if (effectsBtn) {
+        effectsBtn.disabled = _copiedTransforms
+            ? activeIndices.length === 0
+            : activeIndices.length !== 1;
+        _updateCopyEffectsBtn();
+    }
 
     const centerBtn = document.getElementById('centerViewBtn');
     if(centerBtn) centerBtn.textContent = activeIndices.length > 0 ? 'Fit Selection' : 'Center';
@@ -5020,21 +5023,35 @@ function _applyEffectPayload(data, payload) {
     data.fabricCanvas?.requestRenderAll();
 }
 
-document.getElementById('copyTransformsBtn').addEventListener('click', () => {
-    const srcData = lastSelectedIndex ?? canvasData[activeIndices[activeIndices.length - 1]] ?? null;
-    if(srcData === null) return;
-    if(!_getPrimarySelectedLayer(srcData)) return;
-    _copiedTransforms = _captureEffectPayload(srcData);
-    // Visual feedback on the button
+function _updateCopyEffectsBtn() {
     const btn = document.getElementById('copyTransformsBtn');
-    const _copyEffectsLabel = btn.innerHTML;
-    btn.textContent = '✓ Copied';
-    setTimeout(() => { btn.innerHTML = _copyEffectsLabel; }, 1400);
-    updateLayerButtons(); // enable Paste
-});
+    if (!btn) return;
+    if (_copiedTransforms) {
+        btn.textContent      = 'Paste Effects (Ctrl/Cmd+Shift+V)';
+        btn.title            = 'Paste copied effects to all selected mockups (Ctrl/Cmd+Shift+V)';
+        btn.style.background  = '#e8f5e9';
+        btn.style.borderColor = '#66bb6a';
+        btn.style.color       = '#2e7d32';
+    } else {
+        btn.textContent      = 'Copy Effects (Ctrl/Cmd+Shift+C)';
+        btn.title            = 'Copy effects (opacity, warp, blend, pattern, invert) from the last selected mockup — not position or scale';
+        btn.style.background  = '';
+        btn.style.borderColor = '';
+        btn.style.color       = '';
+    }
+}
 
-document.getElementById('pasteTransformsBtn').addEventListener('click', () => {
-    if(!_copiedTransforms || !activeIndices.length) return;
+function _copyCurrentEffects() {
+    const srcData = lastSelectedIndex ?? canvasData[activeIndices[activeIndices.length - 1]] ?? null;
+    if (srcData === null) return;
+    if (!_getPrimarySelectedLayer(srcData)) return;
+    _copiedTransforms = _captureEffectPayload(srcData);
+    _updateCopyEffectsBtn();
+    updateLayerButtons();
+}
+
+function _pasteCopiedEffects() {
+    if (!_copiedTransforms || !activeIndices.length) return;
     pushGlobalUndo();
     const effectsPayloadIsPro = _transformsContainProEffect(_copiedTransforms);
     activeIndices.forEach(i => {
@@ -5046,6 +5063,14 @@ document.getElementById('pasteTransformsBtn').addEventListener('click', () => {
     });
     _markDirty();
     syncSliders();
+}
+
+document.getElementById('copyTransformsBtn').addEventListener('click', () => {
+    if (_copiedTransforms) {
+        _pasteCopiedEffects();
+    } else {
+        _copyCurrentEffects();
+    }
 });
 
 document.getElementById("selectAllBtn").addEventListener("click", ()=>{
@@ -6897,8 +6922,10 @@ document.addEventListener('keydown', function(e){
     if(_kbdTypingTarget()) return;
     if(_kbdCanvasModesBlocked()) return;
 
+    if (activeIndices.length !== 1) return;
+
     e.preventDefault();
-    document.getElementById('copyTransformsBtn').click();
+    _copyCurrentEffects();
 });
 
 // Ctrl/Cmd+Shift+V — paste effects
@@ -6911,7 +6938,7 @@ document.addEventListener('keydown', function(e){
     if(!_copiedTransforms || !activeIndices.length) return;
 
     e.preventDefault();
-    document.getElementById('pasteTransformsBtn').click();
+    _pasteCopiedEffects();
 });
 
 document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{
