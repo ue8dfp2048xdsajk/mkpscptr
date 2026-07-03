@@ -549,9 +549,157 @@ function getAllDesignObjects(data){
     return objs;
 }
 
+// Reset all left-panel controls to upload defaults (no canvas selection required).
+function _resetLeftPanelToDefaults() {
+    warpAmount.valueAsNumber    = 0;
+    arcAmount.valueAsNumber     = 0;
+    arcTilt.valueAsNumber       = 0;
+    perspectiveTop.valueAsNumber  = 0;
+    perspectiveLeft.valueAsNumber = 0;
+    opacityAmount.valueAsNumber = 100;
+    blurAmount.valueAsNumber    = 0;
+    noiseAmount.valueAsNumber   = 0;
+    blendMode.value             = 'normal';
+
+    bgHue.valueAsNumber        = 0;
+    bgSaturation.valueAsNumber = 0;
+    bgBrightness.valueAsNumber = 0;
+    bgContrast.valueAsNumber   = 0;
+    document.getElementById('bgHueVal')        && (document.getElementById('bgHueVal').textContent        = '0');
+    document.getElementById('bgSaturationVal') && (document.getElementById('bgSaturationVal').textContent = '0');
+    document.getElementById('bgBrightnessVal') && (document.getElementById('bgBrightnessVal').textContent = '0');
+    document.getElementById('bgContrastVal')   && (document.getElementById('bgContrastVal').textContent   = '0');
+
+    const bgCropRotEl = document.getElementById('bgCropRotation');
+    const bgCropScaleEl = document.getElementById('bgCropScale');
+    const bgCropXEl = document.getElementById('bgCropX');
+    const bgCropYEl = document.getElementById('bgCropY');
+    if (bgCropRotEl) bgCropRotEl.valueAsNumber = 0;
+    if (bgCropScaleEl) bgCropScaleEl.valueAsNumber = 100;
+    if (bgCropXEl) bgCropXEl.valueAsNumber = 0;
+    if (bgCropYEl) bgCropYEl.valueAsNumber = 0;
+    document.getElementById('bgCropRotationVal') && (document.getElementById('bgCropRotationVal').textContent = '0');
+    document.getElementById('bgCropScaleVal')    && (document.getElementById('bgCropScaleVal').textContent    = '100');
+    document.getElementById('bgCropXVal')        && (document.getElementById('bgCropXVal').textContent        = '0');
+    document.getElementById('bgCropYVal')        && (document.getElementById('bgCropYVal').textContent        = '0');
+    document.getElementById('bgCropCustomW')     && (document.getElementById('bgCropCustomW').value = '');
+    document.getElementById('bgCropCustomH')     && (document.getElementById('bgCropCustomH').value = '');
+    document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
+
+    const patternToggle = document.getElementById('patternModeToggle');
+    if (patternToggle) patternToggle.checked = false;
+    const patternControls = document.getElementById('patternControls');
+    if (patternControls) patternControls.style.display = 'none';
+    document.querySelectorAll('.pattern-type-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.type === 'grid'));
+    if (typeof _patternSliderDefs !== 'undefined') {
+        _patternSliderDefs.forEach(([id]) => {
+            const el = document.getElementById(id);
+            const valEl = document.getElementById(id + 'Val');
+            if (el) el.valueAsNumber = 0;
+            if (valEl) valEl.value = 0;
+        });
+    }
+
+    colorLayerOpacity   = 1;
+    colorLayerBlendMode = 'source-over';
+    const clOpacityInput = document.getElementById('colorLayerOpacityInput');
+    const clModeSelect   = document.getElementById('colorLayerModeSelect');
+    if (clOpacityInput) clOpacityInput.value = 100;
+    if (clModeSelect) clModeSelect.value = 'source-over';
+    const brushSizeEl = document.getElementById('brushSizeSlider');
+    const brushSoftEl = document.getElementById('brushSoftnessSlider');
+    if (brushSizeEl) brushSizeEl.valueAsNumber = 20;
+    if (brushSoftEl) brushSoftEl.valueAsNumber = 30;
+    brushSize = 20;
+}
+
+function _exitAllEditModes() {
+    if (designWarpMode && typeof exitDesignWarpMode === 'function') {
+        exitDesignWarpMode(false);
+    }
+    if (designEraserMode && typeof exitDesignEraserMode === 'function') {
+        exitDesignEraserMode();
+    }
+    if (clipEditMode) {
+        if (typeof _restoreClipLayersVisibility === 'function') {
+            _restoreClipLayersVisibility();
+        }
+        clipEditMode = false;
+        clipCopySelectMode = false;
+        clipCopySourceIndex = null;
+        if (typeof stopMarchingAnts === 'function') stopMarchingAnts();
+        activeClipWindowIndex = null;
+        const editClipBtn = document.getElementById('editClipBtn');
+        if (editClipBtn) editClipBtn.innerText = 'Edit Clipping';
+        ['addClipAreaBtn', 'deleteClipBtn', 'copyClipBtn', 'hideClipLayersBtn', 'copyClipToSelectedBtn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+    }
+    if (colorLayerMode) {
+        colorLayerMode = false;
+        colorCopySelectMode = false;
+        colorCopySourceIndex = null;
+        brushTool = 'brush';
+        isColorPainting = false;
+        lastPaintNorm = null;
+        if (typeof _stopColorLayerCursorTracking === 'function') {
+            _stopColorLayerCursorTracking();
+        }
+        canvasData.forEach(data => {
+            getAllDesignObjects(data).forEach(o => {
+                if (!o) return;
+                o.selectable = (o._prevSelectable !== undefined) ? o._prevSelectable : true;
+                o.evented    = (o._prevEvented    !== undefined) ? o._prevEvented    : true;
+                delete o._prevSelectable;
+                delete o._prevEvented;
+            });
+            if (data.fabricCanvas) {
+                data.fabricCanvas.selection = true;
+            }
+        });
+        document.querySelectorAll('.canvas-wrapper').forEach(w => w.classList.remove('color-layer-mode'));
+        const addBtn = document.getElementById('addColorLayerBtn');
+        if (addBtn) addBtn.innerText = 'Paint Overlay';
+        const clControls = document.getElementById('colorLayerControls');
+        if (clControls) clControls.style.display = 'none';
+        ['copyColorBtn', 'copyColorToSelectedBtn', 'deleteColorBtn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+        document.getElementById('brushToolBtn')?.classList.add('active');
+        document.getElementById('eraserToolBtn')?.classList.remove('active');
+        const picker = document.getElementById('brushColorPicker');
+        if (picker) picker.style.visibility = '';
+    }
+}
+
+function _resetLayoutToDefaults() {
+    _numColumns = 4;
+    _rowGap     = 20;
+    _colGap     = 20;
+    const colsInput = document.getElementById('numColsInput');
+    const rowInput  = document.getElementById('rowGapInput');
+    const colInput  = document.getElementById('colGapInput');
+    if (colsInput) colsInput.value = _numColumns;
+    if (rowInput)  rowInput.value  = _rowGap;
+    if (colInput)  colInput.value  = _colGap;
+    const container = document.getElementById('canvasContainer');
+    if (container) {
+        container.style.gridTemplateColumns = `repeat(${_numColumns}, max-content)`;
+        container.style.width = 'max-content';
+        container.style.rowGap    = _rowGap + 'px';
+        container.style.columnGap = _colGap + 'px';
+    }
+}
+
 function syncSliders() {
 
-    if(!activeIndices.length) return;
+    if(!activeIndices.length) {
+        _resetLeftPanelToDefaults();
+        return;
+    }
 
     const data = canvasData[activeIndices[0]];
 
@@ -6865,37 +7013,7 @@ document.getElementById("resetBtn").addEventListener("click", async ()=>{
         await resetWindowToBaseline(canvasData[index]);
     }
 
-    // ── Sync bgAdjust UI ──────────────────────────────────────────────────────
-    bgHue.valueAsNumber        = 0;
-    bgSaturation.valueAsNumber = 0;
-    bgBrightness.valueAsNumber = 0;
-    bgContrast.valueAsNumber   = 0;
-    document.getElementById('bgHueVal')        && (document.getElementById('bgHueVal').textContent        = '0');
-    document.getElementById('bgSaturationVal') && (document.getElementById('bgSaturationVal').textContent = '0');
-    document.getElementById('bgBrightnessVal') && (document.getElementById('bgBrightnessVal').textContent = '0');
-    document.getElementById('bgContrastVal')   && (document.getElementById('bgContrastVal').textContent   = '0');
-
-    // ── Sync framing UI ───────────────────────────────────────────────────────
-    bgCropRotation.valueAsNumber = 0;
-    bgCropScale.valueAsNumber    = 100;
-    bgCropX.valueAsNumber        = 0;
-    bgCropY.valueAsNumber        = 0;
-    document.getElementById('bgCropRotationVal').textContent = '0';
-    document.getElementById('bgCropScaleVal').textContent    = '100';
-    document.getElementById('bgCropXVal').textContent        = '0';
-    document.getElementById('bgCropYVal').textContent        = '0';
-    document.getElementById('bgCropCustomW').value = '';
-    document.getElementById('bgCropCustomH').value = '';
-    document.querySelectorAll('.bg-aspect-btn').forEach(b => b.classList.remove('active'));
-
-    // ── Sync pattern UI ───────────────────────────────────────────────────────
-    document.getElementById('patternModeToggle').checked = false;
-    document.getElementById('patternControls').style.display = 'none';
-    document.querySelectorAll('.pattern-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === 'grid'));
-    _patternSliderDefs.forEach(([id]) => {
-        document.getElementById(id).valueAsNumber = 0;
-        document.getElementById(id + 'Val').value = 0;
-    });
+    _resetLeftPanelToDefaults();
 
     refreshFabricHandles();
     updateLayerButtons();
@@ -8444,10 +8562,17 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
 
     if(!confirm("Clear the autosaved session? The canvas will start blank on the next page load.")) return;
 
+    _exitAllEditModes();
+
     _autosaveDB.del('session').catch(()=>{});
     localStorage.removeItem('mockup_autosave');
     localStorage.removeItem(_CLOUD_UUID_KEY);
     _projectName = '';
+
+    canvasData.forEach(d => {
+        if (d.wrapperEl) _visibilityObserver.unobserve(d.wrapperEl);
+    });
+    _visibleWrappers.clear();
 
     // Reset all state
     canvasData = [];
@@ -8455,6 +8580,23 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
     designs = [];
     activeIndices = [];
     lastSelectedIndex = null;
+    selectedDesigns.clear();
+    globalUndoStack = [];
+    globalRedoStack = [];
+    _copiedLayer = null;
+    if (typeof _copiedTransforms !== 'undefined') _copiedTransforms = null;
+
+    if (typeof window._applyTextBoxState === 'function') {
+        window._applyTextBoxState([]);
+    } else if (typeof window._restoreTextBoxes === 'function') {
+        window._restoreTextBoxes([]);
+    }
+
+    _vpScale = 1;
+    _vpX     = 0;
+    _vpY     = 0;
+    _activeTool = null;
+    _applyVP();
 
     document.getElementById("canvasContainer").innerHTML = "";
     document.getElementById("loadingIndicator").style.display = "none";
@@ -8463,9 +8605,14 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
     document.getElementById("bgUpload").value = "";
     document.getElementById("designUpload").value = "";
 
+    _markClean();
+    _resetLeftPanelToDefaults();
+    _resetLayoutToDefaults();
+
     updateWindowBorders();
     updateSelectButtonState();
-    syncSliders();
+    updateLayerButtons();
+    updateUndoRedoButtons();
     updateDropUI();
 });
 
