@@ -54,13 +54,12 @@ body {
     flex-shrink: 0;
 }
 .app-nav-logo:hover { color: #E5E7EB; }
-.app-nav-logo-dot {
-    width: 8px;
-    height: 8px;
-    background: #4F6EF7;
-    border-radius: 50%;
-    display: inline-block;
+.app-nav-logo-icon {
+    width: 24px;
+    height: 24px;
+    display: block;
     flex-shrink: 0;
+    object-fit: contain;
 }
 
 /* Main controls row */
