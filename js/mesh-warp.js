@@ -390,6 +390,96 @@ function enterDesignWarpMode() {
     document.querySelectorAll('.canvas-wrapper').forEach(w => w.style.cursor = 'crosshair');
 }
 
+// Swap selected fabric design object(s) for a baked mesh-warp result canvas.
+function _swapInBakedDesign(data, applyObjs, outCanvas, left, top, dpr, wasPatternMode) {
+    const fc   = data.fabricCanvas;
+    const ps   = data.previewScale || 1;
+    const newImg = new fabric.Image(outCanvas, {
+        left:            left,
+        top:             top,
+        scaleX:          1 / dpr,
+        scaleY:          1 / dpr,
+        selectable:      true,
+        evented:         true,
+        transparentCorners: false,
+        cornerColor:     'blue',
+        cornerStyle:     'circle',
+    });
+
+    const isMain    = applyObjs.includes(data.designObject);
+    const newExtras = (data.extraDesignObjects || []).filter(o => !applyObjs.includes(o));
+
+    if (isMain) {
+        data.designOriginal  = outCanvas;
+        data.warpCanvas      = null;
+        data.x               = left;
+        data.y               = top;
+        data.scaleX          = (1 / dpr) / ps;
+        data.scaleY          = (1 / dpr) / ps;
+        data.rotation        = 0;
+        data.warpAmount      = 0;
+        data.arcAmount       = 0;
+        data.arcTilt         = 0;
+        data.perspectiveTop  = 0;
+        data.perspectiveLeft = 0;
+    } else {
+        applyObjs.forEach(obj => {
+            const idx = (data.extraDesignObjects || []).indexOf(obj);
+            if (idx !== -1) {
+                if (!data.extraDesignOriginals) data.extraDesignOriginals = [];
+                data.extraDesignOriginals[idx] = outCanvas;
+            }
+        });
+    }
+
+    newImg._ownerData = data;
+    newImg._fx        = _defaultFx(data);
+
+    if (wasPatternMode) _togglePatternMode(data, false);
+
+    applyObjs.forEach(obj => fc.remove(obj));
+    fc.add(newImg);
+
+    if (isMain) data.designObject = newImg;
+    else newExtras.push(newImg);
+    data.extraDesignObjects = newExtras;
+
+    attachFabricEvents(data, newImg);
+    applyClipMaskToObject(newImg, data);
+    addClipOverlay(data);
+
+    fc.setActiveObject(newImg);
+    selectedDesigns.add(newImg);
+    fc.requestRenderAll();
+
+    data.meshWarpApplied = true;
+    return newImg;
+}
+
+// Restore a baked mesh-warp from undo/redo snapshot (same geometry path as Apply).
+function _restoreBakedMeshWarpItem(d, item) {
+    const st  = item.state;
+    const ps  = d.previewScale || 1;
+    const left = st.x;
+    const top  = st.y;
+    const scaleX = st.scaleX ?? st.scale ?? 1;
+    const dpr = scaleX > 0 ? 1 / (scaleX * ps) : 1;
+    const outCanvas = item.original;
+
+    let applyObjs = [];
+    if (item.wasMain !== false) {
+        if (d.designObject) applyObjs = [d.designObject];
+    } else if (item.warpedExtraIdx >= 0) {
+        const obj = d.extraDesignObjects?.[item.warpedExtraIdx];
+        if (obj) applyObjs = [obj];
+    }
+    if (!applyObjs.length && d.designObject) applyObjs = [d.designObject];
+
+    d.designOriginal = outCanvas;
+    _swapInBakedDesign(d, applyObjs, outCanvas, left, top, dpr, false);
+    _markProEffect(d);
+}
+
 function exitDesignWarpMode(apply) {
     const applyData  = warpActiveData;
     const applyObjs  = [...warpTargetObjs];          // primary group targets only
@@ -473,10 +563,15 @@ function exitDesignWarpMode(apply) {
         // Capture the PRE-WARP state (designOriginal + full window snapshot) for
         // every affected window BEFORE any mutation so undo can reconstruct it.
         const warpUndoItems = allGroups
-            .map(({ ownerData: d }) => ({
+            .map(({ ownerData: d, targets: grpObjs }) => ({
                 idx: canvasData.indexOf(d),
                 state: captureWindowState(d),
                 original: d.designOriginal,
+                baked: false,
+                wasMain: grpObjs.includes(d.designObject),
+                warpedExtraIdx: grpObjs.includes(d.designObject)
+                    ? -1
+                    : (d.extraDesignObjects || []).indexOf(grpObjs[0]),
             }))
             .filter(item => item.idx !== -1);
         if (warpUndoItems.length) {
@@ -487,145 +582,16 @@ function exitDesignWarpMode(apply) {
         }
 
         const { canvas: outCanvas, left, top, dpr = 1 } = renderResult;
-        const fc   = applyData.fabricCanvas;
-        const ps   = applyData.previewScale || 1;
 
-        // Build the new Fabric image synchronously from the canvas element —
-        // no async fromURL, so there is zero gap between removing the originals
-        // and displaying the warped result.
-        // scaleX/scaleY = 1/dpr so the DPR-resolution image displays at CSS size.
-        // Use default left/top origin so data.x/data.y (top-left coords) stay
-        // consistent with applyWarpToData and the Reset handler.
-        const newImg = new fabric.Image(outCanvas, {
-            left:            left,
-            top:             top,
-            scaleX:          1 / dpr,
-            scaleY:          1 / dpr,
-            selectable:      true,
-            evented:         true,
-            transparentCorners: false,
-            cornerColor:     'blue',
-            cornerStyle:     'circle',
-        });
-
-        // Bake the warp into the effects-pipeline source so that moving sliders
-        // later starts from the warped result instead of the original image.
-        // Reset position/scale/effects so applyWarpToData is an identity pass.
-        const isMain    = applyObjs.includes(applyData.designObject);
-        const newExtras = (applyData.extraDesignObjects || []).filter(o => !applyObjs.includes(o));
-
-        if (isMain) {
-            applyData.designOriginal  = outCanvas;   // warped canvas is the new source
-            applyData.warpCanvas      = null;         // force recreation
-            applyData.x               = left;
-            applyData.y               = top;
-            // Effective Fabric scale = data.scaleX * previewScale = (1/dpr)/ps * ps = 1/dpr ✓
-            applyData.scaleX          = (1 / dpr) / ps;
-            applyData.scaleY          = (1 / dpr) / ps;
-            applyData.rotation        = 0;
-            applyData.warpAmount      = 0;
-            applyData.arcAmount       = 0;
-            applyData.arcTilt         = 0;
-            applyData.perspectiveTop  = 0;
-            applyData.perspectiveLeft = 0;
-        } else {
-            // Extra design object — update its original in extraDesignOriginals
-            applyObjs.forEach(obj => {
-                const idx = (applyData.extraDesignObjects || []).indexOf(obj);
-                if (idx !== -1) {
-                    if (!applyData.extraDesignOriginals) applyData.extraDesignOriginals = [];
-                    applyData.extraDesignOriginals[idx] = outCanvas;
-                }
-            });
-        }
-
-        // _defaultFx reads from applyData — now returns all-zero warp/perspective
-        newImg._ownerData = applyData;
-        newImg._fx        = _defaultFx(applyData);
-
-        // If the window was in pattern mode, turn it off before swapping —
-        // the warp result is a flat image; patternFabricObj is no longer needed.
-        if (allGroups[0]?.wasPatternMode) _togglePatternMode(applyData, false);
-
-        // Swap old objects for new in one synchronous block so the canvas never
-        // shows a frame with no design.
-        applyObjs.forEach(obj => fc.remove(obj));
-        fc.add(newImg);
-
-        if (isMain) applyData.designObject = newImg;
-        else newExtras.push(newImg);
-        applyData.extraDesignObjects = newExtras;
-
-        attachFabricEvents(applyData, newImg);
-
-        // Re-apply clip mask so the baked image stays inside the clipping area.
-        applyClipMaskToObject(newImg, applyData);
-        addClipOverlay(applyData);
-
-        fc.setActiveObject(newImg);
-        selectedDesigns.add(newImg);
-        fc.requestRenderAll();
+        _swapInBakedDesign(
+            applyData, applyObjs, outCanvas, left, top, dpr,
+            allGroups[0]?.wasPatternMode
+        );
 
         // Apply secondary group results with the same pattern.
         for (const { ownerData: grpData, targets: grpObjs, result: grpResult, wasPatternMode: grpWasPattern } of secondaryResults) {
             const { canvas: outCanvas2, left: left2, top: top2, dpr: dpr2 = 1 } = grpResult;
-            const grpFc  = grpData.fabricCanvas;
-            const grpPs  = grpData.previewScale || 1;
-            const newImg2 = new fabric.Image(outCanvas2, {
-                left: left2, top: top2,
-                scaleX: 1 / dpr2, scaleY: 1 / dpr2,
-                selectable: true, evented: true,
-                transparentCorners: false,
-                cornerColor: 'blue', cornerStyle: 'circle',
-            });
-
-            const grpIsMain    = grpObjs.includes(grpData.designObject);
-            const grpNewExtras = (grpData.extraDesignObjects || []).filter(o => !grpObjs.includes(o));
-
-            if (grpIsMain) {
-                grpData.designOriginal  = outCanvas2;
-                grpData.warpCanvas      = null;
-                grpData.x               = left2;
-                grpData.y               = top2;
-                grpData.scaleX          = (1 / dpr2) / grpPs;
-                grpData.scaleY          = (1 / dpr2) / grpPs;
-                grpData.rotation        = 0;
-                grpData.warpAmount      = 0;
-                grpData.arcAmount       = 0;
-                grpData.arcTilt         = 0;
-                grpData.perspectiveTop  = 0;
-                grpData.perspectiveLeft = 0;
-            } else {
-                grpObjs.forEach(obj => {
-                    const idx = (grpData.extraDesignObjects || []).indexOf(obj);
-                    if (idx !== -1) {
-                        if (!grpData.extraDesignOriginals) grpData.extraDesignOriginals = [];
-                        grpData.extraDesignOriginals[idx] = outCanvas2;
-                    }
-                });
-            }
-
-            newImg2._ownerData = grpData;
-            newImg2._fx        = _defaultFx(grpData);
-
-            if (grpWasPattern) _togglePatternMode(grpData, false);
-
-            grpObjs.forEach(obj => grpFc.remove(obj));
-            grpFc.add(newImg2);
-
-            if (grpIsMain) grpData.designObject = newImg2;
-            else grpNewExtras.push(newImg2);
-            grpData.extraDesignObjects = grpNewExtras;
-
-            attachFabricEvents(grpData, newImg2);
-
-            // Re-apply clip mask for secondary baked image.
-            applyClipMaskToObject(newImg2, grpData);
-            addClipOverlay(grpData);
-
-            grpFc.setActiveObject(newImg2);
-            selectedDesigns.add(newImg2);
-            grpFc.requestRenderAll();
+            _swapInBakedDesign(grpData, grpObjs, outCanvas2, left2, top2, dpr2, grpWasPattern);
         }
 
         refreshFabricHandles();

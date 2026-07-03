@@ -57,13 +57,19 @@ const APP_JS_PATH = path.join(__dirname, '../js/app.js');
 function loadWatermarkFunctions() {
     const src   = fs.readFileSync(APP_JS_PATH, 'utf8');
     const lines = src.split('\n');
-    // Lines 34-177 (1-indexed) → indices 33-176 (0-indexed)
-    const snippet = lines.slice(33, 177).join('\n');
+    // Lines 41-201 (1-indexed): watermark + PRO helpers through _refreshAllProStarBadges
+    const snippet = lines.slice(40, 201).join('\n');
 
     // Pre-define external identifiers the snippet references
     global.canvasData        = [];
     global._markDirty        = jest.fn();
     global._updateSaveNewBtn = jest.fn();
+    global.getAllDesignObjects = function (data) {
+        const objs = [];
+        if (data && data.designObject) objs.push(data.designObject);
+        if (data && data.extraDesignObjects) data.extraDesignObjects.forEach(o => objs.push(o));
+        return objs;
+    };
 
     // Eval in the window/global scope — equivalent to a <script> tag
     // eslint-disable-next-line no-eval

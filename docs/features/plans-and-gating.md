@@ -11,15 +11,26 @@ The frontend reads plan on sign-in (`js/clerk-auth.js` → `window._userPlan`). 
 | Feature | Free | Starter | Pro |
 |---------|------|---------|-----|
 | Editor access | ✓ | ✓ | ✓ |
-| Basic effects (opacity, blur, noise, blend modes) | ✓ | ✓ | ✓ |
-| Canvas watermark | ✓ (on windows with designs) | ✗ | ✗ |
-| Export (PNG/JPEG/ZIP) | ✗ | ✓ | ✓ |
+| Basic effects (opacity, blur, noise; layer mode = Normal) | ✓ | ✓ | ✓ |
+| Canvas watermark | ✓ (on windows with designs) | On PRO-effect windows only | ✗ |
+| Export (PNG/JPEG/ZIP) | ✗ | Non-PRO windows | All windows |
+| Export text | ✗ | ✓ | ✓ |
 | PRO effects (see below) | Can use in editor | Can use; **blocked at export** | ✓ |
-| Cloud project save | ✗ | 1 project | Up to 50 projects |
-| "Save as New" (multiple projects) | ✗ | ✗ | ✓ |
+| Cloud project save | ✗ | 1 project (upsert) | Up to 50 projects |
+| "Save as New" | ✗ | ✗ | ✓ |
 | Email / priority support | — | Email | Priority |
 
 Pricing and marketing copy live on `index.html`. This document describes **enforced behavior** in code.
+
+---
+
+## Sidebar layout (editor)
+
+| Section | Contents |
+|---------|----------|
+| **Appearance** | Opacity, blur, noise (basic); **Layer Mode** (Normal = basic, else PRO); flip H/V |
+| **Effects** ⭐ PRO | Cylinder warp, arc, fisheye, perspective, mesh warp; **Copy Effects / Paste Effects**; **Invert Colors** |
+| Other PRO sections | Clipping, Painting, Pattern, Framing, Background Adjustments |
 
 ---
 
@@ -49,7 +60,7 @@ Subscription lifecycle:
 
 Drawn on `after:render` for:
 
-- **Free:** all windows that have a design
+- **Free:** all windows that have a design loaded (not background-only)
 - **Starter:** windows with `hasProEffect === true`
 
 Pro users: no watermarks.
@@ -69,25 +80,50 @@ A window is marked `hasProEffect` when any of these are active (`_recomputeProEf
 
 | Effect | PRO? |
 |--------|------|
-| Warp (cylinder) | ✓ |
-| Arc warp / arc tilt | ✓ |
-| Perspective (top/left) | ✓ |
+| Warp (cylinder), arc, fisheye, perspective | ✓ |
+| Mesh warp (after Apply) | ✓ |
 | Pattern mode | ✓ |
 | Clipping mask enabled | ✓ |
 | Color layer | ✓ |
 | Design eraser (modified pixels) | ✓ |
-| Background adjust (hue/sat/brightness/contrast) | ✓ |
-| Background crop/pan/rotate/aspect | ✓ |
-| Opacity, blur, noise, blend modes | ✗ (basic) |
+| Background adjust / crop | ✓ |
+| Layer mode ≠ Normal (main or any extra layer) | ✓ |
+| Invert colors (main or any extra layer) | ✓ |
+| Opacity, blur, noise | ✗ (basic) |
+| Layer mode = Normal | ✗ (basic) |
 
-PRO windows show a ⭐ badge. Green badge on Pro plan; yellow on Free/Starter.
+**Copy / Paste Effects:** PRO-labeled tools in the Effects section. Copy alone does not mark a window. **Paste** marking:
+
+| Plan | On Paste Effects |
+|------|------------------|
+| Free / Starter | Target window **always** gets PRO badge |
+| Pro | PRO badge only if pasted payload contains PRO values (`_transformsContainProEffect`) |
+
+PRO windows show a ⭐ badge. Green badge on Pro plan; yellow on Free/Starter. Sidebar ⭐ PRO labels turn green on Pro plan.
+
+### Load / save
+
+- **Local JSON:** all tiers; no plan gate
+- **After JSON or cloud load:** `_recomputeProEffect` runs per window (badges derived from live state, not stale `hasProEffect` alone)
+- Snapshot fields: `meshWarpApplied`, `invertedMain`, `invertedExtras`, `hasProEffect`
+
+### Reset
+
+Reset Selected or zeroing PRO levers clears badge/watermark when no PRO effects remain.
+
+### Downgrade (Pro → Starter / Free)
+
+- All cloud projects **remain in the database** (not auto-deleted)
+- Users are warned to **open each project → Save Local (JSON)** before downgrading
+- Starter: only **one** cloud slot editable (upsert); extra projects listable but effectively read-only for editing
+- Export/watermark rules revert to the lower tier immediately
 
 ### Save / projects UI
 
 | Action | Free | Starter | Pro |
 |--------|------|---------|-----|
 | Save (overwrite) | Local only | Cloud (1 slot) | Cloud |
-| Save as New | Locked (PRO badge) | Locked | ✓ |
+| Save as New | Locked | Locked | ✓ |
 | Open cloud project | Sign-in required | ✓ | ✓ |
 
 ---
@@ -143,7 +179,7 @@ If you change gating rules or add a new tier:
 2. Update server gates in `api/export.js`, `api/projects/save.js`, `api/checkout.js`
 3. Update `VALID_PLANS` in `api/set-plan.js` and webhook handlers
 4. Update landing page copy in `index.html` if user-facing limits change
-5. Run tests: `npm test` (especially `export.test.js`, checkout tests, watermark tests)
+5. Run tests: `npm test` (especially `pro-effect-gating.test.js`, `export.test.js`, watermark tests)
 
 Existing Stripe subscribers keep access as long as Clerk `public_metadata.plan` remains correct — billing is independent of the editor stack.
 

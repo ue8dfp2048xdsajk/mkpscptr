@@ -128,6 +128,9 @@
                 day: 'numeric', month: 'short', year: 'numeric'
             });
             cancelLine = '<div class="ms-avatar-cancels">Cancels ' + endsDate + '</div>';
+            if (window._userPlan === 'pro') {
+                cancelLine += '<div class="ms-avatar-cancels-hint">Before downgrading, open each project and Save Local (JSON).</div>';
+            }
         }
 
         dropdown.innerHTML =
@@ -204,6 +207,16 @@
                     if (!data.projects || !data.projects.length) {
                         list.innerHTML = '<span class="ms-projects-empty">No saved projects yet.</span>';
                         return;
+                    }
+                    var limitEl = dropdown.querySelector('.ms-projects-limit');
+                    if (limitEl) {
+                        var extraHint = '';
+                        if (plan === 'pro' && data.projects.length > 1) {
+                            extraHint = ' Before downgrading, open each project and Save Local (JSON).';
+                        } else if (plan === 'starter' && data.projects.length > 1) {
+                            extraHint = ' Only 1 cloud slot editable — open others to save locally.';
+                        }
+                        limitEl.textContent = projectLimitHint + extraHint;
                     }
                     list.innerHTML = '';
                     data.projects.forEach(function (p) {

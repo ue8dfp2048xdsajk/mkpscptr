@@ -58,6 +58,12 @@ function captureWindowState(data){
         locked:   !!data.locked,
         flipX:    !!data.flipX,
         flipY:    !!data.flipY,
+        meshWarpApplied: !!data.meshWarpApplied,
+        invertedMain: !!data.invertedMain,
+        invertedExtras: [...(data.invertedExtras || [])],
+        designOriginalSrc: data.meshWarpApplied
+            ? _originalToSrc(data.designOriginal)
+            : null,
         designFx: data.designObject?._fx
             ? JSON.parse(JSON.stringify(data.designObject._fx))
             : null,
@@ -198,6 +204,10 @@ function captureWindowBaseline(data) {
 async function resetWindowToBaseline(data) {
     if (!data || data.locked) return;
 
+    data.meshWarpApplied = false;
+    data.invertedMain = false;
+    data.invertedExtras = [];
+
     if (data.initialDesignOriginal) {
         data.designOriginal = data.initialDesignOriginal;
     }
@@ -235,6 +245,19 @@ async function resetWindowToBaseline(data) {
 }
 
 async function restoreWindowState(data, state){
+    if (state.meshWarpApplied !== undefined) data.meshWarpApplied = !!state.meshWarpApplied;
+    if (state.invertedMain !== undefined) data.invertedMain = !!state.invertedMain;
+    if (state.invertedExtras) data.invertedExtras = [...state.invertedExtras];
+
+    if (state.designOriginalSrc) {
+        await new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => { data.designOriginal = img; resolve(); };
+            img.onerror = () => resolve();
+            img.src = state.designOriginalSrc;
+        });
+    }
+
     data.x = state.x;   data.y = state.y;
     data.scale  = state.scale;
     data.scaleX = state.scaleX;  data.scaleY = state.scaleY;
@@ -583,6 +606,9 @@ async function performGlobalUndo(){
                     idx:      item.idx,
                     state:    captureWindowState(canvasData[item.idx]),
                     original: canvasData[item.idx].designOriginal,
+                    baked:    !!canvasData[item.idx].meshWarpApplied,
+                    wasMain:  item.wasMain,
+                    warpedExtraIdx: item.warpedExtraIdx ?? -1,
                 })),
         };
         globalRedoStack.push(redoEntry);
@@ -590,6 +616,7 @@ async function performGlobalUndo(){
         for(const item of entry.items){
             if(item.idx >= canvasData.length) continue;
             const d = canvasData[item.idx];
+            d.meshWarpApplied = false;
             d.designOriginal = item.original;
             await restoreWindowState(d, item.state);
         }
@@ -703,6 +730,9 @@ async function performGlobalRedo(){
                     idx:      item.idx,
                     state:    captureWindowState(canvasData[item.idx]),
                     original: canvasData[item.idx].designOriginal,
+                    baked:    !!canvasData[item.idx].meshWarpApplied,
+                    wasMain:  item.wasMain,
+                    warpedExtraIdx: item.warpedExtraIdx ?? -1,
                 })),
         };
         globalUndoStack.push(undoEntry);
@@ -711,7 +741,11 @@ async function performGlobalRedo(){
             if(item.idx >= canvasData.length) continue;
             const d = canvasData[item.idx];
             d.designOriginal = item.original;
-            await restoreWindowState(d, item.state);
+            if (item.baked) {
+                _restoreBakedMeshWarpItem(d, item);
+            } else {
+                await restoreWindowState(d, item.state);
+            }
         }
         syncSliders();
         updateUndoRedoButtons();

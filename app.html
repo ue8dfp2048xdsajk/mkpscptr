@@ -372,21 +372,6 @@
                     >
                         Delete Layer
                     </button>
-                    <div class="cp-btn-row">
-                        <button
-                            id="copyTransformsBtn"
-                            title="Copy position, scale, rotation and FX from the last selected mockup"
-                        >
-                            Copy Style
-                        </button>
-                        <button
-                            id="pasteTransformsBtn"
-                            title="Paste copied style to all selected mockups"
-                            disabled
-                        >
-                            Paste Style
-                        </button>
-                    </div>
                 </div>
 
                 <div class="cp-section lock-sensitive">
@@ -425,7 +410,7 @@
                         />
                     </label>
                     <label
-                        >Layer Mode
+                        >Layer Mode <span class="pro-badge">⭐ PRO</span>
                         <select id="blendMode">
                             <option value="normal">Normal</option>
                             <option value="multiply">Multiply</option>
@@ -436,13 +421,6 @@
                             <option value="luminosity">Luminosity</option>
                         </select>
                     </label>
-                    <button
-                        id="invertColorsBtn"
-                        disabled
-                        title="Select a layer to invert its colors"
-                    >
-                        Invert Colors
-                    </button>
                     <div class="cp-btn-row">
                         <button id="flipHBtn" title="Flip design horizontally">
                             ↔ Flip H
@@ -510,7 +488,7 @@
                 </div>
 
                 <div class="cp-section lock-sensitive">
-                    <div class="cp-section-title">Warp &amp; Perspective <span class="pro-badge">⭐ PRO</span></div>
+                    <div class="cp-section-title">Effects <span class="pro-badge">⭐ PRO</span></div>
                     <label
                         >Cylinder Warp
                         <input
@@ -606,6 +584,28 @@
                             >Drag grid points to warp</span
                         >
                     </span>
+                    <div class="cp-btn-row">
+                        <button
+                            id="copyTransformsBtn"
+                            title="Copy position, scale, rotation and effects from the last selected mockup"
+                        >
+                            Copy Effects <span class="pro-badge">⭐ PRO</span>
+                        </button>
+                        <button
+                            id="pasteTransformsBtn"
+                            title="Paste copied effects to all selected mockups"
+                            disabled
+                        >
+                            Paste Effects <span class="pro-badge">⭐ PRO</span>
+                        </button>
+                    </div>
+                    <button
+                        id="invertColorsBtn"
+                        disabled
+                        title="Select a layer to invert its colors"
+                    >
+                        Invert Colors <span class="pro-badge">⭐ PRO</span>
+                    </button>
                 </div>
 
                 <!-- ── Clipping ───────────────────────────────────────────────────── -->

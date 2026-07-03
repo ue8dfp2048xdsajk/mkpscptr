@@ -300,6 +300,9 @@
                 <span class="plan-badge" id="planBadge">Free</span>
             </div>
             <p class="card-desc" id="billingDesc">Manage your subscription, payment methods, and billing address.</p>
+            <p class="card-desc" id="downgradeNotice" style="display:none;margin-top:8px;color:#F59E0B;font-size:13px;">
+                Before cancelling or downgrading, open each cloud project and use <strong>Save Local (JSON)</strong> so you keep editable copies. Cloud projects stay stored but lower plans may not be able to edit them all.
+            </p>
             <button class="btn btn-primary" id="openPortalBtn">Manage Billing</button>
         </div>
 
@@ -395,6 +398,9 @@ function initClerk() {
                 });
                 document.getElementById('billingDesc').textContent =
                     'Your subscription cancels on ' + endsDate + '. Manage or reactivate below.';
+            }
+            if (plan === 'pro') {
+                document.getElementById('downgradeNotice').style.display = 'block';
             }
         }
 

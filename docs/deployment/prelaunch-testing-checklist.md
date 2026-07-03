@@ -108,6 +108,23 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Color Layer
 - [ ] Extra Design Layer
 - [ ] Plain placement has no watermark
+- [ ] Layer mode ≠ Normal (multiply, screen, etc.)
+- [ ] Invert colors (main or extra layer)
+- [ ] Paste Effects (Starter: always marks window PRO)
+- [ ] Mesh warp (after Apply only; cancel does not mark)
+
+### PRO effect badges & load
+
+- [ ] JSON load runs `_recomputeProEffect` — corrupt `hasProEffect: false` with active blend still shows badge
+- [ ] Mesh warp undo → badge clears; redo → badge + geometry correct
+- [ ] Reset after mesh warp → undo restores warp + badge
+- [ ] Invert → undo clears badge when no other PRO effects
+
+### Downgrade reminder
+
+- [ ] Pro user with 2+ cloud projects sees backup hint in profile menu
+- [ ] Settings → Plan & Billing shows downgrade notice for Pro
+- [ ] Starter with 2+ projects in DB sees read-only hint
 
 ---
 
