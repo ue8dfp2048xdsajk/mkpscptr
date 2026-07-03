@@ -347,10 +347,8 @@ var _marchingAntsOffset = 0;
 
 // Layer handle colors: main = solid blue; clone = blue outline; overlay = orange.
 function _extraLayerKind(data, index) {
-    const orig = data.extraDesignOriginals?.[index];
-    if (orig != null) return 'overlay';
     const obj = data.extraDesignObjects?.[index];
-    if (obj?._isOverlay) return 'overlay';
+    if (_extraObjectIsOverlay(obj)) return 'overlay';
     return 'clone';
 }
 
@@ -369,6 +367,7 @@ function _applyExtraLayerHandleStyle(obj, kind) {
             borderColor: 'blue',
             cornerStyle: 'circle',
         });
+        delete obj._isOverlay;
     }
 }
 
@@ -791,6 +790,8 @@ function _resetObjectPipelineCaches(obj) {
     delete obj._c_persp;
     delete obj._c_srcTrimSrc;
     delete obj._c_srcTrimmed;
+    delete obj._c_perspW;
+    delete obj._c_perspH;
     delete obj._warpCanvas;
     delete obj._perspCanvas;
     delete obj._perspTempCanvas;
@@ -880,6 +881,9 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     // to avoid GPU memory allocation on every frame across hundreds of windows.
     if(!obj._perspCanvas)     obj._perspCanvas     = document.createElement('canvas');
     if(!obj._perspTempCanvas) obj._perspTempCanvas = document.createElement('canvas');
+    const prevPerspW = obj._c_perspW;
+    const prevPerspH = obj._c_perspH;
+    const perspChanged = obj._c_perspT !== perspT || obj._c_perspL !== perspL || obj._c_perspLQ !== lowQuality;
     let warped;
     if( !warpDirty          &&
         obj._c_perspT  === perspT   &&
@@ -893,6 +897,8 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
         obj._c_perspL  = perspL;
         obj._c_perspLQ = lowQuality;
         obj._c_persp   = warped;
+        obj._c_perspW  = warped.width;
+        obj._c_perspH  = warped.height;
     }
 
     const prevLeft   = obj.left;
@@ -941,6 +947,20 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
                 adjLeft += dx * prevScaleX * cosA - dy * prevScaleY * sinA;
                 adjTop  += dx * prevScaleX * sinA + dy * prevScaleY * cosA;
             }
+        }
+    }
+
+    // Keep visual center stable when perspective output size changes (no warp re-run).
+    if (arcA === 0 && warpA === 0 && !warpDirty && perspChanged &&
+        prevPerspW != null && prevPerspH != null) {
+        const dW = warped.width - prevPerspW;
+        const dH = warped.height - prevPerspH;
+        if (dW !== 0 || dH !== 0) {
+            const rad  = (prevAngle || 0) * Math.PI / 180;
+            const cosA = Math.cos(rad);
+            const sinA = Math.sin(rad);
+            adjLeft += (dW / 2) * prevScaleX * cosA - (dH / 2) * prevScaleY * sinA;
+            adjTop  += (dW / 2) * prevScaleX * sinA + (dH / 2) * prevScaleY * cosA;
         }
     }
 
@@ -1279,7 +1299,7 @@ function _lqRenderSliders(){
                 return;
             }
 
-            _applyWarpToOneObject(obj, d, srcOriginal, true);
+            _applyWarpToOneObject(obj, d, _cachedFlip(d, srcOriginal), true);
             d.fabricCanvas.requestRenderAll();
         });
 
@@ -1405,12 +1425,12 @@ function _lqRenderSliders(){
         // Ensure _fx exists on the main design object so caching can compare params
         if(!data.designObject._fx) data.designObject._fx = _defaultFx(data);
 
-        _applyWarpToOneObject(data.designObject, data, data.designOriginal, true);
+        _applyWarpToOneObject(data.designObject, data, _cachedFlip(data, data.designOriginal), true);
 
         if(data.extraDesignObjects?.length){
             data.extraDesignObjects.forEach((obj, i) => {
                 const src = data.extraDesignOriginals?.[i] || data.designOriginal;
-                _applyWarpToOneObject(obj, data, src, true);
+                _applyWarpToOneObject(obj, data, _cachedFlip(data, src), true);
             });
         }
 
@@ -1439,7 +1459,7 @@ async function _hqRenderSliders(){
                 applyWarpToData(d, false);
                 return;
             }
-            _applyWarpToOneObject(obj, d, srcOriginal, false);
+            _applyWarpToOneObject(obj, d, _cachedFlip(d, srcOriginal), false);
             d.fabricCanvas.requestRenderAll();
         });
         autoSaveSession();
@@ -4733,7 +4753,10 @@ document.getElementById("duplicateLayerBtn").addEventListener("click", ()=>{
             const srcExtraIdx = (data.extraDesignObjects || []).indexOf(sourceObj);
             const clonedSrc   = _sourceForDuplicateLayer(data, sourceObj);
             data.extraDesignOriginals.push(clonedSrc);
-            if (srcExtraIdx !== -1 && sourceObj._isOverlay) cloned._isOverlay = true;
+            const isOverlayDup = _extraObjectIsOverlay(sourceObj);
+            if (isOverlayDup && sourceObj._uploadedDesignName) {
+                cloned._uploadedDesignName = sourceObj._uploadedDesignName;
+            }
 
             _resetObjectPipelineCaches(cloned);
 
@@ -4741,7 +4764,7 @@ document.getElementById("duplicateLayerBtn").addEventListener("click", ()=>{
             if (clonedSrc) {
                 _applyWarpToOneObject(cloned, data, _cachedFlip(data, clonedSrc), false);
             }
-            _applyExtraLayerHandleStyle(cloned, _extraLayerKind(data, data.extraDesignObjects.length - 1));
+            _applyExtraLayerHandleStyle(cloned, isOverlayDup ? 'overlay' : 'clone');
 
             data.fabricCanvas.add(cloned);
             attachFabricEvents(data, cloned);
@@ -6999,9 +7022,8 @@ function buildSnapshot(){
                 // Uploaded designs store their own image source so they
                 // survive save/restore independently of the main design.
                 src:  _originalToSrc(data.extraDesignOriginals?.[i]),
-                name: data.extraDesignOriginals?.[i]
-                    ? (obj._uploadedDesignName || null)
-                    : null,
+                name: obj._uploadedDesignName || null,
+                isClone: !_extraObjectIsOverlay(obj),
 
                 // Per-object effects set in design mode
                 fx: obj._fx ?? null
@@ -8041,7 +8063,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
             for(const dup of saved.duplicates){
 
-                if(dup.src){
+                if(_dupStateIsOverlay(dup) && dup.src){
 
                     // Restore an independently-uploaded design from its saved
                     // data URL (different source from the main design).
@@ -8070,10 +8092,6 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             fabricImg._uploadedDesignName = dup.name || '';
                             fabricImg._fx = dup.fx || _defaultFx(data);
 
-                            // Bake this duplicate's own warp/arc/perspective/blur/noise
-                            // pipeline into its pixels — restoring _fx alone only stores
-                            // the values, it doesn't render them (mirrors the per-object
-                            // pass applyWarpToData runs for extraDesignObjects normally).
                             _applyWarpToOneObject(fabricImg, data, _cachedFlip(data, img), false);
 
                             data.extraDesignOriginals = data.extraDesignOriginals || [];
@@ -8092,9 +8110,47 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                         img.src = dup.src;
                     });
 
+                } else if (dup.src) {
+
+                    // Clone with its own pipeline source (eraser edits, post-ea7251d saves).
+                    await new Promise(resolve => {
+                        const img = new Image();
+                        img.onerror = () => resolve();
+                        img.onload = () => {
+                            const fabricImg = new fabric.Image(img, {
+                                left: dup.left * previewScale,
+                                top:  dup.top  * previewScale,
+                                scaleX: dup.scaleX * previewScale,
+                                scaleY: dup.scaleY * previewScale,
+                                skewX: dup.skewX ?? 0,
+                                skewY: dup.skewY ?? 0,
+                                angle: dup.angle,
+                                opacity: dup.opacity ?? data.opacity,
+                                globalCompositeOperation: _blendToGCO(dup.blendMode),
+                                originX: 'center',
+                                originY: 'center',
+                            });
+                            if (dup.name) fabricImg._uploadedDesignName = dup.name;
+                            fabricImg._fx = dup.fx || _defaultFx(data);
+
+                            _applyWarpToOneObject(fabricImg, data, _cachedFlip(data, img), false);
+
+                            data.extraDesignOriginals = data.extraDesignOriginals || [];
+                            data.extraDesignOriginals.push(img);
+                            data.extraDesignObjects.push(fabricImg);
+                            _applyExtraLayerHandleStyle(fabricImg, 'clone');
+
+                            fabricCanvas.add(fabricImg);
+                            attachFabricEvents(data, fabricImg);
+                            applyClipMaskToObject(fabricImg, data);
+                            resolve();
+                        };
+                        img.src = dup.src;
+                    });
+
                 } else {
 
-                    // Restore a cloned design — same source as main design.
+                    // Legacy clone — shared main designOriginal pipeline source.
                     await new Promise(resolve=>{
 
                         data.designObject.clone(cloned=>{

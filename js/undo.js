@@ -13,6 +13,18 @@ function _originalToSrc(orig){
     return null;
 }
 
+// Uploaded/pasted extra layers vs Duplicate Layer clones (not inferred from src).
+function _extraObjectIsOverlay(obj) {
+    return !!(obj && (obj._uploadedDesignName || obj._isOverlay));
+}
+
+function _dupStateIsOverlay(s) {
+    if (!s) return false;
+    if (s.isClone === true) return false;
+    if (s.isClone === false) return true;
+    return !!s.name;
+}
+
 function captureWindowState(data){
     // Read live transforms directly from the Fabric object so the snapshot is
     // accurate even when data.x/y/scaleX/scaleY/rotation haven't been flushed
@@ -77,6 +89,7 @@ function captureWindowState(data){
             angle: obj.angle,
             src:  _originalToSrc(data.extraDesignOriginals?.[i]),
             name: obj._uploadedDesignName ?? null,
+            isClone: !_extraObjectIsOverlay(obj),
             fx:   obj._fx ? JSON.parse(JSON.stringify(obj._fx)) : null
         }))
     };
@@ -103,14 +116,14 @@ async function restoreDuplicatesFromState(data, savedDups){
                   angle: s.angle });
         if(s.fx) obj._fx = JSON.parse(JSON.stringify(s.fx));
         obj.setCoords();
-        _applyExtraLayerHandleStyle(obj, s.src ? 'overlay' : 'clone');
+        _applyExtraLayerHandleStyle(obj, _dupStateIsOverlay(s) ? 'overlay' : 'clone');
     }
 
     // Re-create missing objects
     for(let i = (data.extraDesignObjects || []).length; i < targetCount; i++){
         const s = savedDups[i];
         await new Promise(resolve => {
-            const build = (imgEl) => {
+            const build = (imgEl, kind) => {
                 const fImg = new fabric.Image(imgEl, {
                     left: s.left, top: s.top,
                     scaleX: s.scaleX, scaleY: s.scaleY,
@@ -130,20 +143,21 @@ async function restoreDuplicatesFromState(data, savedDups){
                 // here would break ctx.drawImage during any later render.
                 data.extraDesignOriginals.push(imgEl || null);
 
-                _applyExtraLayerHandleStyle(fImg, s.src ? 'overlay' : 'clone');
+                _applyExtraLayerHandleStyle(fImg, kind);
 
                 data.fabricCanvas.add(fImg);
                 attachFabricEvents(data, fImg);
                 applyClipMaskToObject(fImg, data);
                 resolve();
             };
+            const kind = _dupStateIsOverlay(s) ? 'overlay' : 'clone';
             if(s.src){
                 const img = new Image();
-                img.onload  = () => build(img);
-                img.onerror = () => build(data.designOriginal);
+                img.onload  = () => build(img, kind);
+                img.onerror = () => build(data.designOriginal, kind);
                 img.src = s.src;
             } else if(data.designOriginal){
-                build(data.designOriginal);
+                build(data.designOriginal, kind);
             } else {
                 resolve();
             }
