@@ -56,6 +56,7 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 
 - [ ] App avatar menu → **Settings** opens `/settings.html`
 - [ ] Settings **← Back to app** goes to `/app.html` (not the marketing landing page), session intact
+- [ ] Billing portal **← Return to Mockup Scripter** (from app or settings) returns to `/app.html`, session intact — not the marketing landing page
 - [ ] Settings **Edit Profile** opens Clerk profile in an on-page modal (user stays on settings; no stranded trip to `accounts.mockupscripter.com` unless modal API unavailable)
 - [ ] Signed in → visit `/` → nav and hero show **Open app** → `/app.html` still signed in
 

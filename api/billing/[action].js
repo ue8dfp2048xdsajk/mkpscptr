@@ -100,7 +100,7 @@ async function handlePortal(req, res, stripeCustomerId, stripeSecretKey) {
     const baseUrl = process.env.BASE_URL || 'https://mockupscripter.com';
     const params = new URLSearchParams();
     params.set('customer', stripeCustomerId);
-    params.set('return_url', `${baseUrl}/`);
+    params.set('return_url', `${baseUrl}/app.html`);
 
     let portalRes;
     try {

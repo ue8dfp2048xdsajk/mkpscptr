@@ -110,6 +110,7 @@ Create a Stripe Customer Portal session.
 |---|---|
 | Auth | Required |
 | Response | `{ ok: true, url }` |
+| Return URL | `{BASE_URL}/app.html` (server-side only; same destination as checkout cancel/success) |
 | Errors | `404`-style message if no Stripe customer on file |
 
 ---
