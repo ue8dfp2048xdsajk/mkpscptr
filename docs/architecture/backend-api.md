@@ -92,6 +92,8 @@ Create a Stripe Checkout Session.
 
 Checkout sets `client_reference_id` to the Clerk user ID, `metadata.plan`, and `metadata.period` for the webhook. Same-tier billing-period changes (e.g. Starter monthly → annual or lifetime) are allowed; the webhook stores `billingPeriod` in Clerk and cancels superseded subscriptions.
 
+When the user already has an **active Stripe subscription** and the target price is a subscription (not lifetime), checkout routes to the Stripe Customer Portal **`subscription_update_confirm`** deep link instead of a new Checkout Session. That shows prorated “amount due today” and preserves existing subscription discounts. Free → paid and lifetime purchases still use Checkout.
+
 ### `GET /api/billing/invoices`
 
 List paid Stripe invoices for the signed-in user.

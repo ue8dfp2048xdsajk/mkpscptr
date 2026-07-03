@@ -2098,8 +2098,8 @@ body.sidebar-expanded #contextPanelBody {
    billing period — :empty collapses it entirely on monthly/annual. */
 .ms-plan-earlybird-badge {
     display: inline-block;
-    background: #fef3c7;
-    color: #b45309;
+    background: #dcfce7;
+    color: #16a34a;
     font-size: 11px;
     font-weight: 700;
     padding: 3px 10px;
@@ -2139,11 +2139,11 @@ body.sidebar-expanded #contextPanelBody {
     text-decoration: line-through;
 }
 .ms-plan-features li.ms-feature-highlight {
-    color: #b45309;
+    color: #16a34a;
     font-weight: 700;
 }
 .ms-plan-features li.ms-feature-highlight::before {
-    color: #b45309;
+    color: #16a34a;
 }
 .ms-plan-features li.ms-feature-no::before {
     content: '✕';

@@ -116,6 +116,62 @@ async function customerHasActiveSubscription(stripeCustomerId, stripeSecretKey) 
     return (subs.data || []).length > 0;
 }
 
+function isSubscriptionUpdateCandidate(currentPlan, requestedPeriod) {
+    if (requestedPeriod === 'lifetime') return false;
+    if ((getPlanRank(currentPlan) || 0) === 0) return false;
+    return true;
+}
+
+async function getActiveSubscriptionForUpdate(stripeCustomerId, stripeSecretKey) {
+    const subs = await stripeApiGet(
+        stripeSecretKey,
+        `subscriptions?customer=${encodeURIComponent(stripeCustomerId)}&status=active&limit=10`
+    );
+    const active = subs.data || [];
+    if (active.length === 0) return null;
+
+    // Stripe subscription_update_confirm supports a single subscription item only.
+    const withOneItem = active.filter((sub) => (sub.items?.data || []).length === 1);
+    const candidates = withOneItem.length > 0 ? withOneItem : active;
+    const sub = candidates.sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+    const item = sub.items?.data?.[0];
+    if (!item?.id) return null;
+
+    return {
+        subscriptionId: sub.id,
+        subscriptionItemId: item.id,
+        currentPriceId: item.price?.id || null,
+    };
+}
+
+function buildPortalSubscriptionUpdateParams({
+    stripeCustomerId,
+    subscriptionId,
+    subscriptionItemId,
+    newPriceId,
+    baseUrl,
+}) {
+    const normalizedBase = (baseUrl || '').replace(/\/$/, '');
+    const returnUrl = `${normalizedBase}/app.html`;
+    const successUrl = `${returnUrl}?payment=success`;
+
+    const params = new URLSearchParams();
+    params.set('customer', stripeCustomerId);
+    params.set('return_url', returnUrl);
+    params.set('flow_data[type]', 'subscription_update_confirm');
+    params.set('flow_data[subscription_update_confirm][subscription]', subscriptionId);
+    params.set('flow_data[subscription_update_confirm][items][0][id]', subscriptionItemId);
+    params.set('flow_data[subscription_update_confirm][items][0][price]', newPriceId);
+    params.set('flow_data[subscription_update_confirm][items][0][quantity]', '1');
+    params.set('flow_data[after_completion][type]', 'redirect');
+    params.set('flow_data[after_completion][redirect][return_url]', successUrl);
+    return params;
+}
+
+async function createPortalSubscriptionUpgradeSession(stripeSecretKey, portalParams) {
+    return stripeApiPost(stripeSecretKey, 'billing_portal/sessions', portalParams);
+}
+
 async function customerHasPaidLifetimeCheckout(stripeCustomerId, stripeSecretKey) {
     const sessions = await stripeApiGet(
         stripeSecretKey,
@@ -179,6 +235,10 @@ module.exports = {
     getPlanFromPriceId,
     getPriceMap,
     isCheckoutBlocked,
+    isSubscriptionUpdateCandidate,
+    getActiveSubscriptionForUpdate,
+    buildPortalSubscriptionUpdateParams,
+    createPortalSubscriptionUpgradeSession,
     shouldDowngradeToFree,
     cancelActiveSubscriptionsExcept,
 };

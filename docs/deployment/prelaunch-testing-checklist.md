@@ -96,6 +96,13 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 - [ ] After annual or lifetime purchase, Clerk `billingPeriod` matches; old subscription canceled (no double billing)
 - [ ] After lifetime purchase, a later `subscription.deleted` webhook does **not** downgrade plan to Free
 
+### Prorated subscription upgrades
+
+- [ ] Starter monthly with active sub → Upgrade Pro → **portal confirm** screen (not full-price Checkout) with prorated/discounted “Amount due today”
+- [ ] Free → Starter still uses **Checkout** at full price
+- [ ] Starter → Pro **lifetime** still uses **Checkout** one-time payment
+- [ ] Stripe Customer Portal config includes Pro/Starter subscription prices for plan updates
+
 ### Plan-aware modal & avatar (paid users)
 
 - [ ] **Starter** avatar → **Upgrade plan** opens modal with **Starter + Pro only** (Free hidden)

@@ -1,10 +1,31 @@
 const { setCorsHeaders, handleOptions } = require('./_cors');
 const { verifyClerkToken, isConfigured: isClerkConfigured } = require('./_verify-clerk-token');
 const { isRateLimited } = require('./_sliding-window');
-const { getPriceId, isCheckoutBlocked } = require('./_stripe-prices');
+const {
+    getPriceId,
+    isCheckoutBlocked,
+    isSubscriptionUpdateCandidate,
+    getActiveSubscriptionForUpdate,
+    buildPortalSubscriptionUpdateParams,
+    createPortalSubscriptionUpgradeSession,
+} = require('./_stripe-prices');
 
 const CHECKOUT_MAX        = 5;
 const CHECKOUT_WINDOW_SEC = 60;
+
+async function resolveStripeCustomerIdFromMongo(clerkUserId) {
+    try {
+        const { getDb } = require('./_db');
+        const db = await getDb();
+        const doc = await db.collection('customers').findOne(
+            { clerkUserId },
+            { projection: { stripeCustomerId: 1 } }
+        );
+        return doc?.stripeCustomerId || null;
+    } catch {
+        return null;
+    }
+}
 
 module.exports = async function handler(req, res) {
     setCorsHeaders(req, res);
@@ -68,6 +89,9 @@ module.exports = async function handler(req, res) {
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     let customerEmail = null;
     let stripeCustomerId = null;
+    let currentPlan = 'free';
+    let currentBillingPeriod = null;
+
     if (clerkSecretKey) {
         let clerkRes;
         try {
@@ -81,8 +105,8 @@ module.exports = async function handler(req, res) {
 
         if (clerkRes.ok) {
             const clerkData = await clerkRes.json();
-            const currentPlan = (clerkData?.public_metadata?.plan || 'free').toLowerCase();
-            const currentBillingPeriod = clerkData?.public_metadata?.billingPeriod || null;
+            currentPlan = (clerkData?.public_metadata?.plan || 'free').toLowerCase();
+            currentBillingPeriod = clerkData?.public_metadata?.billingPeriod || null;
             if (isCheckoutBlocked(currentPlan, currentBillingPeriod, plan, period)) {
                 return res.status(409).json({
                     ok: false,
@@ -100,12 +124,43 @@ module.exports = async function handler(req, res) {
         }
     }
 
-    const isLifetime = period === 'lifetime';
-    const mode = isLifetime ? 'payment' : 'subscription';
-
     const baseUrl = process.env.BASE_URL || 'https://mockupscripter.com';
     const successUrl = `${baseUrl}/app.html?payment=success`;
     const cancelUrl  = `${baseUrl}/app.html`;
+
+    if (isSubscriptionUpdateCandidate(currentPlan, period)) {
+        if (!stripeCustomerId) {
+            stripeCustomerId = await resolveStripeCustomerIdFromMongo(clerkUserId);
+        }
+        if (stripeCustomerId) {
+            try {
+                const activeSub = await getActiveSubscriptionForUpdate(stripeCustomerId, stripeSecretKey);
+                if (activeSub && activeSub.currentPriceId !== priceId) {
+                    const portalParams = buildPortalSubscriptionUpdateParams({
+                        stripeCustomerId,
+                        subscriptionId: activeSub.subscriptionId,
+                        subscriptionItemId: activeSub.subscriptionItemId,
+                        newPriceId: priceId,
+                        baseUrl,
+                    });
+                    const portalSession = await createPortalSubscriptionUpgradeSession(
+                        stripeSecretKey,
+                        portalParams
+                    );
+                    return res.status(200).json({
+                        ok: true,
+                        url: portalSession.url,
+                        flow: 'subscription_update_confirm',
+                    });
+                }
+            } catch (err) {
+                console.error('checkout: portal subscription upgrade failed — falling back to Checkout', err);
+            }
+        }
+    }
+
+    const isLifetime = period === 'lifetime';
+    const mode = isLifetime ? 'payment' : 'subscription';
 
     const params = new URLSearchParams();
     params.set('mode', mode);
@@ -149,5 +204,5 @@ module.exports = async function handler(req, res) {
         });
     }
 
-    return res.status(200).json({ ok: true, url: stripeData.url });
+    return res.status(200).json({ ok: true, url: stripeData.url, flow: 'checkout' });
 };
