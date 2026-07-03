@@ -386,6 +386,359 @@ function _windowHasAnyLayerSelected(data) {
     return (data.extraDesignObjects || []).some(o => selectedDesigns.has(o));
 }
 
+// Drop layer selections that no longer belong to any window (after delete/splice).
+function _pruneOrphanSelectedDesigns() {
+    const live = new Set();
+    canvasData.forEach(d => {
+        if (!d) return;
+        if (d.designObject) live.add(d.designObject);
+        (d.extraDesignObjects || []).forEach(o => live.add(o));
+    });
+    [...selectedDesigns].forEach(obj => {
+        if (!live.has(obj)) selectedDesigns.delete(obj);
+    });
+}
+
+// Remap numeric activeIndices after canvasData insert/delete/reorder (by data ref).
+// Pass dataRefs when callers captured window data objects before a splice/reorder.
+function _remapActiveIndicesByData(dataRefs) {
+    const datas = (dataRefs != null
+        ? dataRefs
+        : activeIndices.map(i => canvasData[i])
+    ).filter(Boolean);
+    const seen = new Set();
+    activeIndices = [];
+    datas.forEach(d => {
+        const i = canvasData.indexOf(d);
+        if (i !== -1 && !seen.has(d)) {
+            seen.add(d);
+            activeIndices.push(i);
+        }
+    });
+    if (lastSelectedIndex !== null && !canvasData.includes(lastSelectedIndex)) {
+        lastSelectedIndex = null;
+    }
+    _pruneOrphanSelectedDesigns();
+}
+
+// Resolve export indices to live canvasData positions (guards stale slots after duplicate).
+function _resolveExportIndices(indices) {
+    if (indices == null) {
+        _remapActiveIndicesByData();
+        return [...activeIndices];
+    }
+    return indices
+        .map(i => canvasData[i])
+        .filter(Boolean)
+        .map(d => canvasData.indexOf(d))
+        .filter(i => i !== -1);
+}
+
+// Keep Fabric's .canvas-container clipped to the visible mockup card (prevents
+// upper-canvas pointer bleed onto neighbouring windows in the grid).
+function _syncFabricDisplaySize(data, targetColumnWidth = 300) {
+    const fc = data?.fabricCanvas;
+    if (!fc) return;
+    const previewW = fc.getWidth();
+    const previewH = fc.getHeight();
+    if (!previewW || !previewH) return;
+    const displayW = Math.round(
+        parseFloat(data.wrapperEl?.style.width) || targetColumnWidth
+    );
+    const displayH = Math.round(previewH * displayW / previewW);
+    fc.wrapperEl.style.width  = displayW + 'px';
+    fc.wrapperEl.style.height = displayH + 'px';
+    if (data.wrapperEl) data.wrapperEl.style.width = displayW + 'px';
+}
+
+// Shared window-selection logic for wrapper clicks and canvas background hits.
+function _applyWindowClickSelection(index, e) {
+    if (index < 0 || index >= canvasData.length) return;
+
+    if (designEraserMode) return;
+
+    if (clipEditMode && !clipCopySelectMode) return;
+
+    if (colorLayerMode && !colorCopySelectMode) {
+        if (!activeIndices.includes(index)) {
+            alert('Exit Color Layer mode to interact with other windows.');
+        }
+        return;
+    }
+
+    if (colorCopySelectMode) {
+        const pos = activeIndices.indexOf(index);
+        if (pos === -1) activeIndices.push(index);
+        else           activeIndices.splice(pos, 1);
+        updateWindowBorders();
+        return;
+    }
+
+    const isModifierMultiSelect = e.metaKey || e.ctrlKey;
+
+    if (e.shiftKey) {
+        const prevIndices = [...activeIndices];
+        if (lastSelectedIndex === null) {
+            activeIndices = [index];
+        } else {
+            const lastAnchorIdx = canvasData.indexOf(lastSelectedIndex);
+            const start = Math.min(lastAnchorIdx, index);
+            const end   = Math.max(lastAnchorIdx, index);
+            const range = [];
+            for (let i = start; i <= end; i++) range.push(i);
+            activeIndices = [...new Set([...activeIndices, ...range])];
+        }
+        activeIndices.forEach(i => {
+            const d = canvasData[i];
+            if (d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)) {
+                if (!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                selectedDesigns.add(d.designObject);
+            }
+        });
+        prevIndices.filter(i => !activeIndices.includes(i)).forEach(i => {
+            const d = canvasData[i];
+            if (d) {
+                selectedDesigns.delete(d.designObject);
+                (d.extraDesignObjects || []).forEach(obj => selectedDesigns.delete(obj));
+            }
+        });
+        lastSelectedIndex = canvasData[index];
+    } else if (isModifierMultiSelect) {
+        if (activeIndices.includes(index)) {
+            activeIndices = activeIndices.filter(i => i !== index);
+            const d = canvasData[index];
+            if (d) {
+                selectedDesigns.delete(d.designObject);
+                (d.extraDesignObjects || []).forEach(obj => selectedDesigns.delete(obj));
+            }
+        } else {
+            activeIndices.push(index);
+            const d = canvasData[index];
+            if (d?.designObject && !d.locked) {
+                if (!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                selectedDesigns.add(d.designObject);
+            }
+        }
+        lastSelectedIndex = canvasData[index];
+    } else {
+        lastSelectedIndex = canvasData[index];
+        if (!activeIndices.includes(index)) {
+            activeIndices = [index];
+            selectedDesigns.clear();
+            const d = canvasData[index];
+            if (d?.designObject && !d.locked) {
+                if (!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                selectedDesigns.add(d.designObject);
+            }
+        } else {
+            const d = canvasData[index];
+            if (d?.designObject && !d.locked && !_windowHasAnyLayerSelected(d)) {
+                if (!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+                selectedDesigns.add(d.designObject);
+            }
+        }
+    }
+
+    if (e.shiftKey) lastSelectedIndex = canvasData[index];
+
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
+}
+
+function _attachWrapperClickListener(wrapper, data) {
+    wrapper.addEventListener('click', function(e) {
+        const index = canvasData.indexOf(data);
+        if (index === -1) return;
+        if (suppressNextWrapperClick && !e.shiftKey) return;
+        if (data._windowCanvasSelectionAttached &&
+            e.target.closest('.canvas-container')) return;
+        _applyWindowClickSelection(index, e);
+    });
+}
+
+// One-time Fabric canvas handlers: background window select, design-layer select,
+// watermark/eraser/warp overlays, and custom multi-select handles.
+function _attachWindowCanvasSelection(data) {
+    if (data._windowCanvasSelectionAttached) return;
+    data._windowCanvasSelectionAttached = true;
+
+    data.fabricCanvas.on('mouse:down', (opt) => {
+        const target = opt.target;
+        const index  = canvasData.indexOf(data);
+        if (index === -1) return;
+
+        if (!target && !designEraserMode && !designWarpMode) {
+            data._watermarkMarqueeActive = true;
+            _beginWatermarkInteraction();
+        }
+
+        if (!target) {
+            _applyWindowClickSelection(index, opt.e);
+            return;
+        }
+
+        const isDesign = target === data.designObject ||
+                         (data.extraDesignObjects || []).includes(target);
+        if (!isDesign) return;
+
+        suppressNextWrapperClick = true;
+
+        const isCmd   = opt.e?.metaKey || opt.e?.ctrlKey;
+        const isShift = opt.e?.shiftKey;
+        const winIdx  = index;
+
+        if (isCmd) {
+            if (selectedDesigns.has(target)) {
+                selectedDesigns.delete(target);
+                const anyLeft = [...selectedDesigns].some(obj =>
+                    obj === data.designObject ||
+                    (data.extraDesignObjects || []).includes(obj)
+                );
+                if (!anyLeft && winIdx !== -1) {
+                    activeIndices = activeIndices.filter(i => i !== winIdx);
+                }
+            } else {
+                if (!target._fx) target._fx = _defaultFx(data);
+                selectedDesigns.add(target);
+                if (winIdx !== -1 && !activeIndices.includes(winIdx)) {
+                    activeIndices.push(winIdx);
+                }
+            }
+            lastSelectedIndex = data;
+        } else if (isShift) {
+            if (!data.designObject._fx) data.designObject._fx = _defaultFx(data);
+            selectedDesigns.add(data.designObject);
+            if (winIdx !== -1 && !activeIndices.includes(winIdx)) {
+                activeIndices.push(winIdx);
+            }
+        } else {
+            if (!selectedDesigns.has(target)) {
+                selectedDesigns.clear();
+                if (winIdx !== -1) activeIndices = [winIdx];
+                if (!target._fx) target._fx = _defaultFx(data);
+                selectedDesigns.add(target);
+                refreshFabricHandles();
+                updateWindowBorders();
+                updateLayerButtons();
+                syncSliders();
+            }
+            if (winIdx !== -1) lastSelectedIndex = data;
+            return;
+        }
+
+        refreshFabricHandles();
+        updateWindowBorders();
+        updateLayerButtons();
+        syncSliders();
+    });
+
+    data.fabricCanvas.on('after:render', () => {
+        const canvas = data.fabricCanvas;
+        const ctx    = canvas.contextContainer;
+        const active = canvas.getActiveObject();
+
+        [...selectedDesigns].forEach(obj => {
+            const isOwn =
+                obj === data.designObject ||
+                (data.extraDesignObjects || []).includes(obj);
+            if (!isOwn) return;
+            if (obj === active) return;
+
+            ctx.save();
+            try {
+                obj._renderControls(ctx, { hasBorders: true, hasControls: true });
+            } catch (_) {
+                const br = obj.getBoundingRect(true, true);
+                ctx.strokeStyle = '#2196F3';
+                ctx.lineWidth   = 2;
+                ctx.setLineDash([5, 3]);
+                ctx.strokeRect(br.left, br.top, br.width, br.height);
+            }
+            ctx.restore();
+        });
+
+        if (designWarpMode && data === warpActiveData) {
+            _drawWarpOverlay(ctx);
+        }
+        if (designWarpMode && data !== warpActiveData) {
+            const secGroup = warpAllGroups.find((g, i) => i > 0 && g.ownerData === data);
+            if (secGroup) {
+                _drawWarpPreview(ctx, secGroup.sourceCanvas, _scaledWarpPointsForGroup(secGroup));
+            }
+        }
+        _drawWatermarkOnCanvas(data);
+    });
+
+    data.fabricCanvas.on('mouse:up', () => {
+        if (data._watermarkMarqueeActive) {
+            data._watermarkMarqueeActive = false;
+            _endWatermarkInteraction();
+        }
+    });
+
+    data.fabricCanvas.on('mouse:down', (opt) => {
+        if (!designEraserMode) return;
+        const targetData = eraserTargetObject?._ownerData;
+        if (!targetData || targetData !== data) return;
+
+        if (!designEraserDown) {
+            const index = canvasData.indexOf(data);
+            const items = [{ idx: index, snap: _captureEraserSnapshot(data) }];
+            if (items.length) {
+                globalUndoStack.push({ type: 'eraser', items });
+                if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+                globalRedoStack = [];
+                updateUndoRedoButtons();
+            }
+        }
+
+        designEraserDown = true;
+        applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
+    });
+    data.fabricCanvas.on('mouse:move', (opt) => {
+        if (!designEraserMode || !designEraserDown) return;
+        applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
+    });
+    data.fabricCanvas.on('mouse:up', () => {
+        if (designEraserMode) {
+            designEraserDown = false;
+            _syncProEffect(data);
+            _flushEraserPendingRebuild();
+        }
+    });
+
+    data.fabricCanvas.on('mouse:down', (opt) => {
+        if (!designWarpMode || data !== warpActiveData) return;
+        const pointer = data.fabricCanvas.getPointer(opt.e);
+        let bestDist2 = 18 * 18;
+        let bestRC    = null;
+        for (let r = 0; r < 4; r++) {
+            for (let c = 0; c < 4; c++) {
+                const p  = warpPoints[r][c];
+                const dx = p.x - pointer.x, dy = p.y - pointer.y;
+                const d2 = dx * dx + dy * dy;
+                if (d2 < bestDist2) { bestDist2 = d2; bestRC = { r, c }; }
+            }
+        }
+        warpDragRC = bestRC;
+    });
+    data.fabricCanvas.on('mouse:move', (opt) => {
+        if (!designWarpMode || !warpDragRC || data !== warpActiveData) return;
+        const pointer = data.fabricCanvas.getPointer(opt.e);
+        warpPoints[warpDragRC.r][warpDragRC.c] = { x: pointer.x, y: pointer.y };
+        data.fabricCanvas.requestRenderAll();
+        warpAllGroups.forEach((g, i) => {
+            if (i > 0) g.ownerData.fabricCanvas.requestRenderAll();
+        });
+    });
+    data.fabricCanvas.on('mouse:up', () => {
+        if (designWarpMode) warpDragRC = null;
+    });
+}
+
 function _canCrossWindowSync() {
     if (activeIndices.length < 2) return false;
     for (const i of activeIndices) {
@@ -514,24 +867,20 @@ function refreshFabricHandles(){
 }
 
 function updateWindowBorders(){
-    document.querySelectorAll(".canvas-wrapper")
-        .forEach((w,i)=>{
-            w.classList.remove("active","design-active");
-            const d = canvasData[i];
-            if(selectedDesigns.size > 0){
-                // Design-select mode: highlight windows that contain a selected object.
-                // Also highlight locked windows that are in activeIndices — their designs
-                // aren't in selectedDesigns (locked), but they're still "selected" windows
-                // and should show the gray border (.window-locked.active in CSS).
-                const hasSelected = d && (
-                    (d.designObject && selectedDesigns.has(d.designObject)) ||
-                    (d.extraDesignObjects||[]).some(obj => selectedDesigns.has(obj))
-                );
-                if(hasSelected || activeIndices.includes(i)) w.classList.add("active");
-            } else if(activeIndices.includes(i)){
-                w.classList.add("active");
-            }
-        });
+    canvasData.forEach((d, i) => {
+        const w = d?.wrapperEl;
+        if (!w) return;
+        w.classList.remove('active', 'design-active');
+        if (selectedDesigns.size > 0) {
+            const hasSelected = (
+                (d.designObject && selectedDesigns.has(d.designObject)) ||
+                (d.extraDesignObjects || []).some(obj => selectedDesigns.has(obj))
+            );
+            if (hasSelected || activeIndices.includes(i)) w.classList.add('active');
+        } else if (activeIndices.includes(i)) {
+            w.classList.add('active');
+        }
+    });
 
     // Update Change Design button label: "Add Design" if any selected window
     // has no design, "Change Design" if all selected windows have designs.
@@ -2472,6 +2821,10 @@ function createCanvasPreviews(){
             data.initialX = data.x;
             data.initialY = data.y;
 
+            _syncFabricDisplaySize(data, targetColumnWidth);
+            _attachWrapperClickListener(wrapper, data);
+            _attachWindowCanvasSelection(data);
+
             fabric.Image.fromURL(data.bg.src, function(bgImg){
 
                 bgImg.set({
@@ -2510,147 +2863,6 @@ function createCanvasPreviews(){
 
             }, { crossOrigin: 'anonymous' });
 
-            wrapper.addEventListener('click', function(e){
-
-            // Recompute live index — closed-over `index` becomes stale after window deletions
-            const index = canvasData.indexOf(data);
-            if(index === -1) return;
-
-            if(suppressNextWrapperClick && !e.shiftKey){
-                return;
-            }
-
-            if(clipEditMode && !clipCopySelectMode){
-                return;
-            }
-
-            if(colorLayerMode && !colorCopySelectMode){
-                if(!activeIndices.includes(index)){
-                    alert("Exit Color Layer mode to interact with other windows.");
-                }
-                return;
-            }
-
-            // In color copy-select mode: simple toggle so the user can pick targets
-            if(colorCopySelectMode){
-                const pos = activeIndices.indexOf(index);
-                if(pos === -1) activeIndices.push(index);
-                else           activeIndices.splice(pos, 1);
-                updateWindowBorders();
-                return;
-            }
-
-                const isModifierMultiSelect = e.metaKey || e.ctrlKey;
-
-                // SHIFT = range select — adds windows AND their original designs
-                if(e.shiftKey){
-
-                    const prevIndices = [...activeIndices];
-
-                    if(lastSelectedIndex === null){
-
-                        activeIndices = [index];
-
-                    } else {
-
-                        const lastAnchorIdx = canvasData.indexOf(lastSelectedIndex);
-                        const start = Math.min(lastAnchorIdx, index);
-                        const end = Math.max(lastAnchorIdx, index);
-
-                        const range = [];
-
-                        for(let i = start; i <= end; i++){
-                            range.push(i);
-                        }
-
-                        activeIndices = [...new Set([
-                            ...activeIndices,
-                            ...range
-                        ])];
-                    }
-
-                    // Add original designs of newly-included windows (skip locked)
-                    activeIndices.forEach(i => {
-                        const d = canvasData[i];
-                        if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
-                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                            selectedDesigns.add(d.designObject);
-                        }
-                    });
-                    // Remove designs belonging to windows no longer in activeIndices
-                    prevIndices.filter(i => !activeIndices.includes(i)).forEach(i => {
-                        const d = canvasData[i];
-                        if(d){
-                            selectedDesigns.delete(d.designObject);
-                            (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
-                        }
-                    });
-
-                    lastSelectedIndex = canvasData[index];
-
-                // CMD / CTRL = toggle window + its original design
-                } else if(isModifierMultiSelect){
-
-                    if(activeIndices.includes(index)){
-
-                        activeIndices = activeIndices.filter(i => i !== index);
-
-                        const d = canvasData[index];
-                        if(d){
-                            selectedDesigns.delete(d.designObject);
-                            (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
-                        }
-
-                    } else {
-
-                        activeIndices.push(index);
-
-                        const d = canvasData[index];
-                        if(d?.designObject && !d.locked){
-                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                            selectedDesigns.add(d.designObject);
-                        }
-                    }
-
-                    lastSelectedIndex = canvasData[index];
-
-                // Normal click = if window already selected keep group; else single-select
-                } else {
-
-                    lastSelectedIndex = canvasData[index];
-
-                    if(!activeIndices.includes(index)){
-                        // Clicking an unselected window — start fresh
-                        activeIndices = [index];
-                        selectedDesigns.clear();
-                        const d = canvasData[index];
-                        if(d?.designObject && !d.locked){
-                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                            selectedDesigns.add(d.designObject);
-                        }
-                    } else {
-                        // Window already in selection — keep everything, just ensure
-                        // its design is represented in selectedDesigns (skip locked)
-                        const d = canvasData[index];
-                        if(d?.designObject && !d.locked && !_windowHasAnyLayerSelected(d)){
-                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                            selectedDesigns.add(d.designObject);
-                        }
-                    }
-                }
-
-                if(e.shiftKey){
-                    lastSelectedIndex = canvasData[index];
-                }
-
-                refreshFabricHandles();
-                updateWindowBorders();
-                updateLayerButtons();
-                syncSliders();
-                updateSelectButtonState();
-            });
-
-            
             attachClipDrawing(
                 wrapper,
                 fabricCanvas,
@@ -2695,205 +2907,8 @@ function attachFabricEvents(data, targetObject = null){
     // Tag this object with its owning window data for cross-window effect lookups
     designTarget._ownerData = data;
 
-    // One-time canvas-level handler: track design object clicks for multi-select
-    if(!data._canvasHandlersAttached){
-        data._canvasHandlersAttached = true;
-        data.fabricCanvas.on('mouse:down', (opt)=>{
-
-            const target = opt.target;
-
-            // Shift+drag on empty canvas (marquee select) — suppress watermark stacking.
-            if (!target && !designEraserMode && !designWarpMode) {
-                data._watermarkMarqueeActive = true;
-                _beginWatermarkInteraction();
-            }
-
-            // No target = blank canvas click; let the wrapper click handler deal with it
-            if(!target) return;
-
-            const isDesign = target === data.designObject ||
-                             (data.extraDesignObjects||[]).includes(target);
-            if(!isDesign) return;
-
-            suppressNextWrapperClick = true;
-
-            const isCmd   = opt.e?.metaKey || opt.e?.ctrlKey;
-            const isShift = opt.e?.shiftKey;
-            const winIdx  = canvasData.indexOf(data);
-
-            if(isCmd){
-                // Cmd/Ctrl: toggle this specific design object only
-                if(selectedDesigns.has(target)){
-                    selectedDesigns.delete(target);
-                    // If no designs from this window remain selected, deselect the window
-                    const anyLeft = [...selectedDesigns].some(obj =>
-                        obj === data.designObject ||
-                        (data.extraDesignObjects||[]).includes(obj)
-                    );
-                    if(!anyLeft && winIdx !== -1){
-                        activeIndices = activeIndices.filter(i => i !== winIdx);
-                    }
-                } else {
-                    if(!target._fx) target._fx = _defaultFx(data);
-                    selectedDesigns.add(target);
-                    if(winIdx !== -1 && !activeIndices.includes(winIdx)){
-                        activeIndices.push(winIdx);
-                    }
-                }
-                // Set shift-click anchor so a subsequent shift-click can range-select from here
-                lastSelectedIndex = data;
-            } else if(isShift){
-                // Shift on design = window-select: add this window + its original design
-                if(!data.designObject._fx) data.designObject._fx = _defaultFx(data);
-                selectedDesigns.add(data.designObject);
-                if(winIdx !== -1 && !activeIndices.includes(winIdx)){
-                    activeIndices.push(winIdx);
-                }
-            } else {
-                // Plain click on a design object — select only this layer.
-                // Use Shift or Cmd/Ctrl to build a multi-layer selection.
-                if(!selectedDesigns.has(target)){
-                    // Plain click on an unselected layer — replace the current
-                    // selection with just this layer.  When clicking a layer that
-                    // is already selected (e.g. to start dragging it along with
-                    // other selected layers) we leave the multi-selection intact.
-                    selectedDesigns.clear();
-                    if(winIdx !== -1) activeIndices = [winIdx];
-                    if(!target._fx) target._fx = _defaultFx(data);
-                    selectedDesigns.add(target);
-                    refreshFabricHandles();
-                    updateWindowBorders();
-                    updateLayerButtons();
-                    syncSliders();
-                }
-                // else: already selected — preserve multi-selection for group drag.
-                // Set shift-click anchor so a subsequent shift-click can range-select from here
-                if(winIdx !== -1) lastSelectedIndex = data;
-                return;
-            }
-
-            refreshFabricHandles();
-            updateWindowBorders();
-            updateLayerButtons();
-            syncSliders();
-        });
-
-        // Draw selection handles on every selected object that isn't Fabric's active object.
-        // This lets multiple objects in the same window show transform handles simultaneously
-        // without needing a fabric.ActiveSelection (which would break our cross-window sync).
-        data.fabricCanvas.on('after:render', () => {
-            const canvas = data.fabricCanvas;
-            const ctx    = canvas.contextContainer;
-            const active = canvas.getActiveObject();
-
-            [...selectedDesigns].forEach(obj => {
-                const isOwn =
-                    obj === data.designObject ||
-                    (data.extraDesignObjects||[]).includes(obj);
-                if(!isOwn) return;
-                if(obj === active) return; // already has Fabric's native handles
-
-                ctx.save();
-                try {
-                    obj._renderControls(ctx, { hasBorders: true, hasControls: true });
-                } catch(_) {
-                    // fallback: plain selection border
-                    const br = obj.getBoundingRect(true, true);
-                    ctx.strokeStyle = '#2196F3';
-                    ctx.lineWidth   = 2;
-                    ctx.setLineDash([5, 3]);
-                    ctx.strokeRect(br.left, br.top, br.width, br.height);
-                }
-                ctx.restore();
-            });
-
-            // Warp overlay — drawn on the primary canvas that owns the warp session.
-            if (designWarpMode && data === warpActiveData) {
-                _drawWarpOverlay(ctx);
-            }
-            // Secondary canvases: draw a live deformed preview using scaled warp points.
-            if (designWarpMode && data !== warpActiveData) {
-                const secGroup = warpAllGroups.find((g, i) => i > 0 && g.ownerData === data);
-                if (secGroup) {
-                    _drawWarpPreview(ctx, secGroup.sourceCanvas, _scaledWarpPointsForGroup(secGroup));
-                }
-            }
-            _drawWatermarkOnCanvas(data);
-        });
-
-        data.fabricCanvas.on('mouse:up', () => {
-            if (data._watermarkMarqueeActive) {
-                data._watermarkMarqueeActive = false;
-                _endWatermarkInteraction();
-            }
-        });
-
-        // Design-layer eraser mouse handlers — active only when designEraserMode is true.
-        // Objects are made non-selectable on entry so clicks go straight to these handlers.
-        data.fabricCanvas.on('mouse:down', (opt) => {
-            if (!designEraserMode) return;
-            const targetData = eraserTargetObject?._ownerData;
-            if (!targetData || targetData !== data) return;
-
-            // Snapshot once at stroke start (target window only).
-            if (!designEraserDown) {
-                const index = canvasData.indexOf(data);
-                const items = [{ idx: index, snap: _captureEraserSnapshot(data) }];
-                if (items.length) {
-                    globalUndoStack.push({ type: 'eraser', items });
-                    if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
-                    globalRedoStack = [];
-                    updateUndoRedoButtons();
-                }
-            }
-
-            designEraserDown = true;
-            applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
-        });
-        data.fabricCanvas.on('mouse:move', (opt) => {
-            if (!designEraserMode || !designEraserDown) return;
-            applyDesignEraserAt(data, data.fabricCanvas.getPointer(opt.e));
-        });
-        data.fabricCanvas.on('mouse:up', () => {
-            if (designEraserMode) {
-                designEraserDown = false;
-                _syncProEffect(data);
-                _flushEraserPendingRebuild();
-            }
-        });
-
-        // Warp-mode mouse handlers — drag control points to deform the mesh.
-        data.fabricCanvas.on('mouse:down', (opt) => {
-            if (!designWarpMode || data !== warpActiveData) return;
-            const pointer = data.fabricCanvas.getPointer(opt.e);
-            let bestDist2 = 18 * 18;
-            let bestRC    = null;
-            for (let r = 0; r < 4; r++) {
-                for (let c = 0; c < 4; c++) {
-                    const p  = warpPoints[r][c];
-                    const dx = p.x - pointer.x, dy = p.y - pointer.y;
-                    const d2 = dx*dx + dy*dy;
-                    if (d2 < bestDist2) { bestDist2 = d2; bestRC = {r, c}; }
-                }
-            }
-            warpDragRC = bestRC;
-        });
-        data.fabricCanvas.on('mouse:move', (opt) => {
-            if (!designWarpMode || !warpDragRC || data !== warpActiveData) return;
-            const pointer = data.fabricCanvas.getPointer(opt.e);
-            warpPoints[warpDragRC.r][warpDragRC.c] = {x: pointer.x, y: pointer.y};
-            data.fabricCanvas.requestRenderAll();
-            // Trigger live preview on all secondary canvases too.
-            warpAllGroups.forEach((g, i) => {
-                if (i > 0) g.ownerData.fabricCanvas.requestRenderAll();
-            });
-        });
-        data.fabricCanvas.on('mouse:up', () => {
-            if (designWarpMode) warpDragRC = null;
-        });
-    }
-
-    // mouse:down handler manages selectedDesigns and syncSliders; selected event is unused.
+    // Canvas-level handlers (background select, eraser, warp overlay) live in
+    // _attachWindowCanvasSelection(), registered when each Fabric canvas is created.
 
     designTarget.on('moving', ()=>{
         designTarget._hadDragMovement = true;
@@ -3366,108 +3381,6 @@ function _addDragHandle(wrapper, cell) {
     }
 }
 
-function _attachWrapperClickListener(wrapper, data){
-    wrapper.addEventListener('click', function(e){
-        const index = canvasData.indexOf(data);
-        if(index === -1) return;
-
-        if(suppressNextWrapperClick && !e.shiftKey) return;
-
-        if(designEraserMode) return;
-
-        if(clipEditMode && !clipCopySelectMode) return;
-
-        if(colorLayerMode && !colorCopySelectMode){
-            if(!activeIndices.includes(index)){
-                alert("Exit Color Layer mode to interact with other windows.");
-            }
-            return;
-        }
-
-        if(colorCopySelectMode){
-            const pos = activeIndices.indexOf(index);
-            if(pos === -1) activeIndices.push(index);
-            else           activeIndices.splice(pos, 1);
-            updateWindowBorders();
-            return;
-        }
-
-        const isModifierMultiSelect = e.metaKey || e.ctrlKey;
-
-        if(e.shiftKey){
-            const prevIndices = [...activeIndices];
-            if(lastSelectedIndex === null){
-                activeIndices = [index];
-            } else {
-                const lastAnchorIdx = canvasData.indexOf(lastSelectedIndex);
-                const start = Math.min(lastAnchorIdx, index);
-                const end   = Math.max(lastAnchorIdx, index);
-                const range = [];
-                for(let i = start; i <= end; i++) range.push(i);
-                activeIndices = [...new Set([...activeIndices, ...range])];
-            }
-            activeIndices.forEach(i => {
-                const d = canvasData[i];
-                if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
-                    if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                    selectedDesigns.add(d.designObject);
-                }
-            });
-            prevIndices.filter(i => !activeIndices.includes(i)).forEach(i => {
-                const d = canvasData[i];
-                if(d){
-                    selectedDesigns.delete(d.designObject);
-                    (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
-                }
-            });
-            lastSelectedIndex = canvasData[index];
-        } else if(isModifierMultiSelect){
-            if(activeIndices.includes(index)){
-                activeIndices = activeIndices.filter(i => i !== index);
-                const d = canvasData[index];
-                if(d){
-                    selectedDesigns.delete(d.designObject);
-                    (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
-                }
-            } else {
-                activeIndices.push(index);
-                const d = canvasData[index];
-                if(d?.designObject && !d.locked){
-                    if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                    selectedDesigns.add(d.designObject);
-                }
-            }
-            lastSelectedIndex = canvasData[index];
-        } else {
-            lastSelectedIndex = canvasData[index];
-            if(!activeIndices.includes(index)){
-                activeIndices = [index];
-                selectedDesigns.clear();
-                const d = canvasData[index];
-                if(d?.designObject && !d.locked){
-                    if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                    selectedDesigns.add(d.designObject);
-                }
-            } else {
-                const d = canvasData[index];
-                if(d?.designObject && !d.locked && !_windowHasAnyLayerSelected(d)){
-                    if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                    selectedDesigns.add(d.designObject);
-                }
-            }
-        }
-
-        if(e.shiftKey) lastSelectedIndex = canvasData[index];
-
-        refreshFabricHandles();
-        updateWindowBorders();
-        updateLayerButtons();
-        syncSliders();
-        updateSelectButtonState();
-    });
-}
-
-
 function deleteSelectedWindows(){
 
     if(!activeIndices.length) return;
@@ -3545,9 +3458,12 @@ async function duplicateSelectedWindows(){
             bg:                     srcData.bg,
             bgName:                 srcData.bgName,
             designOriginal:         srcData.designOriginal,
-            initialDesignOriginal:  srcData.designOriginal,
+            initialDesignOriginal:  srcData.initialDesignOriginal ?? srcData.designOriginal,
             designName:             srcData.designName,
             notes:                  srcData.notes || '',
+
+            flipX: !!srcData.flipX,
+            flipY: !!srcData.flipY,
 
             x:        srcObj ? srcObj.left                       : srcData.x,
             y:        srcObj ? srcObj.top                        : srcData.y,
@@ -3579,6 +3495,23 @@ async function duplicateSelectedWindows(){
                            : null,
             maskEnabled: srcData.maskEnabled || false,
             maskType:    srcData.maskType    || null,
+
+            bgAdjust: srcData.bgAdjust
+                ? { ...srcData.bgAdjust }
+                : { hue: 0, saturation: 0, brightness: 0, contrast: 0 },
+            bgCrop: srcData.bgCrop
+                ? { ...srcData.bgCrop }
+                : { x: 0, y: 0, scale: 1, rotation: 0, aspect: 0 },
+
+            hasProEffect:    false,
+            forceProBadge:   false,
+            meshWarpApplied: !!srcData.meshWarpApplied,
+            invertedMain:    !!srcData.invertedMain,
+            invertedExtras:  [...(srcData.invertedExtras || [])],
+            patternMode:     !!srcData.patternMode,
+            patternSettings: srcData.patternSettings
+                ? { ...srcData.patternSettings }
+                : null,
 
             extraDesignObjects: [],
             locked: false,
@@ -3658,8 +3591,9 @@ async function duplicateSelectedWindows(){
         newData.initialX = newData.x;
         newData.initialY = newData.y;
 
-        // ── 5. Attach wrapper click listener ──────────────────────────────────
+        // ── 5. Attach selection handlers ──────────────────────────────────────
         _attachWrapperClickListener(wrapper, newData);
+        _attachWindowCanvasSelection(newData);
 
         // ── 6. Load background, then set up design + color layer (async) ─────
         await new Promise(resolve => {
@@ -3683,6 +3617,8 @@ async function duplicateSelectedWindows(){
                     applyWarpToData(newData, true);
                     setTimeout(() => { if(canvasData.includes(newData)) applyWarpToData(newData, false); }, 50);
                 }
+                if(newData.patternMode) _togglePatternMode(newData, true);
+                _syncProEffect(newData);
 
                 // Copy color layer content from source
                 if(srcColorCanvas){
@@ -3711,11 +3647,17 @@ async function duplicateSelectedWindows(){
         // ── 8. Attach clip-drawing + color-painting events ────────────────────
         const currentIdx = canvasData.indexOf(newData);
         attachClipDrawing(wrapper, fabricCanvas, newData, currentIdx);
+        _syncProEffect(newData);
     }
 
     // Select the newly duplicated windows
-    activeIndices     = newIndices;
-    lastSelectedIndex = canvasData[newIndices[newIndices.length - 1]] ?? null;
+    const dupDatas      = newIndices.map(i => canvasData[i]).filter(Boolean);
+    activeIndices       = dupDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
+    _remapActiveIndicesByData(dupDatas);
+    lastSelectedIndex = activeIndices.length
+        ? canvasData[activeIndices[activeIndices.length - 1]]
+        : null;
+    newIndices.forEach(i => _syncProEffect(canvasData[i]));
     selectedDesigns.clear();
     activeIndices.forEach(i => {
         const d = canvasData[i];
@@ -3894,6 +3836,7 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
         canvasData.unshift(newData);
 
         _attachWrapperClickListener(wrapper, newData);
+        _attachWindowCanvasSelection(newData);
         attachClipDrawing(wrapper, fabricCanvas, newData, 0);
 
         // 6. Hide the empty-state overlay first (before any call that might
@@ -6398,15 +6341,18 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
         if(!clipEditMode) return;
 
+        const liveIdx = canvasData.indexOf(data);
+        if (liveIdx === -1) return;
+
         // first click locks clipping to this window
         if(activeClipWindowIndex === null){
 
-            activeClipWindowIndex = index;
+            activeClipWindowIndex = liveIdx;
 
             // Load this canvas's existing clip data (e.g. from Copy Clipping)
             // into the editor globals and draw the bezier handles so it is
             // immediately editable, just like the original source window.
-            const thisData = canvasData[index];
+            const thisData = canvasData[liveIdx];
             if(thisData?.maskPath?.length){
                 clipCurvePoints    = thisData.maskPath.map(p => ({ ...p }));
                 clipPolygonClosed  = true;
@@ -6444,7 +6390,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
         if(clipCopySelectMode) return;
 
         // prevent drawing on other windows
-        if(index !== activeClipWindowIndex){
+        if(liveIdx !== activeClipWindowIndex){
 
             showClipModeNotice();
             return;
@@ -6634,6 +6580,9 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
         if(!clipEditMode) return;
 
+        const liveIdx = canvasData.indexOf(data);
+        if (liveIdx === -1) return;
+
         // Rubber-band: live tether line from the last placed point to the
         // cursor so the user sees the next segment before clicking — same
         // feel as the Photoshop pen tool.
@@ -6641,7 +6590,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
             !isDraggingCurveHandle &&
             !clipPolygonClosed    &&
             clipCurvePoints.length > 0 &&
-            index === activeClipWindowIndex
+            liveIdx === activeClipWindowIndex
         ){
             const pointer = fabricCanvas.getPointer(opt.e);
             const last    = clipCurvePoints[clipCurvePoints.length - 1];
@@ -8013,6 +7962,10 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         fabricCanvas.wrapperEl.style.height = displayH + "px";
         wrapper.style.width = displayW + "px";
 
+        _syncFabricDisplaySize(data, targetColumnWidth);
+        _attachWrapperClickListener(wrapper, data);
+        _attachWindowCanvasSelection(data);
+
         // Build the background Fabric image directly from the already-loaded
         // bgImg element — avoids a second load and the crossOrigin:'anonymous'
         // flag that hangs on data URLs (browsers block CORS for data: URIs,
@@ -8236,142 +8189,6 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         attachClipDrawing(wrapper, fabricCanvas, data, index);
 
         _syncProEffect(data);
-
-        wrapper.addEventListener('click', function(e){
-
-            if(suppressNextWrapperClick && !e.shiftKey){
-                return;
-            }
-
-            if(clipEditMode && !clipCopySelectMode){
-                return;
-            }
-
-            if(colorLayerMode && !colorCopySelectMode){
-                if(!activeIndices.includes(index)){
-                    alert("Exit Color Layer mode to interact with other windows.");
-                }
-                return;
-            }
-
-            // In color copy-select mode: simple toggle so the user can pick targets
-            if(colorCopySelectMode){
-                const pos = activeIndices.indexOf(index);
-                if(pos === -1) activeIndices.push(index);
-                else           activeIndices.splice(pos, 1);
-                updateWindowBorders();
-                return;
-            }
-
-                const isModifierMultiSelect = e.metaKey || e.ctrlKey;
-
-                // SHIFT = range select — adds windows AND their original designs
-                if(e.shiftKey){
-
-                    const prevIndices = [...activeIndices];
-
-                    if(lastSelectedIndex === null){
-
-                        activeIndices = [index];
-
-                    } else {
-
-                        const lastAnchorIdx = canvasData.indexOf(lastSelectedIndex);
-                        const start = Math.min(lastAnchorIdx, index);
-                        const end = Math.max(lastAnchorIdx, index);
-
-                        const range = [];
-
-                        for(let i = start; i <= end; i++){
-                            range.push(i);
-                        }
-
-                        activeIndices = [...new Set([
-                            ...activeIndices,
-                            ...range
-                        ])];
-                    }
-
-                    // Add original designs of newly-included windows (skip locked)
-                    activeIndices.forEach(i => {
-                        const d = canvasData[i];
-                        if(d?.designObject && !d.locked && !selectedDesigns.has(d.designObject)){
-                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                            selectedDesigns.add(d.designObject);
-                        }
-                    });
-                    // Remove designs belonging to windows no longer in activeIndices
-                    prevIndices.filter(i => !activeIndices.includes(i)).forEach(i => {
-                        const d = canvasData[i];
-                        if(d){
-                            selectedDesigns.delete(d.designObject);
-                            (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
-                        }
-                    });
-
-                    lastSelectedIndex = canvasData[index];
-
-                // CMD / CTRL = toggle window + its original design
-                } else if(isModifierMultiSelect){
-
-                    if(activeIndices.includes(index)){
-
-                        activeIndices = activeIndices.filter(i => i !== index);
-
-                        const d = canvasData[index];
-                        if(d){
-                            selectedDesigns.delete(d.designObject);
-                            (d.extraDesignObjects||[]).forEach(obj => selectedDesigns.delete(obj));
-                        }
-
-                    } else {
-
-                        activeIndices.push(index);
-
-                        const d = canvasData[index];
-                        if(d?.designObject && !d.locked){
-                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                            selectedDesigns.add(d.designObject);
-                        }
-                    }
-
-                    lastSelectedIndex = canvasData[index];
-
-                // Normal click = if window already selected keep group; else single-select
-                } else {
-
-                    lastSelectedIndex = canvasData[index];
-
-                    if(!activeIndices.includes(index)){
-                        // Clicking an unselected window — start fresh
-                        activeIndices = [index];
-                        selectedDesigns.clear();
-                        const d = canvasData[index];
-                        if(d?.designObject && !d.locked){
-                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                            selectedDesigns.add(d.designObject);
-                        }
-                    } else {
-                        // Window already in selection — keep everything, just ensure
-                        // its design is represented in selectedDesigns (skip locked)
-                        const d = canvasData[index];
-                        if(d?.designObject && !d.locked && !_windowHasAnyLayerSelected(d)){
-                            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                            selectedDesigns.add(d.designObject);
-                        }
-                    }
-                }
-
-                if(e.shiftKey){
-                    lastSelectedIndex = canvasData[index];
-                }
-
-                refreshFabricHandles();
-                updateWindowBorders();
-                updateLayerButtons();
-                syncSliders();
-                updateSelectButtonState();
-            });
     }
 
     // Restore selection state from snapshot

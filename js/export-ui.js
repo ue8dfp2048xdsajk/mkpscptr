@@ -284,6 +284,9 @@ async function exportDataToBlob(data, fmt, quality){
             }
             indices = [...activeIndices];
         }
+        indices = typeof _resolveExportIndices === 'function'
+            ? _resolveExportIndices(indices)
+            : indices;
 
         // STARTER users: show plans modal for PRO-gated windows with option to skip them
         if(_userPlan === 'starter'){

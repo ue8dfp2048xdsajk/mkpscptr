@@ -127,6 +127,8 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Eraser → undo (pristine art) → no ⭐, Starter export allowed
 - [ ] Design eraser: one layer selected → erase → release → no jump, erased pixels stay
 - [ ] Design eraser on duplicate only → main layer untouched
+- [ ] Click mockup background (not design) → that window selects
+- [ ] Duplicate 2 windows → click other backgrounds → correct window (not off-by-N); shift+range includes dupes; Starter export selected plain duplicate → no false PRO modal (no refresh)
 - [ ] Exit eraser → layer re-selected → re-enter with E works
 - [ ] 0 or 2 layers selected → eraser blocked (alert)
 - [ ] Extra-layer warp only → ⭐ + Starter export block; undo warp to 0 → ⭐ clears
