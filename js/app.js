@@ -45,6 +45,11 @@ function _refreshAllProStarBadges() {
     document.querySelectorAll('.pro-badge').forEach(function(el) {
         el.classList.toggle('pro-badge--green', isPro);
     });
+    // Body plan class drives PRO badge hover hints for non-Pro users
+    var plan = (_userPlan || 'free').toLowerCase();
+    if (plan !== 'free' && plan !== 'starter' && plan !== 'pro') plan = 'free';
+    document.body.classList.remove('user-plan-free', 'user-plan-starter', 'user-plan-pro');
+    document.body.classList.add('user-plan-' + plan);
     // Hide the upgrade prompt bar immediately when the user has a paid plan
     if (_userPlan !== 'free') {
         var upgradePrompt = document.getElementById('upgradePrompt');
@@ -4802,17 +4807,22 @@ document.getElementById('flipVBtn').addEventListener('click', () => flipSelected
 // type:'extra'  → appended as an overlay layer on top of the existing design
 var _copiedLayer = null;
 
+function _setBtnLabelWithKbd(btn, text, kbd) {
+    if (!btn) return;
+    btn.innerHTML = text + ' <span class="btn-kbd">(' + kbd + ')</span>';
+}
+
 function _updateCopyLayerBtn(){
     const btn = document.getElementById('copyLayerBtn');
     if (!btn) return;
     if (_copiedLayer){
-        btn.textContent         = 'Paste Layer (Ctrl/Cmd+V)';
+        _setBtnLabelWithKbd(btn, 'Paste Layer', 'Ctrl/Cmd+V');
         btn.title               = 'Paste copied layer to selected mockups (Ctrl/Cmd+V)';
         btn.style.background    = '#e8f5e9';
         btn.style.borderColor   = '#66bb6a';
         btn.style.color         = '#2e7d32';
     } else {
-        btn.textContent         = 'Copy Layer (Ctrl/Cmd+C)';
+        _setBtnLabelWithKbd(btn, 'Copy Layer', 'Ctrl/Cmd+C');
         btn.title               = 'Copy selected layer (Ctrl/Cmd+C)';
         btn.style.background    = '';
         btn.style.borderColor   = '';
@@ -5231,13 +5241,13 @@ function _updateCopyEffectsBtn() {
     const btn = document.getElementById('copyTransformsBtn');
     if (!btn) return;
     if (_copiedTransforms) {
-        btn.textContent      = 'Paste Effects (Ctrl/Cmd+Shift+V)';
+        _setBtnLabelWithKbd(btn, 'Paste Effects', 'Ctrl/Cmd+Shift+V');
         btn.title            = 'Paste copied effects to all selected mockups (Ctrl/Cmd+Shift+V)';
         btn.style.background  = '#e8f5e9';
         btn.style.borderColor = '#66bb6a';
         btn.style.color       = '#2e7d32';
     } else {
-        btn.textContent      = 'Copy Effects (Ctrl/Cmd+Shift+C)';
+        _setBtnLabelWithKbd(btn, 'Copy Effects', 'Ctrl/Cmd+Shift+C');
         btn.title            = 'Copy effects (opacity, warp, blend, pattern, invert) from the last selected mockup — not position or scale';
         btn.style.background  = '';
         btn.style.borderColor = '';
@@ -9320,6 +9330,24 @@ function _scheduleMinimapUpdate(){
     requestAnimationFrame(() => { _minimapRaf = false; updateMinimap(); });
 }
 
+function _minimapHasContent() {
+    return canvasData.some(d => d?.designOriginal);
+}
+
+function _isMinimapCollapsed() {
+    try { return localStorage.getItem('ms_minimap_collapsed') === '1'; } catch (_) { return false; }
+}
+
+function _applyMinimapVisibility() {
+    const mm = document.getElementById('minimap');
+    const teaser = document.getElementById('minimapTeaser');
+    if (!mm || !teaser) return;
+    const hasContent = _minimapHasContent();
+    const collapsed = _isMinimapCollapsed();
+    mm.hidden = !hasContent || collapsed;
+    teaser.hidden = !hasContent || !collapsed;
+}
+
 function updateMinimap(){
     const mm = document.getElementById('minimap');
     const cv = document.getElementById('minimapCanvas');
@@ -9327,8 +9355,8 @@ function updateMinimap(){
     const vw = document.getElementById('viewportWrapper');
     if(!mm || !cv || !cc || !vw) return;
 
-    if(!canvasData.some(d => d?.designOriginal)){ mm.hidden = true; return; }
-    mm.hidden = false;
+    if(!_minimapHasContent()){ _applyMinimapVisibility(); return; }
+    if(_isMinimapCollapsed()){ _applyMinimapVisibility(); return; }
 
     const natW = cc.offsetWidth;
     const natH = cc.offsetHeight;
@@ -9382,6 +9410,7 @@ function updateMinimap(){
     ctx.lineWidth   = 1.5;
     ctx.fillRect(rx, ry, rw, rh);
     ctx.strokeRect(rx + 0.75, ry + 0.75, rw - 1.5, rh - 1.5);
+    _applyMinimapVisibility();
 }
 
 // Click / drag to pan via minimap
@@ -10746,6 +10775,29 @@ document.getElementById('canvasContainer').addEventListener('input', e => {
     teaser.addEventListener('click', function(e) {
         e.stopPropagation();
         setVpcHidden(false);
+    });
+})();
+
+// ── Minimap collapse toggle ───────────────────────────────────────────────────
+(function(){
+    const collapseBtn = document.getElementById('minimapCollapseBtn');
+    const teaser      = document.getElementById('minimapTeaser');
+    if (!collapseBtn || !teaser) return;
+
+    function setMinimapCollapsed(collapsed) {
+        try { localStorage.setItem('ms_minimap_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+        _applyMinimapVisibility();
+        if (!collapsed) _scheduleMinimapUpdate();
+    }
+
+    collapseBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        setMinimapCollapsed(true);
+    });
+    teaser.addEventListener('click', function(e) {
+        e.stopPropagation();
+        setMinimapCollapsed(false);
     });
 })();
 

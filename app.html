@@ -82,29 +82,29 @@
                     <nav class="header-file-nav" aria-label="Project">
                         <button
                             id="saveProgressBtn"
-                            class="header-file-btn"
-                            title="Save Progress (Ctrl/Cmd+S)"
+                            class="header-file-btn instant-hint"
+                            data-hint="Save Progress (Ctrl/Cmd+S)"
                         >
                             Save
                         </button>
                         <button
                             id="loadProgressBtn"
-                            class="header-file-btn"
-                            title="Load Progress (Ctrl/Cmd+L)"
+                            class="header-file-btn instant-hint"
+                            data-hint="Load Progress (Ctrl/Cmd+L)"
                         >
                             Load
                         </button>
                         <button
                             id="saveLocalBtn"
-                            class="header-file-btn"
-                            title="Save to local file"
+                            class="header-file-btn instant-hint"
+                            data-hint="Save to local file"
                         >
                             Save local
                         </button>
                         <button
                             id="openCloudBtn"
-                            class="header-file-btn"
-                            title="Open a saved project"
+                            class="header-file-btn instant-hint"
+                            data-hint="Open a saved project"
                         >
                             Open cloud
                         </button>
@@ -133,8 +133,8 @@
                         <button
                             type="button"
                             id="shortcutsTopBtn"
-                            class="header-shortcuts-btn"
-                            title="Keyboard shortcuts (?)"
+                            class="header-shortcuts-btn instant-hint"
+                            data-hint="Keyboard shortcuts (?)"
                             aria-label="Keyboard shortcuts"
                         >?</button>
                     </nav>
@@ -183,18 +183,17 @@
 
             <div class="header-right">
                 <button id="selectAllBtn" title="Select All (Ctrl/Cmd+A). Deselect: Esc">Select All</button>
-                <span class="filter-by-name-wrap">
+                <span class="filter-by-name-wrap hint-tooltip-wrap">
                     <input
                         id="filterByNameInput"
                         type="text"
                         placeholder="Select by filename…"
-                        title="Selects every mockup using the same design file. Edits apply to all of them so the design sits consistently on matching mockup photos."
                     />
                     <span
                         class="hint-icon"
-                        title="Selects every mockup using the same design file. Edits apply to all of them so the design sits consistently on matching mockup photos."
                         aria-label="How select by filename works"
                     >i</span>
+                    <span class="hint-tooltip hint-tooltip--below">Selects every mockup using the same design file. Edits apply to all of them so the design sits consistently on matching mockup photos.</span>
                 </span>
                 <span id="headerProMockupCount" class="header-pro-count" hidden></span>
                 <span class="export-wrap export-wrap-primary">
@@ -376,8 +375,10 @@
                 <svg id="guideOverlaySvg"></svg>
             </div>
             <div id="minimap" hidden>
+                <button type="button" id="minimapCollapseBtn" title="Hide minimap" aria-label="Hide minimap">×</button>
                 <canvas id="minimapCanvas"></canvas>
             </div>
+            <button type="button" id="minimapTeaser" title="Show minimap" hidden aria-label="Show minimap">▣</button>
         </div>
         <!-- /#viewportWrapper -->
 
@@ -542,7 +543,7 @@
                 </div>
 
                 <div class="cp-section lock-sensitive" data-section-id="effects">
-                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Effects <span class="pro-badge">⭐ PRO</span></div>
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Effects <span class="pro-badge-wrap"><span class="pro-badge">⭐ PRO</span><span class="pro-badge-tip">Pro effects — upgrade to export mockups with these settings</span></span></div>
                     <label
                         >Cylinder Warp
                         <input
@@ -667,7 +668,7 @@
 
                 <!-- ── Clipping ───────────────────────────────────────────────────── -->
                 <div class="cp-section lock-sensitive" data-section-id="clipping" data-block-collapse="clip">
-                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Clipping <span class="pro-badge">⭐ PRO</span></div>
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Clipping <span class="pro-badge-wrap"><span class="pro-badge">⭐ PRO</span><span class="pro-badge-tip">Pro effects — upgrade to export mockups with clipping</span></span></div>
                     <button id="editClipBtn">Edit Clipping <span class="btn-kbd">(C)</span></button>
                     <button
                         id="addClipAreaBtn"
@@ -708,7 +709,7 @@
 
                 <!-- ── Painting ────────────────────────────────────────────────────── -->
                 <div class="cp-section lock-sensitive" data-section-id="painting" data-block-collapse="paint">
-                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Painting <span class="pro-badge">⭐ PRO</span></div>
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Painting <span class="pro-badge-wrap"><span class="pro-badge">⭐ PRO</span><span class="pro-badge-tip">Pro effects — upgrade to export mockups with paint and eraser</span></span></div>
                     <button id="designEraserBtn">Eraser <span class="btn-kbd">(E)</span></button>
                     <span
                         id="designEraserControls"
@@ -887,13 +888,9 @@
                         tabindex="0"
                         role="button"
                         aria-expanded="true"
-                        style="
-                            display: flex;
-                            justify-content: space-between;
-                            align-items: center;
-                        "
-                    >
-                        <span>Create Pattern <span class="pro-badge">⭐ PRO</span> <span class="btn-kbd">(P)</span></span>
+                    >Create Pattern <span class="pro-badge-wrap"><span class="pro-badge">⭐ PRO</span><span class="pro-badge-tip">Pro effects — upgrade to export mockups using pattern mode</span></span> <span class="btn-kbd">(P)</span></div>
+                    <div class="pattern-toggle-row">
+                        <span class="pattern-toggle-label">Pattern mode</span>
                         <label class="cp-toggle-switch">
                             <input type="checkbox" id="patternModeToggle" />
                             <span class="cp-toggle-track"
@@ -1074,7 +1071,7 @@
                 </div>
 
                 <div class="cp-section lock-sensitive" id="bgCropSection" data-section-id="framing">
-                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Framing <span class="pro-badge">⭐ PRO</span></div>
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Framing <span class="pro-badge-wrap"><span class="pro-badge">⭐ PRO</span><span class="pro-badge-tip">Pro effects — upgrade to export mockups with custom framing</span></span></div>
                     <div class="bg-crop-aspect-row">
                         <button class="bg-aspect-btn" data-aspect="1">
                             1:1
@@ -1183,7 +1180,7 @@
                 </div>
 
                 <div class="cp-section lock-sensitive" id="bgAdjustSection" data-section-id="bg-adjust">
-                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Background Adjustments <span class="pro-badge">⭐ PRO</span></div>
+                    <div class="cp-section-title cp-section-title--toggle" tabindex="0" role="button" aria-expanded="true">Background Adjustments <span class="pro-badge-wrap"><span class="pro-badge">⭐ PRO</span><span class="pro-badge-tip">Pro effects — upgrade to export mockups with background adjustments</span></span></div>
                     <div class="bg-adj-row">
                         <label>Hue</label>
                         <input
