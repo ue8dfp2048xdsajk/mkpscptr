@@ -264,6 +264,22 @@ function _deselectAll(){
     updateSelectButtonState();
 }
 
+function _isEmptyViewportMouseTarget(e) {
+    if (e.button !== 0) return false;
+    if (_vpSpaceDown) return false;
+    if (clipEditMode || colorLayerMode || designEraserMode) return false;
+    if (_mouseDownOnControl) return false;
+    if (e.target.closest('.canvas-wrapper')) return false;
+    if (e.target.closest('.window-cell')) return false;
+    if (e.target.closest('.canvas-text-box')) return false;
+    if (e.target.closest('.drag-handle')) return false;
+    if (e.target.closest('.sticky-header')) return false;
+    if (e.target.closest('#contextPanel')) return false;
+    if (e.target.closest('#notesDrawer') || e.target.closest('#notesTab')) return false;
+    if (e.target.closest('#minimap')) return false;
+    return true;
+}
+
 // Track whether the most recent mousedown started on a form control (input,
 // select, textarea, button).  When the user drags a number input so fast that
 // the mouse leaves the browser window, the browser may synthesise a click on
@@ -9156,20 +9172,29 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
     }
 
     // ── Tool toggle ──────────────────────────────────────────────────────────
-    function setTool(tool) {
-        _activeTool = (_activeTool === tool) ? null : tool;
+    function _applyToolUI() {
         textBtn.classList.toggle('tool-active',   _activeTool === 'text');
         selectBtn.classList.toggle('tool-active', _activeTool === 'select');
         panBtn.classList.toggle('tool-active',    _activeTool === 'pan');
-        // Disable Fabric pointer events while a tool is active so drags don't
-        // accidentally move designs.
         cc.style.pointerEvents = (_activeTool !== null) ? 'none' : '';
         vw.style.cursor = _activeTool === 'pan'    ? 'grab'
                         : _activeTool === 'select' ? 'crosshair'
                         : _activeTool === 'text'   ? 'text'
                         : '';
     }
-    window._setActiveTool = setTool;
+
+    function setTool(tool) {
+        _activeTool = (_activeTool === tool) ? null : tool;
+        _applyToolUI();
+    }
+
+    function forceTool(tool) {
+        _activeTool = tool;
+        _applyToolUI();
+    }
+
+    window._setActiveTool  = setTool;
+    window._forceActiveTool = forceTool;
 
     textBtn.addEventListener('click',   () => setTool('text'));
     selectBtn.addEventListener('click', () => setTool('select'));
@@ -9177,15 +9202,43 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
     // ── Marquee select ───────────────────────────────────────────────────────
     let _selStart = null, _selDragging = false;
+    let _autoMarqueePending = false;
+    let _autoMarqueeStart   = null;
 
     vw.addEventListener('mousedown', e => {
-        if (_activeTool !== 'select' || e.button !== 0) return;
-        e.preventDefault();
-        _selStart    = { x: e.clientX, y: e.clientY };
-        _selDragging = false;
+        if (e.button !== 0) return;
+
+        if (_activeTool === 'select') {
+            e.preventDefault();
+            _autoMarqueePending = false;
+            _autoMarqueeStart   = null;
+            _selStart    = { x: e.clientX, y: e.clientY };
+            _selDragging = false;
+            return;
+        }
+
+        if (_activeTool === null && _isEmptyViewportMouseTarget(e)) {
+            _autoMarqueePending = true;
+            _autoMarqueeStart   = { x: e.clientX, y: e.clientY };
+            _selStart    = null;
+            _selDragging = false;
+        }
     });
 
     document.addEventListener('mousemove', e => {
+        if (_autoMarqueePending && _autoMarqueeStart && !_selStart) {
+            const dx = Math.abs(e.clientX - _autoMarqueeStart.x);
+            const dy = Math.abs(e.clientY - _autoMarqueeStart.y);
+            if (dx > 3 || dy > 3) {
+                forceTool('select');
+                _selStart           = { x: _autoMarqueeStart.x, y: _autoMarqueeStart.y };
+                _selDragging        = true;
+                _autoMarqueePending = false;
+                _autoMarqueeStart   = null;
+                rb.style.display    = 'block';
+            }
+        }
+
         if (!_selStart || _activeTool !== 'select') return;
         if (!_selDragging &&
             (Math.abs(e.clientX - _selStart.x) > 3 || Math.abs(e.clientY - _selStart.y) > 3)) {
@@ -9196,48 +9249,50 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
     });
 
     document.addEventListener('mouseup', e => {
-        if (_activeTool !== 'select' || !_selStart) return;
-        rb.style.display = 'none';
+        if (_activeTool === 'select' && _selStart) {
+            rb.style.display = 'none';
 
-        if (_selDragging) {
-            const rx1 = Math.min(_selStart.x, e.clientX);
-            const ry1 = Math.min(_selStart.y, e.clientY);
-            const rx2 = Math.max(_selStart.x, e.clientX);
-            const ry2 = Math.max(_selStart.y, e.clientY);
+            if (_selDragging) {
+                const rx1 = Math.min(_selStart.x, e.clientX);
+                const ry1 = Math.min(_selStart.y, e.clientY);
+                const rx2 = Math.max(_selStart.x, e.clientX);
+                const ry2 = Math.max(_selStart.y, e.clientY);
 
-            // Record the pre-selection state for undo
-            globalUndoStack.push({ type: 'selection', prevActiveIndices: [...activeIndices] });
-            if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
-            globalRedoStack = [];
-            updateUndoRedoButtons();
+                globalUndoStack.push({ type: 'selection', prevActiveIndices: [...activeIndices] });
+                if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+                globalRedoStack = [];
+                updateUndoRedoButtons();
 
-            // Find windows whose wrappers intersect the rubber-band rect
-            const newIndices = [];
-            canvasData.forEach((d, i) => {
-                if (!d.wrapperEl) return;
-                const wr = d.wrapperEl.getBoundingClientRect();
-                if (wr.right > rx1 && wr.left < rx2 && wr.bottom > ry1 && wr.top < ry2) {
-                    newIndices.push(i);
-                }
-            });
+                const newIndices = [];
+                canvasData.forEach((d, i) => {
+                    if (!d.wrapperEl) return;
+                    const wr = d.wrapperEl.getBoundingClientRect();
+                    if (wr.right > rx1 && wr.left < rx2 && wr.bottom > ry1 && wr.top < ry2) {
+                        newIndices.push(i);
+                    }
+                });
 
-            activeIndices = newIndices;
-            lastSelectedIndex = canvasData[newIndices[newIndices.length - 1]] ?? null;
-            selectedDesigns.clear();
-            activeIndices.forEach(i => {
-                const d = canvasData[i];
-                if (d?.designObject && !d.locked) selectedDesigns.add(d.designObject);
-            });
-            refreshFabricHandles();
-            updateWindowBorders();
-            updateLayerButtons();
-            syncSliders();
-            updateSelectButtonState();
-            suppressNextWrapperClick = true;
+                activeIndices = newIndices;
+                lastSelectedIndex = canvasData[newIndices[newIndices.length - 1]] ?? null;
+                selectedDesigns.clear();
+                activeIndices.forEach(i => {
+                    const d = canvasData[i];
+                    if (d?.designObject && !d.locked) selectedDesigns.add(d.designObject);
+                });
+                refreshFabricHandles();
+                updateWindowBorders();
+                updateLayerButtons();
+                syncSliders();
+                updateSelectButtonState();
+                suppressNextWrapperClick = true;
+            }
+
+            _selStart    = null;
+            _selDragging = false;
         }
 
-        _selStart    = null;
-        _selDragging = false;
+        _autoMarqueePending = false;
+        _autoMarqueeStart   = null;
     });
 
     // ── Hand pan tool ────────────────────────────────────────────────────────
