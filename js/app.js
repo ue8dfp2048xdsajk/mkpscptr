@@ -100,7 +100,7 @@ var designEraserMode     = false;  // true while design-layer eraser is active
 var designEraserDown     = false;  // true while mouse button held in eraser mode
 var designEraserSize     = 30;     // eraser radius in CSS pixels (visual size on screen)
 var designEraserSoftness = 0;      // 0 = hard edge, 100 = fully soft
-var eraserTargetObjects  = new Set(); // design objects selected at eraser-entry time
+var eraserTargetObject   = null;   // single design layer locked at eraser-entry time
 
 var designWarpMode   = false;      // true while free-form mesh warp is active
 var warpActiveData   = null;       // canvasData entry that owns the warp session
@@ -809,7 +809,10 @@ function _resetObjectPipelineCaches(obj) {
 // Apply the full blur → noise → warp → perspective pipeline to ONE design
 // object using its own _fx bag.  Called both from the design-mode slider
 // handler (only the selected object) and from applyWarpToData (extra objects).
-function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
+function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality, opts){
+
+    opts = opts || {};
+    const skipTrimComp = !!opts.skipTrimComp;
 
     const fx = obj._fx || _defaultFx(data);
 
@@ -933,7 +936,7 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     let adjTop  = prevTop;
     // Only when warp output changed — not on perspective-only updates (avoids
     // re-applying trim offset every frame, which makes layers jump while dragging).
-    if (arcA === 0 && warpA === 0 && warpDirty) {
+    if (!skipTrimComp && arcA === 0 && warpA === 0 && warpDirty) {
         // Cache trim of srcOriginal: only re-run getImageData when the source changes
         // (e.g. after an eraser stroke), not on every slider-drag render.
         let srcTrimmed;
@@ -960,7 +963,7 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality){
     }
 
     // Keep visual center stable when perspective output size changes (no warp re-run).
-    if (arcA === 0 && warpA === 0 && !warpDirty && perspChanged &&
+    if (!skipTrimComp && arcA === 0 && warpA === 0 && !warpDirty && perspChanged &&
         prevPerspW != null && prevPerspH != null) {
         const dW = warped.width - prevPerspW;
         const dH = warped.height - prevPerspH;
@@ -2829,19 +2832,13 @@ function attachFabricEvents(data, targetObject = null){
         // Objects are made non-selectable on entry so clicks go straight to these handlers.
         data.fabricCanvas.on('mouse:down', (opt) => {
             if (!designEraserMode) return;
+            const targetData = eraserTargetObject?._ownerData;
+            if (!targetData || targetData !== data) return;
 
-            // Snapshot ONCE at the very start of each stroke (before any pixels change).
-            // Always includes this canvas's window (index) so that erasing on a window
-            // that wasn't in activeIndices at entry time is still undoable.
+            // Snapshot once at stroke start (target window only).
             if (!designEraserDown) {
                 const index = canvasData.indexOf(data);
-                const toCapture = new Set([...activeIndices, index]);
-                const items = [];
-                toCapture.forEach(i => {
-                    const d = canvasData[i];
-                    if (!d || d.locked) return;
-                    items.push({ idx: i, snap: _captureEraserSnapshot(d) });
-                });
+                const items = [{ idx: index, snap: _captureEraserSnapshot(data) }];
                 if (items.length) {
                     globalUndoStack.push({ type: 'eraser', items });
                     if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
@@ -2861,24 +2858,7 @@ function attachFabricEvents(data, targetObject = null){
             if (designEraserMode) {
                 designEraserDown = false;
                 _syncProEffect(data);
-                // When warp was active during erasing, applyDesignEraserAt only
-                // updated the display element for performance.  Now that the stroke
-                // is finished, rebuild the full pipeline from the erased source so
-                // future blur/noise/warp changes all start from the correct state.
-                // Flush this window plus every other window that was synced during
-                // the stroke (they may also have _erasePendingRebuild set).
-                if (data._erasePendingRebuild) {
-                    data._erasePendingRebuild = false;
-                    applyWarpToData(data, false);
-                }
-                activeIndices.forEach(i => {
-                    const d = canvasData[i];
-                    if (!d || d === data) return;
-                    if (d._erasePendingRebuild) {
-                        d._erasePendingRebuild = false;
-                        applyWarpToData(d, false);
-                    }
-                });
+                _flushEraserPendingRebuild();
             }
         });
 
@@ -4853,7 +4833,7 @@ document.getElementById("designEraserBtn").addEventListener("click", () => {
     if (designEraserMode) {
         exitDesignEraserMode();
     } else {
-        enterDesignEraserMode();
+        tryEnterDesignEraserMode();
     }
 });
 
@@ -5994,8 +5974,7 @@ document.addEventListener('keydown', function(e){
     if(designEraserMode) {
         exitDesignEraserMode();
     } else {
-        if(!activeIndices.length) return;
-        enterDesignEraserMode();
+        tryEnterDesignEraserMode();
     }
 });
 
