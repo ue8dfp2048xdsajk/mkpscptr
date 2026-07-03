@@ -133,6 +133,8 @@ PRO status is **derived from live window state**. `_syncProEffect(data)` sets `h
 
 **Starter paste:** sets `forceProBadge = true` on target (even blur-only) until reset or a real PRO effect clears it. Paste Layer and Paste Effects call `_applyPasteProSync` **before** the warp/effect pipeline so the ⭐ badge is immediate; `_finishPasteProSync` runs after apply for accurate gating and watermark render.
 
+**Paste Layer:** copying the main design and pasting onto a window that already has a design stacks it as an overlay layer; pasting onto an empty mockup replaces the main design.
+
 **Undo:** snapshots `designOriginal` / extra originals; eraser and standard undo call `_syncProEffect` after restore.
 
 **After JSON or cloud load:** `_syncProEffect` runs per window (live state is authoritative).

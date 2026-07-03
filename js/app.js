@@ -4256,7 +4256,7 @@ document.getElementById('flipVBtn').addEventListener('click', () => flipSelected
 
 // ── Copy / Paste Layer ─────────────────────────────────────────────────────────
 // Stores the last "Copy Layer" payload so the user can paste it into other windows.
-// type:'design' → replaces the window's main design
+// type:'design' → replaces main design when target is empty; stacks as overlay otherwise
 // type:'extra'  → appended as an overlay layer on top of the existing design
 var _copiedLayer = null;
 
@@ -4336,6 +4336,78 @@ function _copyCurrentLayer(){
     updateLayerButtons();
 }
 
+function _clonePastedLayerSource(srcEl) {
+    if (!srcEl) return null;
+    const w = srcEl.width ?? srcEl.naturalWidth ?? 1;
+    const h = srcEl.height ?? srcEl.naturalHeight ?? 1;
+    const copy = document.createElement('canvas');
+    copy.width  = w;
+    copy.height = h;
+    copy.getContext('2d').drawImage(srcEl, 0, 0, w, h);
+    return copy;
+}
+
+function _fxFromCopiedLayer(cl) {
+    if (cl.fx) return JSON.parse(JSON.stringify(cl.fx));
+    return {
+        warpAmount:      cl.designWarpAmount      ?? 0,
+        arcAmount:       cl.designArcAmount       ?? 0,
+        arcTilt:         cl.designArcTilt         ?? 0,
+        perspectiveTop:  cl.designPerspectiveTop  ?? 0,
+        perspectiveLeft: cl.designPerspectiveLeft ?? 0,
+        opacity:         1,
+        blurAmount:      0,
+        noiseAmount:     0,
+        blendMode:       'normal',
+    };
+}
+
+// Append a copied layer as an overlay (extraDesignObjects) on a window that already has a design.
+function _appendPastedLayerAsExtra(d, cl, srcEl) {
+    if (!d.designObject || !srcEl) return null;
+
+    let layerSrc = _clonePastedLayerSource(srcEl);
+    if (cl.type === 'design') {
+        const flipStub = { flipX: !!cl.designFlipX, flipY: !!cl.designFlipY };
+        layerSrc = _cachedFlip(flipStub, layerSrc);
+    }
+
+    const fx    = _fxFromCopiedLayer(cl);
+    const angle = cl.type === 'design'
+        ? (cl.designRotation ?? cl.angle ?? 0)
+        : (cl.angle ?? 0);
+
+    const fabricImg = new fabric.Image(layerSrc, {
+        left:   cl.srcLeft,
+        top:    cl.srcTop,
+        scaleX: cl.srcScaleX,
+        scaleY: cl.srcScaleY,
+        angle,
+        skewX:  cl.type === 'design' ? (cl.designSkewX ?? 0) : 0,
+        skewY:  cl.type === 'design' ? (cl.designSkewY ?? 0) : 0,
+        opacity: fx.opacity ?? 1,
+        globalCompositeOperation: _blendToGCO(fx.blendMode),
+        originX: 'center',
+        originY: 'center',
+    });
+    fabricImg._uploadedDesignName = cl.name || 'pasted_layer';
+    fabricImg._fx = fx;
+    _resetObjectPipelineCaches(fabricImg);
+
+    d.extraDesignObjects   = d.extraDesignObjects   || [];
+    d.extraDesignOriginals = d.extraDesignOriginals || [];
+    d.extraDesignObjects.push(fabricImg);
+    d.extraDesignOriginals.push(layerSrc);
+
+    _applyWarpToOneObject(fabricImg, d, layerSrc, false);
+    _applyExtraLayerHandleStyle(fabricImg, 'overlay');
+    applyClipMaskToObject(fabricImg, d);
+    d.fabricCanvas.add(fabricImg);
+    attachFabricEvents(d, fabricImg);
+    d.fabricCanvas.requestRenderAll();
+    return fabricImg;
+}
+
 async function _pasteLayerToTargets(){
     if (!_copiedLayer || !activeIndices.length) return;
 
@@ -4364,10 +4436,11 @@ async function _pasteLayerToTargets(){
     }
 
     const layerPayloadIsPro = _copiedLayerPayloadIsPro(_copiedLayer);
+    const cl = _copiedLayer;
+    const pastedObjs = [];
 
-    if (_copiedLayer.type === 'design'){
-        // ── Replace main design in each target window ──────────────────────
-        let srcEl = _copiedLayer.el;
+    if (cl.type === 'design'){
+        let srcEl = cl.el;
         if (!(srcEl instanceof HTMLCanvasElement)){
             const tmp = document.createElement('canvas');
             tmp.width  = srcEl.naturalWidth  || srcEl.width  || 1;
@@ -4377,6 +4450,12 @@ async function _pasteLayerToTargets(){
         }
         for (const d of targets){
             _applyPasteProSync(d, _userPlan, layerPayloadIsPro);
+            if (d.designObject) {
+                const added = _appendPastedLayerAsExtra(d, cl, srcEl);
+                if (added) pastedObjs.push(added);
+                _finishPasteProSync(d);
+                continue;
+            }
             if (d.patternMode || d.patternFabricObj) _togglePatternMode(d, false);
             const fc   = d.fabricCanvas;
             const W    = fc.getWidth();
@@ -4392,7 +4471,6 @@ async function _pasteLayerToTargets(){
             cCtx.drawImage(srcEl, 0, 0, W * dpr, H * dpr);
             d.designOriginal = copy;
             d.warpCanvas     = null;
-            const cl = _copiedLayer;
             d.x          = cl.srcLeft;
             d.y          = cl.srcTop;
             d.scaleX     = cl.srcScaleX / tps;
@@ -4411,39 +4489,21 @@ async function _pasteLayerToTargets(){
             _finishPasteProSync(d);
         }
     } else {
-        // ── Append as an overlay layer in each target window ───────────────
-        const srcEl = _copiedLayer.el;
-        const cl = _copiedLayer;
         for (const d of targets){
             if (!d.designObject) continue;
             _applyPasteProSync(d, _userPlan, layerPayloadIsPro);
-            const fabricImg = new fabric.Image(srcEl, {
-                left:   cl.srcLeft,
-                top:    cl.srcTop,
-                scaleX: cl.srcScaleX,
-                scaleY: cl.srcScaleY,
-                angle:  cl.angle ?? 0,
-                opacity: cl.fx?.opacity ?? 1,
-                globalCompositeOperation: 'source-over',
-                originX: 'center',
-                originY: 'center',
-            });
-            fabricImg._uploadedDesignName = cl.name || 'pasted_layer';
-            fabricImg._fx = cl.fx
-                ? JSON.parse(JSON.stringify(cl.fx))
-                : { warpAmount: 0, arcAmount: 0, arcTilt: 0,
-                    perspectiveTop: 0, perspectiveLeft: 0,
-                    opacity: 1, blurAmount: 0, noiseAmount: 0, blendMode: 'normal' };
-            d.extraDesignObjects   = d.extraDesignObjects   || [];
-            d.extraDesignOriginals = d.extraDesignOriginals || [];
-            d.extraDesignObjects.push(fabricImg);
-            d.extraDesignOriginals.push(srcEl);
-            _applyExtraLayerHandleStyle(fabricImg, 'overlay');
-            applyClipMaskToObject(fabricImg, d);
-            d.fabricCanvas.add(fabricImg);
-            attachFabricEvents(d, fabricImg);
+            const added = _appendPastedLayerAsExtra(d, cl, cl.el);
+            if (added) pastedObjs.push(added);
             _finishPasteProSync(d);
         }
+    }
+
+    if (pastedObjs.length) {
+        selectedDesigns.clear();
+        pastedObjs.forEach(obj => selectedDesigns.add(obj));
+        refreshFabricHandles();
+        updateWindowBorders();
+        updateLayerButtons();
     }
 
     _copiedLayer = null;

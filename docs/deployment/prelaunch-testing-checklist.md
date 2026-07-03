@@ -124,6 +124,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Starter: Paste Layer / Paste Effects from PRO source → ⭐ appears immediately (no slider nudge); watermark on first canvas render after paste
 - [ ] Starter: click between window backgrounds → watermarks stay on all PRO-gated windows (no vanish until pan)
 - [ ] Copy/Paste Effects does **not** change position, scale, or rotation on target
+- [ ] Paste Layer onto window that already has a design → stacks as new overlay (original design kept); empty window → replaces main design
 - [ ] Copy/Paste Effects copies opacity, warp, blend, pattern settings, invert (not flip H/V)
 - [ ] Invert → undo → no ⭐, Starter export allowed, image not inverted
 - [ ] Eraser → undo (pristine art) → no ⭐, Starter export allowed
