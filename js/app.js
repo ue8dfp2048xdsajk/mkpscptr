@@ -349,10 +349,45 @@ var bgContrast   = document.getElementById('bgContrast');
 
 
 // performance throttling
-var warpFramePending = false;
-var pendingWarpUpdate = false;
 var globalHQTimer = null;
 var activeSliderType = null;
+
+// Tier A: paint coalesce only — geometry/state updates remain immediate on every event.
+var _renderCoalesceRaf = null;
+var _renderCoalesceQueue = new Map(); // fabricCanvas → { data, patternLQ }
+
+function _scheduleCanvasRender(data, { patternLQ = false } = {}) {
+    if (!data?.fabricCanvas) return;
+    const key = data.fabricCanvas;
+    const prev = _renderCoalesceQueue.get(key);
+    if (prev) {
+        prev.patternLQ = prev.patternLQ || patternLQ;
+    } else {
+        _renderCoalesceQueue.set(key, { data, patternLQ });
+    }
+    if (_renderCoalesceRaf === null) {
+        _renderCoalesceRaf = requestAnimationFrame(_flushCanvasRenderCoalesce);
+    }
+}
+
+function _flushCanvasRenderCoalesce() {
+    _renderCoalesceRaf = null;
+    if (!_renderCoalesceQueue.size) return;
+    const entries = Array.from(_renderCoalesceQueue.values());
+    _renderCoalesceQueue.clear();
+    entries.forEach(({ data, patternLQ }) => {
+        if (patternLQ && data.patternMode) _renderPattern(data, true);
+        data.fabricCanvas.requestRenderAll();
+    });
+}
+
+function _cancelCanvasRenderCoalesce() {
+    if (_renderCoalesceRaf !== null) {
+        cancelAnimationFrame(_renderCoalesceRaf);
+        _renderCoalesceRaf = null;
+    }
+    _renderCoalesceQueue.clear();
+}
 
 // marching ants animation
 var _marchingAntsTimer  = null;
@@ -884,8 +919,7 @@ function _applyCrossWindowGeometrySync(driverObj, driverData) {
         const peer = _selectedLayersForWindow(d)[0];
         if (!peer || peer === driverObj) return;
         _applyFabricGeometry(peer, geo);
-        if (d.patternMode && peer === d.designObject) _renderPattern(d, true);
-        d.fabricCanvas.requestRenderAll();
+        _scheduleCanvasRender(d, { patternLQ: d.patternMode && peer === d.designObject });
     });
 }
 
@@ -912,10 +946,13 @@ function _applyDesignMoveDelta(data, driverObj, deltaX, deltaY) {
             if(canvasData[index].locked) return;
 
             const target = canvasData[index];
+            const targetExtras = target.extraDesignObjects || [];
+            const targetExtraIndex = new Map();
+            targetExtras.forEach((obj, i) => targetExtraIndex.set(obj, i));
 
             getAllDesignObjects(target).forEach(obj=>{
-                if((target.extraDesignObjects||[]).includes(obj)){
-                    const idx     = (target.extraDesignObjects||[]).indexOf(obj);
+                if(targetExtraIndex.has(obj)){
+                    const idx = targetExtraIndex.get(obj);
                     const srcPeer = (data.extraDesignObjects||[])[idx];
                     if(srcPeer && !selectedDesigns.has(srcPeer)) return;
                 }
@@ -923,8 +960,7 @@ function _applyDesignMoveDelta(data, driverObj, deltaX, deltaY) {
                 obj.top  += deltaY;
             });
 
-            if(target.patternMode) _renderPattern(target, true);
-            target.fabricCanvas.requestRenderAll();
+            _scheduleCanvasRender(target, { patternLQ: target.patternMode });
         });
 
     } else {
@@ -952,7 +988,7 @@ function _applyDesignMoveDelta(data, driverObj, deltaX, deltaY) {
                 peer.setCoords();
             }
 
-            canvasData[index].fabricCanvas.requestRenderAll();
+            _scheduleCanvasRender(canvasData[index]);
         });
     }
 }
@@ -1020,9 +1056,9 @@ function _nudgeSelectedDesigns(dx, dy) {
         const mainNudged = drivers.some(
             ({ data, driver }) => data === d && driver === d.designObject
         );
-        if (d.patternMode && mainNudged) _renderPattern(d, true);
-        d.fabricCanvas.requestRenderAll();
+        _scheduleCanvasRender(d, { patternLQ: d.patternMode && mainNudged });
     });
+    _flushCanvasRenderCoalesce();
 
     _markDirty();
     autoSaveSession();
@@ -2141,7 +2177,7 @@ var _bgAdjUndoLocked = false;
         if(!_bgAdjUndoLocked){ _bgAdjUndoLocked = true; pushGlobalUndo(); }
     });
     el.addEventListener('mouseup', () => { _bgAdjUndoLocked = false; });
-    el.addEventListener('input', _updateBgAdjust);
+    el.addEventListener('input', _scheduleBgAdjustFlush);
     el.addEventListener('input', () => {
         activeIndices.forEach(i => { if(canvasData[i]) _recomputeProEffect(canvasData[i]); });
     });
@@ -2163,7 +2199,7 @@ var _bgCropUndoLocked = false;
         if(!_bgCropUndoLocked){ _bgCropUndoLocked = true; pushGlobalUndo(); }
     });
     el.addEventListener('mouseup', () => { _bgCropUndoLocked = false; });
-    el.addEventListener('input', _updateBgCrop);
+    el.addEventListener('input', _scheduleBgCropFlush);
     el.addEventListener('input', () => {
         activeIndices.forEach(i => { if(canvasData[i]) _recomputeProEffect(canvasData[i]); });
     });
@@ -3166,6 +3202,7 @@ function attachFabricEvents(data, targetObject = null){
 
         const deltaX = designTarget.left - (designTarget.lastLeft || designTarget.left);
         const deltaY = designTarget.top  - (designTarget.lastTop  || designTarget.top);
+        if (deltaX === 0 && deltaY === 0) return;
 
         _applyDesignMoveDelta(data, designTarget, deltaX, deltaY);
 
@@ -3174,7 +3211,7 @@ function attachFabricEvents(data, targetObject = null){
 
         scheduleAlignmentGuidesUpdate(data, designTarget);
 
-        data.fabricCanvas.requestRenderAll();
+        _scheduleCanvasRender(data);
     });
 
     designTarget.on('mousedown', ()=>{
@@ -3182,6 +3219,11 @@ function attachFabricEvents(data, targetObject = null){
         suppressNextWrapperClick = true;
         designTarget.lastLeft = designTarget.left;
         designTarget.lastTop  = designTarget.top;
+        designTarget.lastScaleX = designTarget.scaleX;
+        designTarget.lastScaleY = designTarget.scaleY;
+        designTarget.lastSkewX  = designTarget.skewX || 0;
+        designTarget.lastSkewY  = designTarget.skewY || 0;
+        designTarget.lastAngle  = designTarget.angle || 0;
         designTarget._hadDragMovement = false;
         // Capture pre-gesture state for all active windows.
         // We don't push to the undo stack yet — we wait to see if the user
@@ -3194,6 +3236,7 @@ function attachFabricEvents(data, targetObject = null){
     });
 
     designTarget.on('mouseup', ()=>{
+        _flushCanvasRenderCoalesce();
         if(designTarget._hadDragMovement && designTarget._preDragUndoEntry){
             globalUndoStack.push(designTarget._preDragUndoEntry);
             if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
@@ -3221,12 +3264,22 @@ function attachFabricEvents(data, targetObject = null){
         const deltaX = left - (designTarget.lastLeft || left);
         const deltaY = top  - (designTarget.lastTop  || top);
 
+        if (deltaX === 0 && deltaY === 0 &&
+            scaleX === (designTarget.lastScaleX ?? scaleX) &&
+            scaleY === (designTarget.lastScaleY ?? scaleY) &&
+            skewX  === (designTarget.lastSkewX  ?? skewX) &&
+            skewY  === (designTarget.lastSkewY  ?? skewY)) return;
+
         if (_canCrossWindowSync()) {
             _syncAttachedLayersInDriverWindow(data, designTarget);
             _applyCrossWindowGeometrySync(designTarget, data);
             designTarget.lastLeft = left;
             designTarget.lastTop  = top;
-            data.fabricCanvas.requestRenderAll();
+            designTarget.lastScaleX = scaleX;
+            designTarget.lastScaleY = scaleY;
+            designTarget.lastSkewX  = skewX;
+            designTarget.lastSkewY  = skewY;
+            _scheduleCanvasRender(data);
             return;
         }
 
@@ -3253,10 +3306,13 @@ function attachFabricEvents(data, targetObject = null){
                 if(canvasData[index].locked) return;
 
                 const target = canvasData[index];
+                const targetExtras = target.extraDesignObjects || [];
+                const targetExtraIndex = new Map();
+                targetExtras.forEach((obj, i) => targetExtraIndex.set(obj, i));
 
                 getAllDesignObjects(target).forEach(obj=>{
-                    if((target.extraDesignObjects||[]).includes(obj)){
-                        const idx     = (target.extraDesignObjects||[]).indexOf(obj);
+                    if(targetExtraIndex.has(obj)){
+                        const idx = targetExtraIndex.get(obj);
                         const srcPeer = (data.extraDesignObjects||[])[idx];
                         if(srcPeer && !selectedDesigns.has(srcPeer)) return;
                     }
@@ -3269,8 +3325,7 @@ function attachFabricEvents(data, targetObject = null){
                     obj.setCoords();
                 });
 
-                if(target.patternMode) _renderPattern(target, true);
-                target.fabricCanvas.requestRenderAll();
+                _scheduleCanvasRender(target, { patternLQ: target.patternMode });
             });
 
         } else {
@@ -3307,25 +3362,31 @@ function attachFabricEvents(data, targetObject = null){
                     peer.setCoords();
                 }
 
-                canvasData[index].fabricCanvas.requestRenderAll();
+                _scheduleCanvasRender(canvasData[index]);
             });
         }
 
         designTarget.lastLeft = left;
         designTarget.lastTop  = top;
+        designTarget.lastScaleX = scaleX;
+        designTarget.lastScaleY = scaleY;
+        designTarget.lastSkewX  = skewX;
+        designTarget.lastSkewY  = skewY;
 
-        data.fabricCanvas.requestRenderAll();
+        _scheduleCanvasRender(data);
     });
 
     designTarget.on('rotating', ()=>{
         designTarget._hadDragMovement = true;
 
         const angle = designTarget.angle;
+        if (angle === (designTarget.lastAngle ?? angle)) return;
 
         if (_canCrossWindowSync()) {
             _syncAttachedLayersInDriverWindow(data, designTarget);
             _applyCrossWindowGeometrySync(designTarget, data);
-            data.fabricCanvas.requestRenderAll();
+            designTarget.lastAngle = angle;
+            _scheduleCanvasRender(data);
             return;
         }
 
@@ -3344,10 +3405,13 @@ function attachFabricEvents(data, targetObject = null){
                 if(canvasData[index].locked) return;
 
                 const target = canvasData[index];
+                const targetExtras = target.extraDesignObjects || [];
+                const targetExtraIndex = new Map();
+                targetExtras.forEach((obj, i) => targetExtraIndex.set(obj, i));
 
                 getAllDesignObjects(target).forEach(obj=>{
-                    if((target.extraDesignObjects||[]).includes(obj)){
-                        const idx     = (target.extraDesignObjects||[]).indexOf(obj);
+                    if(targetExtraIndex.has(obj)){
+                        const idx = targetExtraIndex.get(obj);
                         const srcPeer = (data.extraDesignObjects||[])[idx];
                         if(srcPeer && !selectedDesigns.has(srcPeer)) return;
                     }
@@ -3355,8 +3419,7 @@ function attachFabricEvents(data, targetObject = null){
                     obj.setCoords();
                 });
 
-                if(target.patternMode) _renderPattern(target, true);
-                target.fabricCanvas.requestRenderAll();
+                _scheduleCanvasRender(target, { patternLQ: target.patternMode });
             });
 
         } else {
@@ -3383,11 +3446,13 @@ function attachFabricEvents(data, targetObject = null){
                     peer.setCoords();
                 }
 
-                canvasData[index].fabricCanvas.requestRenderAll();
+                _scheduleCanvasRender(canvasData[index]);
             });
         }
 
-        data.fabricCanvas.requestRenderAll();
+        designTarget.lastAngle = angle;
+
+        _scheduleCanvasRender(data);
     });
 
     // persist position/scale/rotation changes that don't go through applyWarpToData

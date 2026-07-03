@@ -1,4 +1,24 @@
 'use strict';
+
+var _bgAdjustRaf = null;
+var _bgCropRaf = null;
+
+function _scheduleBgAdjustFlush() {
+    if (_bgAdjustRaf !== null) return;
+    _bgAdjustRaf = requestAnimationFrame(() => {
+        _bgAdjustRaf = null;
+        _updateBgAdjust();
+    });
+}
+
+function _scheduleBgCropFlush() {
+    if (_bgCropRaf !== null) return;
+    _bgCropRaf = requestAnimationFrame(() => {
+        _bgCropRaf = null;
+        _updateBgCrop();
+    });
+}
+
 function _applyBgAdjust(data){
     const obj = data.backgroundObject;
     if(!obj) return;
