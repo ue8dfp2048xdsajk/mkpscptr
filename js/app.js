@@ -394,7 +394,7 @@ document.addEventListener('click', function(e){
 
         canvasData.forEach((d, i) => {
             if(!d) return;
-            const name = (d.bgName || '').toLowerCase();
+            const name = (d.filename || '').toLowerCase();
             if(name.includes(keyword)){
                 activeIndices.push(i);
                 if(d.designObject){
