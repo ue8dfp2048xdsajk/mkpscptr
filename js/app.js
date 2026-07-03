@@ -4367,12 +4367,14 @@ function _updateCopyLayerBtn(){
     const btn = document.getElementById('copyLayerBtn');
     if (!btn) return;
     if (_copiedLayer){
-        btn.textContent         = 'Paste Layer';
+        btn.textContent         = 'Paste Layer (Ctrl/Cmd+V)';
+        btn.title               = 'Paste copied layer to selected mockups (Ctrl/Cmd+V)';
         btn.style.background    = '#e8f5e9';
         btn.style.borderColor   = '#66bb6a';
         btn.style.color         = '#2e7d32';
     } else {
-        btn.textContent         = 'Copy Layer';
+        btn.textContent         = 'Copy Layer (Ctrl/Cmd+C)';
+        btn.title               = 'Copy selected layer (Ctrl/Cmd+C)';
         btn.style.background    = '';
         btn.style.borderColor   = '';
         btn.style.color         = '';
@@ -6136,6 +6138,23 @@ document.getElementById("copyColorToSelectedBtn").addEventListener("click", ()=>
 });
 
 
+function _kbdTypingTarget(){
+    const el = document.activeElement;
+    if(!el) return false;
+    if(el.isContentEditable) return true;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA';
+}
+
+function _kbdModalOpen(){
+    return document.getElementById('plansModal')
+        ?.classList.contains('ms-plans-overlay--open');
+}
+
+function _kbdCanvasModesBlocked(){
+    return clipEditMode || designEraserMode || designWarpMode;
+}
+
 // Global Cmd/Ctrl+Z → Undo, Cmd/Ctrl+Shift+Z → Redo
 // (Clip-mode in-progress point removal is handled by its own guarded handler
 //  which calls stopPropagation, so it takes priority when clipEditMode is true.)
@@ -6253,19 +6272,85 @@ document.addEventListener('keydown', function(e){
     lockSelectedWindows();
 });
 
-// U — unselect all windows
+// U — unlock selected windows
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'u') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+    if(!activeIndices.length) return;
 
-    const tag = document.activeElement?.tagName;
-    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if(document.activeElement?.isContentEditable) return;
+    e.preventDefault();
+    document.getElementById('unlockWindowsBtn').click();
+});
 
-    if(clipEditMode || designEraserMode || designWarpMode) return;
+// Escape — deselect all windows and layers
+document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    if(_kbdModalOpen()) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
 
     e.preventDefault();
     _deselectAll();
+});
+
+// Shift+L — add layer (opens file picker)
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'l') return;
+    if(!e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+
+    e.preventDefault();
+    document.getElementById('addLayerBtn').click();
+});
+
+// I — invert colors on selected layer(s)
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'i') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+    if(!selectedDesigns.size) return;
+
+    e.preventDefault();
+    document.getElementById('invertColorsBtn').click();
+});
+
+// M — make selected overlay the main design
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'm') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+
+    e.preventDefault();
+    document.getElementById('makeMainDesignBtn').click();
+});
+
+// N — add mockup (opens file picker)
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'n') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+
+    e.preventDefault();
+    document.getElementById('addWindowBtn').click();
+});
+
+// Shift+H / Shift+V — flip selected mockup(s)
+document.addEventListener('keydown', function(e){
+    const key = e.key.toLowerCase();
+    if(key !== 'h' && key !== 'v') return;
+    if(!e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+    if(!activeIndices.length) return;
+
+    e.preventDefault();
+    document.getElementById(key === 'h' ? 'flipHBtn' : 'flipVBtn').click();
 });
 
 // E — toggle design eraser mode on/off
@@ -6454,6 +6539,57 @@ document.addEventListener('keydown', function(e){
 
     e.preventDefault();
     document.getElementById('exportBtn').click();
+});
+
+// Ctrl/Cmd+C — copy layer
+document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 'c') return;
+    if(e.shiftKey || e.altKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+    if(!selectedDesigns.size) return;
+
+    e.preventDefault();
+    _copyCurrentLayer();
+});
+
+// Ctrl/Cmd+V — paste layer
+document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 'v') return;
+    if(e.shiftKey || e.altKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+    if(!_copiedLayer || !activeIndices.length) return;
+
+    e.preventDefault();
+    _pasteLayerToTargets();
+});
+
+// Ctrl/Cmd+Shift+C — copy effects
+document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 'c') return;
+    if(!e.shiftKey || e.altKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+
+    e.preventDefault();
+    document.getElementById('copyTransformsBtn').click();
+});
+
+// Ctrl/Cmd+Shift+V — paste effects
+document.addEventListener('keydown', function(e){
+    if(!(e.metaKey || e.ctrlKey)) return;
+    if(e.key.toLowerCase() !== 'v') return;
+    if(!e.shiftKey || e.altKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdCanvasModesBlocked()) return;
+    if(!_copiedTransforms || !activeIndices.length) return;
+
+    e.preventDefault();
+    document.getElementById('pasteTransformsBtn').click();
 });
 
 document.getElementById("colorLayerOpacityInput").addEventListener("mousedown", ()=>{

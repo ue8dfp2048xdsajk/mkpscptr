@@ -159,7 +159,7 @@
             </div>
 
             <div class="header-right">
-                <button id="selectAllBtn" title="Select All (Ctrl/Cmd+A)">Select All</button>
+                <button id="selectAllBtn" title="Select All (Ctrl/Cmd+A). Deselect: Esc">Select All</button>
                 <input
                     id="filterByNameInput"
                     type="text"
@@ -339,9 +339,9 @@
                     <div class="cp-section-title">Layers</div>
                     <button
                         id="addLayerBtn"
-                        title="Upload images as overlay layers onto selected mockups"
+                        title="Upload images as overlay layers onto selected mockups (opens file picker)"
                     >
-                        Add Layer
+                        Add Layer (Shift+L)
                     </button>
                     <input
                         type="file"
@@ -353,9 +353,9 @@
                     <button
                         id="copyLayerBtn"
                         disabled
-                        title="Select a layer first to copy or paste it"
+                        title="Copy selected layer (Ctrl/Cmd+C)"
                     >
-                        Copy Layer
+                        Copy Layer (Ctrl/Cmd+C)
                     </button>
     <button
                         id="duplicateLayerBtn"
@@ -369,12 +369,12 @@
                         disabled
                         title="Select an overlay layer to make it the main design"
                     >
-                        Make Main Design
+                        Make Main Design (M)
                     </button>
                     <button
                         id="deleteLayerBtn"
                         disabled
-                        title="Select a layer to delete it"
+                        title="Select a layer to delete it (Del)"
                     >
                         Delete Layer
                     </button>
@@ -417,10 +417,10 @@
                     </label>
                     <div class="cp-btn-row">
                         <button id="flipHBtn" title="Flip design horizontally">
-                            ↔ Flip H
+                            ↔ Flip H (Shift+H)
                         </button>
                         <button id="flipVBtn" title="Flip design vertically">
-                            ↕ Flip V
+                            ↕ Flip V (Shift+V)
                         </button>
                     </div>
                 </div>
@@ -430,9 +430,9 @@
                     <div class="cp-section-title">Mockup</div>
                     <button
                         id="addWindowBtn"
-                        title="Add a single new mockup at the start of the grid"
+                        title="Add a single new mockup at the start of the grid (opens file picker)"
                     >
-                        Add Mockup
+                        Add Mockup (N)
                     </button>
                     <input
                         type="file"
@@ -450,7 +450,7 @@
                         <button id="lockWindowsBtn" class="lock-sensitive">
                             Lock (L)
                         </button>
-                        <button id="unlockWindowsBtn">Unlock</button>
+                        <button id="unlockWindowsBtn">Unlock (U)</button>
                     </div>
                     <button id="changeBgBtn" class="lock-sensitive">
                         Change Background
@@ -595,21 +595,21 @@
                         disabled
                         title="Select a layer to invert its colors"
                     >
-                        Invert Colors
+                        Invert Colors (I)
                     </button>
                     <div class="cp-btn-row">
                         <button
                             id="copyTransformsBtn"
                             title="Copy effects (opacity, warp, blend, pattern, invert) from the last selected mockup — not position or scale"
                         >
-                            Copy Effects
+                            Copy Effects (Ctrl/Cmd+Shift+C)
                         </button>
                         <button
                             id="pasteTransformsBtn"
-                            title="Paste copied effects to all selected mockups"
+                            title="Paste copied effects to all selected mockups (Ctrl/Cmd+Shift+V)"
                             disabled
                         >
-                            Paste Effects
+                            Paste Effects (Ctrl/Cmd+Shift+V)
                         </button>
                     </div>
                 </div>

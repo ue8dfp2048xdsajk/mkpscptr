@@ -169,7 +169,12 @@
         if (closeBtn) closeBtn.addEventListener('click', closePlansModal);
 
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') closePlansModal();
+            if (e.key !== 'Escape') return;
+            var modal = document.getElementById('plansModal');
+            if (!modal || !modal.classList.contains('ms-plans-overlay--open')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            closePlansModal();
         });
 
         document.querySelectorAll('.ms-billing-tab').forEach(function (tab) {

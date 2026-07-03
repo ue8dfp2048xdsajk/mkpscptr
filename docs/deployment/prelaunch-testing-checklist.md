@@ -405,6 +405,38 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
+## Part 20b — Keyboard shortcuts
+
+Quick manual pass after loading a project with multiple mockups and layers.
+
+### Selection & windows
+
+- [ ] **Esc** deselects all windows and layers (canvas focused)
+- [ ] **Esc** with plans modal open closes modal only — selection unchanged
+- [ ] **Esc** while typing in filter input clears filter (does not double-fire deselect)
+- [ ] **L** locks selected mockups; **U** unlocks
+- [ ] **N** opens Add Mockup file picker (cancel OK)
+- [ ] **Ctrl/Cmd+A** select all; **Del** deletes layer if selected else mockup
+
+### Layers & effects
+
+- [ ] **Shift+L** opens Add Layer file picker (cancel OK)
+- [ ] **I** inverts selected layer colors
+- [ ] **M** promotes selected overlay to main design
+- [ ] **D** duplicates layer; **Ctrl/Cmd+D** duplicates mockup window(s)
+- [ ] **Ctrl/Cmd+C** copies layer; **Ctrl/Cmd+V** pastes to other selected mockup(s)
+- [ ] **Ctrl/Cmd+Shift+C** copies effects; **Ctrl/Cmd+Shift+V** pastes effects
+- [ ] **Shift+H** / **Shift+V** flip selected mockup(s)
+- [ ] In clip mode: **H** hides layers; **Shift+H** does not flip
+
+### Unchanged sanity checks
+
+- [ ] **C** toggles clip (plain C); **Ctrl/Cmd+C** does not open clip
+- [ ] **E** toggles eraser; **Ctrl/Cmd+E** exports
+- [ ] **Ctrl/Cmd+Z** / **Shift+Z** undo/redo still work
+
+---
+
 ## Part 21 — Final customer journey ⭐
 
 This is the one to treat as most important.
