@@ -8039,8 +8039,14 @@ async function _cloudSave({ isNew = false } = {}) {
     const snapshot = await buildCloudSnapshot();
     const currentUuid = isNew ? null : localStorage.getItem(_CLOUD_UUID_KEY);
 
-    const body = { snapshot, name: _projectName || 'Untitled project' };
+    const body = { snapshot };
     if (currentUuid) body.uuid = currentUuid;
+    const trimmedName = (_projectName || '').trim();
+    if (trimmedName) {
+        body.name = trimmedName;
+    } else if (!currentUuid) {
+        body.name = 'Untitled project';
+    }
 
     // Guard against proxy/serverless upload limits (~4 MB target)
     const _payloadBytes = new Blob([JSON.stringify(body)]).size;
@@ -8330,7 +8336,7 @@ async function _loadProjectByUuid(uuid) {
     }
 
     localStorage.setItem(_CLOUD_UUID_KEY, uuid);
-    _projectName = raw.name || '';
+    _projectName = (data.name || raw.name || '').trim() || '';
     _markClean();
 
     if (missing > 0 && restorable.length === 0) {
@@ -10369,6 +10375,11 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     const isLegacy = Array.isArray(snapshot);
     const windows  = isLegacy ? snapshot : (snapshot.windows  || []);
     const tboxes   = isLegacy ? []       : (snapshot.textBoxes || []);
+
+    if (!isLegacy && typeof snapshot.name === 'string') {
+        const restored = snapshot.name.trim();
+        if (restored) _projectName = restored;
+    }
 
     console.log('[Restore] Session found —', windows.length, 'window(s),', tboxes.length, 'text box(es)');
 

@@ -28,7 +28,7 @@ module.exports = async function handler(req, res) {
         try {
             project = await col.findOne(
                 { uuid: id },
-                { projection: { _id: 0, snapshot: 1, schemaVersion: 1, updatedAt: 1, expiresAt: 1 } }
+                { projection: { _id: 0, snapshot: 1, name: 1, schemaVersion: 1, updatedAt: 1, expiresAt: 1 } }
             );
         } catch (err) {
             console.error('projects/[id]: GET findOne failed', err);
@@ -43,7 +43,7 @@ module.exports = async function handler(req, res) {
             return res.status(404).json({ ok: false, error: 'Project has expired' });
         }
 
-        return res.status(200).json({ ok: true, snapshot: project.snapshot });
+        return res.status(200).json({ ok: true, snapshot: project.snapshot, name: project.name || null });
     }
 
     if (req.method === 'PATCH') {

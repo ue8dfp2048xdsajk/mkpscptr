@@ -150,12 +150,15 @@ module.exports = async function handler(req, res) {
         // Atomic find-or-create: avoids race where two concurrent requests
         // both see no existing project and both insert.
         const starterUuid = crypto.randomUUID();
+        const trimmedName = (name || '').trim();
+        const starterSet = { snapshot, updatedAt: now, plan, userId: clerkUserId, expiresAt: null };
+        if (trimmedName) starterSet.name = trimmedName;
         let result;
         try {
             result = await col.findOneAndUpdate(
                 { userId: clerkUserId },
                 {
-                    $set: { snapshot, updatedAt: now, plan, userId: clerkUserId, expiresAt: null },
+                    $set: starterSet,
                     $setOnInsert: {
                         uuid: starterUuid,
                         schemaVersion: snapshot.schemaVersion,
