@@ -128,6 +128,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Main + extra → Delete main → bottom extra becomes main; Delete Layer / Backspace on sole main → removes whole window
 - [ ] Select overlay → Make Main Design → swap; undo restores stack
 - [ ] After Make Main Design, demoted layer moves independently (new main does not follow)
+- [ ] Main design → solid blue handles; all stacked extras (paste, duplicate, demoted main) → orange handles
 - [ ] Copy/Paste Effects copies opacity, warp, blend, pattern settings, invert (not flip H/V)
 - [ ] Invert → undo → no ⭐, Starter export allowed, image not inverted
 - [ ] Eraser → undo (pristine art) → no ⭐, Starter export allowed

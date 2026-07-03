@@ -345,7 +345,7 @@ var _marchingAntsOffset = 0;
 
 
 
-// Layer handle colors: main = solid blue; clone = blue outline; overlay = orange.
+// Layer handle colors: main = solid blue; all extras = orange (kind still drives overlay flags).
 function _extraLayerKind(data, index) {
     const obj = data.extraDesignObjects?.[index];
     if (_extraObjectIsOverlay(obj)) return 'overlay';
@@ -353,20 +353,14 @@ function _extraLayerKind(data, index) {
 }
 
 function _applyExtraLayerHandleStyle(obj, kind) {
+    obj.set({
+        transparentCorners: false,
+        cornerColor: '#ff6600',
+        cornerStyle: 'circle',
+    });
     if (kind === 'overlay') {
-        obj.set({
-            transparentCorners: false,
-            cornerColor: '#ff6600',
-            cornerStyle: 'circle',
-        });
         obj._isOverlay = true;
     } else {
-        obj.set({
-            transparentCorners: true,
-            cornerColor: 'blue',
-            borderColor: 'blue',
-            cornerStyle: 'circle',
-        });
         delete obj._isOverlay;
     }
 }

@@ -61,3 +61,34 @@ describe('extra layer kind classification', () => {
         expect(_dupStateIsOverlay({})).toBe(false);
     });
 });
+
+describe('_applyExtraLayerHandleStyle', () => {
+    beforeEach(() => {
+        loadLayerKindHelpers();
+    });
+
+    function mockFabricObj() {
+        const state = {};
+        return {
+            set(props) { Object.assign(state, props); },
+            get(key)   { return state[key]; },
+            _isOverlay: undefined,
+        };
+    }
+
+    test('clone kind: orange handles, no overlay flag', () => {
+        const obj = mockFabricObj();
+        _applyExtraLayerHandleStyle(obj, 'clone');
+        expect(obj.get('cornerColor')).toBe('#ff6600');
+        expect(obj.get('transparentCorners')).toBe(false);
+        expect(obj._isOverlay).toBeUndefined();
+    });
+
+    test('overlay kind: orange handles, overlay flag set', () => {
+        const obj = mockFabricObj();
+        _applyExtraLayerHandleStyle(obj, 'overlay');
+        expect(obj.get('cornerColor')).toBe('#ff6600');
+        expect(obj.get('transparentCorners')).toBe(false);
+        expect(obj._isOverlay).toBe(true);
+    });
+});
