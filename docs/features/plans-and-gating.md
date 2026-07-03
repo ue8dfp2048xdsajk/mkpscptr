@@ -135,6 +135,8 @@ PRO status is **derived from live window state**. `_syncProEffect(data)` sets `h
 
 **Paste Layer:** copying the main design and pasting onto a window that already has a design stacks it as an overlay layer; pasting onto an empty mockup replaces the main design.
 
+**Layer promotion:** deleting the main design while other layers exist auto-promotes the bottom extra to main; **Make Main Design** swaps a selected overlay with the current main (old main becomes the bottom extra).
+
 **Undo:** snapshots `designOriginal` / extra originals; eraser and standard undo call `_syncProEffect` after restore.
 
 **After JSON or cloud load:** `_syncProEffect` runs per window (live state is authoritative).

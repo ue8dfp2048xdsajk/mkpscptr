@@ -3305,12 +3305,31 @@ function _notesEsc(str){
 function updateLayerButtons(){
     const del       = document.getElementById("deleteLayerBtn");
     const dup       = document.getElementById("duplicateLayerBtn");
+    const makeMain  = document.getElementById("makeMainDesignBtn");
     const invertBtn = document.getElementById("invertColorsBtn");
 
     const hasSelection = selectedDesigns.size > 0;
     del.disabled       = !hasSelection;
     dup.disabled       = !hasSelection;
     invertBtn.disabled = !hasSelection;
+
+    if (makeMain) {
+        let canMakeMain = false;
+        if (selectedDesigns.size === 1 && activeIndices.length > 0) {
+            const obj  = [...selectedDesigns][0];
+            const data = obj._ownerData;
+            const winIdx = data ? canvasData.indexOf(data) : -1;
+            canMakeMain = !!(
+                data &&
+                !data.locked &&
+                winIdx !== -1 &&
+                activeIndices.includes(winIdx) &&
+                obj !== data.designObject &&
+                (data.extraDesignObjects || []).includes(obj)
+            );
+        }
+        makeMain.disabled = !canMakeMain;
+    }
 
     // Copy Layer / Paste Layer button
     const copyLayerBtn = document.getElementById('copyLayerBtn');
@@ -4793,6 +4812,292 @@ document.getElementById("duplicateLayerBtn").addEventListener("click", ()=>{
 
 
 
+// ── Layer stack helpers (delete / promote / demote) ───────────────────────────
+function _countDesignLayers(data) {
+    return (data?.designObject ? 1 : 0) + ((data?.extraDesignObjects || []).length);
+}
+
+function _applyMainDesignHandleStyle(obj) {
+    obj.set({
+        transparentCorners: false,
+        cornerColor: 'blue',
+        borderColor: 'blue',
+        cornerStyle: 'circle',
+    });
+    delete obj._isOverlay;
+}
+
+function _syncWindowFieldsFromLayerFx(data, obj) {
+    const fx = obj._fx ? { ...obj._fx } : _defaultFx(data);
+    const ps = data.previewScale || 1;
+    data.x        = obj.left;
+    data.y        = obj.top;
+    data.scaleX   = obj.scaleX / ps;
+    data.scaleY   = obj.scaleY / ps;
+    data.scale    = data.scaleX;
+    data.rotation = obj.angle ?? 0;
+    data.skewX    = obj.skewX || 0;
+    data.skewY    = obj.skewY || 0;
+    data.warpAmount      = fx.warpAmount      ?? 0;
+    data.arcAmount       = fx.arcAmount       ?? 0;
+    data.arcTilt         = fx.arcTilt         ?? 0;
+    data.perspectiveTop  = fx.perspectiveTop  ?? 0;
+    data.perspectiveLeft = fx.perspectiveLeft ?? 0;
+    data.opacity         = fx.opacity         ?? 1;
+    data.blurAmount      = fx.blurAmount      ?? 0;
+    data.noiseAmount     = fx.noiseAmount     ?? 0;
+    data.blendMode       = fx.blendMode       ?? 'normal';
+    obj._fx = fx;
+}
+
+function _repositionMainInStack(data) {
+    const obj = data.designObject;
+    const fc  = data.fabricCanvas;
+    if (!obj || !fc) return;
+    const extras = data.extraDesignObjects || [];
+    if (extras.length > 0) {
+        const idx = fc.getObjects().indexOf(extras[0]);
+        if (idx >= 0) fc.moveTo(obj, idx);
+    } else if (data.colorLayerFabricObj) {
+        const idx = fc.getObjects().indexOf(data.colorLayerFabricObj);
+        if (idx >= 0) fc.moveTo(obj, idx + 1);
+    } else if (data.backgroundObject) {
+        const idx = fc.getObjects().indexOf(data.backgroundObject);
+        if (idx >= 0) fc.moveTo(obj, idx + 1);
+    }
+}
+
+function _promoteLayerToMain(data, obj) {
+    if (!data || !obj || data.designObject === obj) return;
+    const idx = (data.extraDesignObjects || []).indexOf(obj);
+    if (idx === -1) return;
+
+    const original = data.extraDesignOriginals?.[idx] ?? null;
+    data.extraDesignObjects.splice(idx, 1);
+    if (data.extraDesignOriginals) data.extraDesignOriginals.splice(idx, 1);
+
+    if (data.invertedExtras?.[idx]) {
+        data.invertedMain = true;
+        data.invertedExtras = data.invertedExtras.filter((_, i) => i !== idx);
+    }
+
+    if (data.patternMode || data.patternFabricObj) _togglePatternMode(data, false);
+
+    data.designObject = obj;
+    data.designOriginal = original;
+    data.warpCanvas = null;
+    data._flipMap = null;
+    data.meshWarpApplied = false;
+    data.flipX = false;
+    data.flipY = false;
+
+    delete obj._uploadedDesignName;
+    _syncWindowFieldsFromLayerFx(data, obj);
+    _applyMainDesignHandleStyle(obj);
+    _resetObjectPipelineCaches(obj);
+    obj.set({
+        opacity: data.opacity ?? 1,
+        globalCompositeOperation: _blendToGCO(data.blendMode),
+    });
+
+    if (original) data.initialDesignOriginal = original;
+    data.initialX = data.x;
+    data.initialY = data.y;
+    data.initialScale = data.scaleX;
+    data.initialRotation = data.rotation;
+
+    _repositionMainInStack(data);
+    applyClipMaskToObject(obj, data);
+    (data.extraDesignObjects || []).forEach(ex => applyClipMaskToObject(ex, data));
+    applyWarpToData(data, false);
+    _syncProEffect(data);
+}
+
+function _demoteMainToExtra(data) {
+    if (!data?.designObject) return;
+    const obj      = data.designObject;
+    const original = data.designOriginal;
+
+    if (data.patternMode || data.patternFabricObj) _togglePatternMode(data, false);
+
+    if (!obj._fx) obj._fx = _defaultFx(data);
+
+    data.designObject = null;
+    data.designOriginal = null;
+    data.warpCanvas = null;
+    data._flipMap = null;
+
+    data.extraDesignObjects   = data.extraDesignObjects   || [];
+    data.extraDesignOriginals = data.extraDesignOriginals || [];
+    data.extraDesignObjects.unshift(obj);
+    data.extraDesignOriginals.unshift(original);
+
+    data.invertedExtras = data.invertedExtras || [];
+    data.invertedExtras.unshift(!!data.invertedMain);
+    data.invertedMain = false;
+    data.meshWarpApplied = false;
+
+    _applyExtraLayerHandleStyle(obj, 'clone');
+    _resetObjectPipelineCaches(obj);
+    if (original) {
+        _applyWarpToOneObject(obj, data, original, false);
+    }
+    applyClipMaskToObject(obj, data);
+    data.fabricCanvas.requestRenderAll();
+}
+
+function _removeMainDesign(data) {
+    if (!data?.designObject) return;
+    if (data.patternMode || data.patternFabricObj) _togglePatternMode(data, false);
+    const obj = data.designObject;
+    selectedDesigns.delete(obj);
+    data.fabricCanvas.remove(obj);
+    data.designObject = null;
+    data.designOriginal = null;
+    data.warpCanvas = null;
+    data._flipMap = null;
+    data.invertedMain = false;
+    data.meshWarpApplied = false;
+}
+
+function _clearWindowDesign(data) {
+    if (!data?.fabricCanvas) return;
+    (data.extraDesignObjects || []).forEach(o => {
+        selectedDesigns.delete(o);
+        data.fabricCanvas.remove(o);
+    });
+    if (data.designObject) {
+        selectedDesigns.delete(data.designObject);
+        data.fabricCanvas.remove(data.designObject);
+    }
+    data.designObject = null;
+    data.designOriginal = null;
+    data.extraDesignObjects = [];
+    data.extraDesignOriginals = [];
+    data.warpCanvas = null;
+    data._flipMap = null;
+    data.invertedMain = false;
+    data.invertedExtras = [];
+    data.meshWarpApplied = false;
+    data.forceProBadge = false;
+    _syncProEffect(data);
+}
+
+function _finalizeWindowDesignStack(data) {
+    if (!data.designObject && (data.extraDesignObjects || []).length > 0) {
+        _promoteLayerToMain(data, data.extraDesignObjects[0]);
+    } else if (_countDesignLayers(data) === 0) {
+        _clearWindowDesign(data);
+    }
+    data.fabricCanvas?.requestRenderAll();
+}
+
+function _deleteSelectedDesignLayers() {
+    if (!selectedDesigns.size || !activeIndices.length) return;
+
+    const prevActiveIndices = [...activeIndices];
+    const dataToLayerDelete = new Map();
+
+    activeIndices.forEach(i => {
+        const d = canvasData[i];
+        if (!d || d.locked) return;
+        [...selectedDesigns].forEach(obj => {
+            if (obj._ownerData !== d) return;
+            const isMain  = obj === d.designObject;
+            const exIdx   = (d.extraDesignObjects || []).indexOf(obj);
+            if (!isMain && exIdx === -1) return;
+            if (!dataToLayerDelete.has(d)) dataToLayerDelete.set(d, new Set());
+            dataToLayerDelete.get(d).add(obj);
+        });
+    });
+
+    if (!dataToLayerDelete.size) return;
+
+    const windowsForFullDelete = [];
+    dataToLayerDelete.forEach((toRemove, data) => {
+        if (toRemove.has(data.designObject) && _countDesignLayers(data) === 1) {
+            const idx = canvasData.indexOf(data);
+            if (idx !== -1) windowsForFullDelete.push(idx);
+        }
+    });
+
+    const layerOnlyData = [...dataToLayerDelete.keys()].filter(
+        d => !windowsForFullDelete.includes(canvasData.indexOf(d))
+    );
+
+    if (layerOnlyData.length) pushGlobalUndo();
+
+    layerOnlyData.forEach(data => {
+        const toRemove = dataToLayerDelete.get(data);
+        if (toRemove.has(data.designObject)) _removeMainDesign(data);
+
+        const extrasToRemove = new Set(
+            [...toRemove].filter(obj => obj && obj !== data.designObject)
+        );
+        if (extrasToRemove.size) {
+            const newExtras    = [];
+            const newOriginals = [];
+            const newInverted  = [];
+            (data.extraDesignObjects || []).forEach((obj, idx) => {
+                if (extrasToRemove.has(obj)) return;
+                newExtras.push(obj);
+                newOriginals.push(data.extraDesignOriginals?.[idx] ?? null);
+                newInverted.push(!!data.invertedExtras?.[idx]);
+            });
+            extrasToRemove.forEach(obj => {
+                data.fabricCanvas.remove(obj);
+                selectedDesigns.delete(obj);
+            });
+            data.extraDesignObjects   = newExtras;
+            data.extraDesignOriginals = newOriginals;
+            data.invertedExtras       = newInverted;
+        }
+
+        _finalizeWindowDesignStack(data);
+    });
+
+    if (windowsForFullDelete.length) {
+        activeIndices = windowsForFullDelete.filter(
+            i => canvasData[i] && !canvasData[i].locked
+        );
+        deleteSelectedWindows();
+        activeIndices = prevActiveIndices.filter(i => canvasData[i]);
+    }
+
+    selectedDesigns.clear();
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    _markDirty();
+    autoSaveSession();
+}
+
+function _makeSelectedLayerMain() {
+    if (selectedDesigns.size !== 1) return;
+    const obj  = [...selectedDesigns][0];
+    const data = obj._ownerData;
+    if (!data || data.locked || obj === data.designObject) return;
+    if (!(data.extraDesignObjects || []).includes(obj)) return;
+    const winIdx = canvasData.indexOf(data);
+    if (winIdx === -1 || !activeIndices.includes(winIdx)) return;
+
+    pushGlobalUndo();
+    _demoteMainToExtra(data);
+    _promoteLayerToMain(data, obj);
+
+    selectedDesigns.clear();
+    selectedDesigns.add(data.designObject);
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    _markDirty();
+    autoSaveSession();
+}
+
+
+
 document.getElementById("deleteLayerBtn").addEventListener("click", ()=>{
 
     if(clipEditMode){
@@ -4801,45 +5106,15 @@ document.getElementById("deleteLayerBtn").addEventListener("click", ()=>{
     }
 
     if(selectedDesigns.size === 0) return;
+    _deleteSelectedDesignLayers();
+});
 
-    // Only delete added layers — not original designs
-    const toDelete = [...selectedDesigns].filter(obj => {
-        const d = obj._ownerData;
-        return d && obj !== d.designObject;
-    });
-
-    if(toDelete.length === 0){
-        alert("Cannot delete original design(s). Select an added layer to delete.");
+document.getElementById("makeMainDesignBtn").addEventListener("click", () => {
+    if (clipEditMode) {
+        showClipModeNotice();
         return;
     }
-
-    pushGlobalUndo();
-
-    toDelete.forEach(targetObj => {
-        const data = targetObj._ownerData;
-        if(!data) return;
-
-        const delIdx = (data.extraDesignObjects || []).indexOf(targetObj);
-
-        data.fabricCanvas.remove(targetObj);
-
-        data.extraDesignObjects =
-            (data.extraDesignObjects || []).filter(obj => obj !== targetObj);
-
-        if(delIdx !== -1 && data.extraDesignOriginals){
-            data.extraDesignOriginals.splice(delIdx, 1);
-        }
-
-        selectedDesigns.delete(targetObj);
-        data.fabricCanvas.discardActiveObject();
-        data.fabricCanvas.requestRenderAll();
-    });
-
-    refreshFabricHandles();
-    updateWindowBorders();
-    updateLayerButtons();
-    syncSliders();
-    autoSaveSession();
+    _makeSelectedLayerMain();
 });
 
 document.getElementById("designEraserBtn").addEventListener("click", () => {
@@ -5869,75 +6144,12 @@ document.addEventListener('keydown', function(e){
 
     e.preventDefault();
 
-    // Build a set of ALL extra design objects across active windows so we can
-    // classify what's in selectedDesigns.
-    const extraObjsInActiveWindows = new Set();
-    activeIndices.forEach(i => {
-        const d = canvasData[i];
-        if(d) (d.extraDesignObjects || []).forEach(o => extraObjsInActiveWindows.add(o));
-    });
-
-    // Check whether any selected design is the MAIN design of its window.
-    const selectedArr = [...selectedDesigns];
-    const hasMainSelected = selectedArr.some(obj =>
-        canvasData.some(d => d.designObject === obj)
-    );
-
-    // Extra-layer-only deletion: all selected objects are extra layers (none
-    // are main designs).  Delete just those layers and leave the windows intact.
-    const extraToDelete = selectedArr.filter(obj => extraObjsInActiveWindows.has(obj));
-    if(selectedDesigns.size > 0 && !hasMainSelected && extraToDelete.length > 0){
-        // Snapshot before mutation so Ctrl+Z can restore the deleted layers.
-        // pushGlobalUndo captures captureWindowState which includes `duplicates`
-        // (the full extraDesignObjects list), so restoreWindowState will rebuild them.
-        const affectedIndices = activeIndices.filter(i => {
-            const d = canvasData[i];
-            return d && (d.extraDesignObjects || []).some(o => selectedDesigns.has(o));
-        });
-        if(!affectedIndices.length) return;
-
-        // Push undo for each affected window.
-        globalUndoStack.push({
-            affected: affectedIndices,
-            states: affectedIndices.map(i => captureWindowState(canvasData[i]))
-        });
-        if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
-        globalRedoStack = [];
-        updateUndoRedoButtons();
-        _markDirty();
-
-        // Remove the selected extra layers from each window.
-        affectedIndices.forEach(i => {
-            const d = canvasData[i];
-            if(!d || !d.extraDesignObjects) return;
-            const toRemove = new Set(d.extraDesignObjects.filter(o => selectedDesigns.has(o)));
-            if(!toRemove.size) return;
-
-            toRemove.forEach(obj => d.fabricCanvas.remove(obj));
-
-            // Rebuild the arrays, keeping originals aligned with their objects.
-            const newExtras     = [];
-            const newOriginals  = [];
-            d.extraDesignObjects.forEach((obj, idx) => {
-                if(!toRemove.has(obj)){
-                    newExtras.push(obj);
-                    newOriginals.push(d.extraDesignOriginals?.[idx] ?? null);
-                }
-            });
-            d.extraDesignObjects  = newExtras;
-            d.extraDesignOriginals = newOriginals;
-            d.fabricCanvas.requestRenderAll();
-        });
-
-        selectedDesigns.clear();
-        refreshFabricHandles();
-        updateWindowBorders();
-        updateLayerButtons();
-        syncSliders();
+    if (selectedDesigns.size > 0) {
+        _deleteSelectedDesignLayers();
         return;
     }
 
-    // Default: delete the active windows (same behaviour as the Delete button).
+    // No layer selected — delete the active windows (same behaviour as the Delete button).
     deleteSelectedWindows();
 });
 

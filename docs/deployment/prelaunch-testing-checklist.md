@@ -125,6 +125,8 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Starter: click between window backgrounds → watermarks stay on all PRO-gated windows (no vanish until pan)
 - [ ] Copy/Paste Effects does **not** change position, scale, or rotation on target
 - [ ] Paste Layer onto window that already has a design → stacks as new overlay (original design kept); empty window → replaces main design
+- [ ] Main + extra → Delete main → bottom extra becomes main; Delete Layer / Backspace on sole main → removes whole window
+- [ ] Select overlay → Make Main Design → swap; undo restores stack
 - [ ] Copy/Paste Effects copies opacity, warp, blend, pattern settings, invert (not flip H/V)
 - [ ] Invert → undo → no ⭐, Starter export allowed, image not inverted
 - [ ] Eraser → undo (pristine art) → no ⭐, Starter export allowed
