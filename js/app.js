@@ -8866,9 +8866,27 @@ function deleteTextBox(box) {
     const idx = _textBoxes.indexOf(box);
     if (idx !== -1) _textBoxes.splice(idx, 1);
     autoSaveSession();
+    _syncClearTextBtn();
 }
 
 // ── Text-box undo helpers (used by createTextBox IIFE and undo engine) ────────
+function _syncClearTextBtn() {
+    const btn = document.getElementById('clearTextBtn');
+    if (btn) btn.disabled = !_textBoxes.length;
+}
+
+function clearAllTextBoxes() {
+    if (!_textBoxes.length) return;
+    if (!confirm('Remove all canvas text boxes?')) return;
+    pushTextBoxUndo();
+    if (typeof window._applyTextBoxState === 'function') {
+        window._applyTextBoxState([]);
+    }
+    _syncClearTextBtn();
+}
+
+document.getElementById('clearTextBtn')?.addEventListener('click', clearAllTextBoxes);
+
 function captureTextBoxState() {
     return _textBoxes.map(b => ({
         x: b.x, y: b.y, w: b.w, h: b.h,
@@ -9818,6 +9836,13 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         return box;
     }
 
+    const _createTextBox = createTextBox;
+    createTextBox = function(...args) {
+        const box = _createTextBox(...args);
+        _syncClearTextBtn();
+        return box;
+    };
+
     // Expose restore helpers for load/autorestore and undo/redo paths
     window._restoreTextBoxes = function(boxes) {
         _clearTextBoxSelection();
@@ -9825,6 +9850,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         _textBoxes = [];
         _tbNextId  = 1;
         (boxes || []).forEach(b => createTextBox(b.x, b.y, b.w || 0, b.h || 0, b.content || ''));
+        _syncClearTextBtn();
     };
 
     // Used by the undo/redo engine to apply a textboxes snapshot
@@ -9834,6 +9860,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         _textBoxes = [];
         (state || []).forEach(b => createTextBox(b.x, b.y, b.w || 0, b.h || 0, b.content || ''));
         autoSaveSession();
+        _syncClearTextBtn();
     };
 
     // ── Drag-to-create state ──────────────────────────────────────────────────
@@ -10009,6 +10036,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     syncSliders();
     updateWindowBorders();
     updateDropUI();
+    _syncClearTextBtn();
 });
 
 

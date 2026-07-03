@@ -443,6 +443,7 @@ Quick manual pass after loading a project with multiple mockups and layers.
 - [ ] **Esc** or click empty canvas clears text-box selection
 - [ ] **Ctrl/Cmd+Z** after paste removes duplicated text box
 - [ ] Free plan: copy/paste text boxes works; Export Text Boxes still paywalled
+- [ ] **Clear text** (viewport panel) removes all boxes; undo restores; disabled when none exist
 
 ---
 
