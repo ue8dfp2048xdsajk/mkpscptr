@@ -437,6 +437,15 @@ Quick manual pass after loading a project with multiple mockups and layers.
 - [ ] No nudge in clip/eraser/warp/color-paint modes, while typing, or with text box selected
 - [ ] **Ctrl/Cmd+Z** restores pre-nudge positions
 
+### Alignment guides
+
+- [ ] **G** or control-panel **⊹** toggles guides on/off (off by default)
+- [ ] Magenta dashed lines when layer center aligns with mockup center (H/V)
+- [ ] Cyan dashed lines when edges align with any layer in grid neighbor mockup
+- [ ] Guides visible only while dragging or arrow-nudging; clear on mouseup
+- [ ] Toggle state persists after reload (autosave) and JSON save/load
+- [ ] Legacy JSON without field → guides off
+
 ### Unchanged sanity checks
 
 - [ ] **C** toggles clip (plain C); **Ctrl/Cmd+C** does not open clip

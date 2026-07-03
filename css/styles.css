@@ -864,6 +864,18 @@ body {
 #exportTextBtn { margin-top: 2px; }
 
 
+#guideOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    pointer-events: none;
+    z-index: 498;
+    overflow: visible;
+}
+#guideOverlay[hidden] { display: none; }
+#guideOverlaySvg { display: block; overflow: visible; }
+
 #canvasContainer {
     position: absolute;
     top: 0;

@@ -1026,6 +1026,11 @@ function _nudgeSelectedDesigns(dx, dy) {
 
     _markDirty();
     autoSaveSession();
+
+    if (alignmentGuidesEnabled && drivers.length) {
+        const last = drivers[drivers.length - 1];
+        flashAlignmentGuides(last.data, last.driver);
+    }
 }
 
 function _persistSelectedLayerDataForActiveWindows() {
@@ -3137,6 +3142,8 @@ function attachFabricEvents(data, targetObject = null){
         designTarget.lastLeft = designTarget.left;
         designTarget.lastTop  = designTarget.top;
 
+        scheduleAlignmentGuidesUpdate(data, designTarget);
+
         data.fabricCanvas.requestRenderAll();
     });
 
@@ -3166,6 +3173,7 @@ function attachFabricEvents(data, targetObject = null){
         }
         designTarget._preDragUndoEntry  = null;
         designTarget._hadDragMovement   = false;
+        clearAlignmentGuides();
     });
 
     designTarget.on('scaling', ()=>{
@@ -6386,6 +6394,17 @@ document.addEventListener('keydown', function(e){
     document.getElementById('invertColorsBtn').click();
 });
 
+// G — toggle alignment guides
+document.addEventListener('keydown', function(e){
+    if(e.key.toLowerCase() !== 'g') return;
+    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    if(_kbdTypingTarget()) return;
+    if(_kbdModalOpen()) return;
+
+    e.preventDefault();
+    toggleAlignmentGuides();
+});
+
 // Arrow keys — nudge selected layer(s) (1 px; Shift+Arrow 10 px)
 document.addEventListener('keydown', function(e){
     const ARROW = {
@@ -8071,6 +8090,7 @@ async function _loadProjectByUuid(uuid) {
         if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
         _applyViewportFromSnapshot(isLegacy ? null : raw.viewport);
         _applyUndoHistoryFromSnapshot(isLegacy ? null : raw.undoHistory);
+        applyAlignmentGuidesFromSnapshot(isLegacy ? null : raw);
 
         syncSliders();
         updateWindowBorders();
@@ -8861,6 +8881,7 @@ document.getElementById("loadProgressInput").addEventListener("change", function
         if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
         _applyViewportFromSnapshot(isLegacy ? null : data.viewport);
         _applyUndoHistoryFromSnapshot(isLegacy ? null : data.undoHistory);
+        applyAlignmentGuidesFromSnapshot(isLegacy ? null : data);
 
         syncSliders();
         updateWindowBorders();
@@ -8995,6 +9016,7 @@ function _applyVP() {
     const tl = document.getElementById('textLayer');
     if (cc) cc.style.transform = t;
     if (tl) tl.style.transform = t;
+    applyGuideOverlayTransform(t);
     const el = document.getElementById('zoomLevelDisplay');
     if (el) el.textContent = Math.round(_vpScale * 100) + '%';
     _scheduleMinimapUpdate();
@@ -9127,6 +9149,7 @@ function updateMinimap(){
         cc.style.transform = t;
         const tl = document.getElementById('textLayer');
         if (tl) tl.style.transform = t;
+        applyGuideOverlayTransform(t);
         const pct = Math.round(_vpScale * 100);
         document.getElementById('zoomLevelDisplay').textContent = pct + '%';
         _scheduleMinimapUpdate();
@@ -10040,6 +10063,7 @@ function buildFullSnapshot() {
         textBoxes:   _textBoxes.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, content: b.content })),
         viewport:    { scale: _vpScale, x: _vpX, y: _vpY },
         layout:      { cols: _numColumns, rowGap: _rowGap, colGap: _colGap },
+        alignmentGuidesEnabled: !!alignmentGuidesEnabled,
         undoHistory: undoHistory
     };
 }
@@ -10119,6 +10143,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     if (window._restoreTextBoxes) window._restoreTextBoxes(tboxes);
     _applyViewportFromSnapshot(isLegacy ? null : snapshot.viewport);
     _applyUndoHistoryFromSnapshot(isLegacy ? null : snapshot.undoHistory);
+    applyAlignmentGuidesFromSnapshot(isLegacy ? null : snapshot);
 
     syncSliders();
     updateWindowBorders();
