@@ -134,12 +134,15 @@ function _windowHasProBlend(data) {
 
 function _transformsContainProEffect(t) {
     if (!t) return false;
-    if ((t.warpAmount || 0) !== 0) return true;
-    if ((t.arcAmount || 0) !== 0) return true;
-    if ((t.arcTilt || 0) !== 0) return true;
-    if ((t.perspectiveTop || 0) !== 0) return true;
-    if ((t.perspectiveLeft || 0) !== 0) return true;
-    if ((t.blendMode || 'normal') !== 'normal') return true;
+    if (t.patternMode) return true;
+    if (t.invertActive) return true;
+    const fx = t.designFx || t;
+    if ((fx.warpAmount || 0) !== 0) return true;
+    if ((fx.arcAmount || 0) !== 0) return true;
+    if ((fx.arcTilt || 0) !== 0) return true;
+    if ((fx.perspectiveTop || 0) !== 0) return true;
+    if ((fx.perspectiveLeft || 0) !== 0) return true;
+    if ((fx.blendMode || 'normal') !== 'normal') return true;
     return false;
 }
 
@@ -1895,11 +1898,9 @@ function _bakePatternSheet(data) {
 // Downloads the current pattern canvas (before or after baking) as a PNG file.
 
 function _exportPatternPNG(data) {
-    if (!data) return;
+    if (!data || !data.patternMode || !data.patternFabricObj) return;
 
-    let src = (data.patternMode && data.patternFabricObj)
-        ? data.patternFabricObj.getElement()
-        : data.designOriginal;
+    const src = data.patternFabricObj.getElement();
     if (!src) return;
 
     // designOriginal may be an HTMLImageElement; wrap it in a canvas for toBlob.
@@ -2010,10 +2011,32 @@ document.getElementById('bakePatternBtn').addEventListener('click', () => {
     _bakePatternSheet(data);
 });
 
-document.getElementById('exportPatternBtn').addEventListener('click', () => {
+document.getElementById('exportPatternBtn').addEventListener('click', async () => {
     if (!activeIndices.length) return;
     const data = canvasData[activeIndices[0]];
     if (!data) return;
+
+    if (window.Clerk && !window.Clerk.user) {
+        sessionStorage.setItem('ms_redirect_after_auth', 'export');
+        try { await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {}); } catch (e) { console.error('[ExportPattern→SignIn] snapshot failed:', e); }
+        try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch (e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
+        return;
+    }
+
+    if (_userPlan !== 'pro') {
+        if (typeof openPlansModal === 'function') {
+            openPlansModal({
+                context: 'Export Pattern PNG requires Pro \u2014 pattern is a PRO effect.',
+            });
+        }
+        return;
+    }
+
+    if (!data.patternMode || !data.patternFabricObj) {
+        alert('Turn on Pattern mode with a tiled design before exporting.');
+        return;
+    }
+
     _exportPatternPNG(data);
 });
 
@@ -4648,139 +4671,148 @@ document.getElementById('copyLayerBtn').addEventListener('click', () => {
     }
 });
 
-// ── Copy / Paste Transforms ────────────────────────────────────────────────────
+// ── Copy / Paste Effects ───────────────────────────────────────────────────────
 var _copiedTransforms = null;
 
-function _captureTransforms(data){
+const _EFFECT_FX_KEYS = [
+    'opacity', 'blurAmount', 'noiseAmount',
+    'warpAmount', 'arcAmount', 'arcTilt',
+    'perspectiveTop', 'perspectiveLeft', 'blendMode',
+];
+
+function _pickEffectFx(source, fallbackData) {
+    const fb = _defaultFx(fallbackData || {});
+    const src = source || {};
+    const out = {};
+    _EFFECT_FX_KEYS.forEach(k => {
+        out[k] = src[k] !== undefined ? src[k] : fb[k];
+    });
+    return out;
+}
+
+function _captureEffectPayload(data) {
     const obj = _getPrimarySelectedLayer(data);
-    const ps  = data.previewScale || 1;
-    const cW  = data.fabricCanvas ? data.fabricCanvas.getWidth()  : 1;
-    const cH  = data.fabricCanvas ? data.fabricCanvas.getHeight() : 1;
-    const geo = obj ? _captureFabricGeometry(obj) : {
-        left: data.x, top: data.y,
-        scaleX: (data.scaleX ?? data.scale ?? 1) * ps,
-        scaleY: (data.scaleY ?? data.scale ?? 1) * ps,
-        angle: data.rotation ?? 0,
-        skewX: data.skewX || 0, skewY: data.skewY || 0,
-    };
+    if (!obj) return null;
+    const isMain = obj === data.designObject;
+    const extraIdx = isMain ? -1 : (data.extraDesignObjects || []).indexOf(obj);
     return {
-        x:        geo.left,
-        y:        geo.top,
-        xFrac:    geo.left / cW,
-        yFrac:    geo.top  / cH,
-        fabricLeft:   geo.left,
-        fabricTop:    geo.top,
-        fabricScaleX: geo.scaleX,
-        fabricScaleY: geo.scaleY,
-        scale:    data.scale,
-        scaleX:   obj ? (obj.scaleX / ps) : (data.scaleX ?? data.scale),
-        scaleY:   obj ? (obj.scaleY / ps) : (data.scaleY ?? data.scale),
-        skewX:    geo.skewX,
-        skewY:    geo.skewY,
-        rotation: geo.angle,
-        warpAmount:    data.warpAmount    ?? 0,
-        arcAmount:     data.arcAmount     ?? 0,
-        arcTilt:       data.arcTilt       ?? 0,
-        perspectiveTop:  data.perspectiveTop  ?? 0,
-        perspectiveLeft: data.perspectiveLeft ?? 0,
-        opacity:     data.opacity    ?? 1,
-        blurAmount:  data.blurAmount ?? 0,
-        noiseAmount: data.noiseAmount ?? 0,
-        blendMode:   data.blendMode  ?? 'normal',
-        flipX:       !!data.flipX,
-        flipY:       !!data.flipY,
-        designFx:    obj?._fx ? JSON.parse(JSON.stringify(obj._fx)) : null
+        designFx: _pickEffectFx(obj._fx, data),
+        patternMode: !!data.patternMode,
+        patternSettings: data.patternSettings
+            ? JSON.parse(JSON.stringify(data.patternSettings))
+            : null,
+        invertActive: isMain
+            ? !!data.invertedMain
+            : !!(data.invertedExtras && data.invertedExtras[extraIdx]),
     };
 }
 
-function _applyWindowEffects(data, t) {
-    data.warpAmount      = t.warpAmount;
-    data.arcAmount       = t.arcAmount;
-    data.arcTilt         = t.arcTilt;
-    data.perspectiveTop  = t.perspectiveTop;
-    data.perspectiveLeft = t.perspectiveLeft;
-    data.opacity         = t.opacity;
-    data.blurAmount      = t.blurAmount;
-    data.noiseAmount     = t.noiseAmount;
-    data.blendMode       = t.blendMode;
-    data.flipX           = t.flipX;
-    data.flipY           = t.flipY;
-    data._flipMap        = null;
+function _applyCopiedWindowEffects(data, fx) {
+    data.warpAmount      = fx.warpAmount      ?? 0;
+    data.arcAmount       = fx.arcAmount       ?? 0;
+    data.arcTilt         = fx.arcTilt         ?? 0;
+    data.perspectiveTop  = fx.perspectiveTop  ?? 0;
+    data.perspectiveLeft = fx.perspectiveLeft ?? 0;
+    data.opacity         = fx.opacity         ?? 1;
+    data.blurAmount      = fx.blurAmount      ?? 0;
+    data.noiseAmount     = fx.noiseAmount     ?? 0;
+    data.blendMode       = fx.blendMode       ?? 'normal';
 }
 
-function _applyTransformsToSelectedLayer(data, t, useAbsoluteGeometry) {
-    if (data.locked) return;
-    const obj = _getPrimarySelectedLayer(data);
+function _syncInvertLayer(data, isMain, extraIdx, shouldBeInverted) {
+    const obj = isMain ? data.designObject : data.extraDesignObjects?.[extraIdx];
     if (!obj) return;
 
-    const ps = data.previewScale || 1;
-    const cW = data.fabricCanvas ? data.fabricCanvas.getWidth()  : 1;
-    const cH = data.fabricCanvas ? data.fabricCanvas.getHeight() : 1;
-    const isMain = obj === data.designObject;
+    const currentlyInverted = isMain
+        ? !!data.invertedMain
+        : !!(data.invertedExtras && data.invertedExtras[extraIdx]);
+    if (shouldBeInverted === currentlyInverted) return;
 
-    if (useAbsoluteGeometry) {
-        _applyFabricGeometry(obj, {
-            left:   t.fabricLeft   ?? t.left,
-            top:    t.fabricTop    ?? t.top,
-            scaleX: t.fabricScaleX ?? t.scaleX * ps,
-            scaleY: t.fabricScaleY ?? t.scaleY * ps,
-            angle:  t.rotation ?? 0,
-            skewX:  t.skewX  || 0,
-            skewY:  t.skewY  || 0,
-        });
-    } else if (isMain && data.designOriginal) {
-        data.x = (t.xFrac !== undefined ? t.xFrac * cW : t.x);
-        data.y = (t.yFrac !== undefined ? t.yFrac * cH : t.y);
-        data.scaleX  = t.scaleX;
-        data.scaleY  = t.scaleY;
-        data.rotation = t.rotation;
-        data.skewX   = t.skewX  || 0;
-        data.skewY   = t.skewY  || 0;
-    } else {
-        _applyFabricGeometry(obj, {
-            left:   t.xFrac !== undefined ? t.xFrac * cW : t.x,
-            top:    t.yFrac !== undefined ? t.yFrac * cH : t.y,
-            scaleX: t.scaleX * ps,
-            scaleY: t.scaleY * ps,
-            angle:  t.rotation ?? 0,
-            skewX:  t.skewX  || 0,
-            skewY:  t.skewY  || 0,
-        });
+    const el = ensureErasableCanvas(obj);
+    invertCanvasInPlace(el);
+
+    if (!obj._fx) obj._fx = _defaultFx(data);
+    if (obj._fx.blendMode && obj._fx.blendMode !== 'normal') {
+        obj._fx.blendMode = 'normal';
+        obj.set({ globalCompositeOperation: 'source-over' });
+        if (isMain) data.blendMode = 'normal';
     }
+    obj.dirty = true;
 
-    if (t.designFx) {
-        obj._fx = JSON.parse(JSON.stringify(t.designFx));
+    const src = isMain
+        ? data.designOriginal
+        : (data.extraDesignOriginals?.[extraIdx] || null);
+    if (src) {
+        const inverted = invertImageSource(src);
+        if (isMain) {
+            data.designOriginal = inverted;
+        } else if (extraIdx >= 0) {
+            if (!data.extraDesignOriginals) data.extraDesignOriginals = [];
+            data.extraDesignOriginals[extraIdx] = inverted;
+        }
     }
 
     if (isMain) {
-        if (!data.designOriginal) return;
-        if (useAbsoluteGeometry) {
-            _syncMainDesignDataFromFabric(data);
+        data.invertedMain = shouldBeInverted;
+    } else if (extraIdx >= 0) {
+        if (!data.invertedExtras) data.invertedExtras = [];
+        data.invertedExtras[extraIdx] = shouldBeInverted;
+    }
+}
+
+function _applyWindowPatternFromPayload(data, payload) {
+    if (payload.patternMode) {
+        data.patternSettings = payload.patternSettings
+            ? JSON.parse(JSON.stringify(payload.patternSettings))
+            : _defaultPattern();
+        if (!data.patternMode) {
+            _togglePatternMode(data, true);
         } else {
-            data.scale = t.scale;
+            _renderPattern(data, false);
         }
-        _applyWindowEffects(data, t);
+    } else if (data.patternMode || data.patternFabricObj) {
+        _togglePatternMode(data, false);
+    }
+}
+
+function _applyEffectPayload(data, payload) {
+    if (data.locked || !payload) return;
+    const obj = _getPrimarySelectedLayer(data);
+    if (!obj) return;
+
+    const isMain = obj === data.designObject;
+    const extraIdx = isMain ? -1 : (data.extraDesignObjects || []).indexOf(obj);
+
+    if (payload.designFx) {
+        obj._fx = {
+            ...(obj._fx || _defaultFx(data)),
+            ...JSON.parse(JSON.stringify(payload.designFx)),
+        };
+    }
+
+    _syncInvertLayer(data, isMain, extraIdx, !!payload.invertActive);
+
+    if (isMain) {
+        if (!data.designOriginal) return;
+        _applyCopiedWindowEffects(data, obj._fx);
         applyWarpToData(data, false);
     } else {
-        const extraIdx = (data.extraDesignObjects || []).indexOf(obj);
         const src = data.extraDesignOriginals?.[extraIdx] || data.designOriginal;
         if (src) {
             _applyWarpToOneObject(obj, data, _cachedFlip(data, src), false);
         }
         applyClipMaskToObject(obj, data);
-        data.fabricCanvas.requestRenderAll();
     }
-}
 
-function _applyTransforms(data, t){
-    _applyTransformsToSelectedLayer(data, t, false);
+    _applyWindowPatternFromPayload(data, payload);
+    data.fabricCanvas?.requestRenderAll();
 }
 
 document.getElementById('copyTransformsBtn').addEventListener('click', () => {
     const srcData = lastSelectedIndex ?? canvasData[activeIndices[activeIndices.length - 1]] ?? null;
     if(srcData === null) return;
     if(!_getPrimarySelectedLayer(srcData)) return;
-    _copiedTransforms = _captureTransforms(srcData);
+    _copiedTransforms = _captureEffectPayload(srcData);
     // Visual feedback on the button
     const btn = document.getElementById('copyTransformsBtn');
     const _copyEffectsLabel = btn.innerHTML;
@@ -4792,11 +4824,10 @@ document.getElementById('copyTransformsBtn').addEventListener('click', () => {
 document.getElementById('pasteTransformsBtn').addEventListener('click', () => {
     if(!_copiedTransforms || !activeIndices.length) return;
     pushGlobalUndo();
-    const useAbsolute = _canCrossWindowSync();
     activeIndices.forEach(i => {
         const d = canvasData[i];
         if (!d || d.locked) return;
-        _applyTransformsToSelectedLayer(d, _copiedTransforms, useAbsolute);
+        _applyEffectPayload(d, _copiedTransforms);
         if (_userPlan === 'pro') {
             if (_transformsContainProEffect(_copiedTransforms)) _markProEffect(d);
             else _recomputeProEffect(d);
@@ -4804,6 +4835,7 @@ document.getElementById('pasteTransformsBtn').addEventListener('click', () => {
             _markProEffect(d);
         }
     });
+    _markDirty();
     syncSliders();
 });
 

@@ -18,6 +18,7 @@ The frontend reads plan on sign-in (`js/clerk-auth.js` → `window._userPlan`). 
 | Per-window ⭐ badge | Yellow when PRO used | Yellow when PRO used | Green when PRO used |
 | Export images (PNG/JPEG/ZIP/folder) | ✗ | Non-PRO windows only | All windows |
 | Export text | ✗ | ✓ | ✓ |
+| Export Pattern PNG (pattern sheet) | ✗ | ✗ | ✓ |
 | Local JSON save/load | ✓ | ✓ | ✓ |
 | Cloud save | ✗ | 1 project (upsert) | Up to 50 + Save as New |
 | Oversized cloud project | Save JSON locally → upload | Same | Same |
@@ -80,6 +81,12 @@ Controls in order:
 
 ### Copy / Paste Effects
 
+Copies **effects only** from the selected layer on the source window — never position, scale, rotation, skew, or flip.
+
+**Included:** opacity, blur, noise, cylinder warp, vertical arc, fisheye, horizontal/vertical perspective, layer mode, pattern mode + settings (unflattened), invert status for the copied layer.
+
+**Excluded:** placement geometry, flip H/V, mesh warp (baked mesh is not portable across windows).
+
 - **Copy** alone does not mark a window.
 - **Paste** marking:
 
@@ -107,9 +114,11 @@ Drawn on `after:render` for:
 3. **Starter:** PRO windows → upgrade prompt; mixed selection → “Skip PRO windows & export the rest”
 4. **Pro:** all selected windows export without watermark
 
-Export uses `fabricCanvas.toDataURL()` after `after:render` (same watermark as on-screen for tiers that watermarked).
+Export formats: individual files, folder (File System Access API), or ZIP (JSZip).
 
-### PRO detection (`_recomputeProEffect` in `js/app.js`)
+**Export Pattern PNG** (`exportPatternBtn` in Pattern section): client-side download of the tiled pattern sheet. Requires sign-in and **Pro** plan (`_userPlan === 'pro'`). Free and Starter users see the plans modal. Only works while Pattern mode is active on the selected window (no fallback export of `designOriginal`).
+
+### PRO effect detection (`_recomputeProEffect` in `js/app.js`)
 
 Sets `hasProEffect` and refreshes per-window ⭐ badge when any of:
 

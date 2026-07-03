@@ -56,6 +56,7 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 
 - [ ] Save blocked
 - [ ] Export blocked
+- [ ] Export Pattern PNG blocked (sign-in redirect or plans modal after sign-in)
 - [ ] Upgrade banner visible
 
 ---
@@ -91,6 +92,7 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 ### Starter exports
 
 - [ ] Normal export succeeds
+- [ ] Export Pattern PNG blocked (plans modal)
 - [ ] Pro-effect warning appears
 - [ ] Mixed export behaves correctly
 - [ ] All-pro export blocked
@@ -112,6 +114,8 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Layer mode ≠ Normal (multiply, screen, etc.)
 - [ ] Invert colors (main or extra layer)
 - [ ] Paste Effects (Starter: always marks window PRO)
+- [ ] Copy/Paste Effects does **not** change position, scale, or rotation on target
+- [ ] Copy/Paste Effects copies opacity, warp, blend, pattern settings, invert (not flip H/V)
 - [ ] Mesh warp (after Apply only; cancel does not mark)
 
 ### PRO effect badges & load
@@ -142,6 +146,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 - [ ] Watermark disappears
 - [ ] Export succeeds
+- [ ] Export Pattern PNG succeeds (Pattern mode active on selected window)
 - [ ] Save as New works
 - [ ] Rename works
 - [ ] Multiple projects save

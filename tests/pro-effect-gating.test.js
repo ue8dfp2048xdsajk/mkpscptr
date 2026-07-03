@@ -24,8 +24,8 @@ function loadProEffectFunctions() {
 
     const src   = fs.readFileSync(APP_JS_PATH, 'utf8');
     const lines = src.split('\n');
-    // Lines 127-181 (1-indexed): _windowHasProBlend … _recomputeProEffect
-    const snippet = lines.slice(126, 181).join('\n');
+    // Lines 127-184 (1-indexed): _windowHasProBlend … _recomputeProEffect
+    const snippet = lines.slice(126, 184).join('\n');
     // eslint-disable-next-line no-eval
     window.eval(snippet);
 }
@@ -94,24 +94,41 @@ describe('PRO effect detection', () => {
     });
 
     test('_transformsContainProEffect: warp non-zero is PRO', () => {
-        expect(_transformsContainProEffect({ warpAmount: 10, blendMode: 'normal' })).toBe(true);
+        expect(_transformsContainProEffect({
+            designFx: { warpAmount: 10, blendMode: 'normal' },
+        })).toBe(true);
     });
 
     test('_transformsContainProEffect: blur-only is not PRO', () => {
         expect(_transformsContainProEffect({
-            warpAmount: 0,
-            arcAmount: 0,
-            arcTilt: 0,
-            perspectiveTop: 0,
-            perspectiveLeft: 0,
-            blendMode: 'normal',
-            blurAmount: 50,
-            opacity: 0.5,
+            designFx: {
+                warpAmount: 0,
+                arcAmount: 0,
+                arcTilt: 0,
+                perspectiveTop: 0,
+                perspectiveLeft: 0,
+                blendMode: 'normal',
+                blurAmount: 50,
+                opacity: 0.5,
+            },
         })).toBe(false);
     });
 
     test('_transformsContainProEffect: non-normal blend is PRO', () => {
-        expect(_transformsContainProEffect({ blendMode: 'screen' })).toBe(true);
+        expect(_transformsContainProEffect({
+            designFx: { blendMode: 'screen' },
+        })).toBe(true);
+    });
+
+    test('_transformsContainProEffect: patternMode is PRO', () => {
+        expect(_transformsContainProEffect({
+            patternMode: true,
+            designFx: { blendMode: 'normal' },
+        })).toBe(true);
+    });
+
+    test('_transformsContainProEffect: invertActive is PRO', () => {
+        expect(_transformsContainProEffect({ invertActive: true })).toBe(true);
     });
 
     test('_windowHasProBlend detects per-layer blend on extra object', () => {

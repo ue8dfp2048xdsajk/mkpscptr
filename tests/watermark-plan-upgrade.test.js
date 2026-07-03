@@ -57,8 +57,8 @@ const APP_JS_PATH = path.join(__dirname, '../js/app.js');
 function loadWatermarkFunctions() {
     const src   = fs.readFileSync(APP_JS_PATH, 'utf8');
     const lines = src.split('\n');
-    // Lines 41-201 (1-indexed): watermark + PRO helpers through _refreshAllProStarBadges
-    const snippet = lines.slice(40, 201).join('\n');
+    // Lines 41-204 (1-indexed): watermark + PRO helpers through _refreshAllProStarBadges
+    const snippet = lines.slice(40, 204).join('\n');
 
     // Pre-define external identifiers the snippet references
     global.canvasData        = [];
