@@ -1272,6 +1272,36 @@ function _resetLayoutToDefaults() {
     }
 }
 
+const _VIEW_LAYOUT_DEFAULTS = { cols: 4, rowGap: 20, colGap: 20 };
+
+async function _resetViewToDefaults() {
+    const layoutChanged =
+        _numColumns !== _VIEW_LAYOUT_DEFAULTS.cols ||
+        _rowGap     !== _VIEW_LAYOUT_DEFAULTS.rowGap ||
+        _colGap     !== _VIEW_LAYOUT_DEFAULTS.colGap;
+
+    const viewChanged =
+        _vpScale !== 1 || _vpX !== 0 || _vpY !== 0;
+
+    if (!layoutChanged && !viewChanged) return;
+
+    if (layoutChanged) pushLayoutUndo();
+
+    if (layoutChanged) {
+        await applyLayoutState(_VIEW_LAYOUT_DEFAULTS);
+    }
+
+    if (viewChanged) {
+        _vpScale = 1;
+        _vpX     = 0;
+        _vpY     = 0;
+        _applyVP();
+    }
+
+    _markDirty();
+    autoSaveSession();
+}
+
 function syncSliders() {
 
     if(!activeIndices.length) {
@@ -9233,6 +9263,10 @@ function updateMinimap(){
     });
     document.getElementById('zoomLevelDisplay').addEventListener('click', () => {
         _vpScale = 1; _vpX = 0; _vpY = 0; applyVP();
+    });
+
+    document.getElementById('resetViewBtn')?.addEventListener('click', () => {
+        _resetViewToDefaults().catch(err => console.error('[Reset view]', err));
     });
 
     // ── Keyboard shortcuts ───────────────────────────────────────────────────
