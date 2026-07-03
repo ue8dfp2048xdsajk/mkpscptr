@@ -1339,7 +1339,7 @@ function _updateWindowCountBadge(){
 function _updateHeaderProMockupCount() {
     const el = document.getElementById('headerProMockupCount');
     if (!el || typeof _windowIsProGated !== 'function') return;
-    if (_userPlan === 'pro' || !canvasData.length) {
+    if (!canvasData.length) {
         el.hidden = true;
         return;
     }
@@ -1349,7 +1349,38 @@ function _updateHeaderProMockupCount() {
         return;
     }
     el.hidden = false;
-    el.textContent = n + ' PRO mockup' + (n !== 1 ? 's' : '');
+    if (_userPlan === 'pro') {
+        el.className = 'header-pro-count header-pro-count--included';
+        el.textContent = n + ' with Pro effect' + (n !== 1 ? 's' : '');
+        el.title = 'These mockups use Pro effects and export on your plan.';
+        el.removeAttribute('role');
+        el.removeAttribute('tabindex');
+    } else {
+        el.className = 'header-pro-count';
+        el.textContent = n + ' PRO mockup' + (n !== 1 ? 's' : '');
+        el.title = 'Upgrade to export mockups with Pro effects.';
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+    }
+}
+
+async function _promptUpgradeForPro(context) {
+    if (window.Clerk && !window.Clerk.user) {
+        sessionStorage.setItem('ms_redirect_after_auth', 'plans');
+        try { await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {}); } catch (e) {
+            console.error('[Upgrade→SignIn] snapshot failed:', e);
+        }
+        try {
+            window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href });
+        } catch (e) {
+            alert('Sign-in is temporarily unavailable \u2014 please refresh the page.');
+        }
+        return;
+    }
+    if (_userPlan === 'pro') return;
+    if (typeof openPlansModal === 'function') {
+        openPlansModal(context ? { context: context } : undefined);
+    }
 }
 
 // Reset all left-panel controls to upload defaults (no canvas selection required).
@@ -7671,6 +7702,34 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
 
 document.getElementById("undoBtn").addEventListener("click", () => performGlobalUndo());
 document.getElementById("redoBtn").addEventListener("click", () => performGlobalRedo());
+
+// ── PRO badge / mockup counter → plan picker ───────────────────────────────────
+(function(){
+    var panel = document.getElementById('contextPanel');
+    if (panel) {
+        panel.addEventListener('click', function (e) {
+            var badge = e.target.closest('.pro-badge-wrap .pro-badge');
+            if (!badge || _userPlan === 'pro') return;
+            e.preventDefault();
+            e.stopPropagation();
+            _promptUpgradeForPro('Pro effects require Pro \u2014 upgrade to export without watermarks.');
+        });
+    }
+
+    var counter = document.getElementById('headerProMockupCount');
+    if (counter) {
+        function onCounterActivate() {
+            if (_userPlan === 'pro') return;
+            _promptUpgradeForPro('These mockups use Pro effects \u2014 upgrade to export them without watermarks.');
+        }
+        counter.addEventListener('click', onCounterActivate);
+        counter.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            onCounterActivate();
+        });
+    }
+})();
 
 // ── Upgrade prompt (top bar) ──────────────────────────────────────────────────
 (function(){

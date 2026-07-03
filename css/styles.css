@@ -816,12 +816,6 @@ body {
     border-color: #e07000;
     box-shadow: 0 0 0 2px rgba(224,112,0,0.35);
 }
-#saveProgressBtn.has-unsaved::after {
-    content: ' ●';
-    color: #e07000;
-    font-size: 9px;
-    vertical-align: middle;
-}
 
 /* ── Minimap ────────────────────────────────────────────────────────────────── */
 #minimap {
@@ -2589,40 +2583,45 @@ body.user-plan-pro .pro-badge-tip {
     margin: 24px 0 0;
 }
 
-/* Upgrade button in avatar dropdown */
-.ms-avatar-upgrade-btn {
-    display: block;
+/* Upgrade / period-switch CTAs in avatar dropdown (override sticky-header ghost buttons) */
+.sticky-header .ms-avatar-dropdown .ms-avatar-upgrade-btn,
+.sticky-header .ms-avatar-dropdown .ms-avatar-period-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
     margin-top: 8px;
-    padding: 7px 0;
-    background: #4f46e5;
-    color: #fff;
-    border: none;
-    border-radius: 7px;
-    font-size: 12px;
-    font-weight: 600;
+    min-height: 38px;
+    height: auto;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
     cursor: pointer;
     text-align: center;
-    transition: background 0.15s;
+    box-shadow: 0 2px 12px rgba(79, 70, 229, 0.5);
+    transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+    white-space: normal;
+    gap: 6px;
 }
-.ms-avatar-upgrade-btn:hover { background: #4338ca; }
-
-.ms-avatar-period-btn {
-    display: block;
-    width: 100%;
-    margin-top: 8px;
-    padding: 7px 0;
-    background: #4f46e5;
-    color: #fff;
-    border: none;
-    border-radius: 7px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    text-align: center;
-    transition: background 0.15s;
+.sticky-header .ms-avatar-dropdown .ms-avatar-upgrade-btn:hover,
+.sticky-header .ms-avatar-dropdown .ms-avatar-period-btn:hover {
+    background: linear-gradient(135deg, #4f46e5, #4338ca) !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.6);
+    transform: translateY(-1px);
 }
-.ms-avatar-period-btn:hover { background: #4338ca; }
+.sticky-header .ms-avatar-dropdown .ms-avatar-upgrade-btn:focus-visible,
+.sticky-header .ms-avatar-dropdown .ms-avatar-period-btn:focus-visible {
+    outline: 3px solid #a5b4fc !important;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.35);
+}
 
 .ms-avatar-billing-btn {
     display: block;
@@ -3228,6 +3227,20 @@ body.user-plan-pro .pro-badge-tip {
     border-radius: 999px;
     padding: 3px 8px;
     white-space: nowrap;
+}
+.header-pro-count--included {
+    color: #6EE7B7;
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+body:not(.user-plan-pro) .header-pro-count:not(.header-pro-count--included) {
+    cursor: pointer;
+}
+body:not(.user-plan-pro) .header-pro-count:not(.header-pro-count--included):hover {
+    background: rgba(252, 211, 77, 0.2);
+}
+body:not(.user-plan-pro) .pro-badge-wrap .pro-badge {
+    cursor: pointer;
 }
 .header-pro-count[hidden] { display: none !important; }
 

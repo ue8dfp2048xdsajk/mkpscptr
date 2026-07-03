@@ -144,7 +144,7 @@
             '<div class="ms-avatar-plan">Plan: <strong>' + planLabel + '</strong></div>' +
             cancelLine +
             (showUpgradeBtn ? '<button class="ms-avatar-upgrade-btn" id="clerkUpgradeBtn">⚡ Upgrade plan</button>' : '') +
-            (periodSwitchLabel ? '<button class="ms-avatar-period-btn" id="clerkPeriodSwitchBtn">' + periodSwitchLabel + '</button>' : '') +
+            (periodSwitchLabel ? '<button class="ms-avatar-period-btn" id="clerkPeriodSwitchBtn">⚡ ' + periodSwitchLabel + '</button>' : '') +
             '<button class="ms-avatar-settings-btn" id="clerkSettingsBtn">⚙ Settings</button>' +
             '<button id="clerkSignOutBtn">Log Out</button>';
 
@@ -434,6 +434,11 @@
             setTimeout(function () {
                 var btn = document.getElementById('exportBtn');
                 if (btn) btn.click();
+            }, 400);
+        }
+        if (redirect === 'plans' && window.Clerk && window.Clerk.user) {
+            setTimeout(function () {
+                if (typeof openPlansModal === 'function') openPlansModal();
             }, 400);
         }
     }

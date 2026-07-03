@@ -37,4 +37,9 @@ describe('UX copy contracts (app.html)', () => {
     test('batch hint has dismiss control', () => {
         expect(appHtml).toContain('id="batchEditHintClose"');
     });
+
+    test('shortcuts list uses select multiple wording', () => {
+        expect(appHtml).toContain('<dt>Select multiple</dt><dd>Ctrl/Cmd+click</dd>');
+        expect(appHtml).not.toContain('Toggle selection');
+    });
 });
