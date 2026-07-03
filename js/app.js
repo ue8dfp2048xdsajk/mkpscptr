@@ -9732,16 +9732,57 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 
 
 // ── Drag-to-reorder windows ───────────────────────────────────────────────────
+
+function _cellsForDragGroup(srcData) {
+    const srcIdx = canvasData.indexOf(srcData);
+    if (srcIdx === -1) return [];
+
+    const inSelection = activeIndices.includes(srcIdx) && activeIndices.length > 1;
+    const indices = inSelection
+        ? [...activeIndices].filter(i => canvasData[i] && !canvasData[i].locked).sort((a, b) => a - b)
+        : (srcData.locked ? [] : [srcIdx]);
+
+    return indices.map(i => canvasData[i].cellEl).filter(Boolean);
+}
+
+function _insertCellBlock(container, cells, targetCell, before) {
+    if (!container || !cells.length || !targetCell) return;
+    const block = new Set(cells);
+    if (block.has(targetCell)) return;
+
+    cells.forEach(c => {
+        if (c.parentNode) c.parentNode.removeChild(c);
+    });
+
+    if (before) {
+        cells.forEach(c => container.insertBefore(c, targetCell));
+    } else {
+        let ref = targetCell.nextElementSibling;
+        cells.forEach(c => {
+            container.insertBefore(c, ref);
+        });
+    }
+}
+
+function _restoreCellsAfterCancelledDrag(container, cells, origNextMap, origIndexMap) {
+    [...cells].sort((a, b) => (origIndexMap.get(a) ?? 0) - (origIndexMap.get(b) ?? 0))
+        .forEach(c => {
+            const next = origNextMap.get(c);
+            if (container) container.insertBefore(c, next);
+        });
+}
+
 (()=>{
     const container = document.getElementById('canvasContainer');
-    let _dragSrcCell       = null;
-    let _dragOrigNext      = null; // next sibling at dragstart — used to restore on cancel
-    let _dropTarget        = null;
-    let _dropBefore        = true;
-    let _pendingFromHandle = false;
-    let _dropped           = false; // true when drop fired (so dragend skips restore)
+    let _dragSrcCell        = null;
+    let _dragSrcCells       = [];
+    let _dragOrigNextMap    = null;
+    let _dragOrigIndexMap   = null;
+    let _dropTarget         = null;
+    let _dropBefore         = true;
+    let _pendingFromHandle  = false;
+    let _dropped            = false;
 
-    // Track whether the drag was initiated from a drag handle
     document.addEventListener('mousedown', e => {
         _pendingFromHandle = e.target.classList.contains('drag-handle');
     });
@@ -9752,82 +9793,86 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         const cell = e.target.closest('.window-cell');
         if(!cell){ e.preventDefault(); return; }
         const srcData = canvasData.find(d => d.cellEl === cell);
-        if(srcData?.locked){ e.preventDefault(); return; }
-        _dragSrcCell  = cell;
-        _dragOrigNext = cell.nextElementSibling; // remember original position
-        _dropped      = false;
+        if(!srcData){ e.preventDefault(); return; }
+
+        const cells = _cellsForDragGroup(srcData);
+        if(!cells.length){ e.preventDefault(); return; }
+
+        const allAtStart = [...container.querySelectorAll('.window-cell')];
+        _dragSrcCell      = cell;
+        _dragSrcCells     = cells;
+        _dragOrigNextMap  = new Map(cells.map(c => [c, c.nextElementSibling]));
+        _dragOrigIndexMap = new Map(cells.map(c => [c, allAtStart.indexOf(c)]));
+        _dropped         = false;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', '');
-        // Delay so the ghost image captures the element at full opacity
-        requestAnimationFrame(() => cell.classList.add('drag-source'));
+        requestAnimationFrame(() => {
+            cells.forEach(c => c.classList.add('drag-source'));
+        });
     });
 
     container.addEventListener('dragover', e => {
-        if(!_dragSrcCell) return;
+        if(!_dragSrcCell || !_dragSrcCells.length) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         const cell = e.target.closest('.window-cell');
-        if(!cell || cell === _dragSrcCell) return;
+        if(!cell || _dragSrcCells.includes(cell)) return;
         const rect   = cell.getBoundingClientRect();
         const before = e.clientX < rect.left + rect.width / 2;
-        // Only move if target or direction changed (avoids unnecessary reflows)
         if(cell === _dropTarget && before === _dropBefore) return;
         _dropTarget = cell;
         _dropBefore = before;
-        // Live DOM reorder — grid reflows so surrounding items shift to fill the gap
-        if(before) cell.before(_dragSrcCell);
-        else       cell.after(_dragSrcCell);
+        _insertCellBlock(container, _dragSrcCells, cell, before);
     });
 
     container.addEventListener('dragend', () => {
-        if(_dragSrcCell){
-            _dragSrcCell.classList.remove('drag-source');
-            // Drag was cancelled (no drop) — restore to original position
-            if(!_dropped){
-                const parent = _dragSrcCell.parentNode;
-                if(parent) parent.insertBefore(_dragSrcCell, _dragOrigNext);
+        if(_dragSrcCells.length){
+            _dragSrcCells.forEach(c => c.classList.remove('drag-source'));
+            if(!_dropped && _dragOrigNextMap){
+                _restoreCellsAfterCancelledDrag(
+                    container, _dragSrcCells, _dragOrigNextMap, _dragOrigIndexMap
+                );
             }
         }
-        _dragSrcCell   = null;
-        _dropTarget    = null;
-        _dragOrigNext  = null;
-        _dropped       = false;
+        _dragSrcCell      = null;
+        _dragSrcCells     = [];
+        _dragOrigNextMap  = null;
+        _dragOrigIndexMap = null;
+        _dropTarget       = null;
+        _dropped          = false;
         _pendingFromHandle = false;
     });
 
     container.addEventListener('drop', e => {
         e.preventDefault();
-        if(!_dragSrcCell){ return; }
+        if(!_dragSrcCell || !_dragSrcCells.length){ return; }
 
-        _dropped = true; // tell dragend not to restore
+        _dropped = true;
 
-        // No reorder needed — live dragover already placed the element correctly
-
-        // ── 0. Push undo ──────────────────────────────────────────────────────
         globalUndoStack.push({ type: 'reorder', order: [...canvasData] });
         if(globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
         globalRedoStack = [];
         updateUndoRedoButtons();
         _markDirty();
 
-        // ── 1. Remove drag-source class ───────────────────────────────────────
-        _dragSrcCell.classList.remove('drag-source');
+        _dragSrcCells.forEach(c => c.classList.remove('drag-source'));
 
-        // ── 2. Rebuild canvasData to match new DOM order ──────────────────────
         const oldCanvasData = [...canvasData];
         const selectedDatas = activeIndices.map(i => oldCanvasData[i]);
 
         const cells = [...container.querySelectorAll('.window-cell')];
         canvasData = cells.map(c => oldCanvasData.find(d => d.cellEl === c));
 
-        // ── 3. Remap active indices ───────────────────────────────────────────
         activeIndices = selectedDatas.map(d => canvasData.indexOf(d)).filter(i => i !== -1);
         if(lastSelectedIndex !== null && !canvasData.includes(lastSelectedIndex)){
             lastSelectedIndex = null;
         }
 
-        _dragSrcCell  = null;
-        _dropTarget   = null;
+        _dragSrcCell      = null;
+        _dragSrcCells     = [];
+        _dragOrigNextMap  = null;
+        _dragOrigIndexMap = null;
+        _dropTarget       = null;
 
         updateWindowBorders();
         updateSelectButtonState();
