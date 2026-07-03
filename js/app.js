@@ -463,7 +463,7 @@ var _marchingAntsOffset = 0;
 
 
 
-// Extra layers: uploaded/pasted overlays → orange handles; cloned main design → transparent.
+// Layer handle colors: main = solid blue; clone = blue outline; overlay = orange.
 function _extraLayerKind(data, index) {
     const orig = data.extraDesignOriginals?.[index];
     if (orig != null) return 'overlay';
@@ -483,8 +483,8 @@ function _applyExtraLayerHandleStyle(obj, kind) {
     } else {
         obj.set({
             transparentCorners: true,
-            cornerColor: 'rgba(0,0,0,0)',
-            borderColor: 'rgba(0,0,0,0)',
+            cornerColor: 'blue',
+            borderColor: 'blue',
             cornerStyle: 'circle',
         });
     }
@@ -594,6 +594,9 @@ function _getPrimarySelectedLayer(data) {
 function refreshFabricHandles(){
     canvasData.forEach(d => {
         if(!d.fabricCanvas) return;
+        (d.extraDesignObjects || []).forEach((obj, i) => {
+            _applyExtraLayerHandleStyle(obj, _extraLayerKind(d, i));
+        });
         // Locked windows never show transform handles
         if(d.locked){
             if(d.fabricCanvas.getActiveObject()){
