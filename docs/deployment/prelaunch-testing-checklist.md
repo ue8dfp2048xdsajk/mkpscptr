@@ -141,7 +141,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Duplicate window(s) → undo removes dupes → redo restores; add window → undo removes → redo restores; delete → undo → redo
 - [ ] Drag-reorder window → undo restores order and content → redo re-applies reorder (no empty cells / badge-only ghosts)
 - [ ] Multi-select 2+ windows → drag handle on selected window → all selected move together; undo/redo and export selected unchanged
-- [ ] Drag empty viewport/grid gap → select tool activates + marquee selects windows; plain click still deselects
+- [ ] Drag empty viewport/grid gap → box-selects windows; plain click deselects; edit works immediately after (no select tool mode)
 - [ ] Exit eraser → layer re-selected → re-enter with E works
 - [ ] 0 or 2 layers selected → eraser blocked (alert)
 - [ ] Extra-layer warp only → ⭐ + Starter export block; undo warp to 0 → ⭐ clears

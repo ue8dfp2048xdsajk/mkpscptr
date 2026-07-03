@@ -6300,19 +6300,6 @@ document.addEventListener('keydown', function(e){
     if(typeof window._setActiveTool === 'function') window._setActiveTool('text');
 });
 
-// S — toggle marquee-select tool on/off
-document.addEventListener('keydown', function(e){
-    if(e.key.toLowerCase() !== 's') return;
-    if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
-
-    const tag = document.activeElement?.tagName;
-    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if(document.activeElement?.isContentEditable) return;
-
-    e.preventDefault();
-    if(typeof window._setActiveTool === 'function') window._setActiveTool('select');
-});
-
 // C — toggle clipping mode on/off
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'c') return;
@@ -8711,7 +8698,7 @@ var _vpPanning    = false;
 var _vpPanStart   = null;
 var _vpPanMoved   = false;
 var _vpSpaceDown  = false;
-var _activeTool   = null;  // null | 'select' | 'pan' | 'text'
+var _activeTool   = null;  // null | 'pan' | 'text'
 
 var _textBoxes = [];  // { id, x, y, w, h, content, el }
 var _tbNextId  = 1;
@@ -9146,12 +9133,11 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 })();
 
 
-// ── Toolbar tools: text + marquee-select + hand-pan ──────────────────────────
+// ── Toolbar tools: text + hand-pan + modeless marquee ────────────────────────
 (()=>{
     const vw        = document.getElementById('viewportWrapper');
     const cc        = document.getElementById('canvasContainer');
     const textBtn   = document.getElementById('toolTextBtn');
-    const selectBtn = document.getElementById('toolSelectBtn');
     const panBtn    = document.getElementById('toolPanBtn');
 
     // Rubber-band selection overlay
@@ -9173,13 +9159,11 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
     // ── Tool toggle ──────────────────────────────────────────────────────────
     function _applyToolUI() {
-        textBtn.classList.toggle('tool-active',   _activeTool === 'text');
-        selectBtn.classList.toggle('tool-active', _activeTool === 'select');
-        panBtn.classList.toggle('tool-active',    _activeTool === 'pan');
-        cc.style.pointerEvents = (_activeTool !== null) ? 'none' : '';
-        vw.style.cursor = _activeTool === 'pan'    ? 'grab'
-                        : _activeTool === 'select' ? 'crosshair'
-                        : _activeTool === 'text'   ? 'text'
+        textBtn.classList.toggle('tool-active', _activeTool === 'text');
+        panBtn.classList.toggle('tool-active',  _activeTool === 'pan');
+        cc.style.pointerEvents = (_activeTool === 'pan' || _activeTool === 'text') ? 'none' : '';
+        vw.style.cursor = _activeTool === 'pan'  ? 'grab'
+                        : _activeTool === 'text' ? 'text'
                         : '';
     }
 
@@ -9188,36 +9172,21 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         _applyToolUI();
     }
 
-    function forceTool(tool) {
-        _activeTool = tool;
-        _applyToolUI();
-    }
+    window._setActiveTool = setTool;
 
-    window._setActiveTool  = setTool;
-    window._forceActiveTool = forceTool;
+    textBtn.addEventListener('click', () => setTool('text'));
+    panBtn.addEventListener('click',  () => setTool('pan'));
 
-    textBtn.addEventListener('click',   () => setTool('text'));
-    selectBtn.addEventListener('click', () => setTool('select'));
-    panBtn.addEventListener('click',    () => setTool('pan'));
-
-    // ── Marquee select ───────────────────────────────────────────────────────
+    // ── Marquee select (empty-area drag; no persistent tool mode) ─────────────
     let _selStart = null, _selDragging = false;
     let _autoMarqueePending = false;
     let _autoMarqueeStart   = null;
 
     vw.addEventListener('mousedown', e => {
         if (e.button !== 0) return;
+        if (_activeTool === 'pan' || _activeTool === 'text') return;
 
-        if (_activeTool === 'select') {
-            e.preventDefault();
-            _autoMarqueePending = false;
-            _autoMarqueeStart   = null;
-            _selStart    = { x: e.clientX, y: e.clientY };
-            _selDragging = false;
-            return;
-        }
-
-        if (_activeTool === null && _isEmptyViewportMouseTarget(e)) {
+        if (_isEmptyViewportMouseTarget(e)) {
             _autoMarqueePending = true;
             _autoMarqueeStart   = { x: e.clientX, y: e.clientY };
             _selStart    = null;
@@ -9230,7 +9199,6 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
             const dx = Math.abs(e.clientX - _autoMarqueeStart.x);
             const dy = Math.abs(e.clientY - _autoMarqueeStart.y);
             if (dx > 3 || dy > 3) {
-                forceTool('select');
                 _selStart           = { x: _autoMarqueeStart.x, y: _autoMarqueeStart.y };
                 _selDragging        = true;
                 _autoMarqueePending = false;
@@ -9239,7 +9207,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
             }
         }
 
-        if (!_selStart || _activeTool !== 'select') return;
+        if (!_selStart) return;
         if (!_selDragging &&
             (Math.abs(e.clientX - _selStart.x) > 3 || Math.abs(e.clientY - _selStart.y) > 3)) {
             _selDragging = true;
@@ -9249,7 +9217,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
     });
 
     document.addEventListener('mouseup', e => {
-        if (_activeTool === 'select' && _selStart) {
+        if (_selStart) {
             rb.style.display = 'none';
 
             if (_selDragging) {
