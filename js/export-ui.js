@@ -122,6 +122,21 @@ async function exportDataToBlob(data, fmt, quality){
     const qualVal     = document.getElementById('exportQualityVal');
     const goBtn       = document.getElementById('exportGoBtn');
 
+    function _showExportStatus(msg) {
+        const el = document.getElementById('loadingIndicator');
+        if (!el) return;
+        el.style.display = 'block';
+        el.innerText = msg;
+    }
+    function _hideExportStatus() {
+        const el = document.getElementById('loadingIndicator');
+        if (el) el.style.display = 'none';
+    }
+    function _setExportProgress(msg) {
+        goBtn.textContent = msg;
+        _showExportStatus(msg);
+    }
+
     // Quality row starts hidden (PNG is default)
     qualityRow.hidden = true;
 
@@ -179,17 +194,19 @@ async function exportDataToBlob(data, fmt, quality){
             }
         }
 
-        goBtn.textContent = 'Exporting…';
         goBtn.disabled = true;
+        popover.hidden = true;
 
+        let exportSucceeded = false;
         try {
+            _setExportProgress('Exporting…');
             if(_exportOutput === 'zip'){
                 // --- ZIP mode: collect all blobs → single .zip download ---
                 const zip = new JSZip();
                 const usedNames = {};
                 for(let i = 0; i < indices.length; i++){
                     const data = canvasData[indices[i]];
-                    goBtn.textContent = 'Exporting ' + (i + 1) + ' of ' + indices.length + '…';
+                    _setExportProgress('Exporting ' + (i + 1) + ' of ' + indices.length + '…');
                     const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
                     let baseName = (data.filename || ('mockup_' + (i + 1)));
                     // Deduplicate filenames within the zip
@@ -202,7 +219,7 @@ async function exportDataToBlob(data, fmt, quality){
                     }
                     zip.file(fileName, blob);
                 }
-                goBtn.textContent = 'Zipping…';
+                _setExportProgress('Zipping…');
                 const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
                 const url = URL.createObjectURL(zipBlob);
                 const a   = document.createElement('a');
@@ -221,7 +238,7 @@ async function exportDataToBlob(data, fmt, quality){
 
                     for(let i = 0; i < indices.length; i++){
                         const data = canvasData[indices[i]];
-                        goBtn.textContent = 'Exporting ' + (i + 1) + ' of ' + indices.length + '…';
+                        _setExportProgress('Exporting ' + (i + 1) + ' of ' + indices.length + '…');
                         const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
                         const fh   = await dirHandle.getFileHandle((data.filename || ('mockup_' + (i + 1))) + '.' + ext, { create: true });
                         const wr   = await fh.createWritable();
@@ -233,7 +250,7 @@ async function exportDataToBlob(data, fmt, quality){
                     // Path B: fallback <a download> — one download per file
                     for(let i = 0; i < indices.length; i++){
                         const data = canvasData[indices[i]];
-                        goBtn.textContent = 'Exporting ' + (i + 1) + ' of ' + indices.length + '…';
+                        _setExportProgress('Exporting ' + (i + 1) + ' of ' + indices.length + '…');
                         const blob = await exportDataToBlob(data, _exportFormat, _exportQuality);
                         const url  = URL.createObjectURL(blob);
                         const a    = document.createElement('a');
@@ -245,12 +262,19 @@ async function exportDataToBlob(data, fmt, quality){
                     }
                 }
             }
+            exportSucceeded = true;
+            _setExportProgress('Export complete ✓');
         } catch(err) {
             console.error('Export failed:', err);
             alert('Export failed — ' + (err.message || 'unknown error'));
         } finally {
             goBtn.textContent = 'Export';
             goBtn.disabled = false;
+            if (exportSucceeded) {
+                setTimeout(_hideExportStatus, 800);
+            } else {
+                _hideExportStatus();
+            }
         }
     }
 
@@ -311,6 +335,7 @@ async function exportDataToBlob(data, fmt, quality){
 
         // Server-side export gate — verifies plan server-side so the export
         // cannot be triggered by running the frontend code without the backend.
+        _setExportProgress('Preparing export…');
         try {
             const _exportToken = window.Clerk?.session
                 ? await window.Clerk.session.getToken().catch(() => null)
@@ -323,6 +348,7 @@ async function exportDataToBlob(data, fmt, quality){
             });
             if (!exportAuth.ok) {
                 const exportErr = await exportAuth.json().catch(() => ({}));
+                _hideExportStatus();
                 if (exportErr.error === 'upgrade_required') {
                     if (typeof openPlansModal === 'function') openPlansModal();
                 } else {
@@ -331,6 +357,7 @@ async function exportDataToBlob(data, fmt, quality){
                 return;
             }
         } catch {
+            _hideExportStatus();
             alert('Export failed — could not reach the server. Please check your connection.');
             return;
         }
