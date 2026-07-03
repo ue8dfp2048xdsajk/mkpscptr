@@ -175,6 +175,18 @@ describe('_drawWatermarkOnCanvas — watermark by plan', () => {
         expect(fc.contextContainer.fillText).toHaveBeenCalled();
     });
 
+    test('_endWatermarkInteraction refreshes gated canvases when suppression ends', () => {
+        window._userPlan = 'starter';
+        const fc   = makeFakeCanvas(800, 600);
+        const data = makeCanvasData(fc, { warpAmount: 10 });
+        global.canvasData = [data];
+
+        _beginWatermarkInteraction();
+        fc.requestRenderAll.mockClear();
+        _endWatermarkInteraction();
+        expect(fc.requestRenderAll).toHaveBeenCalledTimes(1);
+    });
+
     test('still draws during Fabric transform (design drag/scale)', () => {
         window._userPlan = 'free';
         const fc   = makeFakeCanvas(800, 600);

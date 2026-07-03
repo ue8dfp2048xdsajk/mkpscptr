@@ -570,11 +570,6 @@ function _attachWindowCanvasSelection(data) {
         const index  = canvasData.indexOf(data);
         if (index === -1) return;
 
-        if (!target && !designEraserMode && !designWarpMode) {
-            data._watermarkMarqueeActive = true;
-            _beginWatermarkInteraction();
-        }
-
         if (!target) {
             _applyWindowClickSelection(index, opt.e);
             return;
@@ -670,13 +665,6 @@ function _attachWindowCanvasSelection(data) {
             }
         }
         _drawWatermarkOnCanvas(data);
-    });
-
-    data.fabricCanvas.on('mouse:up', () => {
-        if (data._watermarkMarqueeActive) {
-            data._watermarkMarqueeActive = false;
-            _endWatermarkInteraction();
-        }
     });
 
     data.fabricCanvas.on('mouse:down', (opt) => {

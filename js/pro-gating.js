@@ -9,6 +9,22 @@ function _beginWatermarkInteraction() {
 
 function _endWatermarkInteraction() {
     _watermarkInteractionDepth = Math.max(0, _watermarkInteractionDepth - 1);
+    if (_watermarkInteractionDepth === 0) _refreshWatermarkedCanvases();
+}
+
+function _canvasNeedsWatermark(data) {
+    if (!data?.fabricCanvas || !data.designObject) return false;
+    if (_userPlan === 'free') return true;
+    if (_userPlan === 'starter' && _windowIsProGated(data)) return true;
+    return false;
+}
+
+// Re-paint watermarks after pan/marquee suppression ends (after:render skips while active).
+function _refreshWatermarkedCanvases() {
+    if (typeof canvasData === 'undefined') return;
+    canvasData.forEach(d => {
+        if (_canvasNeedsWatermark(d)) d.fabricCanvas.requestRenderAll();
+    });
 }
 
 function _watermarkInteractionActive() {
