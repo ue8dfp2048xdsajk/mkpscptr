@@ -945,23 +945,42 @@ details[open] > .faq-question { color: #fff; }
     }
     .footer-top { flex-direction: column; gap: 32px; }
     .footer-bottom { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .social-proof {
+        padding: 40px 0;
+    }
     .social-proof-inner {
         grid-template-columns: 1fr;
-        gap: 28px;
-        justify-items: center;
+        gap: 36px;
+        justify-items: stretch;
+        padding: 0 20px;
     }
     .social-proof-item {
         flex-direction: column;
         align-items: center;
         text-align: center;
-        max-width: 320px;
-        gap: 10px;
+        width: 100%;
+        max-width: none;
+        gap: 12px;
     }
     .social-proof-icon {
         margin-top: 0;
+        width: 26px;
+        height: 26px;
     }
     .social-proof-text {
         align-items: center;
+        width: 100%;
+    }
+    .social-proof-label {
+        font-size: clamp(17px, 4.6vw, 20px);
+        line-height: 1.4;
+        color: #F3F4F6;
+    }
+    .social-proof-desc {
+        font-size: clamp(15px, 4vw, 17px);
+        line-height: 1.5;
+        color: #9CA3AF;
+        max-width: 34em;
     }
 }
 
@@ -970,4 +989,11 @@ details[open] > .faq-question { color: #fff; }
     .hero-ctas { flex-direction: column; align-items: stretch; }
     .hero-ctas .btn { justify-content: center; }
     .pricing-notes { flex-direction: column; align-items: center; gap: 12px; }
+    .social-proof-inner {
+        padding: 0 16px;
+        gap: 40px;
+    }
+    .social-proof-desc {
+        max-width: none;
+    }
 }
