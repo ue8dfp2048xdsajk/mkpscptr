@@ -152,20 +152,22 @@ module.exports = async function handler(req, res) {
         const starterUuid = crypto.randomUUID();
         const trimmedName = (name || '').trim();
         const starterSet = { snapshot, updatedAt: now, plan, userId: clerkUserId, expiresAt: null };
-        if (trimmedName) starterSet.name = trimmedName;
+        const setOnInsert = {
+            uuid: starterUuid,
+            schemaVersion: snapshot.schemaVersion,
+            createdAt: now,
+        };
+        // MongoDB rejects the same path in both $set and $setOnInsert.
+        if (trimmedName) {
+            starterSet.name = trimmedName;
+        } else {
+            setOnInsert.name = 'Untitled';
+        }
         let result;
         try {
             result = await col.findOneAndUpdate(
                 { userId: clerkUserId },
-                {
-                    $set: starterSet,
-                    $setOnInsert: {
-                        uuid: starterUuid,
-                        schemaVersion: snapshot.schemaVersion,
-                        createdAt: now,
-                        name: (name || '').trim() || 'Untitled',
-                    },
-                },
+                { $set: starterSet, $setOnInsert: setOnInsert },
                 { upsert: true, returnDocument: 'after' }
             );
         } catch (err) {

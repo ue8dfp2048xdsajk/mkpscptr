@@ -42,10 +42,13 @@ describe('project name persistence', () => {
         expect(src).toMatch(/_projectName = \(data\.name \|\| raw\.name \|\| ''\)\.trim\(\) \|\| '';/);
     });
 
-    test('Starter upsert updates name in $set when provided', () => {
+    test('Starter upsert puts name in only one Mongo update operator', () => {
         const src = fs.readFileSync(SAVE_JS_PATH, 'utf8');
-        expect(src).toMatch(/if \(trimmedName\) starterSet\.name = trimmedName;/);
-        expect(src).toMatch(/\$set: starterSet/);
+        const starterBlock = src.match(/if \(plan === 'starter'\) \{[\s\S]*?\n    \}/);
+        expect(starterBlock).toBeTruthy();
+        expect(starterBlock[0]).toMatch(/if \(trimmedName\) \{\s*starterSet\.name = trimmedName;/);
+        expect(starterBlock[0]).toMatch(/else \{\s*setOnInsert\.name = 'Untitled';/);
+        expect(starterBlock[0]).not.toMatch(/\$setOnInsert:[\s\S]*name:/);
     });
 
     test('GET /api/projects/[id] returns document name', () => {
