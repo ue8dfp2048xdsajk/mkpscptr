@@ -66,8 +66,8 @@ function _canUseLocalJson() {
 
 function _promptLocalJsonUpgrade(action) {
     var context = action === 'load'
-        ? 'Load local JSON requires Starter or Pro — upgrade to open project files from your device.'
-        : 'Save local JSON requires Starter or Pro — upgrade to download a backup of your project.';
+        ? 'Load local JSON requires Starter or Pro - upgrade to open project files from your device.'
+        : 'Save local JSON requires Starter or Pro - upgrade to download a backup of your project.';
     if (typeof openPlansModal === 'function') {
         openPlansModal({ context: context });
     }

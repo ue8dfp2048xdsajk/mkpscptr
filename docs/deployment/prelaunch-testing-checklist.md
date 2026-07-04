@@ -244,7 +244,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 ## Part 8 - Lifetime purchase
 
 - [ ] One-time payment (Stripe checkout `mode: payment`, not `subscription`)
-- [ ] Stripe Customer created (`customer_creation=always`) — not a Guest-only payment
+- [ ] Stripe Customer created (`customer_creation=always`) - not a Guest-only payment
 - [ ] Clerk `public_metadata.stripeCustomerId` set after purchase
 - [ ] Settings → **Manage Billing** opens Stripe portal (not “No billing account found”)
 - [ ] Correct webhook (`checkout.session.completed` - lifetime does not go through subscription events)

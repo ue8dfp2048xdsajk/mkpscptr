@@ -501,7 +501,9 @@ img { max-width: 100%; display: block; }
 .billing-tab .badge-lifetime {
     position: absolute;
     top: -10px;
-    left: calc(100% - 6px);
+    left: 50%;
+    right: auto;
+    transform: translateX(-72%);
     background: #10B981;
     color: #fff;
     font-size: 8px;
@@ -1066,6 +1068,16 @@ details[open] > .faq-question { color: #fff; }
     .hero-ctas { flex-direction: column; align-items: stretch; }
     .hero-ctas .btn { justify-content: center; }
     .pricing-notes { flex-direction: column; align-items: center; gap: 12px; }
+    .billing-tab {
+        padding: 7px 10px;
+        font-size: 12px;
+    }
+    .billing-tab .badge-lifetime {
+        transform: translateX(-88%);
+        font-size: 7px;
+        padding: 2px 4px;
+        letter-spacing: 0;
+    }
     .social-proof-inner {
         padding: 0 16px;
         gap: 40px;

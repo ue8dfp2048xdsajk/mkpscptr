@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * Starter cloud save — findOneAndUpdate must not put `name` in both $set and $setOnInsert.
+ * Starter cloud save - findOneAndUpdate must not put `name` in both $set and $setOnInsert.
  */
 
 'use strict';
@@ -80,7 +80,7 @@ function makeProjectsCollection() {
     };
 }
 
-describe('projects/save — starter plan', () => {
+describe('projects/save - starter plan', () => {
     let handler;
     let projectsCol;
     const originalFetch = global.fetch;
