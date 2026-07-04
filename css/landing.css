@@ -202,8 +202,8 @@ img { max-width: 100%; display: block; }
 
 .hero-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-    gap: 48px;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.85fr);
+    gap: 40px;
     align-items: center;
 }
 
@@ -213,7 +213,7 @@ img { max-width: 100%; display: block; }
     line-height: 1.1;
     letter-spacing: -0.03em;
     color: #fff;
-    max-width: 520px;
+    max-width: 580px;
     margin: 0 0 20px;
 }
 
@@ -227,7 +227,7 @@ img { max-width: 100%; display: block; }
 .hero-sub {
     font-size: 18px;
     color: #9CA3AF;
-    max-width: 440px;
+    max-width: 500px;
     margin: 0 0 32px;
     line-height: 1.6;
 }
@@ -239,6 +239,16 @@ img { max-width: 100%; display: block; }
     gap: 12px;
     flex-wrap: wrap;
     margin-bottom: 16px;
+}
+
+.hero-ctas .btn-hero {
+    height: 52px;
+    padding: 0 32px;
+    font-size: 16px;
+    box-shadow: 0 4px 14px rgba(79, 110, 247, 0.4);
+}
+.hero-ctas .btn-hero:hover {
+    box-shadow: 0 6px 20px rgba(79, 110, 247, 0.55);
 }
 
 .hero-note {
