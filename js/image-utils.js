@@ -305,6 +305,37 @@ function trimTransparentBorders(canvas){
     return trimmed;
 }
 
+// Map a content-space delta (source pixels from center) to canvas-space delta
+// using scale + skew + rotation (matches Fabric object local transform).
+function contentDeltaToCanvasDelta(dx, dy, geo) {
+    geo = geo || {};
+    if (typeof fabric !== 'undefined' && fabric.util && fabric.util.composeMatrix) {
+        const m = fabric.util.composeMatrix({
+            angle:  geo.angle  || 0,
+            scaleX: geo.scaleX ?? 1,
+            scaleY: geo.scaleY ?? 1,
+            skewX:  geo.skewX  || 0,
+            skewY:  geo.skewY  || 0,
+        });
+        return fabric.util.transformPoint({ x: dx, y: dy }, m);
+    }
+    const rad  = (geo.angle || 0) * Math.PI / 180;
+    const cosA = Math.cos(rad);
+    const sinA = Math.sin(rad);
+    const sx   = geo.scaleX ?? 1;
+    const sy   = geo.scaleY ?? 1;
+    const kx   = Math.tan((geo.skewX || 0) * Math.PI / 180);
+    const ky   = Math.tan((geo.skewY || 0) * Math.PI / 180);
+    const sxdx = sx * dx;
+    const sydy = sy * dy;
+    const skx  = sxdx + ky * sydy;
+    const sky  = kx * sxdx + sydy;
+    return {
+        x: skx * cosA - sky * sinA,
+        y: skx * sinA + sky * cosA,
+    };
+}
+
 
 // Ensure every render call on a Fabric canvas uses high-quality image smoothing.
 // Fabric v5 leaves imageSmoothingQuality at the browser default ('low'), which

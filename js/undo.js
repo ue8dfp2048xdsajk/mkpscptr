@@ -688,19 +688,23 @@ async function performGlobalUndo(){
             type: 'eraser',
             items: entry.items
                 .filter(item => item.idx < canvasData.length)
-                .map(item => ({
-                    idx:  item.idx,
-                    snap: _captureEraserSnapshot(canvasData[item.idx])
-                }))
+                .map(item => {
+                    const d = canvasData[item.idx];
+                    const obj = _resolveEraserTargetObject(d, item);
+                    return {
+                        idx:      item.idx,
+                        snap:     _captureEraserSnapshot(d),
+                        geo:      _captureEraserObjectGeo(obj),
+                        isMain:   item.isMain,
+                        extraIdx: item.extraIdx,
+                    };
+                })
         };
         globalRedoStack.push(redoEntry);
         updateUndoRedoButtons();
         for(const item of entry.items){
             if(item.idx >= canvasData.length) continue;
-            const d = canvasData[item.idx];
-            _applyEraserSnapshot(d, item.snap);
-            await applyWarpToData(d, false);
-            _syncProEffect(d);
+            await _restoreEraserUndoItem(canvasData[item.idx], item);
         }
         syncSliders();
         updateUndoRedoButtons();
@@ -825,19 +829,23 @@ async function performGlobalRedo(){
             type: 'eraser',
             items: entry.items
                 .filter(item => item.idx < canvasData.length)
-                .map(item => ({
-                    idx:  item.idx,
-                    snap: _captureEraserSnapshot(canvasData[item.idx])
-                }))
+                .map(item => {
+                    const d = canvasData[item.idx];
+                    const obj = _resolveEraserTargetObject(d, item);
+                    return {
+                        idx:      item.idx,
+                        snap:     _captureEraserSnapshot(d),
+                        geo:      _captureEraserObjectGeo(obj),
+                        isMain:   item.isMain,
+                        extraIdx: item.extraIdx,
+                    };
+                })
         };
         globalUndoStack.push(undoEntry);
         updateUndoRedoButtons();
         for(const item of entry.items){
             if(item.idx >= canvasData.length) continue;
-            const d = canvasData[item.idx];
-            _applyEraserSnapshot(d, item.snap);
-            await applyWarpToData(d, false);
-            _syncProEffect(d);
+            await _restoreEraserUndoItem(canvasData[item.idx], item);
         }
         syncSliders();
         updateUndoRedoButtons();

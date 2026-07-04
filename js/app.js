@@ -963,14 +963,12 @@ function _attachWindowCanvasSelection(data) {
         if (!targetData || targetData !== data) return;
 
         if (!designEraserDown) {
-            const index = canvasData.indexOf(data);
-            const items = [{ idx: index, snap: _captureEraserSnapshot(data) }];
-            if (items.length) {
-                globalUndoStack.push({ type: 'eraser', items });
-                if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
-                globalRedoStack = [];
-                updateUndoRedoButtons();
-            }
+            const undoItem = _beginEraserStroke(data, targetData);
+            _eraserStrokeGeo = undoItem.geo;
+            globalUndoStack.push({ type: 'eraser', items: [undoItem] });
+            if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();
+            globalRedoStack = [];
+            updateUndoRedoButtons();
         }
 
         designEraserDown = true;
@@ -1846,11 +1844,15 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality, opts){
             const dx  = (tx0 + srcTrimmed.width  / 2) - srcOriginal.width  / 2;
             const dy  = (ty0 + srcTrimmed.height / 2) - srcOriginal.height / 2;
             if (dx !== 0 || dy !== 0) {
-                const rad  = (prevAngle || 0) * Math.PI / 180;
-                const cosA = Math.cos(rad);
-                const sinA = Math.sin(rad);
-                adjLeft += dx * prevScaleX * cosA - dy * prevScaleY * sinA;
-                adjTop  += dx * prevScaleX * sinA + dy * prevScaleY * cosA;
+                const delta = contentDeltaToCanvasDelta(dx, dy, {
+                    angle:  prevAngle,
+                    scaleX: prevScaleX,
+                    scaleY: prevScaleY,
+                    skewX:  prevSkewX,
+                    skewY:  prevSkewY,
+                });
+                adjLeft += delta.x;
+                adjTop  += delta.y;
             }
         }
     }
@@ -1966,11 +1968,15 @@ async function applyWarpToData(data, lowQuality = false){
                 const dx   = (tx0 + srcTrimmed.width  / 2) - refW / 2;
                 const dy   = (ty0 + srcTrimmed.height / 2) - refH / 2;
                 if (dx !== 0 || dy !== 0) {
-                    const rad  = (data.rotation || 0) * Math.PI / 180;
-                    const cosA = Math.cos(rad);
-                    const sinA = Math.sin(rad);
-                    adjX += dx * scX * cosA - dy * scY * sinA;
-                    adjY += dx * scX * sinA + dy * scY * cosA;
+                    const delta = contentDeltaToCanvasDelta(dx, dy, {
+                        angle:  data.rotation || 0,
+                        scaleX: scX,
+                        scaleY: scY,
+                        skewX:  data.skewX || 0,
+                        skewY:  data.skewY || 0,
+                    });
+                    adjX += delta.x;
+                    adjY += delta.y;
                 }
             }
         }

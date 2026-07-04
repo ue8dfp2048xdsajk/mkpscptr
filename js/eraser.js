@@ -178,27 +178,110 @@ function _eraserFabricRadius(data) {
     return designEraserSize * cssToFabric;
 }
 
-// Map a Fabric canvas-space pointer to source-image pixel coordinates + brush radius.
-function _pointerToSourcePixel(obj, data, pointer) {
-    const fabricRadius = _eraserFabricRadius(data);
-    const inv          = fabric.util.invertTransform(obj.calcTransformMatrix());
-    const local        = fabric.util.transformPoint(pointer, inv);
-    const srcEl        = _ensureErasableOriginal(data, obj);
+function _captureEraserObjectGeo(obj) {
+    if (!obj) return null;
+    return {
+        left:   obj.left,
+        top:    obj.top,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY,
+        angle:  obj.angle ?? 0,
+        skewX:  obj.skewX  || 0,
+        skewY:  obj.skewY  || 0,
+    };
+}
+
+function _resolveEraserTargetObject(data, item) {
+    if (!data || !item) return null;
+    if (item.isMain) return data.designObject || null;
+    if (item.extraIdx >= 0) return data.extraDesignObjects?.[item.extraIdx] ?? null;
+    return null;
+}
+
+function _beginEraserStroke(data, obj) {
+    const isMain   = obj === data.designObject;
+    const extraIdx = isMain ? -1 : (data.extraDesignObjects || []).indexOf(obj);
+    return {
+        idx:      canvasData.indexOf(data),
+        snap:     _captureEraserSnapshot(data),
+        geo:      _captureEraserObjectGeo(obj),
+        isMain:   isMain,
+        extraIdx: extraIdx,
+    };
+}
+
+var _eraserStrokeGeo = null;
+
+// Map element-local coords to designOriginal pixel coords (flip + trim + blur pad).
+function _localToOriginalPixel(obj, data, localX, localY, srcEl) {
+    const elW = obj.width  || srcEl.width;
+    const elH = obj.height || srcEl.height;
+    let wx = localX + elW / 2;
+    let wy = localY + elH / 2;
+
+    const trim = obj._c_trimmed;
+    if (trim && trim._trimX0 != null) {
+        if (trim.width === elW && trim.height === elH) {
+            wx = trim._trimX0 + wx;
+            wy = trim._trimY0 + wy;
+        } else if (trim._trimSrcW && trim._trimSrcH) {
+            wx = trim._trimX0 + (wx / elW) * trim.width;
+            wy = trim._trimY0 + (wy / elH) * trim.height;
+        }
+    }
+
+    const blurR = obj._c_blurR || 0;
+    const pad   = blurR > 0 ? Math.ceil(blurR * 4) : 0;
+    let px = wx - pad;
+    let py = wy - pad;
+
+    if (typeof _getLayerFlip === 'function') {
+        const flags = _getLayerFlip(obj, data);
+        const srcW  = srcEl.width;
+        const srcH  = srcEl.height;
+        if (flags.flipX) px = srcW - 1 - px;
+        if (flags.flipY) py = srcH - 1 - py;
+    }
+
+    return { px, py };
+}
+
+function _canvasPointToOriginalPixel(obj, data, pointer, srcEl) {
+    const inv   = fabric.util.invertTransform(obj.calcTransformMatrix());
+    const local = fabric.util.transformPoint(pointer, inv);
+    return _localToOriginalPixel(obj, data, local.x, local.y, srcEl);
+}
+
+// Map canvas pointer → source pixel + brush stamp (circle or skew-aware ellipse).
+function _pointerToSourceEraseStamp(obj, data, pointer) {
+    const srcEl = _ensureErasableOriginal(data, obj);
     if (!srcEl) return null;
 
-    const objW   = obj.width  || srcEl.width;
-    const objH   = obj.height || srcEl.height;
-    const srcSX  = srcEl.width  / objW;
-    const srcSY  = srcEl.height / objH;
-    const px     = (local.x + objW / 2) * srcSX;
-    const py     = (local.y + objH / 2) * srcSY;
-    const scl    = Math.min(obj.scaleX || 1, obj.scaleY || 1);
-    const radius = Math.max(0.5, fabricRadius / scl * Math.min(srcSX, srcSY));
-    return { srcEl, px, py, radius };
+    const center = _canvasPointToOriginalPixel(obj, data, pointer, srcEl);
+    const fabricRadius = _eraserFabricRadius(data);
+    const pX = _canvasPointToOriginalPixel(obj, data, { x: pointer.x + fabricRadius, y: pointer.y }, srcEl);
+    const pY = _canvasPointToOriginalPixel(obj, data, { x: pointer.x, y: pointer.y + fabricRadius }, srcEl);
+
+    const rx = Math.max(0.5, Math.hypot(pX.px - center.px, pX.py - center.py));
+    const ry = Math.max(0.5, Math.hypot(pY.px - center.px, pY.py - center.py));
+    const skewX = obj.skewX || 0;
+    const skewY = obj.skewY || 0;
+    const useEllipse = Math.abs(rx - ry) > 0.75 || Math.abs(skewX) > 0.01 || Math.abs(skewY) > 0.01;
+
+    return {
+        srcEl,
+        px: center.px,
+        py: center.py,
+        rx,
+        ry,
+        angle: Math.atan2(pX.py - center.py, pX.px - center.px),
+        useEllipse,
+        radius: Math.max(rx, ry),
+    };
 }
 
 // Draw a soft erase circle onto a canvas context.
-function _drawEraseOnContext(ctx, px, py, radius) {
+function _drawEraseCircleOnContext(ctx, px, py, radius) {
     const softFrac = designEraserSoftness / 100;
     const innerR   = Math.max(0, radius * (1 - softFrac) - 0.5);
     ctx.save();
@@ -217,6 +300,56 @@ function _drawEraseOnContext(ctx, px, py, radius) {
         ctx.fill();
     }
     ctx.restore();
+}
+
+function _drawEraseEllipseOnContext(ctx, px, py, rx, ry, angle) {
+    const softFrac = designEraserSoftness / 100;
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.translate(px, py);
+    ctx.rotate(angle || 0);
+    if (softFrac < 0.02) {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+    } else {
+        const maxR   = Math.max(rx, ry);
+        const innerR = Math.max(0, maxR * (1 - softFrac) - 0.5);
+        ctx.scale(rx / maxR, ry / maxR);
+        const grad = ctx.createRadialGradient(0, 0, innerR, 0, 0, maxR);
+        grad.addColorStop(0, 'rgba(0,0,0,1)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, maxR, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+function _drawEraseStampOnContext(ctx, stamp) {
+    if (stamp.useEllipse) {
+        _drawEraseEllipseOnContext(ctx, stamp.px, stamp.py, stamp.rx, stamp.ry, stamp.angle);
+    } else {
+        _drawEraseCircleOnContext(ctx, stamp.px, stamp.py, stamp.radius);
+    }
+}
+
+async function _restoreEraserUndoItem(d, item) {
+    _applyEraserSnapshot(d, item.snap);
+    const obj = _resolveEraserTargetObject(d, item);
+    if (obj) {
+        _resetObjectPipelineCaches(obj);
+        _rebuildEraserTarget(d, obj, false);
+        if (item.geo) {
+            _applyFabricGeometry(obj, item.geo);
+            if (item.isMain) _syncMainDesignDataFromFabric(d);
+        }
+        d.fabricCanvas?.requestRenderAll();
+    } else {
+        await applyWarpToData(d, false);
+    }
+    _syncProEffect(d);
 }
 
 // Invalidate pipeline caches after an in-place source erase.
@@ -242,11 +375,11 @@ function _previewEraserTarget(data, obj) {
     _rebuildEraserTarget(data, obj, true);
 }
 
-// Erase a soft circle from obj at a Fabric canvas-space point (source pixels only).
+// Erase a soft stamp from obj at a Fabric canvas-space point (source pixels only).
 function eraseFromObject(obj, data, pointer) {
-    const hit = _pointerToSourcePixel(obj, data, pointer);
-    if (!hit) return;
-    _drawEraseOnContext(hit.srcEl.getContext('2d'), hit.px, hit.py, hit.radius);
+    const stamp = _pointerToSourceEraseStamp(obj, data, pointer);
+    if (!stamp) return;
+    _drawEraseStampOnContext(stamp.srcEl.getContext('2d'), stamp);
 }
 
 // Apply the eraser at a canvas-space point to the single locked target layer.
@@ -266,8 +399,14 @@ function _flushEraserPendingRebuild() {
     if (data && data._erasePendingRebuild) {
         data._erasePendingRebuild = false;
         _rebuildEraserTarget(data, obj, false);
+        const geo = _eraserStrokeGeo || _captureEraserObjectGeo(obj);
+        if (obj && geo) {
+            _applyFabricGeometry(obj, geo);
+            if (obj === data.designObject) _syncMainDesignDataFromFabric(data);
+        }
         if (obj) _markObjectBakedPro(obj);
     }
+    _eraserStrokeGeo = null;
     canvasData.forEach(d => { if (d) d._erasePendingRebuild = false; });
 }
 
@@ -324,6 +463,7 @@ function enterDesignEraserMode() {
 
     designEraserMode = true;
     eraserTargetObject = gate.target;
+    _eraserStrokeGeo = null;
     document.getElementById('designEraserBtn').textContent = 'Exit Eraser Mode';
     document.getElementById('designEraserControls').style.display = 'inline-flex';
     // Disable object selection on every canvas so mouse events reach the eraser handler
@@ -362,6 +502,7 @@ function exitDesignEraserMode() {
     designEraserMode = false;
     designEraserDown = false;
     eraserTargetObject = null;
+    _eraserStrokeGeo = null;
     document.getElementById('designEraserBtn').textContent = 'Eraser';
     document.getElementById('designEraserControls').style.display = 'none';
     canvasData.forEach(d => {
