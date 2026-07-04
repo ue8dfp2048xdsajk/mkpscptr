@@ -9383,6 +9383,9 @@ var _MM_HMAX = 150;  // minimap canvas max height (px)
 var _MM_PAD  = 6;    // inner padding
 
 var _minimapRaf = false;
+var _minimapHadDesigns = false;
+var _minimapAutoOpenInit = false;
+
 function _scheduleMinimapUpdate(){
     if(_minimapRaf) return;
     _minimapRaf = true;
@@ -9397,7 +9400,30 @@ function _isMinimapCollapsed() {
     try { return localStorage.getItem('ms_minimap_collapsed') === '1'; } catch (_) { return false; }
 }
 
+function _setMinimapCollapsed(collapsed) {
+    try { localStorage.setItem('ms_minimap_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+    _applyMinimapVisibility();
+    if (!collapsed) _scheduleMinimapUpdate();
+}
+
+// Re-open minimap when designs first land (0 → 1+ windows with a design).
+function _syncMinimapAutoOpen() {
+    const hasContent = _minimapHasContent();
+    if (!_minimapAutoOpenInit) {
+        _minimapHadDesigns = hasContent;
+        _minimapAutoOpenInit = true;
+        return;
+    }
+    if (hasContent && !_minimapHadDesigns) {
+        _minimapHadDesigns = true;
+        try { localStorage.setItem('ms_minimap_collapsed', '0'); } catch (_) {}
+        return;
+    }
+    _minimapHadDesigns = hasContent;
+}
+
 function _applyMinimapVisibility() {
+    _syncMinimapAutoOpen();
     const mm = document.getElementById('minimap');
     const teaser = document.getElementById('minimapTeaser');
     if (!mm || !teaser) return;
@@ -9419,7 +9445,12 @@ function updateMinimap(){
 
     const natW = cc.offsetWidth;
     const natH = cc.offsetHeight;
-    if(!natW || !natH) return;
+    if(!natW || !natH){
+        // Layout not measured yet — show the minimap shell and retry once laid out.
+        _applyMinimapVisibility();
+        requestAnimationFrame(() => _scheduleMinimapUpdate());
+        return;
+    }
 
     // Scale that fits the whole container into the minimap bounds
     const ms = Math.min(
@@ -10843,20 +10874,14 @@ document.getElementById('canvasContainer').addEventListener('input', e => {
     const teaser      = document.getElementById('minimapTeaser');
     if (!collapseBtn || !teaser) return;
 
-    function setMinimapCollapsed(collapsed) {
-        try { localStorage.setItem('ms_minimap_collapsed', collapsed ? '1' : '0'); } catch (_) {}
-        _applyMinimapVisibility();
-        if (!collapsed) _scheduleMinimapUpdate();
-    }
-
     collapseBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         e.preventDefault();
-        setMinimapCollapsed(true);
+        _setMinimapCollapsed(true);
     });
     teaser.addEventListener('click', function(e) {
         e.stopPropagation();
-        setMinimapCollapsed(false);
+        _setMinimapCollapsed(false);
     });
 })();
 

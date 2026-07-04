@@ -26,4 +26,11 @@ describe('minimap layout vs collapsed tool grid', () => {
         expect(src).toMatch(/transition: bottom 0\.18s ease;/);
         expect(src).toMatch(/body\.vpc-panel-collapsed #minimap \{[\s\S]*?bottom: 100px;/);
     });
+
+    test('minimap auto-opens when designs first appear', () => {
+        const src = fs.readFileSync(APP_JS_PATH, 'utf8');
+        expect(src).toMatch(/function _syncMinimapAutoOpen\(/);
+        expect(src).toMatch(/hasContent && !_minimapHadDesigns/);
+        expect(src).toMatch(/localStorage\.setItem\('ms_minimap_collapsed', '0'\)/);
+    });
 });
