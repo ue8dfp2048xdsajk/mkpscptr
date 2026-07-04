@@ -203,7 +203,7 @@ async function exportDataToBlob(data, fmt, quality){
         }
 
         if (goBtn) {
-            goBtn.disabled = anon || free || !canvasData.length ||
+            goBtn.disabled = anon || !canvasData.length ||
                 (!_resolveScopeIndices() || !_resolveScopeIndices().length);
         }
     }
@@ -228,9 +228,14 @@ async function exportDataToBlob(data, fmt, quality){
     // Quality row starts hidden (PNG is default)
     qualityRow.hidden = true;
 
-    // Toggle popover
+    // Toggle popover (free signed-in users → plans modal, like Save)
     triggerBtn.addEventListener('click', e => {
         e.stopPropagation();
+        if (_isSignedIn() && _userPlan === 'free') {
+            popover.hidden = true;
+            if (typeof openPlansModal === 'function') openPlansModal();
+            return;
+        }
         const opening = popover.hidden;
         popover.hidden = !popover.hidden;
         if (opening) refreshExportPopover({ resetProSkip: true });
