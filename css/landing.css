@@ -224,6 +224,19 @@ img { max-width: 100%; display: block; }
     background-clip: text;
 }
 
+.hero-title-br {
+    display: none;
+}
+
+@media (min-width: 961px) {
+    .hero-title {
+        max-width: 580px;
+    }
+    .hero-title-br {
+        display: block;
+    }
+}
+
 .hero-sub {
     font-size: 18px;
     color: #9CA3AF;
