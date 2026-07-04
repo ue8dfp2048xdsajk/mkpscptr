@@ -500,9 +500,9 @@ img { max-width: 100%; display: block; }
 
 .billing-tab .badge-lifetime {
     position: absolute;
-    top: -10px;
+    top: -8px;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-38%);
     background: #10B981;
     color: #fff;
     font-size: 8px;
