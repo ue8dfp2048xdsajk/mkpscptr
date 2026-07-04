@@ -450,6 +450,7 @@ img { max-width: 100%; display: block; }
     padding: 4px;
     gap: 0;
     margin-bottom: 48px;
+    position: relative;
 }
 
 .billing-tab {
@@ -484,18 +485,19 @@ img { max-width: 100%; display: block; }
     letter-spacing: 0.02em;
 }
 
-.billing-tab .badge-lifetime {
+.billing-toggle .badge-lifetime {
     position: absolute;
     top: -8px;
-    right: -4px;
+    right: 0;
     background: #6366F1;
     color: #fff;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
     padding: 1px 6px;
     border-radius: 999px;
     letter-spacing: 0.02em;
     white-space: nowrap;
+    pointer-events: none;
 }
 
 .plan-earlybird-badge {
