@@ -1,52 +1,25 @@
-const PImage = require('pureimage');
+const { createCanvas, loadImage } = require('canvas');
 const fs = require('fs');
 const path = require('path');
 
 const publicDir = path.join(__dirname, '..');
-const FONT_BOLD = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
-const FONT_REG  = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+const logoPath  = path.join(publicDir, 'logo.png');
 
-function drawRoundRect(ctx, x, y, w, h, r, fillColor) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-    ctx.fillStyle = fillColor;
-    ctx.fill();
-}
-
-async function generateFavicon(size, outPath) {
-    const img = PImage.make(size, size);
-    const ctx = img.getContext('2d');
-
-    ctx.clearRect(0, 0, size, size);
-
-    const r = Math.round(size * 0.19);
-    drawRoundRect(ctx, 0, 0, size, size, r, '#4F6EF7');
-
-    const fontSize = Math.round(size * 0.62);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `bold ${fontSize}px DejaVuSans`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('R', size / 2, size / 2);
-
-    await PImage.encodePNGToStream(img, fs.createWriteStream(outPath));
+async function resizeLogo(size, outPath) {
+    const src = await loadImage(logoPath);
+    const canvas = createCanvas(size, size);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(src, 0, 0, size, size);
+    fs.writeFileSync(outPath, canvas.toBuffer('image/png'));
     console.log(`Written: ${outPath}`);
 }
 
 async function generateOGImage(outPath) {
+    const logo = await loadImage(logoPath);
     const w = 1200;
     const h = 630;
-    const img = PImage.make(w, h);
-    const ctx = img.getContext('2d');
+    const canvas = createCanvas(w, h);
+    const ctx = canvas.getContext('2d');
 
     ctx.fillStyle = '#0F1624';
     ctx.fillRect(0, 0, w, h);
@@ -62,25 +35,19 @@ async function generateOGImage(outPath) {
     const iconSize = 88;
     const iconX = 80;
     const iconY = Math.round(h / 2) - 130;
-    drawRoundRect(ctx, iconX, iconY, iconSize, iconSize, 18, '#4F6EF7');
+    ctx.drawImage(logo, iconX, iconY, iconSize, iconSize);
 
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = `bold 54px DejaVuSans`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('R', iconX + iconSize / 2, iconY + iconSize / 2);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `bold 76px DejaVuSans`;
+    ctx.font = 'bold 76px sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.fillText('Mockup Rabbit', 80, Math.round(h / 2) + 38);
 
     ctx.fillStyle = '#94A3B8';
-    ctx.font = `34px DejaVuSans`;
+    ctx.font = '34px sans-serif';
     ctx.fillText('Batch mockup generation - faster than ever', 80, Math.round(h / 2) + 100);
 
-    await PImage.encodePNGToStream(img, fs.createWriteStream(outPath));
+    fs.writeFileSync(outPath, canvas.toBuffer('image/png'));
     console.log(`Written: ${outPath}`);
 }
 
@@ -130,14 +97,10 @@ function pngToIco(pngPath, icoPath) {
             for (let y = size - 1; y >= 0; y--) {
                 for (let x = 0; x < size; x++) {
                     const pixel = img.getPixelRGBA(x, y);
-                    const r = (pixel >>> 24) & 0xff;
-                    const g = (pixel >>> 16) & 0xff;
-                    const b = (pixel >>> 8)  & 0xff;
-                    const a = (pixel)        & 0xff;
-                    buf[pos++] = b;
-                    buf[pos++] = g;
-                    buf[pos++] = r;
-                    buf[pos++] = a;
+                    buf[pos++] = (pixel >>> 8)  & 0xff;
+                    buf[pos++] = (pixel >>> 16) & 0xff;
+                    buf[pos++] = (pixel >>> 24) & 0xff;
+                    buf[pos++] = pixel & 0xff;
                 }
             }
             fs.writeFileSync(icoPath, buf);
@@ -148,22 +111,22 @@ function pngToIco(pngPath, icoPath) {
 }
 
 async function main() {
-    const fntBold = PImage.registerFont(FONT_BOLD, 'DejaVuSans', 700, 'normal', 'normal');
-    const fntReg  = PImage.registerFont(FONT_REG,  'DejaVuSans', 400, 'normal', 'normal');
-    await fntBold.load();
-    await fntReg.load();
+    if (!fs.existsSync(logoPath)) {
+        console.error(`Missing ${logoPath} - add logo.png before running this script.`);
+        process.exit(1);
+    }
 
     const fav32Path  = path.join(publicDir, 'favicon-32.png');
     const fav180Path = path.join(publicDir, 'favicon-180.png');
     const ogPath     = path.join(publicDir, 'og-image.png');
     const icoPath    = path.join(publicDir, 'favicon.ico');
 
-    await generateFavicon(32,  fav32Path);
-    await generateFavicon(180, fav180Path);
+    await resizeLogo(32,  fav32Path);
+    await resizeLogo(180, fav180Path);
     await generateOGImage(ogPath);
     await pngToIco(fav32Path, icoPath);
 
-    console.log('All assets generated.');
+    console.log('All assets generated from logo.png.');
 }
 
 main().catch(console.error);
