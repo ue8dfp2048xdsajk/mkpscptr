@@ -51,10 +51,19 @@ describe('project name persistence', () => {
         expect(starterBlock[0]).not.toMatch(/\$setOnInsert:[\s\S]*name:/);
     });
 
-    test('GET /api/projects/[id] returns document name', () => {
+    test('_loadProjectByUuid sends Authorization and waits for Clerk token', () => {
+        const src = fs.readFileSync(APP_JS_PATH, 'utf8');
+        const fn = src.match(/async function _loadProjectByUuid[\s\S]*?\n}\n/);
+        expect(fn).toBeTruthy();
+        expect(fn[0]).toMatch(/await _waitForClerkToken\(\)/);
+        expect(fn[0]).toMatch(/Authorization: 'Bearer ' \+ token/);
+    });
+
+    test('GET /api/projects/[id] requires auth and ownership', () => {
         const src = fs.readFileSync(PROJECT_ID_PATH, 'utf8');
-        expect(src).toMatch(/name: project\.name \|\| null/);
-        expect(src).toMatch(/snapshot: 1, name: 1/);
+        expect(src).toMatch(/if \(req\.method === 'GET'\)/);
+        expect(src).toMatch(/verifyClerkToken\(req\.headers\.authorization\)/);
+        expect(src).toMatch(/project\.userId !== userId/);
     });
 
     test('settings Projects tab supports rename and delete', () => {

@@ -24,11 +24,21 @@ module.exports = async function handler(req, res) {
     const col = db.collection('projects');
 
     if (req.method === 'GET') {
+        let userId;
+        try {
+            userId = await verifyClerkToken(req.headers.authorization);
+        } catch {
+            return res.status(502).json({ ok: false, error: 'Could not verify session' });
+        }
+        if (!userId) {
+            return res.status(401).json({ ok: false, error: 'Sign in to open cloud projects' });
+        }
+
         let project;
         try {
             project = await col.findOne(
                 { uuid: id },
-                { projection: { _id: 0, snapshot: 1, name: 1, schemaVersion: 1, updatedAt: 1, expiresAt: 1 } }
+                { projection: { _id: 0, userId: 1, snapshot: 1, name: 1, schemaVersion: 1, updatedAt: 1, expiresAt: 1 } }
             );
         } catch (err) {
             console.error('projects/[id]: GET findOne failed', err);
@@ -37,6 +47,10 @@ module.exports = async function handler(req, res) {
 
         if (!project) {
             return res.status(404).json({ ok: false, error: 'Project not found' });
+        }
+
+        if (project.userId !== userId) {
+            return res.status(403).json({ ok: false, error: 'Not your project' });
         }
 
         if (project.expiresAt && new Date() > new Date(project.expiresAt)) {

@@ -8102,6 +8102,16 @@ async function _getClerkToken() {
     return null;
 }
 
+async function _waitForClerkToken(maxWaitMs = 8000) {
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
+        const token = await _getClerkToken();
+        if (token) return token;
+        await new Promise(function (resolve) { setTimeout(resolve, 100); });
+    }
+    return null;
+}
+
 // Compress a data-URL image for cloud storage.
 // Backgrounds → JPEG (no transparency needed, much smaller).
 // Designs / color layers → PNG (preserve alpha).
@@ -8385,9 +8395,17 @@ function _markClean(){
 async function _loadProjectByUuid(uuid) {
     if (!uuid || typeof uuid !== 'string') return;
 
+    const token = await _waitForClerkToken();
+    if (!token) {
+        _showSaveToast('Sign in to open cloud projects', true);
+        return;
+    }
+
     let res;
     try {
-        res = await fetch('/api/projects/' + encodeURIComponent(uuid));
+        res = await fetch('/api/projects/' + encodeURIComponent(uuid), {
+            headers: { Authorization: 'Bearer ' + token },
+        });
     } catch {
         _showSaveToast('Could not reach server - check your connection', true);
         return;
@@ -8396,7 +8414,10 @@ async function _loadProjectByUuid(uuid) {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok || !data.ok) {
-        _showSaveToast(data.error || 'Project not found', true);
+        const msg = res.status === 401
+            ? 'Sign in to open this project'
+            : (data.error || 'Project not found');
+        _showSaveToast(msg, true);
         return;
     }
 

@@ -37,9 +37,9 @@ Load a project snapshot by UUID.
 
 | | |
 |---|---|
-| Auth | Not required for GET |
-| Response | `{ ok: true, snapshot }` |
-| Errors | `404` if not found or expired |
+| Auth | Required (Clerk JWT) |
+| Response | `{ ok: true, snapshot, name }` |
+| Errors | `401` if not signed in; `403` if not your project; `404` if not found or expired |
 
 ### `PATCH /api/projects/:id`
 

@@ -280,7 +280,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Project near the 4MB client-side / 15MB server-side size limits → confirm graceful error
 - [ ] Duplicate many windows → delete most → cloud save succeeds (no false "too large" when remaining payload is under 4 MB)
 - [ ] Delete project works
-- [ ] Fetch a project by UUID while signed out / as a different user (`GET /api/projects/:id` has no auth check) → confirm this is acceptable given UUIDs are unguessable, or flag as a security item to fix
+- [ ] Fetch a project by UUID while signed out / as a different user → **401** / **403** (owner-only GET)
 
 ---
 
@@ -527,10 +527,9 @@ If that final journey works flawlessly, you're not just testing individual featu
 1. **No server-side claim flow** - anonymous → signed-in continuity is entirely client-side (IndexedDB), with no MongoDB/Clerk-metadata linkage. (Part 2)
 2. **"Save Progress" doesn't auto-resume after sign-in** - only "Export" does, via `ms_redirect_after_auth`. (Part 2)
 3. **Watermark-on-export not structurally guaranteed** - the on-screen watermark overlay and the exported file go through different render paths; verify explicitly per effect. (Part 3)
-4. **`GET /api/projects/:id` has no auth check** - relies on UUID being unguessable. (Part 10)
-5. **Local autosave is a single shared key across tabs** - concurrent-tab editing can silently overwrite. (Part 1, 16)
-6. **`sessionStorage`-based auth/checkout resume breaks across tabs** - same-tab redirect flow only. (Part 16)
-7. **Stale `clerk.mockuprabbit.com` CSP entry** - leftover typo domain from the Clerk migration debugging; harmless but should be cleaned up. (Part 18)
-8. **`invoice.paid` is not handled by the Stripe webhook** - only `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. (Part 3)
-9. **No external alerting on webhook/backend failures** - console logs only; plan for manual log-watching at launch. (Part 18)
-10. **Rate limiting fails open, nonce store fails closed** - different failure modes for the two protection layers. Rate limiting (`api/_sliding-window.js`, `api/_rate-limiter.js`) still uses optional Redis/Postgres and fails open if unreachable. The nonce store (`api/_nonce-store.js`) is now MongoDB-only and fails closed if `MONGODB_URI` is unreachable - the same store that's already required for the rest of the payment pipeline, so there's no longer a separate Redis/Postgres credential that can silently break plan activation. (Part 18)
+4. **Local autosave is a single shared key across tabs** - concurrent-tab editing can silently overwrite. (Part 1, 16)
+5. **`sessionStorage`-based auth/checkout resume breaks across tabs** - same-tab redirect flow only. (Part 16)
+6. **Stale `clerk.mockuprabbit.com` CSP entry** - leftover typo domain from the Clerk migration debugging; harmless but should be cleaned up. (Part 18)
+7. **`invoice.paid` is not handled by the Stripe webhook** - only `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. (Part 3)
+8. **No external alerting on webhook/backend failures** - console logs only; plan for manual log-watching at launch. (Part 18)
+9. **Rate limiting fails open, nonce store fails closed** - different failure modes for the two protection layers. Rate limiting (`api/_sliding-window.js`, `api/_rate-limiter.js`) still uses optional Redis/Postgres and fails open if unreachable. The nonce store (`api/_nonce-store.js`) is now MongoDB-only and fails closed if `MONGODB_URI` is unreachable - the same store that's already required for the rest of the payment pipeline, so there's no longer a separate Redis/Postgres credential that can silently break plan activation. (Part 18)
