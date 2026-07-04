@@ -82,7 +82,9 @@
         }
         var btn = document.createElement('button');
         btn.id = 'clerkSignInBtn';
-        btn.textContent = 'Sign In';
+        btn.className = 'header-file-btn instant-hint';
+        btn.setAttribute('data-hint', 'Sign in to save and export');
+        btn.textContent = 'Sign in';
         btn.addEventListener('click', function () {
             sessionStorage.setItem('ms_redirect_after_auth', 'home');
             if (!window.Clerk) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); return; }

@@ -2088,20 +2088,6 @@ body.user-plan-pro .pro-badge-tip {
 .pro-star-green  { background: linear-gradient(135deg, #10b981, #059669); }
 
 /* ── Clerk auth UI ──────────────────────────────────────────────────────── */
-#clerkSignInBtn {
-    background: transparent;
-    color: #E5E7EB;
-    border-color: rgba(255,255,255,0.25);
-    font-weight: 500;
-    box-shadow: none;
-}
-#clerkSignInBtn:hover {
-    background: rgba(255,255,255,0.08);
-    border-color: rgba(255,255,255,0.4);
-    color: #fff;
-    box-shadow: none;
-}
-
 .ms-user-wrap {
     position: relative;
     display: inline-flex;
