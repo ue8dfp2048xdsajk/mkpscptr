@@ -982,8 +982,26 @@ details[open] > .faq-question { color: #fff; }
         padding: 0 16px;
         font-size: 12px;
     }
-    .hero { padding: 110px 0 60px; }
-    .hero-title { font-size: clamp(38px, 10vw, 48px); }
+    .hero-grid {
+        gap: 28px;
+    }
+    .hero { padding: 96px 0 48px; }
+    .hero-title {
+        font-size: clamp(32px, 8.2vw, 40px);
+        margin-bottom: 14px;
+    }
+    .hero-sub {
+        font-size: 16px;
+        margin-bottom: 24px;
+    }
+    .hero-ctas {
+        margin-bottom: 12px;
+    }
+    .hero-ctas .btn-hero {
+        height: 46px;
+        padding: 0 28px;
+        font-size: 15px;
+    }
     .media-placeholder--demo {
         margin-left: 0;
         width: 100%;
@@ -1041,7 +1059,23 @@ details[open] > .faq-question { color: #fff; }
         padding: 0 14px;
         font-size: 12px;
     }
-    .hero-title { font-size: clamp(40px, 11vw, 52px); }
+    .hero { padding: 88px 0 40px; }
+    .hero-grid { gap: 24px; }
+    .hero-title {
+        font-size: clamp(28px, 7.5vw, 34px);
+        margin-bottom: 12px;
+    }
+    .hero-sub {
+        font-size: 15px;
+        margin-bottom: 20px;
+        line-height: 1.5;
+    }
+    .hero-ctas .btn-hero {
+        height: 44px;
+        padding: 0 24px;
+        font-size: 14px;
+    }
+    .hero-note { font-size: 12px; }
     .hero-ctas { flex-direction: column; align-items: stretch; }
     .hero-ctas .btn { justify-content: center; }
     .pricing-notes { flex-direction: column; align-items: center; gap: 12px; }
