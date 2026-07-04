@@ -531,8 +531,17 @@ img { max-width: 100%; display: block; }
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #9CA3AF;
-    margin-bottom: 16px;
+    margin-bottom: 4px;
 }
+
+.plan-tagline {
+    font-size: 13px;
+    color: #6B7280;
+    margin: 0 0 14px;
+    line-height: 1.35;
+}
+
+.plan-card.popular .plan-tagline { color: #9CA3AF; }
 
 .plan-card.popular .plan-name { color: #818CF8; }
 
