@@ -1,4 +1,4 @@
-# Mockup Scripter - Documentation
+# Mockup Rabbit - Documentation
 
 ## Getting started
 

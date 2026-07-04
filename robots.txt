@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://mockupscripter.com/sitemap.xml
+Sitemap: https://mockuprabbit.com/sitemap.xml

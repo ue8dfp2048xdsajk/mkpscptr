@@ -1,6 +1,6 @@
 const ALLOWED_ORIGINS = [
-    'https://mockupscripter.com',
-    'https://www.mockupscripter.com',
+    'https://mockuprabbit.com',
+    'https://www.mockuprabbit.com',
 ];
 
 const DEV_ORIGIN_SUFFIXES = ['.vercel.app', '.replit.dev', '.repl.co'];

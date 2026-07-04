@@ -97,7 +97,7 @@ async function handlePortal(req, res, stripeCustomerId, stripeSecretKey) {
 
     // Use server-side BASE_URL - never trust the Origin header here, as it is
     // user-controlled and would constitute an open redirect after portal actions.
-    const baseUrl = process.env.BASE_URL || 'https://mockupscripter.com';
+    const baseUrl = process.env.BASE_URL || 'https://mockuprabbit.com';
     const params = new URLSearchParams();
     params.set('customer', stripeCustomerId);
     params.set('return_url', `${baseUrl}/app.html`);

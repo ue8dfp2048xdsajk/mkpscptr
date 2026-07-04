@@ -70,7 +70,7 @@ const REQUIRED = [
     },
     {
         name: 'CLERK_JWKS_URL',
-        description: 'Clerk JWKS endpoint (e.g. https://clerk.mockupscripter.com/.well-known/jwks.json). ' +
+        description: 'Clerk JWKS endpoint (e.g. https://clerk.mockuprabbit.com/.well-known/jwks.json). ' +
             'Missing → all token verification returns null - every authenticated endpoint ' +
             '(checkout, export, save, billing) rejects requests with 401, and checkout blocks all purchases.',
         validate: (v) => v.startsWith('https://') || 'value should start with https://',

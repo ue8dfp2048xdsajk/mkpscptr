@@ -1,6 +1,6 @@
 # Pre-Launch Manual Testing Checklist
 
-Manual, human-driven QA checklist to run through before opening MockupScripter to real customers. This is complementary to [pre-deploy-checklist.md](pre-deploy-checklist.md) (infra/env verification) - this document is about end-to-end product behavior.
+Manual, human-driven QA checklist to run through before opening MockupRabbit to real customers. This is complementary to [pre-deploy-checklist.md](pre-deploy-checklist.md) (infra/env verification) - this document is about end-to-end product behavior.
 
 Notes inline (marked with `>`) call out places where the checklist item was verified against the actual code and either doesn't work the way it might be assumed to, or is worth double-checking for that reason. See the "Known gaps" section at the bottom for a summary.
 
@@ -56,8 +56,8 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 
 - [ ] App avatar menu → **Settings** opens `/settings.html`
 - [ ] Settings **← Back to app** goes to `/app.html` (not the marketing landing page), session intact
-- [ ] Billing portal **← Return to Mockup Scripter** (from app or settings) returns to `/app.html`, session intact - not the marketing landing page
-- [ ] Settings **Edit Profile** opens Clerk profile in an on-page modal (user stays on settings; no stranded trip to `accounts.mockupscripter.com` unless modal API unavailable)
+- [ ] Billing portal **← Return to Mockup Rabbit** (from app or settings) returns to `/app.html`, session intact - not the marketing landing page
+- [ ] Settings **Edit Profile** opens Clerk profile in an on-page modal (user stays on settings; no stranded trip to `accounts.mockuprabbit.com` unless modal API unavailable)
 - [ ] Signed in → visit `/` → nav and hero show **Open app** → `/app.html` still signed in
 
 ### Free plan
@@ -380,7 +380,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Nonce protection works
 - [ ] No exposed secrets
 - [ ] CSP still valid
-- [ ] Remove the stale `https://clerks.mockupscripter.com` (with an "s") entry from `vercel.json` CSP - this was identified as a typo domain during the Clerk migration and is dead weight, not actually needed
+- [ ] Remove the stale `https://clerk.mockuprabbit.com` (with an "s") entry from `vercel.json` CSP - this was identified as a typo domain during the Clerk migration and is dead weight, not actually needed
 - [ ] No console errors
 - [ ] Confirm rate limiting fails **open** if Redis/Upstash is unreachable (`api/_sliding-window.js`) - not a pre-launch blocker, but be aware that a Redis outage silently disables rate limiting rather than blocking requests
 - [ ] Confirm plan-activation replay protection (`api/_nonce-store.js`) is MongoDB-backed and independent of Redis/Upstash health - a broken or missing Upstash credential can no longer prevent a paying customer's plan from activating (see the "Consolidate nonce store onto MongoDB" change). The only durable dependency for this is `MONGODB_URI`.
@@ -527,7 +527,7 @@ If that final journey works flawlessly, you're not just testing individual featu
 4. **`GET /api/projects/:id` has no auth check** - relies on UUID being unguessable. (Part 10)
 5. **Local autosave is a single shared key across tabs** - concurrent-tab editing can silently overwrite. (Part 1, 16)
 6. **`sessionStorage`-based auth/checkout resume breaks across tabs** - same-tab redirect flow only. (Part 16)
-7. **Stale `clerks.mockupscripter.com` CSP entry** - leftover typo domain from the Clerk migration debugging; harmless but should be cleaned up. (Part 18)
+7. **Stale `clerk.mockuprabbit.com` CSP entry** - leftover typo domain from the Clerk migration debugging; harmless but should be cleaned up. (Part 18)
 8. **`invoice.paid` is not handled by the Stripe webhook** - only `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. (Part 3)
 9. **No external alerting on webhook/backend failures** - console logs only; plan for manual log-watching at launch. (Part 18)
 10. **Rate limiting fails open, nonce store fails closed** - different failure modes for the two protection layers. Rate limiting (`api/_sliding-window.js`, `api/_rate-limiter.js`) still uses optional Redis/Postgres and fails open if unreachable. The nonce store (`api/_nonce-store.js`) is now MongoDB-only and fails closed if `MONGODB_URI` is unreachable - the same store that's already required for the rest of the payment pipeline, so there's no longer a separate Redis/Postgres credential that can silently break plan activation. (Part 18)

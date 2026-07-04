@@ -16,7 +16,7 @@ A missing variable causes the webhook to return 500 on every event - payments wi
 
 | Variable | Where to get it | Effect if missing |
 |---|---|---|
-| `BASE_URL` | Your production domain, e.g. `https://mockupscripter.com` (no trailing slash) | Webhook returns 500 - no user is ever upgraded after payment |
+| `BASE_URL` | Your production domain, e.g. `https://mockuprabbit.com` (no trailing slash) | Webhook returns 500 - no user is ever upgraded after payment |
 | `STRIPE_WEBHOOK_SECRET` | Stripe dashboard → Developers → Webhooks → your endpoint → Signing secret | Webhook returns 500 - all events rejected |
 | `SET_PLAN_SECRET` | A random string you generate, e.g. `openssl rand -hex 32` | Webhook returns 500; `set-plan` endpoint also refuses all calls |
 | `CLERK_SECRET_KEY` | Clerk dashboard → API keys | `set-plan` endpoint cannot update user metadata |
@@ -297,7 +297,7 @@ curl -s -X POST "$BASE_URL/api/set-plan" \
 | Secret compared before any work is done | ✅ Yes, auth check runs before Clerk call |
 | Secret in request body (visible in body-level logs) | ✅ Fixed - secret is now in `Authorization: Bearer` header, out of body logs |
 | Plain string `!==` comparison (not constant-time) | ⚠️ Timing attack risk is negligible for an internal webhook endpoint with no retry budget, but noted |
-| CORS allowlist | ✅ Only allows `mockupscripter.com`, `*.vercel.app`, `*.replit.dev` - Stripe's server-side calls are not CORS-gated (CORS only applies to browsers) |
+| CORS allowlist | ✅ Only allows `mockuprabbit.com`, `*.vercel.app`, `*.replit.dev` - Stripe's server-side calls are not CORS-gated (CORS only applies to browsers) |
 | Clerk userId path-traversal | ✅ `encodeURIComponent` applied before constructing the Clerk URL |
 | Replay attack (captured request re-sent later) | ✅ `X-Timestamp` header required; requests older than 300 s are rejected with 400 |
 | Far-future timestamp bypassing the window | ✅ Window is symmetric (`Math.abs`); future timestamps beyond 300 s are also rejected |

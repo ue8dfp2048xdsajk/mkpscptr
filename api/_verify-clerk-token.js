@@ -7,7 +7,7 @@ if (!JWKS_URL) {
         'All token verification will return null - authenticated endpoints will ' +
         'reject all requests with 401, and checkout will block all purchases. ' +
         'Set CLERK_JWKS_URL to your Clerk JWKS endpoint ' +
-        '(e.g. https://clerk.mockupscripter.com/.well-known/jwks.json).'
+        '(e.g. https://clerk.mockuprabbit.com/.well-known/jwks.json).'
     );
 }
 

@@ -23,13 +23,13 @@ const PORT = 5000;
 // production continues to use the pk_live_... key via the same env var.
 const CLERK_PUBLISHABLE_KEY =
     process.env.CLERK_PUBLISHABLE_KEY ||
-    'pk_live_Y2xlcmsubW9ja3Vwc2NyaXB0ZXIuY29tJA';
+    'pk_live_Y2xlcmsubW9ja3VwcmFiYml0LmNvbSQ';
 
 function serveHtmlWithClerkKey(filePath, res) {
     fs.readFile(path.join(__dirname, filePath), 'utf8', (err, html) => {
         if (err) return res.status(404).send('Not found');
         const injected = html.replace(
-            /pk_live_Y2xlcmsubW9ja3Vwc2NyaXB0ZXIuY29tJA/g,
+            /pk_live_Y2xlcmsubW9ja3VwcmFiYml0LmNvbSQ/g,
             CLERK_PUBLISHABLE_KEY
         );
         res.setHeader('Content-Type', 'text/html; charset=utf-8');

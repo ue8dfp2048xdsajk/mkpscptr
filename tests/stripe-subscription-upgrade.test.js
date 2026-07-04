@@ -43,7 +43,7 @@ describe('api/_stripe-prices - subscription update routing', () => {
             subscriptionId: 'sub_test_001',
             subscriptionItemId: 'si_test_001',
             newPriceId: 'price_pro_monthly',
-            baseUrl: 'https://mockupscripter.com',
+            baseUrl: 'https://mockuprabbit.com',
         });
         const encoded = params.toString();
         expect(encoded).toContain('flow_data%5Btype%5D=subscription_update_confirm');

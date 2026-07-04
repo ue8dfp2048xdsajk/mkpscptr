@@ -1,6 +1,6 @@
 # Plans and feature gating
 
-Mockup Scripter has three plan tiers: **free**, **starter**, and **pro**. The canonical source of truth is Clerk `public_metadata.plan` on each user, set by the Stripe webhook → `/api/set-plan` flow after payment.
+Mockup Rabbit has three plan tiers: **free**, **starter**, and **pro**. The canonical source of truth is Clerk `public_metadata.plan` on each user, set by the Stripe webhook → `/api/set-plan` flow after payment.
 
 The frontend reads plan on sign-in (`js/clerk-auth.js` → `window._userPlan`). The backend re-verifies on sensitive API routes.
 

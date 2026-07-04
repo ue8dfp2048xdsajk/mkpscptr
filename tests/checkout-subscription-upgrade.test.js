@@ -40,7 +40,7 @@ const BASE_ENV = {
     STRIPE_PRICE_PRO_ANNUAL: 'price_pro_annual',
     STRIPE_PRICE_PRO_LIFETIME: 'price_pro_lifetime',
     CLERK_SECRET_KEY: 'sk_test_clerk_upgrade_flow',
-    BASE_URL: 'https://mockupscripter.com',
+    BASE_URL: 'https://mockuprabbit.com',
 };
 
 describe('POST /api/checkout - prorated subscription upgrades', () => {

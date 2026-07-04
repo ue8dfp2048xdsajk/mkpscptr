@@ -1,6 +1,6 @@
 # Architecture overview
 
-Mockup Scripter is a static-first web app with a serverless API backend. There is no frontend bundler or build step.
+Mockup Rabbit is a static-first web app with a serverless API backend. There is no frontend bundler or build step.
 
 ## High-level diagram
 

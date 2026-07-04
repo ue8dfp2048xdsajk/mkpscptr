@@ -48,7 +48,7 @@ Expected output: indexes created on `projects` and `customers` collections.
 
 - [ ] Webhook endpoint registered in Stripe dashboard:
   ```
-  https://mockupscripter.com/api/webhooks/stripe
+  https://mockuprabbit.com/api/webhooks/stripe
   ```
   (or your `BASE_URL` + `/api/webhooks/stripe`)
 

@@ -114,7 +114,7 @@ describe('_drawWatermarkOnCanvas - watermark by plan', () => {
         expect(fc.contextContainer.fillText).toHaveBeenCalled();
         const texts = fc.contextContainer.fillText.mock.calls.map(([t]) => t);
         expect(texts).toContain('MOCKUP SCRIPTER');
-        expect(texts).toContain('mockupscripter.com');
+        expect(texts).toContain('mockuprabbit.com');
     });
 
     test('after upgrade to starter (no PRO effect): fillText is NOT called', () => {

@@ -124,7 +124,7 @@ module.exports = async function handler(req, res) {
         }
     }
 
-    const baseUrl = process.env.BASE_URL || 'https://mockupscripter.com';
+    const baseUrl = process.env.BASE_URL || 'https://mockuprabbit.com';
     const successUrl = `${baseUrl}/app.html?payment=success`;
     const cancelUrl  = `${baseUrl}/app.html`;
 

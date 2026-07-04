@@ -36,7 +36,7 @@ async function generateFavicon(size, outPath) {
     ctx.font = `bold ${fontSize}px DejaVuSans`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('M', size / 2, size / 2);
+    ctx.fillText('R', size / 2, size / 2);
 
     await PImage.encodePNGToStream(img, fs.createWriteStream(outPath));
     console.log(`Written: ${outPath}`);
@@ -68,17 +68,17 @@ async function generateOGImage(outPath) {
     ctx.font = `bold 54px DejaVuSans`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('M', iconX + iconSize / 2, iconY + iconSize / 2);
+    ctx.fillText('R', iconX + iconSize / 2, iconY + iconSize / 2);
 
     ctx.fillStyle = '#FFFFFF';
     ctx.font = `bold 76px DejaVuSans`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('Mockup Scripter', 80, Math.round(h / 2) + 38);
+    ctx.fillText('Mockup Rabbit', 80, Math.round(h / 2) + 38);
 
     ctx.fillStyle = '#94A3B8';
     ctx.font = `34px DejaVuSans`;
-    ctx.fillText('Batch mockup generation \u2014 faster than ever', 80, Math.round(h / 2) + 100);
+    ctx.fillText('Batch mockup generation - faster than ever', 80, Math.round(h / 2) + 100);
 
     await PImage.encodePNGToStream(img, fs.createWriteStream(outPath));
     console.log(`Written: ${outPath}`);

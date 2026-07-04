@@ -37,7 +37,7 @@ This runs automatically as `prebuild` before `npm run build`.
 
 Clerk JWKS endpoint for verifying session JWTs.
 
-Example: `https://clerk.mockupscripter.com/.well-known/jwks.json`
+Example: `https://clerk.mockuprabbit.com/.well-known/jwks.json`
 
 **If missing:** all authenticated API calls fail verification; checkout returns 503.
 
@@ -113,7 +113,7 @@ Public root URL of the deployment, **no trailing slash**.
 
 Examples:
 
-- Production: `https://mockupscripter.com`
+- Production: `https://mockuprabbit.com`
 - Local webhook testing: `http://localhost:5000` (requires Stripe CLI or tunnel)
 
 Used by the Stripe webhook to call `/api/set-plan` and by checkout for success/cancel URLs.

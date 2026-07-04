@@ -1,6 +1,6 @@
 # Undo / redo architecture
 
-Mockupscripter uses a **hybrid undo stack**: per-window property snapshots for value changes, typed entries for structural and special operations.
+Mockup Rabbit uses a **hybrid undo stack**: per-window property snapshots for value changes, typed entries for structural and special operations.
 
 ## Buckets - pick one when adding a feature
 

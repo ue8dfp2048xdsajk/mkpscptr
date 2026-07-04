@@ -1,8 +1,8 @@
-# Mockup Scripter
+# Mockup Rabbit
 
 Browser-based SaaS for bulk product mockup creation. Users upload backgrounds and designs, composite them in a multi-window editor, apply effects, and batch-export PNG/JPEG files.
 
-**Production:** [mockupscripter.com](https://mockupscripter.com)
+**Production:** [mockuprabbit.com](https://mockuprabbit.com)
 
 ## Stack
 

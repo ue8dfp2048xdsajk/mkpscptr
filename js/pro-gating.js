@@ -101,7 +101,7 @@ function _drawWatermarkOnCanvas(data) {
         var y   = r * rowPitch;
         var xOff = (r & 1) ? colPitch / 2 : 0;
         for (var c = -cols; c <= cols; c++) {
-            ctx.fillText('mockupscripter.com', c * colPitch + xOff, y + 7);
+            ctx.fillText('mockuprabbit.com', c * colPitch + xOff, y + 7);
         }
     }
 
