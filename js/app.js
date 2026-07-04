@@ -60,6 +60,39 @@ function _refreshAllProStarBadges() {
     if (typeof _updateHeaderProMockupCount === 'function') _updateHeaderProMockupCount();
 }
 
+function _canUseLocalJson() {
+    return (_userPlan || 'free') !== 'free';
+}
+
+function _promptLocalJsonUpgrade(action) {
+    var context = action === 'load'
+        ? 'Load local JSON requires Starter or Pro — upgrade to open project files from your device.'
+        : 'Save local JSON requires Starter or Pro — upgrade to download a backup of your project.';
+    if (typeof openPlansModal === 'function') {
+        openPlansModal({ context: context });
+    }
+}
+
+async function _guardLocalJsonAccess(action) {
+    if (window.Clerk && !window.Clerk.user) {
+        sessionStorage.setItem('ms_redirect_after_auth', action === 'load' ? 'load' : 'save');
+        try { await _autosaveDB.set('session', buildFullSnapshot()).catch(function () {}); } catch (e) {
+            console.error('[LocalJson→SignIn] snapshot failed:', e);
+        }
+        try {
+            window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href });
+        } catch (e) {
+            alert('Sign-in is temporarily unavailable \u2014 please refresh the page.');
+        }
+        return false;
+    }
+    if (!_canUseLocalJson()) {
+        _promptLocalJsonUpgrade(action);
+        return false;
+    }
+    return true;
+}
+
 // Measure the sticky-header and keep #contextPanel's padding-top in sync so the
 // panel is never covered by the header (whose height grows when the upgrade
 // banner is visible).
@@ -9210,16 +9243,22 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 }
 
 
-document.getElementById("saveLocalBtn").addEventListener("click", () => {
+document.getElementById("saveLocalBtn").addEventListener("click", async () => {
+    if (!(await _guardLocalJsonAccess('save'))) return;
     _saveToLocalFile();
 });
 
-document.getElementById("loadProgressBtn").addEventListener("click", ()=>{
-
+document.getElementById("loadProgressBtn").addEventListener("click", async ()=>{
+    if (!(await _guardLocalJsonAccess('load'))) return;
     document.getElementById("loadProgressInput").click();
 });
 
-document.getElementById("loadProgressInput").addEventListener("change", function(event){
+document.getElementById("loadProgressInput").addEventListener("change", async function(event){
+    if (!_canUseLocalJson()) {
+        event.target.value = '';
+        _promptLocalJsonUpgrade('load');
+        return;
+    }
 
     const file = event.target.files[0];
 

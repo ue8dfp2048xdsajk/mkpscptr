@@ -19,7 +19,7 @@ The frontend reads plan on sign-in (`js/clerk-auth.js` → `window._userPlan`). 
 | Export images (PNG/JPEG/ZIP/folder) | ✗ | Non-PRO windows only | All windows |
 | Export text | ✗ | ✓ | ✓ |
 | Export Pattern PNG (pattern sheet) | ✗ | ✗ | ✓ |
-| Local JSON save/load | ✓ | ✓ | ✓ |
+| Local JSON save/load | ✗ | ✓ | ✓ |
 | Cloud save | ✗ | 1 project (upsert) | Up to 50 + Save as New |
 | Oversized cloud project | Save JSON locally → upload | Same | Same |
 
@@ -154,8 +154,8 @@ Snapshot fields: `meshWarpApplied`, `invertedMain`, `invertedExtras`, `hasProEff
 
 | Action | Free | Starter | Pro |
 |--------|------|---------|-----|
-| Save Local (JSON) | ✓ | ✓ | ✓ |
-| Load Local (JSON) | ✓ | ✓ | ✓ |
+| Save Local (JSON) | ✗ | ✓ | ✓ |
+| Load Local (JSON) | ✗ | ✓ | ✓ |
 | Cloud save | ✗ | 1 slot (upsert) | Up to 50 |
 | Save as New | ✗ | ✗ | ✓ |
 | Open cloud project | Sign-in | ✓ (all in DB) | ✓ |
