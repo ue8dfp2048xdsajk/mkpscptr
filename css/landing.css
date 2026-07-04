@@ -502,8 +502,7 @@ img { max-width: 100%; display: block; }
     position: absolute;
     top: -10px;
     left: 50%;
-    right: auto;
-    transform: translateX(-72%);
+    transform: translateX(-50%);
     background: #10B981;
     color: #fff;
     font-size: 8px;
@@ -1073,7 +1072,6 @@ details[open] > .faq-question { color: #fff; }
         font-size: 12px;
     }
     .billing-tab .badge-lifetime {
-        transform: translateX(-88%);
         font-size: 7px;
         padding: 2px 4px;
         letter-spacing: 0;
