@@ -2319,7 +2319,22 @@ body.user-plan-pro .pro-badge-tip {
 .ms-plans-subtitle {
     font-size: 14px;
     color: #6b7280;
-    margin: 0 0 24px;
+    margin: 0 0 12px;
+}
+.ms-plans-guarantee {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #059669;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: 999px;
+    padding: 6px 14px;
+    margin: 0 0 20px;
+    line-height: 1.35;
+}
+.ms-plans-guarantee[hidden] {
+    display: none;
 }
 
 /* Billing tabs */

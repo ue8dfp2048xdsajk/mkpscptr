@@ -5,7 +5,7 @@
     var MODAL_COPY = {
         full: {
             title: 'Choose your plan',
-            subtitle: 'Upgrade anytime. No hidden fees.',
+            subtitle: 'Built for POD and digital sellers. Upgrade anytime. No hidden fees.',
         },
         starter: {
             title: 'Upgrade your plan',
@@ -140,6 +140,10 @@
 
         document.querySelectorAll('[data-lifetime-only]').forEach(function (el) {
             el.style.display = (period === 'lifetime') ? '' : 'none';
+        });
+
+        document.querySelectorAll('[data-hide-on="lifetime"]').forEach(function (el) {
+            el.hidden = (period === 'lifetime');
         });
 
         document.querySelectorAll('.ms-plan-cta[data-plan]').forEach(function (btn) {
