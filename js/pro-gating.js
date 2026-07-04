@@ -2,6 +2,23 @@
 // Depends on global _userPlan (declared in app.js) and _markDirty (app.js).
 
 var _watermarkInteractionDepth = 0;
+var _exportCaptureDepth = 0;
+var _exportCapturePlan = null;
+
+function _beginExportCapture(verifiedPlan) {
+    _exportCaptureDepth++;
+    _exportCapturePlan = verifiedPlan;
+}
+
+function _endExportCapture() {
+    _exportCaptureDepth = Math.max(0, _exportCaptureDepth - 1);
+    if (_exportCaptureDepth === 0) _exportCapturePlan = null;
+}
+
+function _effectivePlanForGating() {
+    if (_exportCaptureDepth > 0 && _exportCapturePlan) return _exportCapturePlan;
+    return _userPlan;
+}
 
 function _beginWatermarkInteraction() {
     _watermarkInteractionDepth++;
@@ -14,8 +31,9 @@ function _endWatermarkInteraction() {
 
 function _canvasNeedsWatermark(data) {
     if (!data?.fabricCanvas || !data.designObject) return false;
-    if (_userPlan === 'free') return true;
-    if (_userPlan === 'starter' && _windowIsProGated(data)) return true;
+    var plan = _effectivePlanForGating();
+    if (plan === 'free') return true;
+    if (plan === 'starter' && _windowIsProGated(data)) return true;
     return false;
 }
 
@@ -50,8 +68,9 @@ function getAllDesignObjects(data){
 // Uses direct rotated-grid drawing (no tile repeat) so density is
 // uniform across the whole canvas with no edge-clipping gaps.
 function _drawWatermarkOnCanvas(data) {
-    var isFree    = _userPlan === 'free';
-    var isStarred = _userPlan === 'starter' && _windowIsProGated(data);
+    var plan      = _effectivePlanForGating();
+    var isFree    = plan === 'free';
+    var isStarred = plan === 'starter' && _windowIsProGated(data);
     if (!isFree && !isStarred) return;
     // Suppress only during viewport/hand pan and shift+drag marquee - not design transforms.
     if (_watermarkInteractionActive()) return;

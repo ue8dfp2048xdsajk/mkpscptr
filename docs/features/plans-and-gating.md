@@ -107,16 +107,18 @@ Drawn on `after:render` for:
 - **Starter:** windows that are PRO-gated (`_windowIsProGated` - live PRO effects only)
 - **Pro:** none
 
-### Export (`js/app.js` + `POST /api/export`)
+### Export (`js/export-ui.js` + `POST /api/export`)
 
 1. User must be signed in
 2. **Free:** plans modal; export blocked (server `403 upgrade_required`)
 3. **Starter:** PRO windows → upgrade prompt; mixed selection → “Skip PRO windows & export the rest”
 4. **Pro:** all selected windows export without watermark
 
+Export pixel generation uses the **server-verified plan** returned by `/api/export` (not client `_userPlan`). `exportDataToBlob` runs only after authorization and applies watermarks during capture via `_beginExportCapture` in `pro-gating.js`. The render helper is not exposed globally.
+
 Export formats: individual files, folder (File System Access API), or ZIP (JSZip).
 
-**Export Pattern PNG** (`exportPatternBtn` in Pattern section): client-side download of the tiled pattern sheet. Requires sign-in and **Pro** plan (`_userPlan === 'pro'`). Free and Starter users see the plans modal. Only works while Pattern mode is active on the selected window (no fallback export of `designOriginal`).
+**Export Pattern PNG** (`exportPatternBtn` in Pattern section): client-side download of the tiled pattern sheet. Requires sign-in, **Pro** plan verified by `/api/export`, and Pattern mode active on the selected window.
 
 ### PRO effect detection (`_windowHasProEffect` / `_syncProEffect` in `js/app.js`)
 

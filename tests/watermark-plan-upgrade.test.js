@@ -252,6 +252,42 @@ describe('_refreshAllProStarBadges - requestRenderAll', () => {
     });
 });
 
+describe('_drawWatermarkOnCanvas - export capture plan override', () => {
+    test('export capture with verified free plan draws watermark even when _userPlan is tampered to pro', () => {
+        window._userPlan = 'pro';
+        const fc   = makeFakeCanvas(800, 600);
+        const data = makeCanvasData(fc);
+
+        window._beginExportCapture('free');
+        window._drawWatermarkOnCanvas(data);
+        window._endExportCapture();
+
+        expect(fc.contextContainer.fillText).toHaveBeenCalled();
+    });
+
+    test('export capture with verified starter plan skips watermark on plain mockups', () => {
+        window._userPlan = 'free';
+        const fc   = makeFakeCanvas(800, 600);
+        const data = makeCanvasData(fc);
+
+        window._beginExportCapture('starter');
+        window._drawWatermarkOnCanvas(data);
+        window._endExportCapture();
+
+        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+    });
+
+    test('preview still uses _userPlan when export capture is inactive', () => {
+        window._userPlan = 'pro';
+        const fc   = makeFakeCanvas(800, 600);
+        const data = makeCanvasData(fc);
+
+        window._drawWatermarkOnCanvas(data);
+
+        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+    });
+});
+
 describe('full upgrade simulation', () => {
     test('free → pro: upgradePrompt hidden AND canvas no longer draws watermark', () => {
         window._userPlan = 'free';
