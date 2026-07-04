@@ -580,7 +580,9 @@ function loadProjects() {
         wrap.innerHTML = html;
         wrap.querySelectorAll('.project-open').forEach(function(btn) {
             btn.addEventListener('click', function() {
-                localStorage.setItem('ms_project_uuid', btn.getAttribute('data-uuid'));
+                var uuid = btn.getAttribute('data-uuid');
+                localStorage.setItem('ms_project_uuid', uuid);
+                try { sessionStorage.setItem('ms_open_cloud_uuid', uuid); } catch (_) {}
                 window.location.href = '/app.html';
             });
         });

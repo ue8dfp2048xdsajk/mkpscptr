@@ -30,6 +30,12 @@ describe('project name persistence', () => {
         expect(src).toMatch(/if \(restored\) _projectName = restored;/);
     });
 
+    test('DOMContentLoaded loads cloud project when ms_open_cloud_uuid is set', () => {
+        const src = fs.readFileSync(APP_JS_PATH, 'utf8');
+        expect(src).toMatch(/ms_open_cloud_uuid/);
+        expect(src).toMatch(/await _loadProjectByUuid\(pendingCloudUuid\)/);
+    });
+
     test('_loadProjectByUuid prefers document name over snapshot.name', () => {
         const src = fs.readFileSync(APP_JS_PATH, 'utf8');
         expect(src).toMatch(/_projectName = \(data\.name \|\| raw\.name \|\| ''\)\.trim\(\) \|\| '';/);

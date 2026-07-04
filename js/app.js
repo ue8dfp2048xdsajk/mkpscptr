@@ -8041,6 +8041,7 @@ function _markDirty(){
 // ── Cloud save ────────────────────────────────────────────────────────────────
 // Key stored in localStorage so refreshes re-attach to the same record.
 const _CLOUD_UUID_KEY = 'ms_project_uuid';
+const _OPEN_CLOUD_UUID_KEY = 'ms_open_cloud_uuid'; // one-shot: Settings → Open in app
 var _projectName = '';
 
 function _deriveAutoProjectName() {
@@ -10529,6 +10530,19 @@ function _applyUndoHistoryFromSnapshot(history) {
 window.addEventListener('DOMContentLoaded', async ()=>{
 
     _installFabricTransformCursors();
+
+    // Settings → "Open in app" sets a one-shot flag; load cloud project instead of IDB draft.
+    let pendingCloudUuid = null;
+    try {
+        pendingCloudUuid = sessionStorage.getItem(_OPEN_CLOUD_UUID_KEY);
+        if (pendingCloudUuid) sessionStorage.removeItem(_OPEN_CLOUD_UUID_KEY);
+    } catch (_) {}
+
+    if (pendingCloudUuid && typeof _loadProjectByUuid === 'function') {
+        console.log('[Restore] Loading cloud project', pendingCloudUuid);
+        await _loadProjectByUuid(pendingCloudUuid);
+        return;
+    }
 
     const snapshot = await _autosaveDB.get('session').catch(e => {
         console.error('[Restore] IDB read failed:', e);
