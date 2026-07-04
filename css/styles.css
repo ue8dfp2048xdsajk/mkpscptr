@@ -2123,6 +2123,7 @@ body.user-plan-pro .pro-badge-tip {
     z-index: 2000;
     flex-direction: column;
     gap: 6px;
+    text-align: left;
 }
 .ms-avatar-dropdown.open {
     display: flex;
@@ -2284,6 +2285,7 @@ body.user-plan-pro .pro-badge-tip {
     padding: 48px 44px 36px;
     position: relative;
     box-sizing: border-box;
+    text-align: left;
 }
 .ms-plans-close {
     position: absolute;
@@ -2399,6 +2401,8 @@ body.user-plan-pro .pro-badge-tip {
     flex-direction: column;
     gap: 0;
     transition: box-shadow 0.18s;
+    text-align: left;
+    align-items: stretch;
 }
 .ms-plan-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07); }
 .ms-plan-card--featured {
@@ -2483,13 +2487,18 @@ body.user-plan-pro .pro-badge-tip {
     flex-direction: column;
     gap: 10px;
     flex: 1;
+    width: 100%;
+    text-align: left;
+    align-items: stretch;
 }
 .ms-plan-features li {
     font-size: 13px;
     color: #374151;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
+    text-align: left;
+    line-height: 1.45;
 }
 .ms-plan-features li::before {
     content: '✓';
@@ -2497,6 +2506,7 @@ body.user-plan-pro .pro-badge-tip {
     color: #4f46e5;
     font-size: 13px;
     flex-shrink: 0;
+    margin-top: 1px;
 }
 .ms-plan-features li.ms-feature-no {
     color: #d1d5db;
@@ -3291,6 +3301,7 @@ body:not(.user-plan-pro) .pro-badge-wrap .pro-badge {
     border-radius: 6px;
     padding: 8px 10px;
     margin-bottom: 8px;
+    text-align: left;
 }
 .export-gate-block[hidden] { display: none !important; }
 .export-gate-msg { margin: 0 0 6px; font-size: 12px; color: #92400E; }

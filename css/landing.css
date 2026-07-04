@@ -650,6 +650,9 @@ img { max-width: 100%; display: block; }
     display: flex;
     flex-direction: column;
     gap: 10px;
+    width: 100%;
+    text-align: left;
+    align-items: stretch;
 }
 
 .plan-features li {
@@ -659,6 +662,7 @@ img { max-width: 100%; display: block; }
     align-items: flex-start;
     gap: 10px;
     line-height: 1.4;
+    text-align: left;
 }
 
 .plan-features li .check {
