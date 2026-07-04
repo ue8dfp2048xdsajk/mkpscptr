@@ -2572,6 +2572,7 @@ body.user-plan-pro .pro-badge-tip {
 }
 .ms-plans-notice p { margin: 0 0 8px; }
 .ms-plans-notice p:last-child { margin-bottom: 0; }
+.ms-plans-notice-reminder { font-weight: 600; }
 .ms-plans-skip-btn {
     display: inline-block;
     margin-top: 4px;

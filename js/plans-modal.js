@@ -67,6 +67,42 @@
         if (subtitleEl) subtitleEl.textContent = MODAL_COPY.full.subtitle;
     }
 
+    function _isProEffectNotice(context) {
+        if (!context) return false;
+        var s = context.toLowerCase();
+        if (s.indexOf('pro effects') !== -1 || s.indexOf('pro-only') !== -1 || s.indexOf('pro effect') !== -1) return true;
+        if (s.indexOf('watermark') !== -1 && s.indexOf('upgrade') !== -1) return true;
+        if (s.indexOf('mockups use pro') !== -1 || s.indexOf('pattern png requires pro') !== -1) return true;
+        return false;
+    }
+
+    var STARTER_PRO_REMINDER = 'To remove Pro effects, press R or use Reset on windows that use them.';
+
+    function _clearNoticeReminder(notice) {
+        if (!notice) return;
+        var extra = notice.querySelector('.ms-plans-notice-reminder');
+        if (extra) extra.remove();
+    }
+
+    function _setNoticeContent(notice, noticeTxt, context) {
+        _clearNoticeReminder(notice);
+        if (!context) {
+            if (noticeTxt) noticeTxt.textContent = '';
+            if (notice) notice.style.display = 'none';
+            return;
+        }
+        if (noticeTxt) noticeTxt.textContent = context;
+        if (notice) notice.style.display = 'block';
+
+        var plan = (window._userPlan || 'free').toLowerCase();
+        if (plan === 'starter' && _isProEffectNotice(context)) {
+            var reminder = document.createElement('p');
+            reminder.className = 'ms-plans-notice-reminder';
+            reminder.textContent = STARTER_PRO_REMINDER;
+            if (noticeTxt) noticeTxt.insertAdjacentElement('afterend', reminder);
+        }
+    }
+
     function openPlansModal(opts) {
         var modal = document.getElementById('plansModal');
         if (!modal) return;
@@ -76,9 +112,10 @@
         var skipBtn  = document.getElementById('plansModalSkipBtn');
 
         if (opts && opts.context && notice && noticeTxt) {
-            noticeTxt.textContent = opts.context;
-            notice.style.display = 'block';
+            _setNoticeContent(notice, noticeTxt, opts.context);
         } else if (notice) {
+            _clearNoticeReminder(notice);
+            if (noticeTxt) noticeTxt.textContent = '';
             notice.style.display = 'none';
         }
 
