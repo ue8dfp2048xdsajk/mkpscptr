@@ -13,7 +13,7 @@
  *
  * Two scenarios are exercised:
  *
- *   Scenario A — Full webhook retry: same body, same nonce position, first fails
+ *   Scenario A - Full webhook retry: same body, same nonce position, first fails
  *   ---------------------------------------------------------------------------
  *   Sends the EXACT SAME event body twice (same JSON, same Stripe event ID).
  *
@@ -22,7 +22,7 @@
  *       set-plan when ENABLE_WEBHOOK_TEST_HOOKS=true).  set-plan records
  *       nonce N1, hits the test hook, calls deleteNonce(N1) automatically
  *       via the production error branch, returns 502.  The webhook endpoint
- *       propagates 502 to the caller — exactly what Stripe would observe.
+ *       propagates 502 to the caller - exactly what Stripe would observe.
  *
  *     Delivery 2 (the retry): identical body, fresh timestamp + re-signed
  *       (as Stripe does), no test header.  The webhook handler generates a
@@ -32,7 +32,7 @@
  *     Final check: Clerk publicMetadata.plan is verified to match the
  *       requested plan, confirming the user is NOT left on the free plan.
  *
- *   Scenario B — deleteNonce-on-error path: direct set-plan calls, same nonce
+ *   Scenario B - deleteNonce-on-error path: direct set-plan calls, same nonce
  *   ---------------------------------------------------------------------------
  *   Exercises the exact lines inside set-plan.js that protect against a
  *   stuck nonce blocking retries when the nonce value is the SAME between
@@ -65,7 +65,7 @@
  * Required env vars (local):
  *   STRIPE_WEBHOOK_SECRET   Stripe webhook signing secret (whsec_...)
  *   SET_PLAN_SECRET         Internal secret for /api/set-plan
- *   CLERK_SECRET_KEY        Clerk secret key — used to verify final metadata
+ *   CLERK_SECRET_KEY        Clerk secret key - used to verify final metadata
  *   CLERK_USER_ID           A real Clerk user ID (user_...)
  *
  * Required deployment env var:
@@ -192,11 +192,11 @@ function fail(msg) { console.error(`          ✗  ${msg}`); }
 function info(msg) { console.log(`             ${msg}`); }
 
 // ---------------------------------------------------------------------------
-// Scenario A — Full webhook retry: same body, delivery 1 fails, delivery 2 ok
+// Scenario A - Full webhook retry: same body, delivery 1 fails, delivery 2 ok
 // ---------------------------------------------------------------------------
 
 async function scenarioA(opts, webhookSecret, clerkSecretKey, clerkUserId) {
-    console.log('\n┌─ Scenario A: Full Webhook Retry — Same Body, Delivery 1 Fails');
+    console.log('\n┌─ Scenario A: Full Webhook Retry - Same Body, Delivery 1 Fails');
     console.log('│');
     console.log('│  Both deliveries send the EXACT same JSON payload to /api/webhooks/stripe.');
     console.log('│  Delivery 1 includes X-Test-Force-Clerk-Error: 1 which the webhook handler');
@@ -213,7 +213,7 @@ async function scenarioA(opts, webhookSecret, clerkSecretKey, clerkUserId) {
     const rawBody = JSON.stringify(event);   // identical bytes for both deliveries
 
     // ── Delivery 1: force failure via test hook ──────────────────────────────
-    step(1, 3, 'Delivery 1 — X-Test-Force-Clerk-Error: 1  (expect 502: deleteNonce fires)');
+    step(1, 3, 'Delivery 1 - X-Test-Force-Clerk-Error: 1  (expect 502: deleteNonce fires)');
 
     const ts1  = baseTs;
     const sig1 = buildStripeSignature(rawBody, webhookSecret, ts1);
@@ -235,25 +235,25 @@ async function scenarioA(opts, webhookSecret, clerkSecretKey, clerkUserId) {
 
     if (res1.status === 200) {
         fail(
-            'Got 200 — expected 502.  The test hook did not fire. ' +
+            'Got 200 - expected 502.  The test hook did not fire. ' +
             'Make sure ENABLE_WEBHOOK_TEST_HOOKS=true is set in the deployment env ' +
             '(Vercel > Project > Environment Variables).'
         );
         return false;
     }
     if (res1.status === 400) {
-        fail('Got 400 — signature rejected before the event was processed.');
+        fail('Got 400 - signature rejected before the event was processed.');
         info('Check that STRIPE_WEBHOOK_SECRET matches the value in Vercel.');
         return false;
     }
     if (res1.status !== 502) {
-        fail(`Unexpected HTTP ${res1.status} — expected 502 from test hook.`);
+        fail(`Unexpected HTTP ${res1.status} - expected 502 from test hook.`);
         return false;
     }
-    ok('Delivery 1 returned 502 — test hook fired, deleteNonce(N) called automatically');
+    ok('Delivery 1 returned 502 - test hook fired, deleteNonce(N) called automatically');
 
-    // ── Delivery 2 (retry): same body, no test header — must succeed ─────────
-    step(2, 3, 'Delivery 2 — same body, no test header (Stripe retry semantics — expect 200)');
+    // ── Delivery 2 (retry): same body, no test header - must succeed ─────────
+    step(2, 3, 'Delivery 2 - same body, no test header (Stripe retry semantics - expect 200)');
 
     // Stripe re-signs with the original body bytes and a fresh timestamp.
     const ts2  = Math.floor(Date.now() / 1000);
@@ -271,11 +271,11 @@ async function scenarioA(opts, webhookSecret, clerkSecretKey, clerkUserId) {
     info(`HTTP ${res2.status}  ${JSON.stringify(p2)}`);
 
     if (res2.status !== 200 || !p2.ok) {
-        fail('Delivery 2 (retry) failed — user would be left on the free plan.');
+        fail('Delivery 2 (retry) failed - user would be left on the free plan.');
         if (res2.status === 502) info('Check that CLERK_USER_ID exists in your Clerk project.');
         return false;
     }
-    ok('Delivery 2 returned 200 — retry succeeded after simulated first-delivery failure');
+    ok('Delivery 2 returned 200 - retry succeeded after simulated first-delivery failure');
 
     // ── Clerk verification ───────────────────────────────────────────────────
     step(3, 3, 'Verifying Clerk publicMetadata.plan');
@@ -291,11 +291,11 @@ async function scenarioA(opts, webhookSecret, clerkSecretKey, clerkUserId) {
 }
 
 // ---------------------------------------------------------------------------
-// Scenario B — deleteNonce-on-error: direct set-plan calls, same nonce value
+// Scenario B - deleteNonce-on-error: direct set-plan calls, same nonce value
 // ---------------------------------------------------------------------------
 
 async function scenarioB(opts, setPlanSecret, clerkSecretKey, clerkUserId) {
-    console.log('\n┌─ Scenario B: deleteNonce-on-error — Direct set-plan Calls, Same Nonce');
+    console.log('\n┌─ Scenario B: deleteNonce-on-error - Direct set-plan Calls, Same Nonce');
     console.log('│');
     console.log('│  Exercises the case where a set-plan caller reuses the SAME nonce value');
     console.log('│  across attempts (e.g. an admin script or future idempotency layer).');
@@ -341,28 +341,28 @@ async function scenarioB(opts, setPlanSecret, clerkSecretKey, clerkUserId) {
 
     if (r1.status === 200) {
         fail(
-            'Got 200 — test hook did not fire. ' +
+            'Got 200 - test hook did not fire. ' +
             'Ensure ENABLE_WEBHOOK_TEST_HOOKS=true is set in the deployment env.'
         );
         return false;
     }
     if (r1.status === 401) {
-        fail('Got 401 — SET_PLAN_SECRET mismatch. Verify against the Vercel env var.');
+        fail('Got 401 - SET_PLAN_SECRET mismatch. Verify against the Vercel env var.');
         return false;
     }
     if (r1.status === 400 && (b1.error || '').toLowerCase().includes('duplicate')) {
-        fail('Got "Duplicate nonce" on the first call — a previous run left a stuck nonce.');
+        fail('Got "Duplicate nonce" on the first call - a previous run left a stuck nonce.');
         info('Wait ~5 minutes for the nonce TTL to expire, then re-run this script.');
         return false;
     }
     if (r1.status !== 502) {
-        fail(`Unexpected HTTP ${r1.status} — expected 502 from test hook.`);
+        fail(`Unexpected HTTP ${r1.status} - expected 502 from test hook.`);
         return false;
     }
-    ok('step 1 returned 502 — test hook fired, production deleteNonce branch executed');
+    ok('step 1 returned 502 - test hook fired, production deleteNonce branch executed');
 
     // ── Step 2: same nonce, no test hook → must succeed ──────────────────────
-    step(2, 3, 'POST /api/set-plan  same nonce=N  (no test header — expect 200)');
+    step(2, 3, 'POST /api/set-plan  same nonce=N  (no test header - expect 200)');
     info(`Same nonce: ${nonce}`);
 
     let r2;
@@ -377,7 +377,7 @@ async function scenarioB(opts, setPlanSecret, clerkSecretKey, clerkUserId) {
 
     if (r2.status === 400 && (b2.error || '').toLowerCase().includes('duplicate')) {
         fail(
-            '"Duplicate nonce" on second call — deleteNonce was NOT called by the production ' +
+            '"Duplicate nonce" on second call - deleteNonce was NOT called by the production ' +
             'error branch (step 1).  A Stripe retry after a transient Clerk error would be ' +
             'rejected with "Duplicate nonce" and the user would remain on the free plan.'
         );
@@ -387,7 +387,7 @@ async function scenarioB(opts, setPlanSecret, clerkSecretKey, clerkUserId) {
         fail(`Expected 200 OK after nonce was cleared, got HTTP ${r2.status}: ${JSON.stringify(b2)}`);
         return false;
     }
-    ok('step 2 returned 200 — nonce re-accepted after auto-delete → user NOT left on free plan');
+    ok('step 2 returned 200 - nonce re-accepted after auto-delete → user NOT left on free plan');
 
     // ── Step 3: verify Clerk ─────────────────────────────────────────────────
     step(3, 3, 'Verifying Clerk publicMetadata.plan');
@@ -422,7 +422,7 @@ async function main() {
     console.log('');
     console.log('NOTE: ENABLE_WEBHOOK_TEST_HOOKS=true must be set in the deployment env.');
     console.log('      Without it, Delivery 1 will return 200 instead of 502 and the test');
-    console.log('      will fail — it cannot exercise the deleteNonce-on-error branch.');
+    console.log('      will fail - it cannot exercise the deleteNonce-on-error branch.');
 
     let missing = false;
     if (!webhookSecret)  { console.error('\nERROR: STRIPE_WEBHOOK_SECRET is not set. export STRIPE_WEBHOOK_SECRET=whsec_...'); missing = true; }
@@ -445,8 +445,8 @@ async function main() {
         console.log('  Scenario A  Same event body sent twice. Delivery 1 returned 502');
         console.log('              (test hook forced a Clerk failure, deleteNonce called');
         console.log('              automatically by set-plan\'s production error branch).');
-        console.log('              Delivery 2 returned 200 — Stripe retry unblocked.');
-        console.log('              Clerk confirmed the plan was set — user NOT on free plan.');
+        console.log('              Delivery 2 returned 200 - Stripe retry unblocked.');
+        console.log('              Clerk confirmed the plan was set - user NOT on free plan.');
         console.log('');
         console.log('  Scenario B  Same nonce N used across two direct set-plan calls.');
         console.log('              deleteNonce(N) was called automatically after the');
@@ -454,7 +454,7 @@ async function main() {
         console.log('              with the identical nonce to succeed and update Clerk.');
         process.exit(0);
     } else {
-        console.log('✗ ONE OR MORE SCENARIOS FAILED — see details above.');
+        console.log('✗ ONE OR MORE SCENARIOS FAILED - see details above.');
         process.exit(1);
     }
 }

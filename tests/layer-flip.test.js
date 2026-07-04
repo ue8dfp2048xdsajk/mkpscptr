@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * Per-layer flip helpers — flip must not bleed across layers in one window.
+ * Per-layer flip helpers - flip must not bleed across layers in one window.
  */
 
 'use strict';

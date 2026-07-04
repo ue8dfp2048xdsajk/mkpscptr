@@ -38,20 +38,20 @@ function ensureSchema() {
 
 // --- Local deny cache (survives backend outages within a running instance) ---
 //
-// ARCHITECTURAL NOTE — cold-start + total backend outage
+// ARCHITECTURAL NOTE - cold-start + total backend outage
 // -------------------------------------------------------
 // The deny cache is stored in process memory and is therefore per-instance.
 // In a serverless environment each cold-start creates a fresh instance with an
 // empty deny cache.  The behaviour across the two scenarios that matter is:
 //
-//   Scenario A — cold-start, backend UP (normal production path)
+//   Scenario A - cold-start, backend UP (normal production path)
 //     isRateLimited() queries Redis / PostgreSQL directly and returns the
 //     correct result.  The deny cache is repopulated on the first successful
 //     read, so the in-process fallback works for subsequent backend blips.
 //     This path must never regress; it is covered by rate-limiter-cold-start
 //     and rate-limiter-pg-restart tests.
 //
-//   Scenario B — cold-start, backend DOWN (accepted limitation)
+//   Scenario B - cold-start, backend DOWN (accepted limitation)
 //     If the backend is completely unreachable at the moment a new instance
 //     handles its first request, the deny cache is empty and there is no
 //     secondary store to consult.  The rate limiter falls back to the
@@ -102,7 +102,7 @@ const failureStore = new Map();
 if (!USE_REDIS && !USE_PG) {
     console.warn(
         'rate-limiter: No persistent backend configured (UPSTASH_REDIS_REST_URL/TOKEN and DATABASE_URL are all unset). ' +
-        'Rate-limit counters are stored in process memory only — they will not be shared across serverless instances ' +
+        'Rate-limit counters are stored in process memory only - they will not be shared across serverless instances ' +
         'and will reset on every cold start. Configure Redis or PostgreSQL for reliable rate limiting in production.'
     );
 }

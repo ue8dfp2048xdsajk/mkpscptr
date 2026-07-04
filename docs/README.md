@@ -1,28 +1,28 @@
-# Mockup Scripter — Documentation
+# Mockup Scripter - Documentation
 
 ## Getting started
 
-- [Local development](getting-started/local-development.md) — install, run, and open the app
-- [Environment variables](getting-started/environment-variables.md) — full env var reference
+- [Local development](getting-started/local-development.md) - install, run, and open the app
+- [Environment variables](getting-started/environment-variables.md) - full env var reference
 
 ## Architecture
 
-- [Overview](architecture/overview.md) — how the pieces fit together
-- [App.js map](architecture/app-js-map.md) — script load order, globals, danger zones
-- [Backend API](architecture/backend-api.md) — all `/api/*` endpoints
+- [Overview](architecture/overview.md) - how the pieces fit together
+- [App.js map](architecture/app-js-map.md) - script load order, globals, danger zones
+- [Backend API](architecture/backend-api.md) - all `/api/*` endpoints
 
 ## Features
 
-- [Plans and gating](features/plans-and-gating.md) — free / starter / pro rules and enforcement
+- [Plans and gating](features/plans-and-gating.md) - free / starter / pro rules and enforcement
 
 ## Deployment
 
-- [Pre-deploy checklist](deployment/pre-deploy-checklist.md) — verify before going live
-- [Pre-launch testing checklist](deployment/prelaunch-testing-checklist.md) — manual end-to-end QA across auth, billing, and autosave
+- [Pre-deploy checklist](deployment/pre-deploy-checklist.md) - verify before going live
+- [Pre-launch testing checklist](deployment/prelaunch-testing-checklist.md) - manual end-to-end QA across auth, billing, and autosave
 
 ## Security
 
-- [Set-plan security QA](../set-plan-security-qa.md) — manual curl tests for the plan-upgrade endpoint
+- [Set-plan security QA](../set-plan-security-qa.md) - manual curl tests for the plan-upgrade endpoint
 
 ## Related files (repo root)
 

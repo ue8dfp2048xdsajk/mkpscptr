@@ -23,11 +23,11 @@ async function handleConfigCheck(req, res) {
     const setPlanSecret = process.env.SET_PLAN_SECRET;
 
     // Fail closed: if SET_PLAN_SECRET is absent the endpoint cannot be
-    // authenticated — return 500 rather than falling through to open access
+    // authenticated - return 500 rather than falling through to open access
     // and leaking configuration state to unauthenticated callers.
     if (!setPlanSecret) {
-        console.error('admin/config-check: SET_PLAN_SECRET is not set — refusing unauthenticated access');
-        return res.status(500).json({ ok: false, error: 'Server misconfigured — SET_PLAN_SECRET is not set' });
+        console.error('admin/config-check: SET_PLAN_SECRET is not set - refusing unauthenticated access');
+        return res.status(500).json({ ok: false, error: 'Server misconfigured - SET_PLAN_SECRET is not set' });
     }
 
     const authHeader = req.headers.authorization || '';
@@ -76,21 +76,21 @@ async function handleConfigCheck(req, res) {
 // Admin-only endpoint for clearing a stuck nonce when the nonce store had a
 // connectivity problem mid-checkout and deleteNonce() could not complete even
 // after retries.  Without this, Stripe's next retry would be rejected with
-// "Duplicate nonce — request already processed", leaving the user on the free
+// "Duplicate nonce - request already processed", leaving the user on the free
 // plan indefinitely.
 //
 // Authentication: Bearer <SET_PLAN_SECRET>  (same secret as set-plan)
 //
 // Body (one of):
-//   { "nonce": "<exact nonce value>" }            — clear by nonce value
-//   { "userId": "<clerk userId>", "plan": "pro" } — clear by userId + plan
+//   { "nonce": "<exact nonce value>" }            - clear by nonce value
+//   { "userId": "<clerk userId>", "plan": "pro" } - clear by userId + plan
 //
 // Responses:
 //   200  { ok: true,  deleted: <number> }
-//   400  { ok: false, error: "..." }     — bad input
+//   400  { ok: false, error: "..." }     - bad input
 //   401  { ok: false, error: "Unauthorized" }
 //   405  { ok: false, error: "Method not allowed" }
-//   500  { ok: false, error: "..." }     — store error
+//   500  { ok: false, error: "..." }     - store error
 async function handleClearNonce(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });

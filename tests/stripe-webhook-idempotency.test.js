@@ -9,7 +9,7 @@
  * those downstream steps failed, the event stayed claimed forever. Stripe's
  * automatic retry (same event.id) would then hit tryClaimStripeEvent, see
  * the event already claimed, and get silently swallowed with
- * `200 { ok: true, ignored: true, reason: 'duplicate_event' }` — Stripe sees
+ * `200 { ok: true, ignored: true, reason: 'duplicate_event' }` - Stripe sees
  * success and stops retrying, but the customer's plan was never actually
  * updated. This is exactly how a Starter customer ended up with
  * stripeCustomerId set but no plan.
@@ -68,7 +68,7 @@ function makeRes() {
     };
 }
 
-describe('Stripe webhook idempotency — unclaimStripeEvent releases the claim on failure', () => {
+describe('Stripe webhook idempotency - unclaimStripeEvent releases the claim on failure', () => {
     let webhookHandler;
     let setPlanHandler;
     let fakeDb;
@@ -191,17 +191,17 @@ describe('Stripe webhook idempotency — unclaimStripeEvent releases the claim o
 
         installFetchRouter(() => ({ ok: true, status: 200, json: async () => ({}) }));
 
-        // Attempt 1 — storeCustomerMapping fails → 500, event must be un-claimed.
+        // Attempt 1 - storeCustomerMapping fails → 500, event must be un-claimed.
         const res1 = makeRes();
         await webhookHandler(makeStreamReq(rawBody), res1);
         expect(res1._status).toBe(500);
         expect(res1._body.ok).toBe(false);
 
-        // The claim must have been released — not left stuck in idempotency_keys.
+        // The claim must have been released - not left stuck in idempotency_keys.
         const claimAfterFailure = await fakeDb.collection('idempotency_keys').findOne({ _id: stripeEvent.id });
         expect(claimAfterFailure).toBeNull();
 
-        // Attempt 2 (retry, same event.id) — must actually re-run, not be
+        // Attempt 2 (retry, same event.id) - must actually re-run, not be
         // swallowed as a duplicate, and this time storeCustomerMapping succeeds.
         const res2 = makeRes();
         await webhookHandler(makeStreamReq(rawBody), res2);
@@ -403,7 +403,7 @@ describe('Stripe webhook idempotency — unclaimStripeEvent releases the claim o
         expect(res2._body.plan).toBe('free');
     });
 
-    test('successful processing leaves the claim in place — an exact duplicate delivery is swallowed', async () => {
+    test('successful processing leaves the claim in place - an exact duplicate delivery is swallowed', async () => {
         const stripeEvent = {
             id: 'evt_idem_success_001',
             type: 'checkout.session.completed',
@@ -423,7 +423,7 @@ describe('Stripe webhook idempotency — unclaimStripeEvent releases the claim o
         await webhookHandler(makeStreamReq(rawBody), res1);
         expect(res1._status).toBe(200);
 
-        // Claim remains — this is correct: a truly successful delivery should
+        // Claim remains - this is correct: a truly successful delivery should
         // NOT be re-processed if Stripe re-delivers the exact same event.
         const claimAfterSuccess = await fakeDb.collection('idempotency_keys').findOne({ _id: stripeEvent.id });
         expect(claimAfterSuccess).not.toBeNull();

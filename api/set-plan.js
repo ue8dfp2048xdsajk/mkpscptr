@@ -85,7 +85,7 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'Missing X-Nonce header' });
     }
     if (await isNonceSeen(nonce)) {
-        return res.status(400).json({ ok: false, error: 'Duplicate nonce — request already processed' });
+        return res.status(400).json({ ok: false, error: 'Duplicate nonce - request already processed' });
     }
     if (!userId || typeof userId !== 'string') {
         return res.status(400).json({ ok: false, error: 'Missing or invalid userId' });
@@ -108,7 +108,7 @@ module.exports = async function handler(req, res) {
         return res.status(500).json({ ok: false, error: 'Failed to record nonce; request not processed' });
     }
 
-    // Test hook — only active when ENABLE_WEBHOOK_TEST_HOOKS=true (never set in production).
+    // Test hook - only active when ENABLE_WEBHOOK_TEST_HOOKS=true (never set in production).
     // Simulates a Clerk API failure AFTER the nonce has been recorded so that the
     // deleteNonce-on-error branch is exercised by scripts/test-webhook-retry.js.
     if (process.env.ENABLE_WEBHOOK_TEST_HOOKS === 'true' &&

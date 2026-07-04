@@ -20,8 +20,8 @@ async function tryClaimStripeEvent(eventId) {
     try {
         db = await getDb();
     } catch {
-        // If DB is unavailable, allow processing — better than silently dropping events.
-        console.warn('stripe-webhook: DB unavailable for idempotency check — processing event anyway');
+        // If DB is unavailable, allow processing - better than silently dropping events.
+        console.warn('stripe-webhook: DB unavailable for idempotency check - processing event anyway');
         return true;
     }
 
@@ -41,15 +41,15 @@ async function tryClaimStripeEvent(eventId) {
         return true; // first time processing this event
     } catch (err) {
         if (err.code === 11000) {
-            return false; // duplicate — already processed
+            return false; // duplicate - already processed
         }
-        // Unexpected error — allow processing rather than silently dropping.
-        console.error('stripe-webhook: idempotency check error — processing event anyway:', err.message);
+        // Unexpected error - allow processing rather than silently dropping.
+        console.error('stripe-webhook: idempotency check error - processing event anyway:', err.message);
         return true;
     }
 }
 
-// Built at call time — see api/_stripe-prices.js for price ID helpers.
+// Built at call time - see api/_stripe-prices.js for price ID helpers.
 
 const VALID_PERIODS = new Set(['monthly', 'annual', 'lifetime']);
 
@@ -157,7 +157,7 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
 // "Resend" from the Dashboard, which reuses the same event ID) actually
 // re-runs this handler instead of being silently swallowed as
 // 'duplicate_event'. MUST be called before any non-2xx response that is
-// returned after the event was claimed via tryClaimStripeEvent — otherwise a
+// returned after the event was claimed via tryClaimStripeEvent - otherwise a
 // transient failure (DB hiccup, Clerk API error, nonce store outage, etc.)
 // permanently strands the customer without their paid plan, because every
 // subsequent retry short-circuits with 200 before ever touching set-plan again.
@@ -172,7 +172,7 @@ async function unclaimStripeEvent(eventId) {
 
 // Store stripeCustomerId → clerkUserId in MongoDB (upsert).
 // IMPORTANT: this now throws on failure so the caller can return 500 and let
-// Stripe retry — a silently-dropped mapping means future subscription events
+// Stripe retry - a silently-dropped mapping means future subscription events
 // (updates, cancellations) cannot look up the Clerk user.
 async function storeCustomerMapping(stripeCustomerId, clerkUserId) {
     const db = await getDb();
@@ -224,9 +224,9 @@ function storeStripeCustomerInClerk(clerkUserId, stripeCustomerId, clerkSecretKe
 // Call the internal set-plan endpoint.
 // `nonce` should be the Stripe event ID (event.id) so that two concurrent
 // deliveries of the same event are deduplicated atomically by the nonce store
-// (api/_nonce-store.js — MongoDB unique _id index on the `nonce_seen`
+// (api/_nonce-store.js - MongoDB unique _id index on the `nonce_seen`
 // collection), independent of the MongoDB idempotency check in
-// tryClaimStripeEvent above (same database, different collection — this is
+// tryClaimStripeEvent above (same database, different collection - this is
 // defense-in-depth, not a fallback to a different backend).
 async function callSetPlan(baseUrl, setPlanSecret, userId, plan, nonce, extraHeaders = {}) {
     const timestamp = Math.floor(Date.now() / 1000);
@@ -250,11 +250,11 @@ module.exports = async function handler(req, res) {
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     const baseUrl = (process.env.BASE_URL || '').replace(/\/$/, '');
 
-    // Diagnostic endpoint — requires Bearer <SET_PLAN_SECRET> auth.
+    // Diagnostic endpoint - requires Bearer <SET_PLAN_SECRET> auth.
     // Previously this was open, leaking configuration state to anyone.
     if (req.method === 'GET') {
         if (!setPlanSecret) {
-            return res.status(500).json({ ok: false, error: 'Server misconfigured — SET_PLAN_SECRET is not set' });
+            return res.status(500).json({ ok: false, error: 'Server misconfigured - SET_PLAN_SECRET is not set' });
         }
         const authHeader = req.headers.authorization || '';
         const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
@@ -319,13 +319,13 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true, ignored: true });
     }
 
-    // Idempotency guard — Stripe delivers events at-least-once.
+    // Idempotency guard - Stripe delivers events at-least-once.
     // tryClaimStripeEvent atomically marks this event ID as in-progress using
     // MongoDB's _id uniqueness. A duplicate delivery returns false and is
     // acknowledged with 200 so Stripe stops retrying.
     const claimed = await tryClaimStripeEvent(event.id);
     if (!claimed) {
-        console.log(`stripe-webhook: duplicate event ${event.id} (${event.type}) — already processed`);
+        console.log(`stripe-webhook: duplicate event ${event.id} (${event.type}) - already processed`);
         return res.status(200).json({ ok: true, ignored: true, reason: 'duplicate_event' });
     }
 
@@ -376,17 +376,17 @@ module.exports = async function handler(req, res) {
         }
 
         // Store customer ID mapping so subscription events can look up the Clerk user.
-        // If this write fails, return 500 so Stripe retries — a dropped mapping means
+        // If this write fails, return 500 so Stripe retries - a dropped mapping means
         // future subscription.updated / subscription.deleted events cannot find the user.
         if (session.customer) {
             try {
                 await storeCustomerMapping(session.customer, userId);
             } catch (err) {
-                console.error('stripe-webhook: failed to store customer mapping — returning 500 so Stripe retries:', err);
+                console.error('stripe-webhook: failed to store customer mapping - returning 500 so Stripe retries:', err);
                 await unclaimStripeEvent(event.id);
                 return res.status(500).json({ ok: false, error: 'Failed to store customer mapping' });
             }
-            // Clerk metadata update is best-effort — non-fatal if it fails.
+            // Clerk metadata update is best-effort - non-fatal if it fails.
             await storeStripeCustomerInClerk(userId, session.customer, clerkSecretKey);
         }
 
@@ -473,13 +473,13 @@ module.exports = async function handler(req, res) {
                 stripeSecretKey
             );
             if (!downgrade) {
-                console.log(`stripe-webhook: subscription ${status} — retained paid entitlement for userId="${clerkUserId}"`);
+                console.log(`stripe-webhook: subscription ${status} - retained paid entitlement for userId="${clerkUserId}"`);
                 return res.status(200).json({ ok: true, ignored: true, reason: 'retained_entitlement' });
             }
             newPlan = 'free';
         } else {
-            // past_due, paused — leave plan unchanged; subscription.deleted fires on full cancellation
-            console.log(`stripe-webhook: subscription status="${status}" — no plan change`);
+            // past_due, paused - leave plan unchanged; subscription.deleted fires on full cancellation
+            console.log(`stripe-webhook: subscription status="${status}" - no plan change`);
             return res.status(200).json({ ok: true, ignored: true, reason: `status=${status}` });
         }
 
@@ -507,7 +507,7 @@ module.exports = async function handler(req, res) {
             await patchClerkPublicMetadata(clerkUserId, patch, clerkSecretKey);
         }
 
-        console.log(`stripe-webhook: subscription updated — plan="${newPlan}" for userId="${clerkUserId}"`);
+        console.log(`stripe-webhook: subscription updated - plan="${newPlan}" for userId="${clerkUserId}"`);
         return res.status(200).json({ ok: true, clerkUserId, plan: newPlan });
     }
 
@@ -531,7 +531,7 @@ module.exports = async function handler(req, res) {
             stripeSecretKey
         );
         if (!downgrade) {
-            console.log(`stripe-webhook: subscription deleted — retained paid entitlement for userId="${clerkUserId}"`);
+            console.log(`stripe-webhook: subscription deleted - retained paid entitlement for userId="${clerkUserId}"`);
             return res.status(200).json({ ok: true, ignored: true, reason: 'retained_entitlement' });
         }
 
@@ -560,7 +560,7 @@ module.exports = async function handler(req, res) {
             );
         }
 
-        console.log(`stripe-webhook: subscription deleted — reset to free for userId="${clerkUserId}"`);
+        console.log(`stripe-webhook: subscription deleted - reset to free for userId="${clerkUserId}"`);
         return res.status(200).json({ ok: true, clerkUserId, plan: 'free' });
     }
 
@@ -580,7 +580,7 @@ module.exports = async function handler(req, res) {
         console.log(`stripe-webhook: invoice.payment_failed customer=${invoice.customer} attempt=${attemptCount} final=${isFinalFailure}`);
 
         if (!isFinalFailure) {
-            // Stripe will retry — leave the plan intact during the dunning period.
+            // Stripe will retry - leave the plan intact during the dunning period.
             return res.status(200).json({ ok: true, noted: true, reason: 'dunning_retry' });
         }
 
@@ -599,7 +599,7 @@ module.exports = async function handler(req, res) {
             stripeSecretKey
         );
         if (!downgrade) {
-            console.log(`stripe-webhook: final payment failure — retained paid entitlement for userId="${clerkUserId}"`);
+            console.log(`stripe-webhook: final payment failure - retained paid entitlement for userId="${clerkUserId}"`);
             return res.status(200).json({ ok: true, ignored: true, reason: 'retained_entitlement' });
         }
 
@@ -619,7 +619,7 @@ module.exports = async function handler(req, res) {
             return res.status(502).json({ ok: false, error: b?.error || 'set-plan error' });
         }
 
-        console.log(`stripe-webhook: final payment failure — reset to free for userId="${clerkUserId}"`);
+        console.log(`stripe-webhook: final payment failure - reset to free for userId="${clerkUserId}"`);
         return res.status(200).json({ ok: true, clerkUserId, plan: 'free' });
     }
 

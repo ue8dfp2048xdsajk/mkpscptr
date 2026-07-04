@@ -2,7 +2,7 @@
  * @jest-environment node
  *
  * Integration tests confirming that stale rate_limit rows are actually removed
- * by pgPruneExpired — the cleanup function fired probabilistically (5 % of
+ * by pgPruneExpired - the cleanup function fired probabilistically (5 % of
  * requests) inside pgIsRateLimited.
  *
  * Strategy
@@ -24,7 +24,7 @@
 const WINDOW_SECONDS = 15 * 60; // must match api/_rate-limiter.js
 
 // ---------------------------------------------------------------------------
-// Shared "database" — lives outside the module so it survives resetModules().
+// Shared "database" - lives outside the module so it survives resetModules().
 // ---------------------------------------------------------------------------
 const pgStore = new Map(); // ip → { failures: number, window_start: number }
 
@@ -40,14 +40,14 @@ function makePgMock() {
             // ensureSchema
             if (/CREATE TABLE/i.test(s)) return { rows: [] };
 
-            // pgIsRateLimited — SELECT failures, window_start FROM rate_limit WHERE ip = $1
+            // pgIsRateLimited - SELECT failures, window_start FROM rate_limit WHERE ip = $1
             if (/^SELECT/i.test(s)) {
                 const ip  = params[0];
                 const row = pgStore.get(ip);
                 return { rows: row ? [{ failures: row.failures, window_start: row.window_start }] : [] };
             }
 
-            // pgRecordFailure — INSERT … ON CONFLICT DO UPDATE
+            // pgRecordFailure - INSERT … ON CONFLICT DO UPDATE
             if (/^INSERT/i.test(s)) {
                 const [ip, now, windowCutoff] = params;
                 const existing = pgStore.get(ip);
@@ -59,7 +59,7 @@ function makePgMock() {
                 return { rows: [] };
             }
 
-            // pgPruneExpired — DELETE … WHERE window_start < (EXTRACT(EPOCH FROM NOW()) * 1000 - $1)
+            // pgPruneExpired - DELETE … WHERE window_start < (EXTRACT(EPOCH FROM NOW()) * 1000 - $1)
             // $1 is the window duration in ms; resolve cutoff using Date.now() to mirror DB NOW().
             if (/^DELETE/i.test(s) && /window_start/i.test(s)) {
                 const cutoff = Date.now() - Number(params[0]);
@@ -71,7 +71,7 @@ function makePgMock() {
                 return { rows: [] };
             }
 
-            // pgClearFailures — DELETE FROM rate_limit WHERE ip = $1
+            // pgClearFailures - DELETE FROM rate_limit WHERE ip = $1
             if (/^DELETE/i.test(s)) {
                 pgStore.delete(params[0]);
                 return { rows: [] };
@@ -106,7 +106,7 @@ function flushAsync() {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('pgPruneExpired — stale rows are deleted on schedule', () => {
+describe('pgPruneExpired - stale rows are deleted on schedule', () => {
     let pgMock;
     let randomSpy;
 
@@ -130,7 +130,7 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
 
         const rl = loadRateLimiter(pgMock);
 
-        // Trigger isRateLimited — the prune fires as a side-effect
+        // Trigger isRateLimited - the prune fires as a side-effect
         await rl.isRateLimited(ip);
         await flushAsync(); // let the fire-and-forget pgPruneExpired complete
 
@@ -139,7 +139,7 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
 
     test('a row exactly at the window boundary (window_start === cutoff) is NOT pruned', async () => {
         const ip = '10.1.0.2';
-        // Place window_start exactly at the cutoff — it must NOT be deleted
+        // Place window_start exactly at the cutoff - it must NOT be deleted
         // because the query is `window_start < cutoff` (strict less-than).
         const dateSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000_000_000);
         const cutoff  = 1_000_000_000_000 - WINDOW_SECONDS * 1000;
@@ -236,7 +236,7 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
         await rl.isRateLimited(ip);
         await flushAsync();
 
-        // Find the prune DELETE call — it must reference window_start
+        // Find the prune DELETE call - it must reference window_start
         const deleteCalls = pool.query.mock.calls.filter(
             ([sql]) => /^DELETE/i.test(sql.trim()) && /window_start/i.test(sql)
         );
@@ -247,14 +247,14 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
         // SQL must delegate the cutoff computation to the DB clock
         expect(pruneSQL).toMatch(/EXTRACT\s*\(\s*EPOCH\s+FROM\s+NOW\s*\(\s*\)/i);
 
-        // $1 is the window duration in ms — a fixed positive integer, never a
+        // $1 is the window duration in ms - a fixed positive integer, never a
         // Unix timestamp (which would be ~13 digits and > 1 trillion).
         expect(pruneParams[0]).toBe(WINDOW_SECONDS * 1000);
     });
 });
 
 // ---------------------------------------------------------------------------
-// pgPruneExpired non-blocking — a slow/hanging prune must not delay isRateLimited
+// pgPruneExpired non-blocking - a slow/hanging prune must not delay isRateLimited
 // ---------------------------------------------------------------------------
 
 /**
@@ -263,7 +263,7 @@ describe('pgPruneExpired — stale rows are deleted on schedule', () => {
  * a never-resolving prune query would stall every 5th isRateLimited call
  * indefinitely.  The test enforces a strict 50 ms wall-clock budget.
  */
-describe('pgPruneExpired — fire-and-forget: slow prune does not block isRateLimited', () => {
+describe('pgPruneExpired - fire-and-forget: slow prune does not block isRateLimited', () => {
     let randomSpy;
 
     afterEach(() => {

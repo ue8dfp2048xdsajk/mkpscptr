@@ -5,7 +5,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     const left = data.perspectiveLeft || 0;
 
     // Trim transparent borders from the source (e.g. warp/arc padding).
-    // In LQ (live-drag) mode skip the getImageData pixel readback — it stalls
+    // In LQ (live-drag) mode skip the getImageData pixel readback - it stalls
     // the GPU pipeline and is the main cause of perspective lag vs cylinder/arc.
     const src  = preTrimmed || (lowQuality ? sourceCanvas : trimTransparentBorders(sourceCanvas));
     const srcW = src.width;
@@ -100,7 +100,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
             Math.max(1, Math.ceil(targetW + 1)), Math.ceil(sliceH + 1)
         );
     }
-    // Free pass-1 mip levels (not index 0 — that is the source canvas itself).
+    // Free pass-1 mip levels (not index 0 - that is the source canvas itself).
     // Setting width=0 releases the GPU backing store immediately rather than
     // waiting for GC, which prevents GPU OOM when many windows render at once.
     for(let i = 1; i < srcMips.length; i++) srcMips[i].width = 0;
@@ -158,7 +158,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     }
 
     // ── Scale back down & trim ────────────────────────────────────────────────
-    // In LQ mode skip the output trim (another getImageData stall) — transparent
+    // In LQ mode skip the output trim (another getImageData stall) - transparent
     // padding is invisible during a live drag and the caller handles it fine.
     if(lowQuality) return out;
 
@@ -175,7 +175,7 @@ function applyPerspectiveDistortion(sourceCanvas, data, lowQuality = false, preT
     fc.imageSmoothingEnabled = true;
     fc.imageSmoothingQuality = 'high';
     fc.drawImage(trimmedHQ, 0, 0, finalOut.width, finalOut.height);
-    // Free the supersampled intermediate canvas — it is distinct from src/out
+    // Free the supersampled intermediate canvas - it is distinct from src/out
     // and not referenced by the caller, so releasing it here prevents it from
     // sitting in memory until GC eventually collects it.
     wSrc.width = 0;
@@ -242,7 +242,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
         const sx = i * sliceW;
 
         // nx must be derived from source pixel position, not slice index.
-        // sliceW = ceil(img.width/slices) so slices×sliceW > img.width —
+        // sliceW = ceil(img.width/slices) so slices×sliceW > img.width -
         // the excess slices read transparent pixels and would push all real
         // content toward the left half of the cylinder if nx used the index.
         const nx = Math.max(-1, Math.min(1,
@@ -255,7 +255,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
 
         const depth = Math.cos(theta);
 
-        // A cylinder label runs parallel to the cylinder axis — only horizontal
+        // A cylinder label runs parallel to the cylinder axis - only horizontal
         // dimension is foreshortened (handled by projectedSliceW), not vertical.
         // The old 0.82+depth*0.18 created spherical barrel distortion: top and
         // bottom edges bowed inward at the sides, making arc look asymmetric.
@@ -277,7 +277,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
 
         // When cylinderAmount=0, projectedX=0 so all slices collapse to centerX.
         // Otherwise normalize: divide by sinMax so edges always land at ±img.width/2
-        // from center regardless of cylinder amount — design width stays constant.
+        // from center regardless of cylinder amount - design width stays constant.
         const dx = cylinderAmount === 0
             ? centerX + (sx + sliceW / 2 - img.width / 2)
             : centerX + (projectedX / sinMax) * (img.width / 2);
@@ -296,7 +296,7 @@ function createWarpedImage(img, cylinderAmount, arcAmount, arcTiltAmount, target
         // otherwise slices spread wider than they draw and leave transparent gaps.
         // Old formula (0.55 + depth*0.45) was calibrated for the un-normalized
         // projection; with normalization the centre spacing is π/2 * sliceW (~3.14px)
-        // but the old formula only drew 2px there — causing periodic 1px gaps.
+        // but the old formula only drew 2px there - causing periodic 1px gaps.
         const projectedSliceW = cylinderAmount === 0
             ? sliceW
             : Math.max(

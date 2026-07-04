@@ -3,10 +3,10 @@
 
 /**
  * Find customers whose Stripe payment succeeded but whose Clerk plan was
- * never updated to match — the exact failure mode caused by the webhook
+ * never updated to match - the exact failure mode caused by the webhook
  * idempotency bug fixed in api/webhooks/stripe.js (a transient failure in
  * callSetPlan() left the Stripe event permanently marked "claimed", so every
- * retry — automatic or manual "Resend" — was silently swallowed as a
+ * retry - automatic or manual "Resend" - was silently swallowed as a
  * duplicate before ever reaching Clerk again).
  *
  * For every stripeCustomerId -> clerkUserId mapping in MongoDB's `customers`
@@ -33,15 +33,15 @@ const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
 const APPLY = process.argv.includes('--apply');
 
 if (!STRIPE_SECRET_KEY) {
-    console.error('STRIPE_SECRET_KEY is not set — nothing to check.');
+    console.error('STRIPE_SECRET_KEY is not set - nothing to check.');
     process.exit(1);
 }
 if (!CLERK_SECRET_KEY) {
-    console.error('CLERK_SECRET_KEY is not set — nothing to check.');
+    console.error('CLERK_SECRET_KEY is not set - nothing to check.');
     process.exit(1);
 }
 if (!process.env.MONGODB_URI) {
-    console.error('MONGODB_URI is not set — nothing to check.');
+    console.error('MONGODB_URI is not set - nothing to check.');
     process.exit(1);
 }
 
@@ -129,7 +129,7 @@ async function main() {
     const db = await getDb();
     const customers = await db.collection('customers').find({}).toArray();
 
-    console.log(`Auditing ${customers.length} customer record(s)...${APPLY ? ' (--apply: mismatches WILL be fixed)' : ' (report only — pass --apply to fix)'}\n`);
+    console.log(`Auditing ${customers.length} customer record(s)...${APPLY ? ' (--apply: mismatches WILL be fixed)' : ' (report only - pass --apply to fix)'}\n`);
 
     let mismatches = 0;
     let errors = 0;
@@ -147,7 +147,7 @@ async function main() {
             expectedSource = expectedResult.source;
             actual = clerkPlan;
         } catch (err) {
-            console.log(`ERROR    clerkUserId=${clerkUserId} stripeCustomerId=${stripeCustomerId} — ${err.message}`);
+            console.log(`ERROR    clerkUserId=${clerkUserId} stripeCustomerId=${stripeCustomerId} - ${err.message}`);
             errors++;
             continue;
         }
@@ -155,20 +155,20 @@ async function main() {
         if (!expectedPlan) {
             // No active subscription and no paid lifetime session found per Stripe.
             // If Clerk still shows a paid plan, this could be a cancellation/downgrade
-            // whose set-plan call was swallowed by the same bug — flag it, but never
+            // whose set-plan call was swallowed by the same bug - flag it, but never
             // auto-revoke access via --apply (a false positive here would wrongly
             // downgrade a paying customer, which is worse than a manual review delay).
             if (actual && actual !== 'free') {
                 console.log(`REVIEW   clerkUserId=${clerkUserId} stripeCustomerId=${stripeCustomerId}`);
                 console.log(`         Stripe shows no active subscription/paid lifetime session for this customer`);
-                console.log(`         Clerk public_metadata.plan is "${actual}" — verify manually before downgrading`);
+                console.log(`         Clerk public_metadata.plan is "${actual}" - verify manually before downgrading`);
                 mismatches++;
             }
             continue;
         }
 
         if (expectedPlan === actual) {
-            console.log(`OK       clerkUserId=${clerkUserId} — plan="${actual}" matches Stripe`);
+            console.log(`OK       clerkUserId=${clerkUserId} - plan="${actual}" matches Stripe`);
             continue;
         }
 
@@ -180,9 +180,9 @@ async function main() {
         if (APPLY) {
             try {
                 await fixClerkPlan(clerkUserId, expectedPlan);
-                console.log(`         FIXED — Clerk plan set to "${expectedPlan}"`);
+                console.log(`         FIXED - Clerk plan set to "${expectedPlan}"`);
             } catch (err) {
-                console.log(`         FAILED to fix — ${err.message}`);
+                console.log(`         FAILED to fix - ${err.message}`);
                 errors++;
             }
         }

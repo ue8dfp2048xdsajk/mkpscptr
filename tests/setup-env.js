@@ -1,5 +1,5 @@
 /**
- * Global Jest setup — runs before every test file (via setupFilesAfterEnv).
+ * Global Jest setup - runs before every test file (via setupFilesAfterEnv).
  *
  * Some tests exercise code paths that read these env vars directly from
  * process.env (rather than through a mock), and restore whatever ambient

@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  *
- * Export gate — end-to-end handler tests.
+ * Export gate - end-to-end handler tests.
  *
  * Covers:
  *  - No Authorization header → 401
@@ -12,7 +12,7 @@
  *  - Plan value is case-normalised (e.g. 'PRO' → accepted)
  *  - Non-POST method → 405
  *
- * No real Clerk or network connections are made — verifyClerkTokenFull is mocked.
+ * No real Clerk or network connections are made - verifyClerkTokenFull is mocked.
  */
 
 'use strict';
@@ -44,7 +44,7 @@ function makeTokenResult(plan) {
     };
 }
 
-describe('export handler — authentication', () => {
+describe('export handler - authentication', () => {
     let handler;
     let mockVerifyFull;
 
@@ -97,7 +97,7 @@ describe('export handler — authentication', () => {
     });
 });
 
-describe('export handler — plan gating', () => {
+describe('export handler - plan gating', () => {
     let handler;
     let mockVerifyFull;
 
@@ -158,7 +158,7 @@ describe('export handler — plan gating', () => {
         expect(res.body.plan).toBe('pro');
     });
 
-    test('plan value is case-normalised — "PRO" is accepted → 200', async () => {
+    test('plan value is case-normalised - "PRO" is accepted → 200', async () => {
         mockVerifyFull.mockResolvedValue(makeTokenResult('PRO'));
         const { req, res } = makeReqRes({ authorization: 'Bearer valid.PRO.token' });
         await handler(req, res);
@@ -167,7 +167,7 @@ describe('export handler — plan gating', () => {
     });
 });
 
-describe('export handler — method guard', () => {
+describe('export handler - method guard', () => {
     let handler;
 
     beforeEach(() => {

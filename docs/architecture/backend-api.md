@@ -86,7 +86,7 @@ Create a Stripe Checkout Session.
 |---|---|
 | Auth | Required |
 | Body | `{ plan: "starter"|"pro", period: "monthly"|"annual"|"lifetime" }` |
-| Response | `{ ok: true, url }` — redirect user to Stripe |
+| Response | `{ ok: true, url }` - redirect user to Stripe |
 | Rate limit | 5 requests / 60 s per user |
 | Errors | `409` if user already on same plan **and billing period**; tier downgrades blocked; `503` if Clerk/Stripe not configured |
 
@@ -177,7 +177,7 @@ Returns Stripe price configuration status and rate-limiter backend info. Used by
 
 ### `POST /api/admin/clear-nonce`
 
-Clear a stuck webhook nonce (recovery tool when a user paid but plan wasn't set). The nonce store (`api/_nonce-store.js`) is MongoDB-backed (`nonce_seen` collection) — independent of the Redis/PostgreSQL rate limiters described below.
+Clear a stuck webhook nonce (recovery tool when a user paid but plan wasn't set). The nonce store (`api/_nonce-store.js`) is MongoDB-backed (`nonce_seen` collection) - independent of the Redis/PostgreSQL rate limiters described below.
 
 Body: `{ nonce }` or `{ userId, plan, reason? }`
 

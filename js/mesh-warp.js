@@ -53,7 +53,7 @@ function _drawTexturedTriangle(ctx, img,
 }
 
 // Render the bicubic warp using forward-mapped triangle subdivision.
-// Returns {canvas, left, top} — canvas is the warped image; left/top are its
+// Returns {canvas, left, top} - canvas is the warped image; left/top are its
 // top-left corner in Fabric canvas coordinates.
 function _renderBicubicWarp() {
     const N    = 40;
@@ -177,7 +177,7 @@ function _drawWarpOverlay(ctx) {
     ctx.save();
     ctx.imageSmoothingEnabled = true;
 
-    // Live deformed design preview — drawn first so grid sits on top
+    // Live deformed design preview - drawn first so grid sits on top
     _drawWarpPreview(ctx);
 
     // Bezier grid lines
@@ -260,7 +260,7 @@ function enterDesignWarpMode() {
 
     // Rasterise source for EVERY group.
     // For each canvas: hide non-target objects, render, copy lower-canvas region
-    // at full DPR resolution, then restore — capturing exactly what the user sees.
+    // at full DPR resolution, then restore - capturing exactly what the user sees.
     for (const group of warpAllGroups) {
         const { ownerData: grpData, targets: grpObjs } = group;
         const grpFc       = grpData.fabricCanvas;
@@ -312,7 +312,7 @@ function enterDesignWarpMode() {
         sCtx.imageSmoothingQuality = 'high';
 
         if (hasPattern && grpData.patternFabricObj) {
-            // Read the pattern overlay's own pixel canvas — it is a transparent
+            // Read the pattern overlay's own pixel canvas - it is a transparent
             // canvas with just the tiles, no Fabric background colour baked in.
             // Drawing this in the warp preview lets the real background show through.
             const pEl = grpData.patternFabricObj.getElement();
@@ -600,7 +600,7 @@ function exitDesignWarpMode(apply) {
         updateLayerButtons();
         syncSliders();
     } else {
-        // Cancel — re-render every involved canvas with the restored originals.
+        // Cancel - re-render every involved canvas with the restored originals.
         allGroups.forEach(({ ownerData: d }) => d.fabricCanvas.requestRenderAll());
         refreshFabricHandles();
         updateWindowBorders();

@@ -32,7 +32,7 @@
         var pluralBg = bgCount !== 1 ? 's' : '';
         var pluralDs = designCount !== 1 ? 's' : '';
         _showComboToast(
-            mockupCount + ' mockup' + pluralM + ' ready — ' +
+            mockupCount + ' mockup' + pluralM + ' ready - ' +
             bgCount + ' mockup photo' + pluralBg + ' × ' +
             designCount + ' design' + pluralDs
         );
@@ -64,7 +64,7 @@
     window._onFirstExportSuccess = function () {
         if (localStorage.getItem(LS_FIRST_EXPORT)) return;
         try { localStorage.setItem(LS_FIRST_EXPORT, '1'); } catch (_) {}
-        _showComboToast('Nice — your mockups are ready for your store listings. Tip: select multiple mockups to edit them all at once.');
+        _showComboToast('Nice - your mockups are ready for your store listings. Tip: select multiple mockups to edit them all at once.');
     };
 
     window._showSidebarCoachIfNeeded = function () {

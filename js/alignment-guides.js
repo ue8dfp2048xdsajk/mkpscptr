@@ -1,6 +1,6 @@
 'use strict';
 
-// Alignment guides — off by default; toggle via control panel or G.
+// Alignment guides - off by default; toggle via control panel or G.
 // Visible only while dragging or nudging a design layer.
 
 var alignmentGuidesEnabled = false;

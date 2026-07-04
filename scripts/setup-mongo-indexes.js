@@ -29,7 +29,7 @@ async function main() {
     // Fast look-up of projects by user
     await col.createIndex({ userId: 1 }, { name: 'userId' });
 
-    // TTL index — MongoDB auto-deletes documents once expiresAt is reached
+    // TTL index - MongoDB auto-deletes documents once expiresAt is reached
     await col.createIndex(
         { expiresAt: 1 },
         { expireAfterSeconds: 0, name: 'ttl_expires', sparse: true }

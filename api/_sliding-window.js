@@ -1,7 +1,7 @@
 // Fixed-window rate limiter backed by Upstash Redis (REST API).
 // Falls back to an in-memory Map when Redis is not configured (dev / test).
 //
-// KEY DESIGN — fixed window with time-bucket key
+// KEY DESIGN - fixed window with time-bucket key
 // ──────────────────────────────────────────────
 // Redis key: `${prefix}:${Math.floor(Date.now()/1000/windowSecs)}`
 // This gives each user a fresh counter every windowSecs seconds aligned to
@@ -11,7 +11,7 @@
 // Pipeline (INCR + EXPIRE) runs server-side as a single round-trip.
 // EXPIRE is set to 2×windowSecs so keys auto-clean after the window closes.
 //
-// Failure policy: fail OPEN — Redis errors allow the request rather than
+// Failure policy: fail OPEN - Redis errors allow the request rather than
 // blocking all users during an outage. The real payment gate (409 plan-rank
 // check) and JWT auth remain active even when rate limiting degrades.
 
@@ -62,7 +62,7 @@ async function isRateLimited(keyPrefix, maxHits, windowSecs) {
         });
 
         if (!res.ok) {
-            console.error(`sliding-window: Redis pipeline HTTP ${res.status} for key=${keyPrefix} — failing open`);
+            console.error(`sliding-window: Redis pipeline HTTP ${res.status} for key=${keyPrefix} - failing open`);
             return false;
         }
 
@@ -76,7 +76,7 @@ async function isRateLimited(keyPrefix, maxHits, windowSecs) {
 
         return count > maxHits;
     } catch (err) {
-        console.error(`sliding-window: Redis error for key=${keyPrefix} — failing open:`, err.message);
+        console.error(`sliding-window: Redis error for key=${keyPrefix} - failing open:`, err.message);
         return false;
     }
 }

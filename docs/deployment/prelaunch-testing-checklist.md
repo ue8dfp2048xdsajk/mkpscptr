@@ -1,12 +1,12 @@
 # Pre-Launch Manual Testing Checklist
 
-Manual, human-driven QA checklist to run through before opening MockupScripter to real customers. This is complementary to [pre-deploy-checklist.md](pre-deploy-checklist.md) (infra/env verification) — this document is about end-to-end product behavior.
+Manual, human-driven QA checklist to run through before opening MockupScripter to real customers. This is complementary to [pre-deploy-checklist.md](pre-deploy-checklist.md) (infra/env verification) - this document is about end-to-end product behavior.
 
 Notes inline (marked with `>`) call out places where the checklist item was verified against the actual code and either doesn't work the way it might be assumed to, or is worth double-checking for that reason. See the "Known gaps" section at the bottom for a summary.
 
 ---
 
-## Part 1 — Anonymous user flow
+## Part 1 - Anonymous user flow
 
 ### Landing & editor
 
@@ -22,10 +22,10 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 - [ ] Pattern mode restores
 - [ ] Clip masks restore
 - [ ] Color layer restores
-- [ ] Extra design layers restore (including their own warp/blur/noise — see the fix in `js/app.js` `createCanvasPreviewsFromSnapshot`)
+- [ ] Extra design layers restore (including their own warp/blur/noise - see the fix in `js/app.js` `createCanvasPreviewsFromSnapshot`)
 - [ ] Warp/perspective/blur/noise restore correctly
 - [ ] Edit the canvas in two browser tabs at once (same profile) → confirm autosave doesn't silently lose one tab's work
-  > Local autosave is a single global IndexedDB key (`session`), not per-tab — the last tab to autosave wins. Not necessarily a bug, but confirm it's acceptable rather than assumed safe.
+  > Local autosave is a single global IndexedDB key (`session`), not per-tab - the last tab to autosave wins. Not necessarily a bug, but confirm it's acceptable rather than assumed safe.
 
 ### Anonymous gating
 
@@ -36,7 +36,7 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 
 ---
 
-## Part 2 — Sign in & session continuity
+## Part 2 - Sign in & session continuity
 
 - [ ] Sign in
 - [ ] Return to app automatically
@@ -44,19 +44,19 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 - [ ] Backgrounds intact
 - [ ] Effects intact
 - [ ] **Sidebar layout:** Appearance = opacity / blur / noise / flip only; **Effects** section title has ⭐ PRO (controls inside have no duplicate badges); order = cylinder warp → vertical arc → fisheye → horizontal perspective → vertical perspective → layer mode → mesh warp → invert colors → copy/paste effects
-- [ ] Local autosave restored successfully (via IndexedDB — see note below)
+- [ ] Local autosave restored successfully (via IndexedDB - see note below)
 
-> **Anonymous → signed-in continuity is client-side only.** Before the Clerk redirect, the session is flushed to IndexedDB (`_autosaveDB.set('session', ...)`) and read back on page load after returning — the same mechanism as a plain refresh. There is no server-side claim endpoint. If you need work to survive clearing browser storage, that would require a future server-side feature.
+> **Anonymous → signed-in continuity is client-side only.** Before the Clerk redirect, the session is flushed to IndexedDB (`_autosaveDB.set('session', ...)`) and read back on page load after returning - the same mechanism as a plain refresh. There is no server-side claim endpoint. If you need work to survive clearing browser storage, that would require a future server-side feature.
 
 - [ ] Click **Save Progress** while signed out → sign in → confirm whether the save auto-completes on return, or whether the user must click Save again
-  > `ms_redirect_after_auth` is set to `'save'` before the redirect, but `_handleAuthRedirect` in `js/clerk-auth.js` only auto-resumes the `'export'` case. `'save'` and `'home'` are stored but never acted on. Confirm this UX gap is acceptable for launch (canvas itself still restores fine — only the "save to cloud" *intent* is lost).
+  > `ms_redirect_after_auth` is set to `'save'` before the redirect, but `_handleAuthRedirect` in `js/clerk-auth.js` only auto-resumes the `'export'` case. `'save'` and `'home'` are stored but never acted on. Confirm this UX gap is acceptable for launch (canvas itself still restores fine - only the "save to cloud" *intent* is lost).
 - [ ] PostHog identify event fires on sign-in (confirm it's driven by Clerk's client-side `session` object)
 
 ### Settings & navigation
 
 - [ ] App avatar menu → **Settings** opens `/settings.html`
 - [ ] Settings **← Back to app** goes to `/app.html` (not the marketing landing page), session intact
-- [ ] Billing portal **← Return to Mockup Scripter** (from app or settings) returns to `/app.html`, session intact — not the marketing landing page
+- [ ] Billing portal **← Return to Mockup Scripter** (from app or settings) returns to `/app.html`, session intact - not the marketing landing page
 - [ ] Settings **Edit Profile** opens Clerk profile in an on-page modal (user stays on settings; no stranded trip to `accounts.mockupscripter.com` unless modal API unavailable)
 - [ ] Signed in → visit `/` → nav and hero show **Open app** → `/app.html` still signed in
 
@@ -69,7 +69,7 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 
 ---
 
-## Part 3 — Free → Starter checkout
+## Part 3 - Free → Starter checkout
 
 ### Checkout
 
@@ -78,7 +78,7 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 - [ ] Stripe payment succeeds
 - [ ] Customer created
 - [ ] Subscription created
-- [ ] Invoice paid (verify via Stripe dashboard / billing portal — the webhook handler does **not** listen for `invoice.paid`, so don't expect app-side behavior tied to that specific event; only `checkout.session.completed` drives the plan upgrade)
+- [ ] Invoice paid (verify via Stripe dashboard / billing portal - the webhook handler does **not** listen for `invoice.paid`, so don't expect app-side behavior tied to that specific event; only `checkout.session.completed` drives the plan upgrade)
 
 ### Backend
 
@@ -114,7 +114,7 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 ### Starter
 
 - [ ] Save works
-- [ ] Save overwrites existing project (Starter is a single-slot upsert — there is no multi-project storage on this tier)
+- [ ] Save overwrites existing project (Starter is a single-slot upsert - there is no multi-project storage on this tier)
 - [ ] Save as New blocked (button is Pro-only, disabled for Starter)
 - [ ] Logout/login reloads project
 - [ ] Refresh reloads project
@@ -130,12 +130,12 @@ Notes inline (marked with `>`) call out places where the checklist item was veri
 ### Starter watermark matrix
 
 For each effect, confirm the watermark appears **in the exported/downloaded file itself**, not just in the on-screen editor preview.
-> The on-screen watermark is drawn via a separate Fabric `after:render` hook (`_drawWatermarkOnCanvas`) from the export path (`toDataURL()`). These are two different render passes — visually correct in the editor does not guarantee it's baked into the exported PNG. Verify by opening the actual downloaded file for each row below.
+> The on-screen watermark is drawn via a separate Fabric `after:render` hook (`_drawWatermarkOnCanvas`) from the export path (`toDataURL()`). These are two different render passes - visually correct in the editor does not guarantee it's baked into the exported PNG. Verify by opening the actual downloaded file for each row below.
 
 - [ ] Warp
 - [ ] Arc
 - [ ] Perspective
-- [ ] Fisheye (this is the `arcTilt` slider under the hood — confirm the UI label maps to the effect you expect)
+- [ ] Fisheye (this is the `arcTilt` slider under the hood - confirm the UI label maps to the effect you expect)
 - [ ] Pattern
 - [ ] Clip Mask
 - [ ] Color Layer
@@ -172,7 +172,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ### PRO effect badges & load
 
-- [ ] JSON load runs `_recomputeProEffect` — corrupt `hasProEffect: false` with active blend still shows badge
+- [ ] JSON load runs `_recomputeProEffect` - corrupt `hasProEffect: false` with active blend still shows badge
 - [ ] Mesh warp undo → badge clears; redo → badge + geometry correct
 - [ ] Reset after mesh warp → undo restores warp + badge
 - [ ] Invert → undo clears badge when no other PRO effects
@@ -185,7 +185,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 4 — Starter → Pro
+## Part 4 - Starter → Pro
 
 ### Checkout
 
@@ -202,13 +202,13 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Save as New works
 - [ ] Rename works
 - [ ] Multiple projects save
-- [ ] 51st project blocked (limit is enforced at 50 — save #51 is rejected with `project_limit_reached`, both pre-insert and via a post-insert race-condition rollback)
+- [ ] 51st project blocked (limit is enforced at 50 - save #51 is rejected with `project_limit_reached`, both pre-insert and via a post-insert race-condition rollback)
 - [ ] Billing portal opens
 - [ ] Invoice PDF works
 
 ---
 
-## Part 5 — Downgrade
+## Part 5 - Downgrade
 
 - [ ] Downgrade via billing portal
 - [ ] Stripe updates
@@ -221,7 +221,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 6 — Cancel subscription
+## Part 6 - Cancel subscription
 
 - [ ] Cancel subscription
 - [ ] `customer.subscription.deleted` fires
@@ -233,7 +233,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 7 — Resubscribe
+## Part 7 - Resubscribe
 
 - [ ] Same Stripe customer reused
 - [ ] Same MongoDB customer reused
@@ -241,31 +241,31 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 8 — Lifetime purchase
+## Part 8 - Lifetime purchase
 
 - [ ] One-time payment (Stripe checkout `mode: payment`, not `subscription`)
-- [ ] Correct webhook (`checkout.session.completed` — lifetime does not go through subscription events)
+- [ ] Correct webhook (`checkout.session.completed` - lifetime does not go through subscription events)
 - [ ] Clerk updated
 - [ ] Invoice available
-- [ ] No cancellation option (no subscription exists to cancel — confirm the billing portal reflects this sensibly rather than erroring)
+- [ ] No cancellation option (no subscription exists to cancel - confirm the billing portal reflects this sensibly rather than erroring)
 - [ ] Features unlocked permanently
 - [ ] Promo code field is correctly hidden/disabled at checkout (lifetime checkouts do not enable `allow_promotion_codes`)
 
 ---
 
-## Part 9 — Account deletion
+## Part 9 - Account deletion
 
 - [ ] Delete account
 - [ ] Clerk user removed
 - [ ] MongoDB cleaned (customer mapping + projects)
-- [ ] Stripe customer retained/removed per your intended policy — confirm actual behavior (`api/account/delete.js` deletes the Stripe customer object; it does not separately call subscription-cancel first)
+- [ ] Stripe customer retained/removed per your intended policy - confirm actual behavior (`api/account/delete.js` deletes the Stripe customer object; it does not separately call subscription-cancel first)
 - [ ] **Delete an account that has an active paid subscription** → confirm no further Stripe charges occur afterward (deleting the Stripe customer should cascade-cancel the subscription, but this should be verified with a real active subscription, not just a free/already-canceled test account)
 - [ ] Redirect to landing
 - [ ] Re-register creates fresh account
 
 ---
 
-## Part 10 — Projects
+## Part 10 - Projects
 
 - [ ] Save project
 - [ ] Reload project
@@ -281,7 +281,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 11 — Autosave
+## Part 11 - Autosave
 
 - [ ] Refresh restores everything
 - [ ] Browser restart restores everything
@@ -289,7 +289,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Checkout restores everything
 - [ ] Upgrade restores everything
 - [ ] Logout/login restores everything
-- [ ] Duplicate design layers restore effects (warp/blur/noise on the duplicate itself, not just the main design — this was the bug fixed in this session)
+- [ ] Duplicate design layers restore effects (warp/blur/noise on the duplicate itself, not just the main design - this was the bug fixed in this session)
 - [ ] Pattern restores
 - [ ] Warp restores
 - [ ] Perspective restores
@@ -298,12 +298,12 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 12 — Browser compatibility
+## Part 12 - Browser compatibility
 
 ### Desktop
 
 - [ ] Chrome
-- [ ] Safari (pay particular attention to sign-in — this app recently moved from an embedded Clerk modal to hosted redirects specifically because of a Safari/embedded-UI failure; regression-test Safari sign-in explicitly)
+- [ ] Safari (pay particular attention to sign-in - this app recently moved from an embedded Clerk modal to hosted redirects specifically because of a Safari/embedded-UI failure; regression-test Safari sign-in explicitly)
 - [ ] Firefox
 
 ### Mobile
@@ -315,7 +315,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 13 — Session handling
+## Part 13 - Session handling
 
 - [ ] Leave app idle for several hours
 - [ ] Save still works
@@ -325,7 +325,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 14 — Failed payments
+## Part 14 - Failed payments
 
 - [ ] Declined card
 - [ ] Cancel checkout
@@ -337,19 +337,19 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 15 — Stress tests
+## Part 15 - Stress tests
 
 - [ ] Double-click Upgrade
 - [ ] Double-click Save
 - [ ] Double-click Export
-- [ ] Multiple rapid checkouts (5 within 60s should succeed; the 6th should return 429 — see Part 18)
+- [ ] Multiple rapid checkouts (5 within 60s should succeed; the 6th should return 429 - see Part 18)
 - [ ] No duplicate Stripe sessions
 - [ ] No duplicate MongoDB records
 - [ ] No duplicate projects
 
 ---
 
-## Part 16 — Multi-tab
+## Part 16 - Multi-tab
 
 - [ ] Open two tabs
 - [ ] Upgrade in one
@@ -361,7 +361,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 17 — Storage edge cases
+## Part 17 - Storage edge cases
 
 - [ ] Clear IndexedDB
 - [ ] Clear localStorage
@@ -371,7 +371,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 18 — API & Security
+## Part 18 - API & Security
 
 - [ ] Rate limiting works
 - [ ] Sixth checkout returns 429 (confirmed: limit is 5 requests / 60s per user in `api/checkout.js`)
@@ -380,15 +380,15 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Nonce protection works
 - [ ] No exposed secrets
 - [ ] CSP still valid
-- [ ] Remove the stale `https://clerks.mockupscripter.com` (with an "s") entry from `vercel.json` CSP — this was identified as a typo domain during the Clerk migration and is dead weight, not actually needed
+- [ ] Remove the stale `https://clerks.mockupscripter.com` (with an "s") entry from `vercel.json` CSP - this was identified as a typo domain during the Clerk migration and is dead weight, not actually needed
 - [ ] No console errors
-- [ ] Confirm rate limiting fails **open** if Redis/Upstash is unreachable (`api/_sliding-window.js`) — not a pre-launch blocker, but be aware that a Redis outage silently disables rate limiting rather than blocking requests
-- [ ] Confirm plan-activation replay protection (`api/_nonce-store.js`) is MongoDB-backed and independent of Redis/Upstash health — a broken or missing Upstash credential can no longer prevent a paying customer's plan from activating (see the "Consolidate nonce store onto MongoDB" change). The only durable dependency for this is `MONGODB_URI`.
-- [ ] Confirm there is no automated alerting (Slack/Sentry/PagerDuty) on webhook failures today — plan to manually watch Vercel function logs during your first real transactions, since failures currently only surface as `console.error` log lines
+- [ ] Confirm rate limiting fails **open** if Redis/Upstash is unreachable (`api/_sliding-window.js`) - not a pre-launch blocker, but be aware that a Redis outage silently disables rate limiting rather than blocking requests
+- [ ] Confirm plan-activation replay protection (`api/_nonce-store.js`) is MongoDB-backed and independent of Redis/Upstash health - a broken or missing Upstash credential can no longer prevent a paying customer's plan from activating (see the "Consolidate nonce store onto MongoDB" change). The only durable dependency for this is `MONGODB_URI`.
+- [ ] Confirm there is no automated alerting (Slack/Sentry/PagerDuty) on webhook failures today - plan to manually watch Vercel function logs during your first real transactions, since failures currently only surface as `console.error` log lines
 
 ---
 
-## Part 19 — Analytics
+## Part 19 - Analytics
 
 - [ ] PostHog identify on sign in
 - [ ] Plan changes tracked
@@ -398,7 +398,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 20 — Production verification
+## Part 20 - Production verification
 
 ### Stripe
 
@@ -428,14 +428,14 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 
 ---
 
-## Part 20b — Keyboard shortcuts
+## Part 20b - Keyboard shortcuts
 
 Quick manual pass after loading a project with multiple mockups and layers.
 
 ### Selection & windows
 
 - [ ] **Esc** deselects all windows and layers (canvas focused)
-- [ ] **Esc** with plans modal open closes modal only — selection unchanged
+- [ ] **Esc** with plans modal open closes modal only - selection unchanged
 - [ ] **Esc** while typing in filter input clears filter (does not double-fire deselect)
 - [ ] **L** locks selected mockups; **U** unlocks
 - [ ] **N** opens Add Mockup file picker (cancel OK)
@@ -487,7 +487,7 @@ Quick manual pass after loading a project with multiple mockups and layers.
 
 ---
 
-## Part 21 — Final customer journey ⭐
+## Part 21 - Final customer journey ⭐
 
 This is the one to treat as most important.
 
@@ -506,7 +506,7 @@ Complete this journey without any manual intervention:
 - [ ] Click Export (paywall appears)
 - [ ] Sign up
 - [ ] Return to app with work intact
-  > This restores via the local IndexedDB autosave, not a server-side claim — see Part 2.
+  > This restores via the local IndexedDB autosave, not a server-side claim - see Part 2.
 - [ ] Upgrade to Starter
 - [ ] Export successfully (verify the exported file, not just the on-screen preview)
 - [ ] Save project
@@ -515,19 +515,19 @@ Complete this journey without any manual intervention:
 - [ ] Sign in
 - [ ] Resume project exactly where you left off
 
-If that final journey works flawlessly, you're not just testing individual features — you've validated the complete experience your first real customer will have. That's the strongest indicator that you're ready to launch.
+If that final journey works flawlessly, you're not just testing individual features - you've validated the complete experience your first real customer will have. That's the strongest indicator that you're ready to launch.
 
 ---
 
-## Known gaps found during code review (not necessarily blockers — decide deliberately)
+## Known gaps found during code review (not necessarily blockers - decide deliberately)
 
-1. **No server-side claim flow** — anonymous → signed-in continuity is entirely client-side (IndexedDB), with no MongoDB/Clerk-metadata linkage. (Part 2)
-2. **"Save Progress" doesn't auto-resume after sign-in** — only "Export" does, via `ms_redirect_after_auth`. (Part 2)
-3. **Watermark-on-export not structurally guaranteed** — the on-screen watermark overlay and the exported file go through different render paths; verify explicitly per effect. (Part 3)
-4. **`GET /api/projects/:id` has no auth check** — relies on UUID being unguessable. (Part 10)
-5. **Local autosave is a single shared key across tabs** — concurrent-tab editing can silently overwrite. (Part 1, 16)
-6. **`sessionStorage`-based auth/checkout resume breaks across tabs** — same-tab redirect flow only. (Part 16)
-7. **Stale `clerks.mockupscripter.com` CSP entry** — leftover typo domain from the Clerk migration debugging; harmless but should be cleaned up. (Part 18)
-8. **`invoice.paid` is not handled by the Stripe webhook** — only `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. (Part 3)
-9. **No external alerting on webhook/backend failures** — console logs only; plan for manual log-watching at launch. (Part 18)
-10. **Rate limiting fails open, nonce store fails closed** — different failure modes for the two protection layers. Rate limiting (`api/_sliding-window.js`, `api/_rate-limiter.js`) still uses optional Redis/Postgres and fails open if unreachable. The nonce store (`api/_nonce-store.js`) is now MongoDB-only and fails closed if `MONGODB_URI` is unreachable — the same store that's already required for the rest of the payment pipeline, so there's no longer a separate Redis/Postgres credential that can silently break plan activation. (Part 18)
+1. **No server-side claim flow** - anonymous → signed-in continuity is entirely client-side (IndexedDB), with no MongoDB/Clerk-metadata linkage. (Part 2)
+2. **"Save Progress" doesn't auto-resume after sign-in** - only "Export" does, via `ms_redirect_after_auth`. (Part 2)
+3. **Watermark-on-export not structurally guaranteed** - the on-screen watermark overlay and the exported file go through different render paths; verify explicitly per effect. (Part 3)
+4. **`GET /api/projects/:id` has no auth check** - relies on UUID being unguessable. (Part 10)
+5. **Local autosave is a single shared key across tabs** - concurrent-tab editing can silently overwrite. (Part 1, 16)
+6. **`sessionStorage`-based auth/checkout resume breaks across tabs** - same-tab redirect flow only. (Part 16)
+7. **Stale `clerks.mockupscripter.com` CSP entry** - leftover typo domain from the Clerk migration debugging; harmless but should be cleaned up. (Part 18)
+8. **`invoice.paid` is not handled by the Stripe webhook** - only `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`. (Part 3)
+9. **No external alerting on webhook/backend failures** - console logs only; plan for manual log-watching at launch. (Part 18)
+10. **Rate limiting fails open, nonce store fails closed** - different failure modes for the two protection layers. Rate limiting (`api/_sliding-window.js`, `api/_rate-limiter.js`) still uses optional Redis/Postgres and fails open if unreachable. The nonce store (`api/_nonce-store.js`) is now MongoDB-only and fails closed if `MONGODB_URI` is unreachable - the same store that's already required for the rest of the payment pipeline, so there's no longer a separate Redis/Postgres credential that can silently break plan activation. (Part 18)

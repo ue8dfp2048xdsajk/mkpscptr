@@ -43,7 +43,7 @@ const BASE_ENV = {
     BASE_URL: 'https://mockupscripter.com',
 };
 
-describe('POST /api/checkout — prorated subscription upgrades', () => {
+describe('POST /api/checkout - prorated subscription upgrades', () => {
     let handler;
     let stripeCalls;
 

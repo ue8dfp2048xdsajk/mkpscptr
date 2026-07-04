@@ -4,7 +4,7 @@
 
 'use strict';
 
-describe('api/_stripe-prices — billing period checkout rules', () => {
+describe('api/_stripe-prices - billing period checkout rules', () => {
     const envBackup = {};
 
     beforeEach(() => {

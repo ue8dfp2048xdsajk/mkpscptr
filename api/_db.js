@@ -4,7 +4,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 const DB_NAME = process.env.MONGODB_DB_NAME || 'mockupscripter';
 
 if (!MONGODB_URI) {
-    console.warn('api/_db.js: MONGODB_URI is not set — MongoDB calls will fail');
+    console.warn('api/_db.js: MONGODB_URI is not set - MongoDB calls will fail');
 }
 
 let _client = null;
@@ -12,7 +12,7 @@ let _clientPromise = null;
 
 async function getClient() {
     // Return a cached client if one exists. The MongoDB driver manages its
-    // own connection pool and replaces broken connections automatically —
+    // own connection pool and replaces broken connections automatically -
     // no manual ping is needed. If a query fails because the connection is
     // stale, callers should catch the error and call invalidateClient() so
     // the next request establishes a fresh connection.

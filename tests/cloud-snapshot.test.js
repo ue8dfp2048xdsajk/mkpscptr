@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * Cloud snapshot image deduplication — initialDesignSrc must not stay inline.
+ * Cloud snapshot image deduplication - initialDesignSrc must not stay inline.
  */
 
 'use strict';
@@ -28,7 +28,7 @@ function resolveImageKey(val, imageMap) {
     return val;
 }
 
-describe('buildCloudSnapshot — initialDesignSrc deduplication', () => {
+describe('buildCloudSnapshot - initialDesignSrc deduplication', () => {
     beforeEach(() => {
         loadBuildCloudSnapshot();
     });
@@ -92,7 +92,7 @@ describe('buildCloudSnapshot — initialDesignSrc deduplication', () => {
     });
 });
 
-describe('cloud load — resolve initialDesignSrc keys', () => {
+describe('cloud load - resolve initialDesignSrc keys', () => {
     test('_fromKey resolves keys, passes through inline URLs, handles null', () => {
         const imageMap = {
             '__img_0': 'data:image/png;base64,resolved',

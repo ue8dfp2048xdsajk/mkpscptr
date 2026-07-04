@@ -9,7 +9,7 @@
  * even after jest.resetModules() clears the module registry.
  *
  * Variables named with the "mock" prefix are permitted inside hoisted factory
- * functions — jest's babel transform allows them explicitly.
+ * functions - jest's babel transform allows them explicitly.
  *
  * `mockPgStore` acts as the shared "database".
  * `mockQueryInterceptor` lets individual tests control specific query types
@@ -29,7 +29,7 @@ const MAX_FAILURES   = 5;
 const WINDOW_SECONDS = 15 * 60; // must match api/_rate-limiter.js
 
 // ---------------------------------------------------------------------------
-// Shared "database" — survives jest.resetModules() because it lives here,
+// Shared "database" - survives jest.resetModules() because it lives here,
 // outside the module under test.
 // Variables are prefixed "mock" so the hoisted jest.mock factory can access them.
 // ---------------------------------------------------------------------------
@@ -37,7 +37,7 @@ let mockPgStore = new Map(); // ip → { failures, window_start }
 let mockQueryInterceptor = null; // (sql, params) → result | undefined
 
 // ---------------------------------------------------------------------------
-// Top-level jest.mock — hoisted before any require(), persists across
+// Top-level jest.mock - hoisted before any require(), persists across
 // jest.resetModules() calls.
 // ---------------------------------------------------------------------------
 jest.mock('../api/node_modules/pg', () => {
@@ -51,17 +51,17 @@ jest.mock('../api/node_modules/pg', () => {
 
             const s = sql.trim();
 
-            // ensureSchema — CREATE TABLE IF NOT EXISTS rate_limit
+            // ensureSchema - CREATE TABLE IF NOT EXISTS rate_limit
             if (/CREATE TABLE/i.test(s)) return { rows: [] };
 
-            // pgIsRateLimited — SELECT failures, window_start WHERE ip = $1
+            // pgIsRateLimited - SELECT failures, window_start WHERE ip = $1
             if (/^SELECT/i.test(s)) {
                 const ip  = params[0];
                 const row = mockPgStore.get(ip);
                 return { rows: row ? [{ failures: row.failures, window_start: row.window_start }] : [] };
             }
 
-            // pgRecordFailure — INSERT … ON CONFLICT DO UPDATE
+            // pgRecordFailure - INSERT … ON CONFLICT DO UPDATE
             if (/^INSERT/i.test(s)) {
                 const [ip, now, windowCutoff] = params;
                 const existing = mockPgStore.get(ip);
@@ -73,7 +73,7 @@ jest.mock('../api/node_modules/pg', () => {
                 return { rows: [] };
             }
 
-            // pgClearFailures — DELETE FROM rate_limit WHERE ip = $1
+            // pgClearFailures - DELETE FROM rate_limit WHERE ip = $1
             // (not the prune DELETE, which references window_start)
             if (/^DELETE/i.test(s) && !/window_start/i.test(s)) {
                 mockPgStore.delete(params[0]);
@@ -128,10 +128,10 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Suite 1: Promise singleton — concurrent callers share one CREATE TABLE
+// Suite 1: Promise singleton - concurrent callers share one CREATE TABLE
 // ---------------------------------------------------------------------------
 
-describe('ensureSchema — promise singleton: concurrent callers share one CREATE TABLE', () => {
+describe('ensureSchema - promise singleton: concurrent callers share one CREATE TABLE', () => {
     test('N concurrent isRateLimited calls trigger exactly one CREATE TABLE query', async () => {
         const CONCURRENCY = 10;
         const rl   = freshRateLimiter();
@@ -182,7 +182,7 @@ describe('ensureSchema — promise singleton: concurrent callers share one CREAT
         // SELECTs cannot proceed until schema resolves.
         expect(selectCount).toBe(0);
 
-        // Release the schema — all 5 callers now proceed to their SELECTs.
+        // Release the schema - all 5 callers now proceed to their SELECTs.
         schemaDeferred.resolve({ rows: [] });
         await Promise.all(promises);
 
@@ -210,10 +210,10 @@ describe('ensureSchema — promise singleton: concurrent callers share one CREAT
 });
 
 // ---------------------------------------------------------------------------
-// Suite 2: Retry after failure — _schemaPromise is cleared on rejection
+// Suite 2: Retry after failure - _schemaPromise is cleared on rejection
 // ---------------------------------------------------------------------------
 
-describe('ensureSchema — retry after failure: _schemaPromise is cleared on rejection', () => {
+describe('ensureSchema - retry after failure: _schemaPromise is cleared on rejection', () => {
     test('if CREATE TABLE rejects, the next call retries (issues a second CREATE TABLE)', async () => {
         let schemaAttempts = 0;
 
@@ -227,11 +227,11 @@ describe('ensureSchema — retry after failure: _schemaPromise is cleared on rej
 
         const rl = freshRateLimiter();
 
-        // First call — CREATE TABLE fails → falls back to in-memory → returns false.
+        // First call - CREATE TABLE fails → falls back to in-memory → returns false.
         await rl.isRateLimited('3.0.0.1');
         expect(schemaAttempts).toBe(1);
 
-        // Second call — _schemaPromise was cleared → a new CREATE TABLE is issued.
+        // Second call - _schemaPromise was cleared → a new CREATE TABLE is issued.
         await rl.isRateLimited('3.0.0.2');
         expect(schemaAttempts).toBe(2);
     });
@@ -258,11 +258,11 @@ describe('ensureSchema — retry after failure: _schemaPromise is cleared on rej
 
         const rl = freshRateLimiter();
 
-        // First call — schema fails; in-memory fallback (not rate-limited).
+        // First call - schema fails; in-memory fallback (not rate-limited).
         expect(await rl.isRateLimited(ip)).toBe(false);
         expect(schemaAttempts).toBe(1);
 
-        // recordFailure calls — schema retries and succeeds; PG is now used.
+        // recordFailure calls - schema retries and succeeds; PG is now used.
         for (let i = 0; i < MAX_FAILURES; i++) await rl.recordFailure(ip);
 
         expect(schemaAttempts).toBe(2);              // exactly one retry
@@ -294,17 +294,17 @@ describe('ensureSchema — retry after failure: _schemaPromise is cleared on rej
         ]);
         expect(schemaAttempts).toBe(1); // only one CREATE TABLE for the whole batch
 
-        // Retry call — a new CREATE TABLE must be issued.
+        // Retry call - a new CREATE TABLE must be issued.
         await rl.isRateLimited('4.0.0.4');
         expect(schemaAttempts).toBe(2);
     });
 });
 
 // ---------------------------------------------------------------------------
-// Suite 3: Integration — isRateLimited / recordFailure / clearFailures with PG
+// Suite 3: Integration - isRateLimited / recordFailure / clearFailures with PG
 // ---------------------------------------------------------------------------
 
-describe('ensureSchema integration — rate-limiting logic with PG backend', () => {
+describe('ensureSchema integration - rate-limiting logic with PG backend', () => {
     test('fresh IP is not rate-limited', async () => {
         const rl = freshRateLimiter();
         expect(await rl.isRateLimited('5.0.0.1')).toBe(false);
@@ -324,7 +324,7 @@ describe('ensureSchema integration — rate-limiting logic with PG backend', () 
         expect(await rl.isRateLimited(ip)).toBe(true);
     });
 
-    test('clearFailures resets the counter — IP is no longer blocked', async () => {
+    test('clearFailures resets the counter - IP is no longer blocked', async () => {
         const rl = freshRateLimiter();
         const ip = '5.0.0.4';
         for (let i = 0; i < MAX_FAILURES; i++) await rl.recordFailure(ip);

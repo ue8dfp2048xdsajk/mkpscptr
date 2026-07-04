@@ -7,7 +7,7 @@
  * The nonce store (api/_nonce-store.js) is MongoDB-only. Replay protection
  * relies on MongoDB's unique `_id` index: a second insertOne() for an
  * existing `_id` always throws a duplicate-key error (code 11000), even
- * under concurrent writes from separate serverless instances — this is
+ * under concurrent writes from separate serverless instances - this is
  * enforced atomically by MongoDB itself, not by application code. The fake
  * collection in tests/_helpers/mongo-mock.js reproduces exactly this
  * behavior so this suite runs in CI without any real infrastructure.
@@ -65,7 +65,7 @@ function loadHandler(getDbImpl) {
     return require('../api/set-plan');
 }
 
-describe('Nonce deduplication — concurrent race (MongoDB unique-index)', () => {
+describe('Nonce deduplication - concurrent race (MongoDB unique-index)', () => {
     let handler;
 
     beforeEach(() => {
@@ -142,7 +142,7 @@ describe('Nonce deduplication — concurrent race (MongoDB unique-index)', () =>
     });
 });
 
-describe('Nonce deduplication — _nonce-store unit-level race', () => {
+describe('Nonce deduplication - _nonce-store unit-level race', () => {
     test('two concurrent recordNonce calls for the same nonce: exactly one succeeds, one throws Duplicate nonce', async () => {
         jest.resetModules();
         const fakeDb = makeFakeDb();
@@ -175,18 +175,18 @@ describe('Nonce deduplication — _nonce-store unit-level race', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Mongo fails mid-flight — fail-closed guarantees no replay bypass
+// Mongo fails mid-flight - fail-closed guarantees no replay bypass
 //
 // Scenario: MongoDB is reachable for the isNonceSeen pre-check (returns "not
-// seen"), but the subsequent insertOne (recordNonce) throws — e.g. the
+// seen"), but the subsequent insertOne (recordNonce) throws - e.g. the
 // connection drops between the check and the write. recordNonce must NOT
 // silently succeed or fall back to any other store: it throws, the handler
 // returns 500, and no nonce is ever committed. Every request carrying the
-// contested nonce is rejected while this failure persists — the safe
+// contested nonce is rejected while this failure persists - the safe
 // outcome, since no replay can succeed if nothing was ever recorded.
 // ---------------------------------------------------------------------------
 
-describe('Nonce deduplication — Mongo insertOne fails mid-flight (fail-closed, no replay bypass)', () => {
+describe('Nonce deduplication - Mongo insertOne fails mid-flight (fail-closed, no replay bypass)', () => {
     afterEach(() => {
         delete process.env.CLERK_SECRET_KEY;
         delete process.env.SET_PLAN_SECRET;
@@ -226,7 +226,7 @@ describe('Nonce deduplication — Mongo insertOne fails mid-flight (fail-closed,
 });
 
 // ---------------------------------------------------------------------------
-// Separate serverless instances sharing one MongoDB — atomicity holds
+// Separate serverless instances sharing one MongoDB - atomicity holds
 //
 // Unlike the old Redis/in-memory design, there is no "which instance saw
 // what" concern: every instance (module load) talks to the same MongoDB, so
@@ -241,7 +241,7 @@ describe('Two independently-loaded set-plan handlers sharing one MongoDB backend
         jest.clearAllMocks();
     });
 
-    test('two concurrent requests through separately-loaded handlers — only one succeeds, replay then rejected', async () => {
+    test('two concurrent requests through separately-loaded handlers - only one succeeds, replay then rejected', async () => {
         const fakeDb = makeFakeDb();
 
         function loadFreshHandler() {
@@ -271,7 +271,7 @@ describe('Two independently-loaded set-plan handlers sharing one MongoDB backend
         expect(codes.filter(c => c === 200)).toHaveLength(1);
         expect(codes.filter(c => c >= 400)).toHaveLength(1);
 
-        // Replay attempt — must be blocked regardless of which handler instance.
+        // Replay attempt - must be blocked regardless of which handler instance.
         const { req: reqA2, res: resA2 } = makeReqRes({ nonce });
         await handlerA(reqA2, resA2);
         expect(resA2.statusCode).toBeGreaterThanOrEqual(400);

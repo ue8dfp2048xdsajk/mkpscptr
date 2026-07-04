@@ -4,7 +4,7 @@ const JWKS_URL = process.env.CLERK_JWKS_URL;
 if (!JWKS_URL) {
     console.error(
         '[FATAL] _verify-clerk-token: CLERK_JWKS_URL is not set. ' +
-        'All token verification will return null — authenticated endpoints will ' +
+        'All token verification will return null - authenticated endpoints will ' +
         'reject all requests with 401, and checkout will block all purchases. ' +
         'Set CLERK_JWKS_URL to your Clerk JWKS endpoint ' +
         '(e.g. https://clerk.mockupscripter.com/.well-known/jwks.json).'
@@ -35,7 +35,7 @@ async function verifyClerkToken(authorizationHeader) {
  * verified payload.  Returns { userId, payload } if valid, or null if the
  * token is absent / invalid / expired.
  *
- * Use this variant when you need claims beyond sub — e.g. public_metadata —
+ * Use this variant when you need claims beyond sub - e.g. public_metadata -
  * so you can avoid a second round-trip to the Clerk REST API.
  */
 async function verifyClerkTokenFull(authorizationHeader) {

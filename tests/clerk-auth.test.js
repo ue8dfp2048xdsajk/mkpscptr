@@ -5,7 +5,7 @@
  *
  * Scenario: a user sees the upgrade toast, then signs out and a different
  * user signs back in and completes checkout. The toast must fire again for
- * the new user — it must NOT be suppressed by the previous session's
+ * the new user - it must NOT be suppressed by the previous session's
  * sessionStorage flag.
  */
 
@@ -69,7 +69,7 @@ async function flushAsync() {
 
 // ---------------------------------------------------------------------------
 
-describe('upgrade toast — sign-out / sign-in cycle', () => {
+describe('upgrade toast - sign-out / sign-in cycle', () => {
     beforeEach(() => {
         sessionStorage.clear();
         localStorage.clear();
@@ -113,7 +113,7 @@ describe('upgrade toast — sign-out / sign-in cycle', () => {
     // Unit: sign-out mid-poll clears ms_payment_pending
     //
     // The payment-pending poll (tryReload) is started for User A but the
-    // session.reload promise is never resolved — simulating a slow network.
+    // session.reload promise is never resolved - simulating a slow network.
     // User A then signs out. _onClerkSignedOut must clear ms_payment_pending
     // so that a subsequent sign-in by any user does not inherit the stale flag.
     // -----------------------------------------------------------------------
@@ -124,7 +124,7 @@ describe('upgrade toast — sign-out / sign-in cycle', () => {
         const userA = makeUser('userA', 'free');
         const clerkA = makeMockClerk(userA);
 
-        // session.reload never resolves — poll stays in-flight
+        // session.reload never resolves - poll stays in-flight
         clerkA.session.reload.mockReturnValue(new Promise(() => {}));
 
         localStorage.setItem('ms_payment_pending', '1');
@@ -185,7 +185,7 @@ describe('upgrade toast — sign-out / sign-in cycle', () => {
         // _onClerkSignedOut must have cleared the pending flag immediately
         expect(localStorage.getItem('ms_payment_pending')).toBeNull();
 
-        // ── Step 3: User B signs in fresh — no pending flag, no poll ──────
+        // ── Step 3: User B signs in fresh - no pending flag, no poll ──────
         const userB = makeUser('userB', 'free');
         makeMockClerk(userB);
 
@@ -240,7 +240,7 @@ describe('upgrade toast — sign-out / sign-in cycle', () => {
         loadScript();
         await flushAsync();
 
-        // Toast must fire again — the old session flag must NOT suppress it
+        // Toast must fire again - the old session flag must NOT suppress it
         expect(sessionStorage.getItem('ms_upgrade_toast_shown')).toBe('1');
         expect(document.body.querySelector('.ms-upgrade-toast')).not.toBeNull();
     });

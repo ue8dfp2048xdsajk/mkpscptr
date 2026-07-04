@@ -21,7 +21,7 @@ const MAX_FAILURES    = 5;
 const WINDOW_SECONDS  = 15 * 60; // must match api/_rate-limiter.js
 
 // ---------------------------------------------------------------------------
-// Shared "database" — survives jest.resetModules() because it lives here,
+// Shared "database" - survives jest.resetModules() because it lives here,
 // outside the module under test.
 // ---------------------------------------------------------------------------
 const pgStore = new Map(); // ip → { failures: number, window_start: number }
@@ -38,14 +38,14 @@ function makePgMock() {
             // ensureSchema
             if (/CREATE TABLE/i.test(s)) return { rows: [] };
 
-            // pgIsRateLimited — SELECT failures, window_start FROM rate_limit WHERE ip = $1
+            // pgIsRateLimited - SELECT failures, window_start FROM rate_limit WHERE ip = $1
             if (/^SELECT/i.test(s)) {
                 const ip  = params[0];
                 const row = pgStore.get(ip);
                 return { rows: row ? [{ failures: row.failures, window_start: row.window_start }] : [] };
             }
 
-            // pgRecordFailure — INSERT … ON CONFLICT DO UPDATE
+            // pgRecordFailure - INSERT … ON CONFLICT DO UPDATE
             if (/^INSERT/i.test(s)) {
                 const [ip, now, windowCutoff] = params;
                 const existing = pgStore.get(ip);
@@ -57,7 +57,7 @@ function makePgMock() {
                 return { rows: [] };
             }
 
-            // pgClearFailures — DELETE FROM rate_limit WHERE ip = $1
+            // pgClearFailures - DELETE FROM rate_limit WHERE ip = $1
             if (/^DELETE/i.test(s)) {
                 pgStore.delete(params[0]);
                 return { rows: [] };
@@ -89,7 +89,7 @@ function loadRateLimiter(pgMock) {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — PostgreSQL path survives cold server restart', () => {
+describe('Rate limiter - PostgreSQL path survives cold server restart', () => {
     let pgMock;
 
     beforeEach(() => {
@@ -127,7 +127,7 @@ describe('Rate limiter — PostgreSQL path survives cold server restart', () => 
 
     test('window-expiry path: expired row does NOT cause lockout after restart', async () => {
         // Seed the shared store directly with a row whose window_start is
-        // older than WINDOW_SECONDS — as if the lockout timed out.
+        // older than WINDOW_SECONDS - as if the lockout timed out.
         const ip = '192.168.0.2';
         const expiredStart = Date.now() - (WINDOW_SECONDS + 60) * 1000; // 1 min past window
         pgStore.set(ip, { failures: MAX_FAILURES, window_start: expiredStart });
@@ -168,7 +168,7 @@ describe('Rate limiter — PostgreSQL path survives cold server restart', () => 
         await rl1.clearFailures(ip);
         expect(pgStore.has(ip)).toBe(false);
 
-        // Simulate restart — should still be clear
+        // Simulate restart - should still be clear
         const rl2 = loadRateLimiter(pgMock);
         expect(await rl2.isRateLimited(ip)).toBe(false);
     });
@@ -237,7 +237,7 @@ describe('Rate limiter — PostgreSQL path survives cold server restart', () => 
 // In-memory fallback warning emitted at module load time
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — in-memory fallback warning', () => {
+describe('Rate limiter - in-memory fallback warning', () => {
     let warnSpy;
 
     beforeEach(() => {
@@ -301,7 +301,7 @@ describe('Rate limiter — in-memory fallback warning', () => {
         for (let i = 0; i < MAX_FAILURES; i++) await rl1.recordFailure(ip);
         expect(await rl1.isRateLimited(ip)).toBe(true);
 
-        // Phase 2: "restart" — fresh module load loses the counters
+        // Phase 2: "restart" - fresh module load loses the counters
         jest.resetModules();
         const rl2 = require('../api/_rate-limiter');
         expect(await rl2.isRateLimited(ip)).toBe(false);

@@ -27,7 +27,7 @@ function buildDOM() {
     `;
 }
 
-describe('plans-modal — billing period button states', () => {
+describe('plans-modal - billing period button states', () => {
     beforeEach(() => {
         jest.resetModules();
         buildDOM();

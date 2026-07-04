@@ -18,7 +18,7 @@ module.exports = async function handler(req, res) {
         db = await getDb();
     } catch (err) {
         console.error('projects/[id]: DB connection failed', err);
-        return res.status(503).json({ ok: false, error: 'Database unavailable — try again shortly' });
+        return res.status(503).json({ ok: false, error: 'Database unavailable - try again shortly' });
     }
 
     const col = db.collection('projects');

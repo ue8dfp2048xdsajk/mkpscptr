@@ -197,7 +197,7 @@ async function shouldDowngradeToFree(stripeCustomerId, clerkUserId, clerkSecretK
                 return false;
             }
         } catch (err) {
-            console.error('stripe-prices: entitlement check failed — skipping downgrade to be safe', err);
+            console.error('stripe-prices: entitlement check failed - skipping downgrade to be safe', err);
             return false;
         }
     }

@@ -19,9 +19,9 @@ All checks must pass. This script validates:
 - [ ] `SET_PLAN_SECRET`
 - [ ] `CLERK_SECRET_KEY`
 - [ ] `CLERK_JWKS_URL`
-- [ ] `MONGODB_URI` — required. Backs projects, customer mapping, webhook idempotency, **and** the `/api/set-plan` replay-protection nonce store (`nonce_seen` collection). This is the only durable dependency in the payment-to-plan pipeline besides Stripe and Clerk.
+- [ ] `MONGODB_URI` - required. Backs projects, customer mapping, webhook idempotency, **and** the `/api/set-plan` replay-protection nonce store (`nonce_seen` collection). This is the only durable dependency in the payment-to-plan pipeline besides Stripe and Clerk.
 
-`UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` are optional (rate-limiter durability only — see section 5) and will show as warnings, not failures, if unset.
+`UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` are optional (rate-limiter durability only - see section 5) and will show as warnings, not failures, if unset.
 
 Also confirm in Vercel (not covered by `check-env.js`):
 
@@ -83,14 +83,14 @@ node scripts/test-webhook-retry.js --help
 ## 5. Rate limiting (nonce store no longer applies here)
 
 Webhook/set-plan replay protection is MongoDB-backed (`nonce_seen` collection)
-and is already covered by the `MONGODB_URI` check in section 1 — it does not
+and is already covered by the `MONGODB_URI` check in section 1 - it does not
 depend on Redis/Postgres at all, so there is nothing further to verify here
 for payment correctness.
 
 The check below covers **rate limiting only** (`/api/checkout`, `/api/billing`,
 `/api/account-delete` throttling and `/api/set-plan` auth-failure lockout).
 This subsystem fails **open**, so an in-memory backend is a durability/abuse-
-protection concern, not a payment-correctness one — safe to defer pre-launch:
+protection concern, not a payment-correctness one - safe to defer pre-launch:
 
 ```bash
 curl -s -H "Authorization: Bearer $SET_PLAN_SECRET" \
@@ -102,7 +102,7 @@ curl -s -H "Authorization: Bearer $SET_PLAN_SECRET" \
 - [ ] `warning` is `null`
 
 If `backend` is `"in-memory"`, rate-limit counters reset on cold start and are
-not shared across serverless instances — abuse protection is weaker, but
+not shared across serverless instances - abuse protection is weaker, but
 payments and plan activation are unaffected.
 
 ---
@@ -178,4 +178,4 @@ After deploy:
 7. Manual smoke test
 ```
 
-There is no frontend build artifact — Vercel serves static files from the repo root after `npm run build` (env check only).
+There is no frontend build artifact - Vercel serves static files from the repo root after `npm run build` (env check only).

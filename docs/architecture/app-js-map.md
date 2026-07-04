@@ -33,15 +33,15 @@ clerk-auth.js
 | `canvasData[]` | One entry per mockup window (Fabric canvas, effects, flags) |
 | `activeIndices[]` | Currently selected window indices |
 | `backgrounds[]`, `designs[]` | Source image lists |
-| `_userPlan` | `'free'` \| `'starter'` \| `'pro'` — set by `clerk-auth.js` |
+| `_userPlan` | `'free'` \| `'starter'` \| `'pro'` - set by `clerk-auth.js` |
 | `globalUndoStack`, `globalRedoStack` | Undo/redo history (`undo.js`) |
 | `_visibleWrappers` | IntersectionObserver cache for off-screen skip |
 | `_markDirty()` | Marks workspace dirty for autosave |
 
 Per-window flags used by PRO gating (in each `canvasData[i]`):
 
-- `hasProEffect` — cached gate result (do not set manually)
-- `forceProBadge` — Starter paste policy (cleared when real PRO effects appear)
+- `hasProEffect` - cached gate result (do not set manually)
+- `forceProBadge` - Starter paste policy (cleared when real PRO effects appear)
 - `meshWarpApplied`, `invertedMain`, `invertedExtras`, effect sliders, etc.
 
 ## Module responsibilities
@@ -66,7 +66,7 @@ Per-window flags used by PRO gating (in each `canvasData[i]`):
 
 ## PRO gating contract
 
-1. **Never** set `data.hasProEffect` directly — call `_syncProEffect(data)`.
+1. **Never** set `data.hasProEffect` directly - call `_syncProEffect(data)`.
 2. **Export filter** uses `_windowIsProGated(data)` (includes `forceProBadge`).
 3. **Watermark** (`_drawWatermarkOnCanvas`): Free = all windows; Starter = gated windows only; Pro = none.
 4. **Mesh warp** marks PRO only after Apply (`meshWarpApplied`).
@@ -78,11 +78,11 @@ Canonical spec: [Plans and gating](../features/plans-and-gating.md).
 
 Avoid casual edits to these areas in `app.js`:
 
-1. **Drop zone handlers** — file upload, multi-window creation
-2. **`createCanvasPreviewsFromSnapshot`** — restores Fabric canvases from JSON
-3. **Autosave `DOMContentLoaded` block** — IndexedDB session flush/restore
-4. **Cloud project load/save** — snapshot serialization (`buildSnapshot`, etc.)
-5. **`_refreshAllProStarBadges`** — small; safe, but calls into `pro-gating.js`
+1. **Drop zone handlers** - file upload, multi-window creation
+2. **`createCanvasPreviewsFromSnapshot`** - restores Fabric canvases from JSON
+3. **Autosave `DOMContentLoaded` block** - IndexedDB session flush/restore
+4. **Cloud project load/save** - snapshot serialization (`buildSnapshot`, etc.)
+5. **`_refreshAllProStarBadges`** - small; safe, but calls into `pro-gating.js`
 
 When changing PRO rules, prefer editing `js/pro-gating.js` and running:
 

@@ -1,4 +1,4 @@
-// Collapsible left-panel sections (open by default). Cosmetic only — no edit logic changes.
+// Collapsible left-panel sections (open by default). Cosmetic only - no edit logic changes.
 
 (function () {
     function _sectionBlocked(section) {

@@ -29,12 +29,12 @@ Pricing and marketing copy live on `index.html`. This document describes **enfor
 
 ## Left sidebar layout (editor)
 
-PRO sections show a **⭐ PRO** label on the **section title** only (turns green on Pro plan). Individual controls inside **Effects** do not repeat the badge — the section title is sufficient.
+PRO sections show a **⭐ PRO** label on the **section title** only (turns green on Pro plan). Individual controls inside **Effects** do not repeat the badge - the section title is sufficient.
 
 ### Layers
 - Add Layer, Copy Layer, Duplicate Layer, Delete Layer
 
-### Appearance (basic — no section PRO badge)
+### Appearance (basic - no section PRO badge)
 - Opacity, blur, noise
 - Flip H / Flip V
 
@@ -81,7 +81,7 @@ Controls in order:
 
 ### Copy / Paste Effects
 
-Copies **effects only** from the selected layer on the source window — never position, scale, rotation, skew, or flip.
+Copies **effects only** from the selected layer on the source window - never position, scale, rotation, skew, or flip.
 
 **Included:** opacity, blur, noise, cylinder warp, vertical arc, fisheye, horizontal/vertical perspective, layer mode, pattern mode + settings (unflattened), invert status for the copied layer.
 
@@ -104,7 +104,7 @@ Copies **effects only** from the selected layer on the source window — never p
 Drawn on `after:render` for:
 
 - **Free:** all windows that have a design loaded (not background-only)
-- **Starter:** windows that are PRO-gated (`_windowIsProGated` — live PRO effects only)
+- **Starter:** windows that are PRO-gated (`_windowIsProGated` - live PRO effects only)
 - **Pro:** none
 
 ### Export (`js/app.js` + `POST /api/export`)
@@ -120,7 +120,7 @@ Export formats: individual files, folder (File System Access API), or ZIP (JSZip
 
 ### PRO effect detection (`_windowHasProEffect` / `_syncProEffect` in `js/app.js`)
 
-PRO status is **derived from live window state**. `_syncProEffect(data)` sets `hasProEffect` and refreshes the ⭐ badge. Watermark (Starter) and export filtering use `_windowIsProGated(data)` — true when any PRO effect is active **or** `forceProBadge` is set (temporary flag during PRO payload paste apply).
+PRO status is **derived from live window state**. `_syncProEffect(data)` sets `hasProEffect` and refreshes the ⭐ badge. Watermark (Starter) and export filtering use `_windowIsProGated(data)` - true when any PRO effect is active **or** `forceProBadge` is set (temporary flag during PRO payload paste apply).
 
 **Real PRO effects** (`_windowHasProEffect`):
 
@@ -132,7 +132,7 @@ PRO status is **derived from live window state**. `_syncProEffect(data)` sets `h
 - Background adjust / crop non-default  
 - Baked mesh warp or eraser work on any layer (`obj._carriesBakedPro`; propagated via Copy Layer, paste, Make Main, Duplicate Layer)
 
-**Baked PRO lineage:** Mesh warp Apply and eraser strokes set `_carriesBakedPro` on the affected fabric object. Copy/paste and Make Main **move layers freely** and propagate the flag so gating (⭐, watermark, Starter export) follows the work — editor preview of all effects remains available on every plan.
+**Baked PRO lineage:** Mesh warp Apply and eraser strokes set `_carriesBakedPro` on the affected fabric object. Copy/paste and Make Main **move layers freely** and propagate the flag so gating (⭐, watermark, Starter export) follows the work - editor preview of all effects remains available on every plan.
 
 **Paste gating:** Paste Layer and Paste Effects call `_applyPasteProSync` **before** the warp/effect pipeline so the ⭐ badge is immediate when the payload is PRO; `_finishPasteProSync` reconciles from live state after apply.
 
@@ -216,6 +216,6 @@ Defined in `api/webhooks/stripe.js` (`getPriceMap()`).
 ## Related docs
 
 - [Prelaunch testing checklist](../deployment/prelaunch-testing-checklist.md)
-- [Backend API — export & checkout](../architecture/backend-api.md)
-- [Environment variables — Stripe prices](../getting-started/environment-variables.md)
+- [Backend API - export & checkout](../architecture/backend-api.md)
+- [Environment variables - Stripe prices](../getting-started/environment-variables.md)
 - [Set-plan security QA](../set-plan-security-qa.md)

@@ -9,17 +9,17 @@
  * In a serverless environment each new instance starts with an empty deny cache.
  * These tests pin down the expected behaviour for the two cases that matter:
  *
- *  Case A — Cold-start, backend UP
+ *  Case A - Cold-start, backend UP
  *    The shared backend (Redis or PostgreSQL) is the authoritative source.
  *    A new instance has no deny cache, but isRateLimited() queries the backend
  *    and correctly returns true for a previously-blocked IP.  This is the
  *    normal production path and must never regress.
  *
- *  Case B — Cold-start, backend DOWN (accepted limitation)
+ *  Case B - Cold-start, backend DOWN (accepted limitation)
  *    If the backend is completely unreachable at the moment a new instance
  *    handles its first request, the deny cache is empty and there is no
  *    secondary store to consult.  The rate limiter falls back to the
- *    in-memory counter store (also empty) and returns false — meaning the
+ *    in-memory counter store (also empty) and returns false - meaning the
  *    block is NOT enforced on that instance until the backend recovers.
  *
  *    This is a known, accepted architectural limitation of any solution that
@@ -41,7 +41,7 @@ const MAX_FAILURES   = 5;
 const WINDOW_SECONDS = 15 * 60; // must match api/_rate-limiter.js
 
 // ---------------------------------------------------------------------------
-// Shared "Redis" store — survives jest.resetModules() because it lives here.
+// Shared "Redis" store - survives jest.resetModules() because it lives here.
 // Simulates the real Upstash KV: holds per-key integer counters + TTL info.
 // ---------------------------------------------------------------------------
 const redisStore = new Map(); // key -> { value: number, expiresAt: number }
@@ -99,7 +99,7 @@ function makeRedisFetchMock() {
             return { ok: true, json: async () => ({ result: 1 }) };
         }
 
-        // POST /pipeline — array of commands
+        // POST /pipeline - array of commands
         if (u.endsWith('/pipeline') && opts.method === 'POST') {
             const commands = JSON.parse(opts.body);
             const results = commands.map(([cmd, ...args]) => {
@@ -132,10 +132,10 @@ function loadRateLimiterWithRedis(fetchMock) {
 
 // ---------------------------------------------------------------------------
 // Case A: Cold-start, backend UP
-// The shared Redis store holds the block — a fresh instance must honour it.
+// The shared Redis store holds the block - a fresh instance must honour it.
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — cold-start with Redis UP (block persists across instances)', () => {
+describe('Rate limiter - cold-start with Redis UP (block persists across instances)', () => {
     beforeEach(() => redisClear());
 
     afterEach(() => {
@@ -159,7 +159,7 @@ describe('Rate limiter — cold-start with Redis UP (block persists across insta
         const key = `ratelimit:${ip}`;
         expect(Number(redisGet(key))).toBe(MAX_FAILURES);
 
-        // --- Instance 2: cold-start (module reset) — deny cache is gone ---
+        // --- Instance 2: cold-start (module reset) - deny cache is gone ---
         const rl2 = loadRateLimiterWithRedis(fetchMock);
         // isRateLimited must still return true because it reads from Redis
         expect(await rl2.isRateLimited(ip)).toBe(true);
@@ -219,7 +219,7 @@ describe('Rate limiter — cold-start with Redis UP (block persists across insta
         // First call hits Redis successfully and adds to deny cache
         expect(await rl.isRateLimited(ip)).toBe(true);
 
-        // Now simulate Redis going down mid-session (not a cold-start —
+        // Now simulate Redis going down mid-session (not a cold-start -
         // deny cache was already populated from the first successful call)
         global.fetch = jest.fn().mockRejectedValue(new Error('Redis down mid-session'));
 
@@ -229,7 +229,7 @@ describe('Rate limiter — cold-start with Redis UP (block persists across insta
 });
 
 // ---------------------------------------------------------------------------
-// Case B: Cold-start, backend DOWN — accepted limitation
+// Case B: Cold-start, backend DOWN - accepted limitation
 //
 // When both the primary backend (Redis) and the in-process deny cache are
 // unavailable/empty at the moment of a cold-start, the rate limiter cannot
@@ -240,7 +240,7 @@ describe('Rate limiter — cold-start with Redis UP (block persists across insta
 // mitigation (e.g. an Edge KV layer) has a clear baseline to compare against.
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — cold-start with Redis DOWN (known limitation: block not enforced)', () => {
+describe('Rate limiter - cold-start with Redis DOWN (known limitation: block not enforced)', () => {
     afterEach(() => {
         delete process.env.UPSTASH_REDIS_REST_URL;
         delete process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -248,7 +248,7 @@ describe('Rate limiter — cold-start with Redis DOWN (known limitation: block n
     });
 
     /**
-     * KNOWN LIMITATION — documented, not a bug to fix without a secondary store.
+     * KNOWN LIMITATION - documented, not a bug to fix without a secondary store.
      *
      * Scenario:
      *   1. IP is blocked on a running instance (deny cache populated, Redis holds count).
@@ -282,7 +282,7 @@ describe('Rate limiter — cold-start with Redis DOWN (known limitation: block n
         // The block cannot be enforced: deny cache is empty, Redis is down,
         // in-memory counter is empty.  This is the accepted limitation.
         const result = await rl2.isRateLimited(ip);
-        expect(result).toBe(false); // documents the gap — not the desired long-term behaviour
+        expect(result).toBe(false); // documents the gap - not the desired long-term behaviour
     });
 
     test('KNOWN LIMITATION: deny cache on a running instance does NOT transfer to a new cold-start instance', async () => {
@@ -296,7 +296,7 @@ describe('Rate limiter — cold-start with Redis DOWN (known limitation: block n
         const rl1 = loadRateLimiterWithRedis(workingFetch);
         expect(await rl1.isRateLimited(ip)).toBe(true); // deny cache populated on rl1
 
-        // Instance 2 is a completely separate process — it has no access to rl1's deny cache
+        // Instance 2 is a completely separate process - it has no access to rl1's deny cache
         const downFetch = jest.fn().mockRejectedValue(new Error('Redis down'));
         const rl2 = loadRateLimiterWithRedis(downFetch);
 
@@ -309,12 +309,12 @@ describe('Rate limiter — cold-start with Redis DOWN (known limitation: block n
         const ip = '10.2.0.3';
         redisClear();
 
-        // Cold-start with Redis down — block not enforced (known limitation)
+        // Cold-start with Redis down - block not enforced (known limitation)
         const downFetch = jest.fn().mockRejectedValue(new Error('Redis down at startup'));
         const rl = loadRateLimiterWithRedis(downFetch);
         expect(await rl.isRateLimited(ip)).toBe(false);
 
-        // Redis recovers — seed it with the block state
+        // Redis recovers - seed it with the block state
         redisStore.set(`ratelimit:${ip}`, { value: MAX_FAILURES, expiresAt: Date.now() + WINDOW_SECONDS * 1000 });
         global.fetch = makeRedisFetchMock();
 
@@ -336,7 +336,7 @@ describe('Rate limiter — cold-start with Redis DOWN (known limitation: block n
 // warning" describe block), specifically:
 //   "lockout built on in-memory counters is lost after a simulated restart"
 // That test uses jest.resetModules() to simulate a restart and confirms that
-// in-memory state does not cross the process boundary — the same root cause
+// in-memory state does not cross the process boundary - the same root cause
 // as the Redis cold-start + outage limitation documented above.
 //
 // The test below uses the no-backend (pure in-memory) path to document the
@@ -344,7 +344,7 @@ describe('Rate limiter — cold-start with Redis DOWN (known limitation: block n
 // path that the cold-start + total-backend-outage scenario falls into.
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — cold-start limitation (no backend, any-path variant)', () => {
+describe('Rate limiter - cold-start limitation (no backend, any-path variant)', () => {
     afterEach(() => {
         delete process.env.UPSTASH_REDIS_REST_URL;
         delete process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -353,7 +353,7 @@ describe('Rate limiter — cold-start limitation (no backend, any-path variant)'
     });
 
     /**
-     * KNOWN LIMITATION — backend-agnostic summary.
+     * KNOWN LIMITATION - backend-agnostic summary.
      *
      * When no backend is configured (or when the backend is completely down on
      * cold-start), isRateLimited() uses the in-memory counter store which is
@@ -380,17 +380,17 @@ describe('Rate limiter — cold-start limitation (no backend, any-path variant)'
         for (let i = 0; i < MAX_FAILURES; i++) await rl1.recordFailure(ip);
         expect(await rl1.isRateLimited(ip)).toBe(true);
 
-        // Phase 2: cold-start — all in-process state is gone.
+        // Phase 2: cold-start - all in-process state is gone.
         jest.resetModules();
         const rl2 = require('../api/_rate-limiter');
 
-        // Block not enforced on the new instance — accepted limitation.
+        // Block not enforced on the new instance - accepted limitation.
         expect(await rl2.isRateLimited(ip)).toBe(false);
     });
 
     test('KNOWN LIMITATION: deny cache does not transfer to a new cold-start instance', async () => {
         // This confirms the deny cache (populated when a backend confirms a
-        // block) is also lost on cold-start — it is purely per-process.
+        // block) is also lost on cold-start - it is purely per-process.
         // Even if Redis was reachable and the deny cache was warm on instance-1,
         // instance-2 starts with an empty deny cache and must re-query the
         // backend.  If the backend is also down at that moment, the block is

@@ -80,7 +80,7 @@ module.exports = async function handler(req, res) {
         return res.status(502).json({ ok: false, error: 'Could not verify session' });
     }
     if (!clerkUserId) {
-        return res.status(401).json({ ok: false, error: 'Invalid or expired session — please sign in again' });
+        return res.status(401).json({ ok: false, error: 'Invalid or expired session - please sign in again' });
     }
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
@@ -91,13 +91,13 @@ module.exports = async function handler(req, res) {
         db = await getDb();
     } catch (err) {
         console.error('projects/save: DB connection failed', err);
-        return res.status(503).json({ ok: false, error: 'Database unavailable — try again shortly' });
+        return res.status(503).json({ ok: false, error: 'Database unavailable - try again shortly' });
     }
 
     const col = db.collection('projects');
 
     // Look up plan from Clerk (needed for limit enforcement).
-    // Default to 'free' — not 'pro' — so that a missing or misconfigured
+    // Default to 'free' - not 'pro' - so that a missing or misconfigured
     // CLERK_SECRET_KEY fails safe rather than granting unlimited saves.
     let plan = 'free';
     if (clerkSecretKey) {
@@ -107,7 +107,7 @@ module.exports = async function handler(req, res) {
             return res.status(502).json({ ok: false, error: 'Could not reach auth server' });
         }
     } else {
-        console.warn('projects/save: CLERK_SECRET_KEY not set — plan defaults to free (no saves allowed)');
+        console.warn('projects/save: CLERK_SECRET_KEY not set - plan defaults to free (no saves allowed)');
     }
 
     const PLAN_RANK = { free: 0, starter: 1, pro: 2 };
@@ -141,7 +141,7 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true, uuid });
     }
 
-    // ── New project — check plan limits ──────────────────────────────────────
+    // ── New project - check plan limits ──────────────────────────────────────
     if ((PLAN_RANK[plan] ?? 0) === 0) {
         return res.status(403).json({ ok: false, error: 'upgrade_required' });
     }
@@ -214,7 +214,7 @@ module.exports = async function handler(req, res) {
             postCount = await col.countDocuments({ userId: clerkUserId });
         } catch (err) {
             console.error('projects/save: post-insert countDocuments failed', err);
-            // Non-fatal — project was inserted; we just can't verify the cap.
+            // Non-fatal - project was inserted; we just can't verify the cap.
             return res.status(200).json({ ok: true, uuid: newUuid });
         }
         if (postCount > 50) {

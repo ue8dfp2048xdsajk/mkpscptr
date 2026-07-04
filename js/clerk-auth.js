@@ -216,7 +216,7 @@
                         if (plan === 'pro' && data.projects.length > 1) {
                             extraHint = ' Before downgrading, open each project and Save Local (JSON).';
                         } else if (plan === 'starter' && data.projects.length > 1) {
-                            extraHint = ' Only 1 cloud slot editable — open others to save locally.';
+                            extraHint = ' Only 1 cloud slot editable - open others to save locally.';
                         }
                         limitEl.textContent = projectLimitHint + extraHint;
                     }
@@ -527,7 +527,7 @@
             history.replaceState(null, '', cleanUrl);
 
             var currentUserId = window.Clerk && window.Clerk.user && window.Clerk.user.id;
-            // Only persist when we have a real user ID — the '1' fallback caused
+            // Only persist when we have a real user ID - the '1' fallback caused
             // the poll to cancel immediately for any user (pendingUserId '1' !== actual id).
             if (currentUserId) {
                 localStorage.setItem(PAYMENT_PENDING_KEY, currentUserId);
@@ -613,7 +613,7 @@
                 var planUpgraded = newPlan !== planBefore;
                 // If we know the exact plan the user purchased, wait until the
                 // session reflects that specific plan.  Fallback: accept any paid
-                // plan (handles the case where targetPlan wasn't stored — e.g. the
+                // plan (handles the case where targetPlan wasn't stored - e.g. the
                 // user closed the tab after payment and came back later).
                 var reachedTargetPlan = targetPlan ? (newPlan === targetPlan) : (newPlan !== 'free');
 
@@ -692,7 +692,7 @@
         var label = plan.charAt(0).toUpperCase() + plan.slice(1);
         var toast = document.createElement('div');
         toast.className = 'ms-upgrade-toast';
-        toast.textContent = 'You\'re now on the ' + label + ' plan — enjoy your new features!';
+        toast.textContent = 'You\'re now on the ' + label + ' plan - enjoy your new features!';
         document.body.appendChild(toast);
 
         setTimeout(function () { toast.classList.add('ms-upgrade-toast--visible'); }, 50);
@@ -722,7 +722,7 @@
         // Dead timer handles must be cleared before any new poll can start.
         _cleanupPoll();
         if (localStorage.getItem(PAYMENT_PENDING_KEY)) {
-            // A genuine pending key survived — resume polling.
+            // A genuine pending key survived - resume polling.
             _handlePaymentSuccess();
         } else {
             // No pending key: dismiss any banner that was frozen mid-display.

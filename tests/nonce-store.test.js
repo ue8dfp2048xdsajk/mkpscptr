@@ -2,24 +2,24 @@
  * @jest-environment node
  *
  * Tests for the nonce store (api/_nonce-store.js), which is backed
- * exclusively by MongoDB — see the "Consolidate nonce store onto MongoDB"
+ * exclusively by MongoDB - see the "Consolidate nonce store onto MongoDB"
  * plan. There is deliberately no Redis/Postgres/in-memory-fallback matrix
  * here anymore: Mongo is already a hard requirement for the whole
  * payment-to-plan pipeline (customers / idempotency_keys collections), so
  * there is only one backend to test.
  *
  * Covered:
- *  1. isNonceSeen — fresh vs. seen nonce
- *  2. recordNonce — first call succeeds, second call for the same nonce
+ *  1. isNonceSeen - fresh vs. seen nonce
+ *  2. recordNonce - first call succeeds, second call for the same nonce
  *     throws "Duplicate nonce" (simulating MongoDB's unique _id constraint,
  *     error code 11000)
- *  3. recordNonce — stores userId/plan alongside the nonce
- *  4. deleteNonce — removes a nonce so it can be re-recorded; no-op on an
+ *  3. recordNonce - stores userId/plan alongside the nonce
+ *  4. deleteNonce - removes a nonce so it can be re-recorded; no-op on an
  *     unknown nonce; retries on transient failure and logs [ALERT] if it
  *     never succeeds
- *  5. deleteNonceByUserPlan — deletes by userId+plan, returns count
- *  6. TTL index — created once via createIndex({ createdAt: 1 }, { expireAfterSeconds })
- *  7. Mongo unreachable — recordNonce fails closed (throws); isNonceSeen
+ *  5. deleteNonceByUserPlan - deletes by userId+plan, returns count
+ *  6. TTL index - created once via createIndex({ createdAt: 1 }, { expireAfterSeconds })
+ *  7. Mongo unreachable - recordNonce fails closed (throws); isNonceSeen
  *     fails open (returns false, since recordNonce's unique index is the
  *     actual replay guard)
  */
@@ -34,7 +34,7 @@ function loadStoreWithDb(getDbImpl) {
     return require('../api/_nonce-store');
 }
 
-describe('_nonce-store (MongoDB) — isNonceSeen / recordNonce', () => {
+describe('_nonce-store (MongoDB) - isNonceSeen / recordNonce', () => {
     let store, fakeDb;
 
     beforeEach(() => {
@@ -86,7 +86,7 @@ describe('_nonce-store (MongoDB) — isNonceSeen / recordNonce', () => {
     });
 });
 
-describe('_nonce-store (MongoDB) — deleteNonce', () => {
+describe('_nonce-store (MongoDB) - deleteNonce', () => {
     let store, fakeDb;
 
     beforeEach(() => {
@@ -142,7 +142,7 @@ describe('_nonce-store (MongoDB) — deleteNonce', () => {
     });
 });
 
-describe('_nonce-store (MongoDB) — deleteNonceByUserPlan', () => {
+describe('_nonce-store (MongoDB) - deleteNonceByUserPlan', () => {
     let store, fakeDb;
 
     beforeEach(() => {
@@ -173,7 +173,7 @@ describe('_nonce-store (MongoDB) — deleteNonceByUserPlan', () => {
     });
 });
 
-describe('_nonce-store (MongoDB) — TTL index', () => {
+describe('_nonce-store (MongoDB) - TTL index', () => {
     test('createIndex is called once with a TTL on createdAt', async () => {
         const fakeDb = makeFakeDb();
         const createIndexSpy = jest.spyOn(fakeDb.collection('nonce_seen'), 'createIndex');
@@ -191,7 +191,7 @@ describe('_nonce-store (MongoDB) — TTL index', () => {
     });
 });
 
-describe('_nonce-store (MongoDB) — Mongo unreachable', () => {
+describe('_nonce-store (MongoDB) - Mongo unreachable', () => {
     let store;
 
     beforeEach(() => {

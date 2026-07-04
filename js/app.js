@@ -30,7 +30,7 @@ var MAX_UNDO_HISTORY = 50;
 var _sliderUndoLocked = false;   // one push per slider drag gesture
 
 // ── Plan + Watermark System ───────────────────────────────────────────────────
-// 'free' | 'starter' | 'pro'  — overwritten by clerk-auth.js on session refresh
+// 'free' | 'starter' | 'pro'  - overwritten by clerk-auth.js on session refresh
 var _userPlan = 'free';
 // PRO detection, watermark drawing, star badges: js/pro-gating.js
 
@@ -70,7 +70,7 @@ function _syncContextPanelTop() {
     var h = header.getBoundingClientRect().height;
     // Position the panel to START below the header and fill the rest of the
     // viewport.  Using top+height (not padding-top) means the content area is
-    // always the full remaining height — padding-top on a box-sizing:border-box
+    // always the full remaining height - padding-top on a box-sizing:border-box
     // element with height:100vh eats into the scrollable area.
     panel.style.top    = h + 'px';
     panel.style.height = 'calc(100vh - ' + h + 'px)';
@@ -78,7 +78,7 @@ function _syncContextPanelTop() {
 
 // Keep the panel top in sync whenever the sticky-header changes height
 // (banner appears/dismisses, window resizes, text wraps, etc.).
-// A ResizeObserver fires after layout — unlike requestAnimationFrame which
+// A ResizeObserver fires after layout - unlike requestAnimationFrame which
 // can fire before the browser has reflowed the newly-visible banner.
 (function _installHeaderResizeObserver() {
     var header = document.querySelector('.sticky-header');
@@ -418,7 +418,7 @@ document.addEventListener('click', function(e){
     }
 })();
 
-// Shared deselect logic — called by both click handlers below
+// Shared deselect logic - called by both click handlers below
 function _deselectAll(){
     window._clearTextBoxSelection?.();
     if(!activeIndices.length && !selectedDesigns.size) return;
@@ -451,7 +451,7 @@ function _isEmptyViewportMouseTarget(e) {
 // Track whether the most recent mousedown started on a form control (input,
 // select, textarea, button).  When the user drags a number input so fast that
 // the mouse leaves the browser window, the browser may synthesise a click on
-// document — we must not deselect windows in that case.
+// document - we must not deselect windows in that case.
 var _mouseDownOnControl = false;
 document.addEventListener('mousedown', e => {
     const tag = e.target.tagName;
@@ -462,7 +462,7 @@ document.addEventListener('mousedown', e => {
 // Clicking empty space in the canvas container deselects everything
 document.getElementById('canvasContainer').addEventListener('click', function(e){
     if(suppressNextWrapperClick) return;
-    if(_mouseDownOnControl) return;   // drag started on a control — ignore
+    if(_mouseDownOnControl) return;   // drag started on a control - ignore
     if(clipEditMode || colorLayerMode || designEraserMode) return;
     // Only act when the click landed outside every canvas-wrapper
     if(e.target.closest('.canvas-wrapper')) return;
@@ -472,7 +472,7 @@ document.getElementById('canvasContainer').addEventListener('click', function(e)
 // Clicking the white surrounding area (outside #canvasContainer) also deselects
 document.addEventListener('click', function(e){
     if(suppressNextWrapperClick) return;
-    if(_mouseDownOnControl) return;   // drag started on a control — ignore
+    if(_mouseDownOnControl) return;   // drag started on a control - ignore
     if(clipEditMode || colorLayerMode || designEraserMode) return;
     // Ignore clicks that are inside the canvas container (handled above)
     if(e.target.closest('#canvasContainer')) return;
@@ -519,7 +519,7 @@ var bgContrast   = document.getElementById('bgContrast');
 var globalHQTimer = null;
 var activeSliderType = null;
 
-// Tier A: paint coalesce only — geometry/state updates remain immediate on every event.
+// Tier A: paint coalesce only - geometry/state updates remain immediate on every event.
 var _renderCoalesceRaf = null;
 var _renderCoalesceQueue = new Map(); // fabricCanvas → { data, patternLQ }
 
@@ -1769,7 +1769,7 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality, opts){
     }
 
     // ── Stage 4: trim ─────────────────────────────────────────────────────────
-    // trimTransparentBorders calls getImageData (GPU readback) — cache when warp unchanged.
+    // trimTransparentBorders calls getImageData (GPU readback) - cache when warp unchanged.
     // Eraser preview passes freezePipelineTrim so trim box stays stable during a stroke.
     let trimmed;
     if (freezePipelineTrim && frozenTrim) {
@@ -1830,7 +1830,7 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality, opts){
     // the original eraser-trimmed content and cause an apparent leftward shift.
     let adjLeft = prevLeft;
     let adjTop  = prevTop;
-    // Only when warp output changed — not on perspective-only updates (avoids
+    // Only when warp output changed - not on perspective-only updates (avoids
     // re-applying trim offset every frame, which makes layers jump while dragging).
     if (!skipTrimComp && arcA === 0 && warpA === 0 && warpDirty) {
         // Cache trim of srcOriginal: only re-run getImageData when the source changes
@@ -1914,7 +1914,7 @@ async function applyWarpToData(data, lowQuality = false){
     const noisySource = applyNoiseToImage(blurredSource, data.noiseAmount || 0);
 
     // ── Pattern mode: warp/perspective apply to the whole tiled canvas, not tiles ──
-    // Requires designObject — reset clears pattern before dropping the object.
+    // Requires designObject - reset clears pattern before dropping the object.
     if(data.patternMode && data.patternFabricObj && data.designObject){
         data._patternTileSource = noisySource;
         if(data.designObject){
@@ -2068,7 +2068,7 @@ function isElementVisible(el){
 // render to at most one per animation frame (~60/sec) while still resetting the
 // HQ debounce timer on every event so HQ fires exactly 220 ms after the user
 // stops.  _lqRenderSliders reads slider DOM values when it runs (rAF tick), so
-// it always sees the most recent position — no staleness risk.
+// it always sees the most recent position - no staleness risk.
 var _sliderRAFId = null;
 
 function updateFromSliders(event){
@@ -2101,7 +2101,7 @@ function updateFromSliders(event){
         activeSliderType === "perspectiveLeft";
 
     // Always reset HQ debounce on every input event so HQ fires after
-    // the user stops — even when the LQ frame is throttled away.
+    // the user stops - even when the LQ frame is throttled away.
     // Scale the delay up with selection size: each extra window adds 30 ms so
     // the HQ mip-chain allocations for many windows don't all land at once.
     if(selectedDesigns.size === 0 || _needsWarp){
@@ -2172,7 +2172,7 @@ function _lqRenderSliders(){
                 d.blendMode       = newFx.blendMode;
             }
 
-            // Skip render work for off-screen objects — state is already updated above.
+            // Skip render work for off-screen objects - state is already updated above.
             if(!_visibleWrappers.has(d.wrapperEl || d.fabricCanvas.lowerCanvasEl.parentElement)) return;
 
             const isMain   = obj === d.designObject;
@@ -2302,7 +2302,7 @@ function _lqRenderSliders(){
             data.designObject._fx.blendMode       = _blendV;
         }
 
-        // Fast path: opacity/blend only — no warp recomputation needed
+        // Fast path: opacity/blend only - no warp recomputation needed
         if(!requiresWarp){
             if(data.patternMode && data.patternFabricObj){
                 data.patternFabricObj.set({
@@ -2441,7 +2441,7 @@ blendMode.addEventListener('mousedown', () => {
 });
 blendMode.addEventListener('change', () => { _sliderUndoLocked = false; });
 
-// BG adjustment sliders — own undo lock so they don't collide with design sliders
+// BG adjustment sliders - own undo lock so they don't collide with design sliders
 var _bgAdjUndoLocked = false;
 [bgHue, bgSaturation, bgBrightness, bgContrast].forEach(el => {
     el.addEventListener('mousedown', () => {
@@ -2618,7 +2618,7 @@ document.getElementById('resetPatternBtn').addEventListener('click', () => {
         if(d.patternMode || d.patternFabricObj) _togglePatternMode(d, false);
         _recomputeProEffect(d);
     });
-    // Sync UI — turn off toggle and hide controls
+    // Sync UI - turn off toggle and hide controls
     document.getElementById('patternModeToggle').checked = false;
     document.getElementById('patternControls').style.display = 'none';
     document.querySelectorAll('.pattern-type-btn').forEach(b =>
@@ -2644,7 +2644,7 @@ function _bakePatternSheet(data) {
     const H   = fc.getHeight();
     const dpr = Math.max(1, fc.lowerCanvasEl.width / W);
 
-    // Push undo BEFORE mutating — reuse the warp undo type which snapshots both
+    // Push undo BEFORE mutating - reuse the warp undo type which snapshots both
     // the window state and designOriginal so Undo can restore them together.
     const affIdx = canvasData.indexOf(data);
     if (affIdx !== -1) {
@@ -2667,7 +2667,7 @@ function _bakePatternSheet(data) {
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(pEl, 0, 0, W * dpr, H * dpr);
 
-    // Exit pattern mode — removes patternFabricObj, restores designObject opacity.
+    // Exit pattern mode - removes patternFabricObj, restores designObject opacity.
     _togglePatternMode(data, false);
 
     // Install the baked canvas as the new design source.
@@ -3022,7 +3022,7 @@ document.getElementById('designUploadBtn').addEventListener('click', () => {
     document.getElementById('designUpload').click();
 });
 
-// Drop zone — background drag-and-drop
+// Drop zone - background drag-and-drop
 (function(){
     const dropZone = document.getElementById('dropZone');
 
@@ -3054,7 +3054,7 @@ document.getElementById('designUploadBtn').addEventListener('click', () => {
     });
 })();
 
-// Design prompt — click or drag designs
+// Design prompt - click or drag designs
 (function(){
     const prompt = document.getElementById('designPrompt');
     const btn    = document.getElementById('designPromptBtn');
@@ -3094,7 +3094,7 @@ document.getElementById('designUploadBtn').addEventListener('click', () => {
 updateDropUI();
 
 
-// Document-level drag intercept — prevents the browser from navigating to/opening
+// Document-level drag intercept - prevents the browser from navigating to/opening
 // dropped files, and routes design drops onto the canvas area when backgrounds exist.
 (function(){
     let dragDepth = 0;
@@ -3358,7 +3358,7 @@ function createCanvasPreviews(){
             // Shrink Fabric's internal .canvas-container to the CSS display size.
             // The canvas elements inside keep their oversampled DOM pixel count
             // (previewWidth × DPR), so the browser downscales those extra pixels
-            // onto fewer CSS pixels — crisp rather than upscaled-blurry.
+            // onto fewer CSS pixels - crisp rather than upscaled-blurry.
             const displayW = Math.round(targetColumnWidth);
             const displayH = Math.round(previewHeight * targetColumnWidth / previewWidth);
             fabricCanvas.wrapperEl.style.width  = displayW + 'px';
@@ -3492,7 +3492,7 @@ function attachFabricEvents(data, targetObject = null){
         designTarget.lastAngle  = designTarget.angle || 0;
         designTarget._hadDragMovement = false;
         // Capture pre-gesture state for all active windows.
-        // We don't push to the undo stack yet — we wait to see if the user
+        // We don't push to the undo stack yet - we wait to see if the user
         // actually moves/scales/rotates.  If they just click without moving,
         // no undo slot is consumed (mouseup discards _preDragUndoEntry).
         designTarget._preDragUndoEntry = {
@@ -3551,7 +3551,7 @@ function attachFabricEvents(data, targetObject = null){
 
         if (_isMainDesignObject(designTarget, data)) {
 
-            // Same-window: set absolute — all layers share one coordinate space.
+            // Same-window: set absolute - all layers share one coordinate space.
             // Extra design layers only scale/move if they're also selected.
             getAllDesignObjects(data).forEach(obj=>{
                 if(obj === designTarget) return;
@@ -3909,7 +3909,7 @@ function updateLayerButtons(){
         const dismissed = localStorage.getItem('ms_batch_hint_dismissed');
         if (n > 1 && !dismissed) {
             batchHint.hidden = false;
-            batchHintText.textContent = 'Editing ' + n + ' mockups — changes apply to all selected mockups.';
+            batchHintText.textContent = 'Editing ' + n + ' mockups - changes apply to all selected mockups.';
         } else {
             batchHint.hidden = true;
         }
@@ -3922,7 +3922,7 @@ function updateLayerButtons(){
 
 
 
-// Reusable wrapper click handler — used by both renderBatch (inline) and duplicated windows.
+// Reusable wrapper click handler - used by both renderBatch (inline) and duplicated windows.
 function _addDragHandle(wrapper, cell) {
     const handle = document.createElement('div');
     handle.className = 'drag-handle';
@@ -3949,7 +3949,7 @@ function deleteSelectedWindows(){
     if(!sortedIndices.length) return;
 
     // Save data objects (with live Fabric canvases still intact) for undo.
-    // We do NOT dispose the Fabric canvas — undo will need to re-attach it.
+    // We do NOT dispose the Fabric canvas - undo will need to re-attach it.
     const savedItems = sortedIndices.map(i => ({ originalIdx: i, data: canvasData[i] }));
 
     pushDeletionUndo(savedItems);
@@ -4435,7 +4435,7 @@ document.getElementById("duplicateWindowsBtn").addEventListener("click", ()=>{
             }
         );
 
-        // 9. Load background into Fabric (fire-and-forget — matches renderBatch)
+        // 9. Load background into Fabric (fire-and-forget - matches renderBatch)
         fabric.Image.fromURL(bgImg.src, bgFabricImg => {
             bgFabricImg.set({
                 left: 0, top: 0,
@@ -4580,7 +4580,7 @@ async function changeDesignForSelected(file){
     loadingIndicator.style.display = 'block';
     loadingIndicator.innerText = 'Processing design...';
 
-    // Load and (for PNG) trim transparent pixels — exactly as in handleDesignFiles
+    // Load and (for PNG) trim transparent pixels - exactly as in handleDesignFiles
     const newImg = await new Promise(resolve => {
         const reader = new FileReader();
         reader.onload = async e => {
@@ -4610,7 +4610,7 @@ async function changeDesignForSelected(file){
 
         const hadNoDesign = !data.designOriginal;
 
-        // Swap the image source — keep all transforms, effects, and layer settings as-is
+        // Swap the image source - keep all transforms, effects, and layer settings as-is
         data.designOriginal        = newImg;
         data.initialDesignOriginal = newImg;
         data.designName            = file.name;
@@ -4745,7 +4745,7 @@ function invertSelectedDesigns(){
         );
         if(!d || d.locked) return;
 
-        // Step 1 — invert the currently-rendered element directly (what the user sees).
+        // Step 1 - invert the currently-rendered element directly (what the user sees).
         // This is the same pattern the eraser uses: ensureErasableCanvas converts the
         // Fabric object's element to a writable canvas, then we pixel-flip it in-place.
         // This avoids re-running the warp/blur/perspective pipeline which would corrupt
@@ -4753,7 +4753,7 @@ function invertSelectedDesigns(){
         const el = ensureErasableCanvas(obj);
         invertCanvasInPlace(el);
 
-        // Step 2 — if a non-normal blend mode is active, reset it to Normal.
+        // Step 2 - if a non-normal blend mode is active, reset it to Normal.
         // Multiply/Screen distort what "inverted" means visually (e.g. white bg
         // stays invisible but black design goes transparent with Multiply).
         // Switching to Normal after inverting gives the correct visual result.
@@ -4769,7 +4769,7 @@ function invertSelectedDesigns(){
         obj.dirty = true;
         d.fabricCanvas.requestRenderAll();
 
-        // Step 3 — also invert designOriginal (the pipeline source) so that any
+        // Step 3 - also invert designOriginal (the pipeline source) so that any
         // future slider change (blur, warp, etc.) re-renders from the inverted source.
         const isMain   = obj === d.designObject;
         const extraIdx = isMain ? -1 : (d.extraDesignObjects || []).indexOf(obj);
@@ -5290,7 +5290,7 @@ function _updateCopyEffectsBtn() {
         btn.style.color       = '#2e7d32';
     } else {
         _setBtnLabelWithKbd(btn, 'Copy Effects', 'Ctrl/Cmd+Shift+C');
-        btn.title            = 'Copy effects (opacity, warp, blend, pattern, invert) from the last selected mockup — not position or scale';
+        btn.title            = 'Copy effects (opacity, warp, blend, pattern, invert) from the last selected mockup - not position or scale';
         btn.style.background  = '';
         btn.style.borderColor = '';
         btn.style.color       = '';
@@ -6292,7 +6292,7 @@ document.getElementById("deleteClipBtn").addEventListener("click", ()=>{
 
 
 
-// ── "Copy Clipping" — enter target-selection mode ────────────────────────────
+// ── "Copy Clipping" - enter target-selection mode ────────────────────────────
 document.getElementById("copyClipBtn").addEventListener("click", ()=>{
 
     const srcIndex =
@@ -6326,7 +6326,7 @@ document.getElementById("copyClipBtn").addEventListener("click", ()=>{
 });
 
 
-// ── "Copy Clipping to Selected" — apply and return to clip mode ───────────────
+// ── "Copy Clipping to Selected" - apply and return to clip mode ───────────────
 document.getElementById("copyClipToSelectedBtn").addEventListener("click", ()=>{
 
     if(clipCopySourceIndex === null) return;
@@ -6523,7 +6523,7 @@ document.getElementById("brushColorPicker").addEventListener("input", e=>{
 
 document.getElementById("brushSizeSlider").addEventListener("input", e=>{
     brushSize = parseInt(e.target.value, 10);
-    // Ring size updates live on next mousemove — nothing extra needed here
+    // Ring size updates live on next mousemove - nothing extra needed here
 });
 
 document.getElementById("brushSoftnessSlider").addEventListener("input", e=>{
@@ -6549,7 +6549,7 @@ document.getElementById("deleteColorBtn").addEventListener("click", ()=>{
 });
 
 
-// ── "Copy Color" — enter target-selection mode ────────────────────────────────
+// ── "Copy Color" - enter target-selection mode ────────────────────────────────
 document.getElementById("copyColorBtn").addEventListener("click", ()=>{
     if(!colorLayerMode) return;
 
@@ -6569,7 +6569,7 @@ document.getElementById("copyColorBtn").addEventListener("click", ()=>{
     activeIndices = [srcIndex];
     updateWindowBorders();
 
-    // Restore normal cursor — stop the brush ring and remove cursor:none from wrappers
+    // Restore normal cursor - stop the brush ring and remove cursor:none from wrappers
     _stopColorLayerCursorTracking();
     document.querySelectorAll('.canvas-wrapper.color-layer-mode')
         .forEach(w => w.style.cursor = '');
@@ -6581,7 +6581,7 @@ document.getElementById("copyColorBtn").addEventListener("click", ()=>{
 });
 
 
-// ── "Copy Color to Selected" — apply and return ───────────────────────────────
+// ── "Copy Color to Selected" - apply and return ───────────────────────────────
 document.getElementById("copyColorToSelectedBtn").addEventListener("click", ()=>{
     if(colorCopySourceIndex === null) return;
 
@@ -6641,7 +6641,7 @@ document.getElementById("copyColorToSelectedBtn").addEventListener("click", ()=>
     updateWindowBorders();
     updateSelectButtonState?.();
 
-    // Re-enable brush cursor — restore cursor:none and restart ring tracking
+    // Re-enable brush cursor - restore cursor:none and restart ring tracking
     document.querySelectorAll('.canvas-wrapper.color-layer-mode')
         .forEach(w => w.style.cursor = 'none');
     _startColorLayerCursorTracking();
@@ -6708,7 +6708,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('selectAllBtn').click();
 });
 
-// Ctrl/Cmd+S — save progress
+// Ctrl/Cmd+S - save progress
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 's') return;
@@ -6716,8 +6716,8 @@ document.addEventListener('keydown', function(e){
     document.getElementById('saveProgressBtn').click();
 });
 
-// Backspace — delete selected windows, or just the selected extra layers if
-// Backspace in clip mode — delete the last placed anchor point.
+// Backspace - delete selected windows, or just the selected extra layers if
+// Backspace in clip mode - delete the last placed anchor point.
 document.addEventListener('keydown', function(e){
     if(e.key !== 'Backspace') return;
     if(!clipEditMode) return;
@@ -6771,11 +6771,11 @@ document.addEventListener('keydown', function(e){
         return;
     }
 
-    // No layer selected — delete the active windows (same behaviour as the Delete button).
+    // No layer selected - delete the active windows (same behaviour as the Delete button).
     deleteSelectedWindows();
 });
 
-// L — lock selected windows
+// L - lock selected windows
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'l') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6791,7 +6791,7 @@ document.addEventListener('keydown', function(e){
     lockSelectedWindows();
 });
 
-// U — unlock selected windows
+// U - unlock selected windows
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'u') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6803,7 +6803,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('unlockWindowsBtn').click();
 });
 
-// Escape — deselect all windows and layers
+// Escape - deselect all windows and layers
 document.addEventListener('keydown', function(e){
     if(e.key !== 'Escape') return;
     if(_kbdModalOpen()) return;
@@ -6814,7 +6814,7 @@ document.addEventListener('keydown', function(e){
     _deselectAll();
 });
 
-// Shift+L — add layer (opens file picker)
+// Shift+L - add layer (opens file picker)
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'l') return;
     if(!e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -6825,7 +6825,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('addLayerBtn').click();
 });
 
-// I — invert colors on selected layer(s)
+// I - invert colors on selected layer(s)
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'i') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6837,7 +6837,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('invertColorsBtn').click();
 });
 
-// G — toggle alignment guides
+// G - toggle alignment guides
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'g') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6848,7 +6848,7 @@ document.addEventListener('keydown', function(e){
     toggleAlignmentGuides();
 });
 
-// Arrow keys — nudge selected layer(s) (1 px; Shift+Arrow 10 px)
+// Arrow keys - nudge selected layer(s) (1 px; Shift+Arrow 10 px)
 document.addEventListener('keydown', function(e){
     const ARROW = {
         ArrowUp:    [0, -1],
@@ -6872,7 +6872,7 @@ document.addEventListener('keydown', function(e){
     _nudgeSelectedDesigns(sx * step, sy * step);
 });
 
-// M — make selected overlay the main design
+// M - make selected overlay the main design
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'm') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6883,7 +6883,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('makeMainDesignBtn').click();
 });
 
-// N — add mockup (opens file picker)
+// N - add mockup (opens file picker)
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'n') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6894,7 +6894,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('addWindowBtn').click();
 });
 
-// Shift+H / Shift+V — flip selected mockup(s)
+// Shift+H / Shift+V - flip selected mockup(s)
 document.addEventListener('keydown', function(e){
     const key = e.key.toLowerCase();
     if(key !== 'h' && key !== 'v') return;
@@ -6907,7 +6907,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById(key === 'h' ? 'flipHBtn' : 'flipVBtn').click();
 });
 
-// E — toggle design eraser mode on/off
+// E - toggle design eraser mode on/off
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'e') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6926,7 +6926,7 @@ document.addEventListener('keydown', function(e){
     }
 });
 
-// T — toggle text tool on/off
+// T - toggle text tool on/off
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 't') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6939,7 +6939,7 @@ document.addEventListener('keydown', function(e){
     if(typeof window._setActiveTool === 'function') window._setActiveTool('text');
 });
 
-// C — toggle clipping mode on/off
+// C - toggle clipping mode on/off
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'c') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6952,7 +6952,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('editClipBtn').click();
 });
 
-// P — toggle pattern mode on/off
+// P - toggle pattern mode on/off
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'p') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6972,7 +6972,7 @@ document.addEventListener('keydown', function(e){
     }
 });
 
-// R — reset selected mockup window
+// R - reset selected mockup window
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'r') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -6992,7 +6992,7 @@ document.addEventListener('keydown', function(e){
     document.activeElement?.blur();
 });
 
-// H — toggle layer visibility in clip mode
+// H - toggle layer visibility in clip mode
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'h') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -7007,7 +7007,7 @@ document.addEventListener('keydown', function(e){
     toggleClipLayersHidden();
 });
 
-// W — toggle free-form mesh warp on/off
+// W - toggle free-form mesh warp on/off
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'w') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -7023,7 +7023,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('designWarpBtn').click();
 });
 
-// F — center / fit view
+// F - center / fit view
 document.addEventListener('keydown', function(e){
     if(e.key.toLowerCase() !== 'f') return;
     if(e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
@@ -7036,7 +7036,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('centerViewBtn').click();
 });
 
-// Ctrl/Cmd+L — load progress
+// Ctrl/Cmd+L - load progress
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 'l') return;
@@ -7049,7 +7049,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('loadProgressBtn').click();
 });
 
-// Ctrl/Cmd+D — duplicate selected window(s)
+// Ctrl/Cmd+D - duplicate selected window(s)
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 'd') return;
@@ -7065,7 +7065,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('duplicateWindowsBtn').click();
 });
 
-// D — duplicate selected layer
+// D - duplicate selected layer
 document.addEventListener('keydown', function(e){
     if(e.metaKey || e.ctrlKey || e.altKey) return;
     if(e.key.toLowerCase() !== 'd') return;
@@ -7080,7 +7080,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('duplicateLayerBtn').click();
 });
 
-// Ctrl/Cmd+E — export
+// Ctrl/Cmd+E - export
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 'e') return;
@@ -7095,7 +7095,7 @@ document.addEventListener('keydown', function(e){
     document.getElementById('exportBtn').click();
 });
 
-// Ctrl/Cmd+C — copy text box (move mode) or design layer
+// Ctrl/Cmd+C - copy text box (move mode) or design layer
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 'c') return;
@@ -7115,7 +7115,7 @@ document.addEventListener('keydown', function(e){
     _copyCurrentLayer();
 });
 
-// Ctrl/Cmd+V — paste text box or design layer
+// Ctrl/Cmd+V - paste text box or design layer
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 'v') return;
@@ -7137,7 +7137,7 @@ document.addEventListener('keydown', function(e){
     _pasteLayerToTargets();
 });
 
-// Ctrl/Cmd+Shift+C — copy effects
+// Ctrl/Cmd+Shift+C - copy effects
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 'c') return;
@@ -7151,7 +7151,7 @@ document.addEventListener('keydown', function(e){
     _copyCurrentEffects();
 });
 
-// Ctrl/Cmd+Shift+V — paste effects
+// Ctrl/Cmd+Shift+V - paste effects
 document.addEventListener('keydown', function(e){
     if(!(e.metaKey || e.ctrlKey)) return;
     if(e.key.toLowerCase() !== 'v') return;
@@ -7322,14 +7322,14 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                 fabricCanvas.requestRenderAll();
             }
 
-            // If existing clip data was loaded, stop here — the activation
+            // If existing clip data was loaded, stop here - the activation
             // click should not also move an anchor or add a new point.
             // For a fresh window (no clip yet), fall through so this first
             // click begins drawing the polygon.
             if(clipCurvePoints.length) return;
         }
 
-        // In copy-select mode the user is picking target windows —
+        // In copy-select mode the user is picking target windows -
         // don't block or draw on any canvas, just let the wrapper
         // click handler handle the selection.
         if(clipCopySelectMode) return;
@@ -7529,7 +7529,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
         if (liveIdx === -1) return;
 
         // Rubber-band: live tether line from the last placed point to the
-        // cursor so the user sees the next segment before clicking — same
+        // cursor so the user sees the next segment before clicking - same
         // feel as the Photoshop pen tool.
         if(
             !isDraggingCurveHandle &&
@@ -7562,7 +7562,7 @@ function attachClipDrawing(wrapper, fabricCanvas, data, index){
                   strokeDashOffset: _marchingAntsOffset }
             );
 
-            // white layer — interleaved with dark
+            // white layer - interleaved with dark
             const rbLight = new fabric.Line(
                 [last.x, last.y, pointer.x, pointer.y],
                 { ...rbCommon, stroke: 'rgba(255,255,255,0.92)',
@@ -7751,7 +7751,7 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
             if(bar) bar.style.display = 'none';
             localStorage.setItem('ms_upgrade_prompt_dismissed', '1');
             // ResizeObserver on .sticky-header fires automatically when the
-            // banner collapses — no manual requestAnimationFrame needed.
+            // banner collapses - no manual requestAnimationFrame needed.
         });
     }
     var link = document.getElementById('upgradePromptLink');
@@ -7826,7 +7826,7 @@ function buildSnapshot(){
             initialX: data.initialX / (data.previewScale || 1),
             initialY: data.initialY / (data.previewScale || 1),
 
-            // Full reset baseline — pristine upload defaults, independent of
+            // Full reset baseline - pristine upload defaults, independent of
             // current effect values (fixes reset after autosave / JSON load).
             initialScale: data.initialScale,
             initialRotation: data.initialRotation ?? 0,
@@ -7875,7 +7875,7 @@ function buildSnapshot(){
             patternSettings: data.patternSettings ? { ...data.patternSettings } : null,
 
             // Normalise mask-path coordinates by dividing by previewScale so
-            // they are stored in background-image-pixel space — the same
+            // they are stored in background-image-pixel space - the same
             // normalisation applied to x/y/scaleX/scaleY.  The restore path
             // multiplies back up by the new previewScale.
             maskPaths: (data.maskPaths ?? []).map(path=>
@@ -7900,7 +7900,7 @@ function buildSnapshot(){
             filename: data.filename,
 
             // Normalise duplicate positions the same way the main design x/y are
-            // normalised — divide by previewScale so values are in bg-image-pixel
+            // normalised - divide by previewScale so values are in bg-image-pixel
             // space.  The restore path multiplies back up by the new previewScale.
             // Save the main design's per-object effects (set in design mode)
             designFx: data.designObject?._fx ?? null,
@@ -7932,7 +7932,7 @@ function buildSnapshot(){
                 carriesBakedPro: !!obj._carriesBakedPro
             })),
 
-            // Color layer — save as data URL (bg-image scale); null if never painted
+            // Color layer - save as data URL (bg-image scale); null if never painted
             colorLayerDataURL: data.colorLayerCanvas
                 ? data.colorLayerCanvas.toDataURL()
                 : null,
@@ -7955,7 +7955,7 @@ var _cloudAutoSaveTimer = null;
 
 // ── IndexedDB autosave with localStorage fallback ─────────────────────────────
 // Design: IDB is the primary store (no size limit).  On ANY IDB failure (open
-// OR put/get/delete), we fall back to localStorage (5 MB limit — sufficient for
+// OR put/get/delete), we fall back to localStorage (5 MB limit - sufficient for
 // most sessions).  get() also checks localStorage when IDB opens fine but the
 // key is absent, covering the case where a previous write fell back to LS.
 const _autosaveDB = (() => {
@@ -7985,7 +7985,7 @@ const _autosaveDB = (() => {
             console.warn('[Autosave] IDB read failed, trying localStorage:', e);
         }
         if (idbResult !== null) return idbResult;
-        // IDB unavailable or key absent — try localStorage fallback
+        // IDB unavailable or key absent - try localStorage fallback
         try {
             const r = localStorage.getItem(LS_KEY(key));
             return r ? JSON.parse(r) : null;
@@ -8185,7 +8185,7 @@ async function _cloudSave({ isNew = false } = {}) {
             body: JSON.stringify(body),
         });
     } catch {
-        return { ok: false, error: 'Network error — check your connection' };
+        return { ok: false, error: 'Network error - check your connection' };
     }
 
     const data = await res.json().catch(() => ({}));
@@ -8279,7 +8279,7 @@ function _showSaveToast(message, isError = false) {
     }, 4000);
 }
 
-// Toast with an action button — stays until dismissed or button clicked
+// Toast with an action button - stays until dismissed or button clicked
 function _showSaveToastWithAction(message, btnLabel, btnFn) {
     const existing = document.getElementById('msSaveToast');
     if (existing) existing.remove();
@@ -8355,7 +8355,7 @@ async function _loadProjectByUuid(uuid) {
     try {
         res = await fetch('/api/projects/' + encodeURIComponent(uuid));
     } catch {
-        _showSaveToast('Could not reach server — check your connection', true);
+        _showSaveToast('Could not reach server - check your connection', true);
         return;
     }
 
@@ -8384,7 +8384,7 @@ async function _loadProjectByUuid(uuid) {
     function _fromKey(val) {
         if (!val) return null;
         if (typeof val === 'string' && val.startsWith('__img_')) return imageMap[val] || null;
-        return val; // old format — already a data URL (or null)
+        return val; // old format - already a data URL (or null)
     }
     if (Object.keys(imageMap).length > 0) {
         windows = windows.map(function (w) {
@@ -8449,7 +8449,7 @@ async function _loadProjectByUuid(uuid) {
         updateDropUI();
     } catch (err) {
         console.error('_loadProjectByUuid: restore failed', err);
-        _showSaveToast('Failed to restore project — file may be corrupted', true);
+        _showSaveToast('Failed to restore project - file may be corrupted', true);
         return;
     }
 
@@ -8458,7 +8458,7 @@ async function _loadProjectByUuid(uuid) {
     _markClean();
 
     if (missing > 0 && restorable.length === 0) {
-        _showSaveToast('Project loaded — re-upload your images to restore the canvas', true);
+        _showSaveToast('Project loaded - re-upload your images to restore the canvas', true);
     } else if (missing > 0) {
         _showSaveToast('Project loaded ✓ (' + missing + ' image' + (missing === 1 ? '' : 's') + ' need re-uploading on this device)');
     } else {
@@ -8480,19 +8480,19 @@ function autoSaveSession(){
     _autoSaveTimer = setTimeout(async ()=>{
         let snap;
         try { snap = buildFullSnapshot(); } catch(e) { console.error('[Autosave] buildFullSnapshot threw:', e); return; }
-        console.log('[Autosave] Saving session —', snap.windows.length, 'window(s)');
+        console.log('[Autosave] Saving session -', snap.windows.length, 'window(s)');
         await _autosaveDB.set('session', snap);
         console.log('[Autosave] Session saved ✓');
         _showSaveToast('Draft saved ✓');
     }, 2500);
 
-    // Cloud backup — only when signed in and a UUID is already stored.
+    // Cloud backup - only when signed in and a UUID is already stored.
     // The callback re-checks _unsaved so that a _markClean() call (e.g. after a
     // project load) that fires between now and the 30 s deadline suppresses the
     // save rather than silently overwriting the freshly-loaded cloud project.
     clearTimeout(_cloudAutoSaveTimer);
     _cloudAutoSaveTimer = setTimeout(()=>{
-        if (!_unsaved) return;           // canvas was cleaned (e.g. by a load) — skip
+        if (!_unsaved) return;           // canvas was cleaned (e.g. by a load) - skip
         const signedIn = window.Clerk && window.Clerk.user;
         const hasUuid  = !!localStorage.getItem(_CLOUD_UUID_KEY);
         if (signedIn && hasUuid) {
@@ -8600,7 +8600,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
             _saveToLocalFile
         );
     } else {
-        _showSaveToast(result.error || 'Save failed — try again', true);
+        _showSaveToast(result.error || 'Save failed - try again', true);
     }
 });
 
@@ -8643,7 +8643,7 @@ document.getElementById('saveNewBtn').addEventListener('click', async () => {
             _saveToLocalFile
         );
     } else {
-        _showSaveToast(result.error || 'Save failed — try again', true);
+        _showSaveToast(result.error || 'Save failed - try again', true);
     }
 });
 
@@ -8657,7 +8657,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
     const loadingIndicator =
         document.getElementById("loadingIndicator");
 
-    // Unobserve all existing wrappers before discarding them — without this,
+    // Unobserve all existing wrappers before discarding them - without this,
     // the IntersectionObserver keeps stale entries for removed DOM nodes.
     canvasData.forEach(d => { if(d.wrapperEl) _visibilityObserver.unobserve(d.wrapperEl); });
 
@@ -8670,7 +8670,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
     backgrounds = [];
     designs = [];
 
-    // Hide the drop zone immediately — canvasData is empty right now, so any
+    // Hide the drop zone immediately - canvasData is empty right now, so any
     // call to updateDropUI would mistakenly show it during the load loop.
     const _dropZoneEl     = document.getElementById('dropZone');
     const _designPromptEl = document.getElementById('designPrompt');
@@ -8705,7 +8705,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                 const img = new Image();
 
                 img.onload  = ()=>resolve(img);
-                img.onerror = ()=>resolve(null); // broken design — continue anyway
+                img.onerror = ()=>resolve(null); // broken design - continue anyway
 
                 img.src = saved.designSrc;
             });
@@ -8867,7 +8867,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         data.x = saved.x * previewScale;
         data.y = saved.y * previewScale;
 
-        // initialX/Y used by Reset — temporarily mirror x/y; corrected below
+        // initialX/Y used by Reset - temporarily mirror x/y; corrected below
         // once previewW/H are known (they are computed a few lines later).
         data.initialX = data.x;
         data.initialY = data.y;
@@ -8928,7 +8928,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         // Shrink Fabric's .canvas-container to the CSS display size so it doesn't
         // overflow the grid cell. Canvas DOM pixel count stays at previewW × DPR,
-        // so the browser downscales those extra pixels — crisp at zoom.
+        // so the browser downscales those extra pixels - crisp at zoom.
         const displayW = Math.round(targetColumnWidth);
         const displayH = Math.round(previewH * targetColumnWidth / previewW);
         fabricCanvas.wrapperEl.style.width  = displayW + "px";
@@ -8940,7 +8940,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
         _attachWindowCanvasSelection(data);
 
         // Build the background Fabric image directly from the already-loaded
-        // bgImg element — avoids a second load and the crossOrigin:'anonymous'
+        // bgImg element - avoids a second load and the crossOrigin:'anonymous'
         // flag that hangs on data URLs (browsers block CORS for data: URIs,
         // causing the fromURL callback to never fire).
         const bgFabric = new fabric.Image(bgImg, {
@@ -9077,7 +9077,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
                 } else {
 
-                    // Legacy clone — shared main designOriginal pipeline source.
+                    // Legacy clone - shared main designOriginal pipeline source.
                     await new Promise(resolve=>{
 
                         data.designObject.clone(cloned=>{
@@ -9105,7 +9105,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
                             if (dup.carriesBakedPro) _markObjectBakedPro(cloned);
 
                             // Bake this duplicate's own warp/arc/perspective/blur/noise
-                            // pipeline into its pixels — restoring _fx alone only stores
+                            // pipeline into its pixels - restoring _fx alone only stores
                             // the values, it doesn't render them (mirrors the per-object
                             // pass applyWarpToData runs for extraDesignObjects normally).
                             _applyWarpToOneObject(cloned, data, _cachedFlipForLayer(data, data.designOriginal, cloned), false);
@@ -9157,7 +9157,7 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
 
         fabricCanvas.requestRenderAll();
 
-        // Restore locked state — re-apply Fabric locks and CSS class
+        // Restore locked state - re-apply Fabric locks and CSS class
         if(saved.locked){
             data.locked = true;
             getAllDesignObjects(data).forEach(o=>{
@@ -9232,7 +9232,7 @@ document.getElementById("loadProgressInput").addEventListener("change", function
         try {
             data = JSON.parse(e.target.result);
         } catch(err) {
-            alert('Could not load project — the file appears to be corrupt or is not a valid project file.');
+            alert('Could not load project - the file appears to be corrupt or is not a valid project file.');
             return;
         }
         const isLegacy = Array.isArray(data);
@@ -9373,7 +9373,7 @@ function pushTextBoxUndo() {
     updateUndoRedoButtons();
 }
 
-// Global viewport apply — mirrors the IIFE-local applyVP; used by undo/redo.
+// Global viewport apply - mirrors the IIFE-local applyVP; used by undo/redo.
 function _applyVP() {
     const t  = `translate(${_vpX}px,${_vpY}px) scale(${_vpScale})`;
     const cc = document.getElementById('canvasContainer');
@@ -9455,7 +9455,7 @@ function updateMinimap(){
     const natW = cc.offsetWidth;
     const natH = cc.offsetHeight;
     if(!natW || !natH){
-        // Layout not measured yet — show the minimap shell and retry once laid out.
+        // Layout not measured yet - show the minimap shell and retry once laid out.
         _applyMinimapVisibility();
         requestAnimationFrame(() => _scheduleMinimapUpdate());
         return;
@@ -9474,7 +9474,7 @@ function updateMinimap(){
     const ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, cvW, cvH);
 
-    // Window cells — use cellEl for position (wrapperEl.offsetLeft is always 0
+    // Window cells - use cellEl for position (wrapperEl.offsetLeft is always 0
     // because .window-cell is its offsetParent; cellEl gives correct grid offset)
     const activeSet = new Set(activeIndices);
     canvasData.forEach((data, i) => {
@@ -9975,7 +9975,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
         e.preventDefault();
         _panPreX = _vpX; _panPreScale = _vpScale;
         _panPreY = _vpY;
-        // Reuse the viewport IIFE's pan state — its mousemove/mouseup handlers
+        // Reuse the viewport IIFE's pan state - its mousemove/mouseup handlers
         // pick up _vpPanning automatically, so the viewport updates as normal.
         _vpPanning  = true;
         _vpPanMoved = false;
@@ -9986,7 +9986,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
     document.addEventListener('mouseup', () => {
         if (_activeTool !== 'pan') return;
-        // The viewport IIFE's mouseup resets cursor to '' — restore 'grab'.
+        // The viewport IIFE's mouseup resets cursor to '' - restore 'grab'.
         requestAnimationFrame(() => { if (_activeTool === 'pan') vw.style.cursor = 'grab'; });
         if (_vpPanMoved) {
             globalUndoStack.push({ type: 'pan', prevX: _panPreX, prevY: _panPreY, prevScale: _panPreScale });
@@ -10152,7 +10152,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 
     // ── Build one text-box element ────────────────────────────────────────────
     function createTextBox(x, y, w, h, content) {
-        // Outer wrapper — handles border, shadow, drag
+        // Outer wrapper - handles border, shadow, drag
         const el = document.createElement('div');
         el.className  = 'canvas-text-box';
         el.style.left = x + 'px';
@@ -10163,7 +10163,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
             // Click-created: grow horizontally until user resizes
             el.classList.add('tb-auto-width');
         }
-        // NO height set — auto-expands with content
+        // NO height set - auto-expands with content
 
         // Thin grab bar at the top
         const bar = document.createElement('div');
@@ -10468,7 +10468,7 @@ document.getElementById('centerViewBtn').addEventListener('click', () => {
 // ── Full snapshot (windows + text boxes) ─────────────────────────────────────
 function buildFullSnapshot() {
     // Only lightweight undo types are serialisable (pan/selection have no image data).
-    // canvas-type and layout-type entries contain full data-URL snapshots — too large.
+    // canvas-type and layout-type entries contain full data-URL snapshots - too large.
     const serializableTypes = new Set(['pan', 'selection']);
     const undoHistory = globalUndoStack
         .filter(e => serializableTypes.has(e.type))
@@ -10536,7 +10536,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     });
 
     if(!snapshot){
-        console.log('[Restore] No session found in IndexedDB — showing drop zone');
+        console.log('[Restore] No session found in IndexedDB - showing drop zone');
         return;
     }
 
@@ -10549,7 +10549,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
         if (restored) _projectName = restored;
     }
 
-    console.log('[Restore] Session found —', windows.length, 'window(s),', tboxes.length, 'text box(es)');
+    console.log('[Restore] Session found -', windows.length, 'window(s),', tboxes.length, 'text box(es)');
 
     if (!windows.length && !tboxes.length) return;
 
@@ -10924,7 +10924,7 @@ async function _startCheckout(plan, period) {
         return;
     }
 
-    // Fetch a fresh Clerk session token — required for server-side JWT verification.
+    // Fetch a fresh Clerk session token - required for server-side JWT verification.
     const token = window.Clerk.session
         ? await window.Clerk.session.getToken().catch(function () { return null; })
         : null;

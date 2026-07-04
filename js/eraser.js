@@ -12,7 +12,7 @@ function invertCanvasInPlace(canvas) {
         px[i]     = 255 - px[i];
         px[i + 1] = 255 - px[i + 1];
         px[i + 2] = 255 - px[i + 2];
-        // px[i + 3] = alpha — left unchanged
+        // px[i + 3] = alpha - left unchanged
     }
     ctx.putImageData(imageData, 0, 0);
 }
@@ -61,7 +61,7 @@ function _cachedFlipFromFlags(flipFlags, cacheHolder, src) {
     return canvas;
 }
 
-// Window-level flip (main design) — backward-compatible entry point.
+// Window-level flip (main design) - backward-compatible entry point.
 function _cachedFlip(data, src) {
     return _cachedFlipFromFlags(data, data, src);
 }

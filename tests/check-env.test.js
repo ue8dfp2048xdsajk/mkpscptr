@@ -52,7 +52,7 @@ function run(env) {
     };
 }
 
-describe('scripts/check-env.js — child-process integration', () => {
+describe('scripts/check-env.js - child-process integration', () => {
     test('exits 0 when all required variables are present and valid', () => {
         const { code, stdout } = run(ALL_REQUIRED);
         expect(code).toBe(0);

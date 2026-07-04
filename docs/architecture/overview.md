@@ -25,14 +25,14 @@ Mockup Scripter is a static-first web app with a serverless API backend. There i
    │  Clerk  │        │  Stripe  │       │   MongoDB     │   │ Upstash Redis   │
    │  (auth) │        │ (billing)│       │ projects,     │   │ or PostgreSQL   │
    │         │        │          │       │ customers,    │   │ (rate limits    │
-   │         │        │          │       │ idempotency_  │   │  only — fails   │
+   │         │        │          │       │ idempotency_  │   │  only - fails   │
    │         │        │          │       │ keys,         │   │  open, optional)│
    │         │        │          │       │ nonce_seen    │   │                 │
    └─────────┘        └──────────┘       └──────────────┘   └─────────────────┘
 ```
 
 MongoDB is the **only** durable dependency in the payment-to-plan-update path
-(besides Stripe and Clerk themselves) — replay-protection nonces
+(besides Stripe and Clerk themselves) - replay-protection nonces
 (`nonce_seen`) and webhook idempotency (`idempotency_keys`) both live there.
 Upstash/Postgres back the rate limiters only, which fail open, so they are
 optional and cannot block a payment from activating a plan.
@@ -56,7 +56,7 @@ optional and cannot block a payment from activating a plan.
 | Page | Role |
 |------|------|
 | `index.html` | Marketing landing (features, pricing, FAQ) |
-| `app.html` | Main editor — multi-window mockup grid |
+| `app.html` | Main editor - multi-window mockup grid |
 | `settings.html` | Profile, billing portal, account deletion |
 | `privacy.html`, `terms.html`, etc. | Legal / policy pages |
 
@@ -104,8 +104,8 @@ API handlers live in `api/` as Vercel serverless functions. Shared utilities:
 | `_verify-clerk-token.js` | JWT verification via Clerk JWKS |
 | `_db.js` | MongoDB connection pool |
 | `_cors.js` | CORS headers |
-| `_nonce-store.js` | `/api/set-plan` replay protection — MongoDB-only (`nonce_seen` collection) |
-| `_rate-limiter.js` / `_sliding-window.js` | IP and per-user rate limits — Redis/Postgres, falls back to in-memory (fails open) |
+| `_nonce-store.js` | `/api/set-plan` replay protection - MongoDB-only (`nonce_seen` collection) |
+| `_rate-limiter.js` / `_sliding-window.js` | IP and per-user rate limits - Redis/Postgres, falls back to in-memory (fails open) |
 
 See [backend-api.md](backend-api.md) for the full endpoint catalog.
 

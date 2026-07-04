@@ -46,7 +46,7 @@ function _renderPattern(data, lowQuality = false){
     const obj = data.designObject;
     const s = data.patternSettings || _defaultPattern();
 
-    // Use pre-warp tile source if stored by applyWarpToData — warp is applied
+    // Use pre-warp tile source if stored by applyWarpToData - warp is applied
     // to the whole tiled canvas below, so individual tiles must be undistorted.
     const tileEl = data._patternTileSource || obj.getElement();
     if(!tileEl) return;
@@ -54,7 +54,7 @@ function _renderPattern(data, lowQuality = false){
     const srcH = tileEl.height || tileEl.naturalHeight || obj.height;
     if(srcW < 1 || srcH < 1) return;
 
-    // The master tile is invisible — the pattern canvas renders all tiles
+    // The master tile is invisible - the pattern canvas renders all tiles
     // including its position, so it shows through the evented-false overlay.
     obj.set({opacity: 0});
 
@@ -116,7 +116,7 @@ function _renderPattern(data, lowQuality = false){
     // ── Progressive downsampling (mipmap-style) ───────────────────────────────
     // When a tile is drawn much smaller than its source a single drawImage step
     // causes aliasing.  Pre-shrink in halving steps to ~2× the SS-scaled display
-    // size so the final drawImage only performs a ≤2× reduction — much sharper.
+    // size so the final drawImage only performs a ≤2× reduction - much sharper.
     const physTileW = Math.max(2, Math.round(tileW * dpr * SS));
     const physTileH = Math.max(2, Math.round(tileH * dpr * SS));
     let drawEl = tileEl;
@@ -140,7 +140,7 @@ function _renderPattern(data, lowQuality = false){
                 }).then(bmp => {
                     // Only apply if tile/key still match (user hasn't moved on)
                     // and the source pixels weren't mutated in place (e.g. eraser)
-                    // since this bitmap was snapshotted — tracked via _tileEpoch.
+                    // since this bitmap was snapshotted - tracked via _tileEpoch.
                     if (data._dsKey === dsKey && data._dsSrc === tileEl && data._tileEpoch === mipEpoch) {
                         const hq = document.createElement('canvas');
                         hq.width  = bmp.width;
@@ -287,7 +287,7 @@ function _renderPattern(data, lowQuality = false){
             mCtx.closePath();
         });
         mCtx.clip();
-        // Draw finalCanvas at CSS size — the dpr scale converts it to physical
+        // Draw finalCanvas at CSS size - the dpr scale converts it to physical
         mCtx.drawImage(finalCanvas, 0, 0, W, H);
         finalCanvas = masked;
     }

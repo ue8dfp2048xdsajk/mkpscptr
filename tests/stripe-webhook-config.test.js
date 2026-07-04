@@ -60,7 +60,7 @@ const GOOD_ENV = {
     BASE_URL: 'https://mkpscptr.vercel.app',
 };
 
-describe('GET /api/webhooks/stripe — config health-check', () => {
+describe('GET /api/webhooks/stripe - config health-check', () => {
     let handler;
     beforeAll(() => {
         jest.resetModules();
@@ -111,7 +111,7 @@ describe('GET /api/webhooks/stripe — config health-check', () => {
     });
 });
 
-describe('GET /api/webhooks/stripe — STRIPE_SECRET_KEY health-check', () => {
+describe('GET /api/webhooks/stripe - STRIPE_SECRET_KEY health-check', () => {
     let handler;
     beforeAll(() => {
         jest.resetModules();
@@ -148,7 +148,7 @@ describe('GET /api/webhooks/stripe — STRIPE_SECRET_KEY health-check', () => {
     });
 });
 
-describe('POST /api/webhooks/stripe — env-var gate', () => {
+describe('POST /api/webhooks/stripe - env-var gate', () => {
     let handler;
     beforeAll(() => {
         jest.resetModules();
@@ -180,7 +180,7 @@ describe('POST /api/webhooks/stripe — env-var gate', () => {
     });
 });
 
-describe('scripts/check-env.js — STRIPE_WEBHOOK_SECRET validate()', () => {
+describe('scripts/check-env.js - STRIPE_WEBHOOK_SECRET validate()', () => {
     let REQUIRED;
     beforeAll(() => {
         jest.resetModules();
@@ -212,7 +212,7 @@ describe('scripts/check-env.js — STRIPE_WEBHOOK_SECRET validate()', () => {
     });
 });
 
-describe('Stripe webhook retry & idempotency — MongoDB-backed claim and nonce store', () => {
+describe('Stripe webhook retry & idempotency - MongoDB-backed claim and nonce store', () => {
     const WEBHOOK_SECRET = 'whsec_test_retry_integration_secret';
     const SET_PLAN_SECRET = 'retry_test_set_plan_secret';
     const BASE_URL = 'https://mkpscptr.vercel.app';
@@ -240,7 +240,7 @@ describe('Stripe webhook retry & idempotency — MongoDB-backed claim and nonce 
         delete process.env.DATABASE_URL;
 
         // Both the webhook's idempotency_keys claim and set-plan's nonce store
-        // are MongoDB-backed — share one fake db across the whole describe
+        // are MongoDB-backed - share one fake db across the whole describe
         // block so idempotency/nonce state persists across deliveries exactly
         // like it would against a real MongoDB instance.
         const fakeDb = makeFakeDb();
@@ -380,7 +380,7 @@ describe('Stripe webhook retry & idempotency — MongoDB-backed claim and nonce 
         }
     });
 
-    test('second delivery of same event ID is blocked by MongoDB idempotency claim — Clerk called exactly once', async () => {
+    test('second delivery of same event ID is blocked by MongoDB idempotency claim - Clerk called exactly once', async () => {
         // Both deliveries share the same event.id. The first claims the event
         // in the shared MongoDB idempotency_keys collection (tryClaimStripeEvent);
         // the second delivery's claim attempt hits the same _id and is rejected
@@ -388,7 +388,7 @@ describe('Stripe webhook retry & idempotency — MongoDB-backed claim and nonce 
         // ever called again. The set-plan nonce store (also MongoDB-backed,
         // keyed on the same event.id) is a second, independent layer of
         // defense that would also reject it if this first layer were ever
-        // bypassed — see tests/nonce-replay.test.js and tests/nonce-race.test.js.
+        // bypassed - see tests/nonce-replay.test.js and tests/nonce-race.test.js.
         const stripeEvent = {
             id: 'evt_test_idempotent_001',
             type: 'checkout.session.completed',
@@ -474,7 +474,7 @@ describe('Stripe webhook retry & idempotency — MongoDB-backed claim and nonce 
         }
     });
 
-    test('concurrent deliveries of same Stripe event are deduplicated — Clerk called exactly once', async () => {
+    test('concurrent deliveries of same Stripe event are deduplicated - Clerk called exactly once', async () => {
         // Two deliveries of the SAME event arrive simultaneously (e.g. Stripe
         // fires twice due to a network blip). Both carry the same event.id, so
         // MongoDB's atomic unique _id index on idempotency_keys ensures only one
@@ -566,7 +566,7 @@ describe('Stripe webhook retry & idempotency — MongoDB-backed claim and nonce 
             expect(processedResponses[0].userId).toBe('user_concurrent_001');
             expect(processedResponses[0].plan).toBe('starter');
 
-            // Clerk must have been called exactly once — no duplicate upgrade.
+            // Clerk must have been called exactly once - no duplicate upgrade.
             expect(clerkCallCount).toBe(1);
         } finally {
             global.fetch = realFetch;

@@ -114,7 +114,7 @@ app.get('/settings.html',(req, res) => serveHtmlWithClerkKey('settings.html', re
 
 app.use(express.static('.'));
 
-// SPA catch-all — serves app.html for any non-API path
+// SPA catch-all - serves app.html for any non-API path
 app.get('*', (req, res) => serveHtmlWithClerkKey('app.html', res));
 
 // Catch-all error handler (handles PayloadTooLargeError and others)
@@ -122,7 +122,7 @@ app.use((err, req, res, next) => {
     if (err.type === 'entity.too.large') {
         const mb = err.length ? (err.length / 1024 / 1024).toFixed(1) : '?';
         console.error(`[PAYLOAD TOO LARGE] ${req.method} ${req.path}: ${mb} MB`);
-        return res.status(413).json({ ok: false, error: `Snapshot too large (${mb} MB). Compression may have failed — try again.` });
+        return res.status(413).json({ ok: false, error: `Snapshot too large (${mb} MB). Compression may have failed - try again.` });
     }
     console.error(`[ERROR] ${req.method} ${req.path}:`, err);
     if (!res.headersSent) res.status(500).json({ ok: false, error: 'Internal server error' });

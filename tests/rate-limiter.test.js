@@ -48,7 +48,7 @@ function makeReqRes({ authToken = '', ip = '1.2.3.4', body = {} } = {}) {
 // 1. IN-MEMORY path
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — in-memory path (no Redis, no PG)', () => {
+describe('Rate limiter - in-memory path (no Redis, no PG)', () => {
     let rl;
 
     beforeEach(() => {
@@ -97,7 +97,7 @@ describe('Rate limiter — in-memory path (no Redis, no PG)', () => {
 // 2. REDIS path (fetch mocked)
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — Redis path (mocked fetch)', () => {
+describe('Rate limiter - Redis path (mocked fetch)', () => {
     let rl;
     let mockFetch;
 
@@ -172,7 +172,7 @@ describe('Rate limiter — Redis path (mocked fetch)', () => {
 // 3. Redis window-reset (time-travel past WINDOW_SECONDS)
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — Redis window-reset (time-travel past WINDOW_SECONDS)', () => {
+describe('Rate limiter - Redis window-reset (time-travel past WINDOW_SECONDS)', () => {
     let rl;
     let mockFetch;
     let dateSpy;
@@ -201,7 +201,7 @@ describe('Rate limiter — Redis window-reset (time-travel past WINDOW_SECONDS)'
     });
 
     test('first recordFailure after window expiry sends INCR+EXPIRE (counter resets to 1)', async () => {
-        // Advance time past the window — the Redis key has expired
+        // Advance time past the window - the Redis key has expired
         dateSpy.mockReturnValue(T0 + WINDOW_MS + 1);
 
         // INCR on a missing (expired) key starts at 1; EXPIRE resets the TTL
@@ -216,7 +216,7 @@ describe('Rate limiter — Redis window-reset (time-travel past WINDOW_SECONDS)'
         const [url, opts] = mockFetch.mock.calls[0];
         expect(url).toContain('/pipeline');
         const body = JSON.parse(opts.body);
-        // Both INCR and EXPIRE must be present — EXPIRE is what makes the window reset
+        // Both INCR and EXPIRE must be present - EXPIRE is what makes the window reset
         expect(body).toContainEqual(['INCR', expect.stringContaining('ratelimit:9.9.9.1')]);
         expect(body).toContainEqual(['EXPIRE', expect.stringContaining('ratelimit:9.9.9.1'), expect.any(Number)]);
     });
@@ -239,7 +239,7 @@ describe('Rate limiter — Redis window-reset (time-travel past WINDOW_SECONDS)'
         // Move into the new window (old key has expired in Redis)
         dateSpy.mockReturnValue(T0 + WINDOW_MS + 1);
 
-        // 4 failures in the new window — INCR returns 1,2,3,4 each paired with EXPIRE
+        // 4 failures in the new window - INCR returns 1,2,3,4 each paired with EXPIRE
         for (let count = 1; count <= 4; count++) {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
@@ -293,7 +293,7 @@ describe('Rate limiter — Redis window-reset (time-travel past WINDOW_SECONDS)'
 // 4. Redis error → graceful in-memory fallback (no crash)
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — Redis errors fall back to in-memory gracefully', () => {
+describe('Rate limiter - Redis errors fall back to in-memory gracefully', () => {
     let rl;
 
     beforeEach(() => {
@@ -345,7 +345,7 @@ describe('Rate limiter — Redis errors fall back to in-memory gracefully', () =
 // 4. PostgreSQL path (mocked pg Pool, no Redis)
 // ---------------------------------------------------------------------------
 
-describe('Rate limiter — PostgreSQL path (mocked pg Pool)', () => {
+describe('Rate limiter - PostgreSQL path (mocked pg Pool)', () => {
     let rl;
     let mockQuery;
     let randomSpy;
@@ -356,7 +356,7 @@ describe('Rate limiter — PostgreSQL path (mocked pg Pool)', () => {
         process.env.DATABASE_URL = 'postgres://mock/db';
 
         // Keep Math.random() above the 5% prune gate so pgPruneExpired never
-        // fires during these tests — otherwise it consumes mockResolvedValueOnce
+        // fires during these tests - otherwise it consumes mockResolvedValueOnce
         // responses queued for SELECT assertions.
         randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0.1);
 
@@ -463,7 +463,7 @@ describe('Rate limiter — PostgreSQL path (mocked pg Pool)', () => {
 // 5. Integration: set-plan.js handler + rate limiter (end-to-end via real modules)
 // ---------------------------------------------------------------------------
 
-describe('set-plan handler — rate limiting integration (in-memory)', () => {
+describe('set-plan handler - rate limiting integration (in-memory)', () => {
     const SECRET = 'correct-secret';
 
     beforeEach(() => {

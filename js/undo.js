@@ -170,7 +170,7 @@ async function restoreDuplicatesFromState(data, savedDups){
     }
 }
 
-// Snapshot of the reset target for one window — same shape as captureWindowState().
+// Snapshot of the reset target for one window - same shape as captureWindowState().
 function captureWindowBaseline(data) {
     const scale = data.initialScale ?? data.scale ?? 1;
     return {
@@ -377,7 +377,7 @@ async function restoreWindowState(data, state){
     // Restore notes
     if(state.notes !== undefined) data.notes = state.notes;
 
-    // Restore flip — invalidate the flip cache so the pipeline re-flips correctly
+    // Restore flip - invalidate the flip cache so the pipeline re-flips correctly
     if(state.flipX !== undefined) data.flipX = state.flipX;
     if(state.flipY !== undefined) data.flipY = state.flipY;
     if(state.flipX !== undefined || state.flipY !== undefined) data._flipMap = null;
@@ -595,7 +595,7 @@ function _reDeleteWindows(saved){
     updateDropUI();
 }
 
-// Reorder undo/redo: move grid items (cellEl), not inner wrappers — matches drag-drop.
+// Reorder undo/redo: move grid items (cellEl), not inner wrappers - matches drag-drop.
 function _applyReorderOrder(order){
     const cont = document.getElementById('canvasContainer');
     if(!cont) return;

@@ -53,7 +53,7 @@ module.exports = async function handler(req, res) {
         console.error('account/delete: failed to look up customer record (non-fatal)', err);
     }
 
-    // ── Step 2: Delete Clerk user — point of no return ───────────────────────
+    // ── Step 2: Delete Clerk user - point of no return ───────────────────────
     // All destructive steps below only run after Clerk confirms the user is
     // deleted. If this call fails, we return immediately and nothing is lost.
     let clerkRes;
@@ -80,7 +80,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Clerk account is confirmed gone. All remaining steps are cleanup.
-    // Failures below are logged but non-fatal — the user cannot sign back in.
+    // Failures below are logged but non-fatal - the user cannot sign back in.
 
     // ── Step 3: Remove MongoDB customer mapping BEFORE cancelling Stripe ─────
     // Deleting this record first means the customer.subscription.deleted
@@ -91,7 +91,7 @@ module.exports = async function handler(req, res) {
     try {
         await db.collection('customers').deleteOne({ clerkUserId });
     } catch (err) {
-        console.error('account/delete: failed to delete customer mapping (non-fatal — account already deleted)', err);
+        console.error('account/delete: failed to delete customer mapping (non-fatal - account already deleted)', err);
     }
 
     // ── Step 4: Delete Stripe customer ──────────────────────────────────────
@@ -117,7 +117,7 @@ module.exports = async function handler(req, res) {
                 console.error('account/delete: failed to reach Stripe API (non-fatal)', err);
             }
         } else {
-            console.error('account/delete: STRIPE_SECRET_KEY not set — skipping Stripe cleanup for', stripeCustomerId);
+            console.error('account/delete: STRIPE_SECRET_KEY not set - skipping Stripe cleanup for', stripeCustomerId);
         }
     }
 
@@ -125,7 +125,7 @@ module.exports = async function handler(req, res) {
     try {
         await db.collection('projects').deleteMany({ userId: clerkUserId });
     } catch (err) {
-        console.error('account/delete: failed to delete projects (non-fatal — account already deleted)', err);
+        console.error('account/delete: failed to delete projects (non-fatal - account already deleted)', err);
     }
 
     return res.status(200).json({ ok: true });

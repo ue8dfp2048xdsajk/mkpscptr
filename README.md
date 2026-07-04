@@ -28,7 +28,7 @@ node server.js
 
 Open **http://localhost:5000**.
 
-There is no `npm start` or `npm run dev` script — run `node server.js` directly.
+There is no `npm start` or `npm run dev` script - run `node server.js` directly.
 
 Set environment variables before starting (see [`.env.example`](.env.example) and [docs/getting-started/environment-variables.md](docs/getting-started/environment-variables.md)). The project does not load `.env` automatically; export variables in your shell or use a tool like `direnv`.
 

@@ -31,7 +31,7 @@ body {
     position: relative;
 }
 
-/* Thin top bar — logo left, file actions, account right */
+/* Thin top bar - logo left, file actions, account right */
 .header-top-row {
     display: flex;
     align-items: center;
@@ -256,7 +256,7 @@ body {
     gap: 8px;
 }
 
-/* ── Header button base — light ghost on dark bar ───────────────────────── */
+/* ── Header button base - light ghost on dark bar ───────────────────────── */
 .sticky-header button {
     height: 32px;
     padding: 0 14px;
@@ -310,7 +310,7 @@ body {
     box-shadow: 0 2px 8px rgba(79, 110, 247, 0.40);
 }
 
-/* Export — top-bar primary CTA */
+/* Export - top-bar primary CTA */
 #exportBtn.export-btn-primary {
     background: linear-gradient(180deg, #6366F1 0%, #4F46E5 100%);
     color: #fff;
@@ -330,7 +330,7 @@ body {
     font-weight: 600;
 }
 
-/* Filter input in the header — ghost on dark bar */
+/* Filter input in the header - ghost on dark bar */
 #filterByNameInput {
     height: 32px;
     padding: 0 14px;
@@ -413,7 +413,7 @@ body {
     transform: translateY(6px);
 }
 
-/* Collapse button — badge in top-right corner above the panel */
+/* Collapse button - badge in top-right corner above the panel */
 #vpPanelCollapseBtn {
     position: absolute;
     top: -9px;
@@ -492,7 +492,7 @@ body {
     margin: 1px 0;
 }
 
-/* Tool buttons — icon-sized squares in a horizontal row */
+/* Tool buttons - icon-sized squares in a horizontal row */
 .vpc-tools {
     display: flex;
     flex-direction: row;
@@ -552,14 +552,14 @@ body {
     background: transparent;
 }
 
-/* Reset view — action button, not a mode toggle */
+/* Reset view - action button, not a mode toggle */
 #resetViewBtn {
     color: #999;
     font-size: 15px;
 }
 #resetViewBtn:hover { background: #ddd; color: #555; }
 
-/* ── Zoom + fit strip — fixed to very bottom-right corner, edge-touching ──── */
+/* ── Zoom + fit strip - fixed to very bottom-right corner, edge-touching ──── */
 #vpZoomPanel {
     position: fixed;
     bottom: 0;
@@ -580,7 +580,7 @@ body {
     user-select: none;
 }
 
-/* Badge in zoom panel — small muted text */
+/* Badge in zoom panel - small muted text */
 #vpZoomPanel #windowCountBadge {
     font-size: 9px;
     font-weight: 500;
@@ -631,7 +631,7 @@ body {
 }
 #zoomLevelDisplay:hover { color: #4F6EF7; }
 
-/* Always show ⛶ icon — overrides any text JS sets on this button */
+/* Always show ⛶ icon - overrides any text JS sets on this button */
 #centerViewBtn {
     font-size: 0 !important;
     color: transparent !important;
@@ -943,7 +943,7 @@ body.vpc-panel-collapsed #minimapTeaser {
         right: 8px;
         max-width: none;
     }
-    /* Override the right-anchored variant — same fixed position */
+    /* Override the right-anchored variant - same fixed position */
     .export-popover--right,
     .header-right .export-popover {
         left: 8px;
@@ -960,7 +960,7 @@ body.vpc-panel-collapsed #minimapTeaser {
     }
 }
 
-/* ── Popover inner buttons — neutral pill, matches toolbar base ─────────── */
+/* ── Popover inner buttons - neutral pill, matches toolbar base ─────────── */
 .export-popover button:not(.seg-btn) {
     height: 32px;
     padding: 0 14px;
@@ -990,7 +990,7 @@ body.vpc-panel-collapsed #minimapTeaser {
 /* Spacing between stacked file-menu buttons */
 #fileMenuPopover button + button { margin-top: 6px; }
 
-/* ── Save as New — PRO gate wrapper ───────────────────────────────────────── */
+/* ── Save as New - PRO gate wrapper ───────────────────────────────────────── */
 .file-menu-pro-wrap {
     position: relative;
     display: block;
@@ -1100,7 +1100,7 @@ body.vpc-panel-collapsed #minimapTeaser {
     font-variant-numeric: tabular-nums;
 }
 
-/* Export go button — indigo pill, primary action */
+/* Export go button - indigo pill, primary action */
 #exportGoBtn.export-go-btn-full {
     display: block;
     width: 100%;
@@ -1119,7 +1119,7 @@ body.vpc-panel-collapsed #minimapTeaser {
     color: #fff;
 }
 
-/* Export Text Boxes button — extra top margin to separate from quality row */
+/* Export Text Boxes button - extra top margin to separate from quality row */
 #exportTextBtn { margin-top: 2px; }
 
 
@@ -1168,7 +1168,7 @@ body.vpc-panel-collapsed #minimapTeaser {
 
 /* Prevent Fabric's upper-canvas from leaking pointer events outside the
    canvas bounds (especially important when windows in the same row have
-   different heights — the taller neighbour's click area could otherwise
+   different heights - the taller neighbour's click area could otherwise
    be captured by the shorter window's overflowing upper-canvas). */
 .canvas-wrapper .canvas-container { overflow: hidden; }
 
@@ -1391,7 +1391,7 @@ body.vpc-panel-collapsed #minimapTeaser {
     pointer-events: none;
 }
 
-/* ── Context Panel — left side, always present ──────────────────────────── */
+/* ── Context Panel - left side, always present ──────────────────────────── */
 #appLogoBar {
     flex-shrink: 0;
     padding: 10px 14px;
@@ -1410,7 +1410,7 @@ body.vpc-panel-collapsed #minimapTeaser {
     left: 0;
     top: 84px;                     /* fallback until JS measures real header height */
     width: 26px;                   /* collapsed by default */
-    height: calc(100vh - 84px);    /* fallback — JS keeps this in sync */
+    height: calc(100vh - 84px);    /* fallback - JS keeps this in sync */
     padding-top: 0;
     background: #fff;
     border-right: 1px solid #E5E7EB;
@@ -1444,7 +1444,7 @@ body.sidebar-resizing * { cursor: col-resize !important; user-select: none !impo
 /* Hide idle message when sidebar is collapsed */
 body:not(.sidebar-expanded) .cp-idle-msg { display: none !important; }
 
-/* Sidebar toggle tab — fixed so it escapes the panel's overflow:hidden */
+/* Sidebar toggle tab - fixed so it escapes the panel's overflow:hidden */
 #sidebarToggleBtn {
     position: fixed;
     left: 26px; /* right edge of collapsed panel */
@@ -1508,7 +1508,7 @@ body.sidebar-expanded #contextPanelBody {
     display: none;
 }
 
-/* Idle hint — fills the panel body when nothing is selected */
+/* Idle hint - fills the panel body when nothing is selected */
 .cp-idle-msg {
     display: none;
     flex-direction: column;
@@ -1641,7 +1641,7 @@ body.sidebar-expanded #contextPanelBody {
 #contextPanel button:disabled { opacity: 0.4; cursor: not-allowed; }
 #contextPanel button:disabled:hover { background: #F3F4F6; border-color: #E5E7EB; }
 
-/* Coach / batch hint — exclude from full-width panel button styles */
+/* Coach / batch hint - exclude from full-width panel button styles */
 #contextPanel .sidebar-coach button,
 #contextPanel .batch-edit-hint-close {
     display: inline-block !important;
@@ -1683,7 +1683,7 @@ body.sidebar-expanded #contextPanelBody {
     width: auto;
 }
 
-/* Clipping sub-buttons — indented secondary actions */
+/* Clipping sub-buttons - indented secondary actions */
 #contextPanel .clip-sub-btn {
     margin-left: 12px;
     width: calc(100% - 12px);
@@ -1733,7 +1733,7 @@ body.sidebar-expanded #contextPanelBody {
     z-index: 15;
 }
 
-/* Wrapper — transparent by default; border/bg appear on hover or edit */
+/* Wrapper - transparent by default; border/bg appear on hover or edit */
 .canvas-text-box {
     position: absolute;
     min-width: 120px;
@@ -1782,7 +1782,7 @@ body.sidebar-expanded #contextPanelBody {
 }
 .tb-drag-bar:active { cursor: grabbing; }
 
-/* Inner contenteditable — text area */
+/* Inner contenteditable - text area */
 .tb-text {
     display: block;
     min-width: 80px;
@@ -2064,7 +2064,7 @@ body.user-plan-pro .pro-badge-tip {
     position: relative;
 }
 
-/* ⭐ PRO pill badge — floats above the canvas window, not over the image */
+/* ⭐ PRO pill badge - floats above the canvas window, not over the image */
 .pro-star-badge {
     position: absolute;
     bottom: calc(100% + 4px);
@@ -2459,7 +2459,7 @@ body.user-plan-pro .pro-badge-tip {
 }
 /* Reuses the .ms-plan-billing-note text-swap mechanism in setPeriod() (same
    class + data-<period> attrs), so it needs no extra JS to show/hide per
-   billing period — :empty collapses it entirely on monthly/annual. */
+   billing period - :empty collapses it entirely on monthly/annual. */
 .ms-plan-earlybird-badge {
     display: inline-block;
     background: #dcfce7;
@@ -2865,7 +2865,7 @@ body.user-plan-pro .pro-badge-tip {
 }
 .ms-open-uuid-btn:hover { background: #4B5563; }
 
-/* ── File menu — Open from cloud UUID row ────────────────────────────────── */
+/* ── File menu - Open from cloud UUID row ────────────────────────────────── */
 .file-menu-uuid-row {
     display: flex;
     gap: 4px;

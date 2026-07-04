@@ -77,11 +77,11 @@ function buildSoftGradient(ctx, x, y, innerR, outerR, rgb, gamma){
 function paintDot(ctx, x, y, size, softness, hexColor, compositeOp = 'source-over'){
     ctx.save();
     ctx.globalCompositeOperation = compositeOp;
-    // For destination-out (eraser) the colour is irrelevant — only alpha matters
+    // For destination-out (eraser) the colour is irrelevant - only alpha matters
     const rgb = compositeOp === 'destination-out' ? '0,0,0' : hexToRgb(hexColor);
 
     if(softness <= 0){
-        // Fully hard — plain filled circle
+        // Fully hard - plain filled circle
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
         ctx.fillStyle = `rgb(${rgb})`;

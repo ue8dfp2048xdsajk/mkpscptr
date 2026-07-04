@@ -5,7 +5,7 @@
  * modal open and fetch resolution, and that the HTML disabled attribute makes
  * them click-proof regardless of any CSS override (pointer-events, opacity, etc.).
  *
- * Relevant source: js/plans-modal.js — openPlansModal, _setButtonsLoading, _syncPlanButtons
+ * Relevant source: js/plans-modal.js - openPlansModal, _setButtonsLoading, _syncPlanButtons
  */
 
 'use strict';
@@ -33,7 +33,7 @@ function buildDOM() {
     `;
 }
 
-describe('plans-modal — button disabled state during and after fetch', () => {
+describe('plans-modal - button disabled state during and after fetch', () => {
     let resolveFetch;
 
     beforeEach(() => {
@@ -151,7 +151,7 @@ describe('plans-modal — button disabled state during and after fetch', () => {
         expect(proBtn.textContent).toBe('Not available');
     });
 
-    test('upgrade buttons become enabled after a failed fetch (graceful fallback — treat all prices as available)', async () => {
+    test('upgrade buttons become enabled after a failed fetch (graceful fallback - treat all prices as available)', async () => {
         window.openPlansModal();
 
         const starterBtn = document.querySelector('.ms-plan-card[data-plan="starter"] .ms-plan-cta');

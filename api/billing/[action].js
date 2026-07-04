@@ -7,11 +7,11 @@ const BILLING_WINDOW_SEC = 60;
 
 // Resolve the Stripe customer ID for a Clerk user from their Clerk public_metadata.
 // Returns { customerId, error } where:
-//   customerId — the Stripe customer ID, or null if none is stored
-//   error      — non-null string if Clerk was unreachable or returned an error,
+//   customerId - the Stripe customer ID, or null if none is stored
+//   error      - non-null string if Clerk was unreachable or returned an error,
 //                so callers can distinguish "no account" from "Clerk is down"
 //
-// We do NOT fall back to an email-based Stripe search — that lookup can
+// We do NOT fall back to an email-based Stripe search - that lookup can
 // resolve to a different customer with the same email address, exposing
 // another user's invoices or granting portal access to an unrelated subscription.
 async function resolveStripeCustomer(clerkUserId, clerkSecretKey) {
@@ -48,7 +48,7 @@ async function resolveStripeCustomer(clerkUserId, clerkSecretKey) {
             );
             customerId = doc?.stripeCustomerId || null;
         } catch {
-            // Non-fatal — if MongoDB is also unavailable, return null (no customer found).
+            // Non-fatal - if MongoDB is also unavailable, return null (no customer found).
         }
     }
 
@@ -95,7 +95,7 @@ async function handlePortal(req, res, stripeCustomerId, stripeSecretKey) {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
-    // Use server-side BASE_URL — never trust the Origin header here, as it is
+    // Use server-side BASE_URL - never trust the Origin header here, as it is
     // user-controlled and would constitute an open redirect after portal actions.
     const baseUrl = process.env.BASE_URL || 'https://mockupscripter.com';
     const params = new URLSearchParams();
@@ -157,7 +157,7 @@ module.exports = async function handler(req, res) {
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     const { customerId: stripeCustomerId, error: clerkError } = await resolveStripeCustomer(clerkUserId, clerkSecretKey);
 
-    // If Clerk is reachable but returned an error, surface it — do not silently
+    // If Clerk is reachable but returned an error, surface it - do not silently
     // return an empty invoice list or a misleading "no billing account" message.
     if (clerkError) {
         return res.status(502).json({ ok: false, error: 'Could not reach authentication server. Please try again.' });

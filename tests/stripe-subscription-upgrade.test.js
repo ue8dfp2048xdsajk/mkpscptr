@@ -4,7 +4,7 @@
 
 'use strict';
 
-describe('api/_stripe-prices — subscription update routing', () => {
+describe('api/_stripe-prices - subscription update routing', () => {
     const envBackup = {};
 
     beforeEach(() => {

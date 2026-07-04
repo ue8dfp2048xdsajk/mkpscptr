@@ -53,7 +53,7 @@ function _drawWatermarkOnCanvas(data) {
     var isFree    = _userPlan === 'free';
     var isStarred = _userPlan === 'starter' && _windowIsProGated(data);
     if (!isFree && !isStarred) return;
-    // Suppress only during viewport/hand pan and shift+drag marquee — not design transforms.
+    // Suppress only during viewport/hand pan and shift+drag marquee - not design transforms.
     if (_watermarkInteractionActive()) return;
     if (!data.fabricCanvas || !data.designObject) return;
     var fc  = data.fabricCanvas;
@@ -121,8 +121,8 @@ function _updateProStarBadge(data) {
         (_userPlan === 'pro' ? ' pro-star-green' : ' pro-star-yellow');
     badge.textContent = '⭐ PRO';
     badge.title = _userPlan === 'pro'
-        ? 'Uses a PRO feature — exports fine on your plan'
-        : 'Uses a PRO feature — upgrade to export this window';
+        ? 'Uses a PRO feature - exports fine on your plan'
+        : 'Uses a PRO feature - upgrade to export this window';
     host.appendChild(badge);
 }
 

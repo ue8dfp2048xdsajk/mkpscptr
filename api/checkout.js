@@ -154,7 +154,7 @@ module.exports = async function handler(req, res) {
                     });
                 }
             } catch (err) {
-                console.error('checkout: portal subscription upgrade failed — falling back to Checkout', err);
+                console.error('checkout: portal subscription upgrade failed - falling back to Checkout', err);
             }
         }
     }
@@ -200,7 +200,7 @@ module.exports = async function handler(req, res) {
         return res.status(502).json({
             ok: false,
             code: 'STRIPE_ERROR',
-            error: stripeData.error?.message || `Stripe returned status ${stripeRes.status} — please try again.`,
+            error: stripeData.error?.message || `Stripe returned status ${stripeRes.status} - please try again.`,
         });
     }
 

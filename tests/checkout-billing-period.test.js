@@ -42,7 +42,7 @@ const BASE_ENV = {
     CLERK_SECRET_KEY: 'sk_test_clerk_checkout_period',
 };
 
-describe('POST /api/checkout — billing period upgrades', () => {
+describe('POST /api/checkout - billing period upgrades', () => {
     let handler;
 
     beforeEach(() => {

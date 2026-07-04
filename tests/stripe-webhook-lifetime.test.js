@@ -39,7 +39,7 @@ function makeRes() {
     };
 }
 
-describe('stripe webhook — lifetime downgrade guard', () => {
+describe('stripe webhook - lifetime downgrade guard', () => {
     let fakeDb;
     let webhookHandler;
     let setPlanCalls;

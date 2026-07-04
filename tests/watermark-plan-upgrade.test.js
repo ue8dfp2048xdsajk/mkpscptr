@@ -4,7 +4,7 @@
  * End-to-end simulation: watermarks disappear instantly after a plan upgrade.
  *
  * Loads js/pro-gating.js (watermark + PRO helpers) and _refreshAllProStarBadges
- * from js/app.js — matching the browser <script> load order.
+ * from js/app.js - matching the browser <script> load order.
  */
 
 'use strict';
@@ -85,7 +85,7 @@ function makeCanvasData(fc, overrides = {}) {
 function buildDOM() {
     document.body.innerHTML = `
       <div id="upgradePrompt" style="display:flex;">
-        Free plan — watermarks appear on canvas.
+        Free plan - watermarks appear on canvas.
         <button id="upgradePromptClose">✕</button>
       </div>
       <span class="pro-badge">PRO</span>
@@ -103,7 +103,7 @@ beforeEach(() => {
     jest.clearAllMocks();
 });
 
-describe('_drawWatermarkOnCanvas — watermark by plan', () => {
+describe('_drawWatermarkOnCanvas - watermark by plan', () => {
     test('free plan: canvas context fillText is called with watermark text', () => {
         window._userPlan = 'free';
         const fc   = makeFakeCanvas(800, 600);
@@ -198,7 +198,7 @@ describe('_drawWatermarkOnCanvas — watermark by plan', () => {
     });
 });
 
-describe('_refreshAllProStarBadges — #upgradePrompt bar', () => {
+describe('_refreshAllProStarBadges - #upgradePrompt bar', () => {
     test('free plan: #upgradePrompt remains visible', () => {
         window._userPlan = 'free';
 
@@ -232,7 +232,7 @@ describe('_refreshAllProStarBadges — #upgradePrompt bar', () => {
     });
 });
 
-describe('_refreshAllProStarBadges — requestRenderAll', () => {
+describe('_refreshAllProStarBadges - requestRenderAll', () => {
     test('calls requestRenderAll on every fabric canvas', () => {
         window._userPlan = 'pro';
         const fc1 = makeFakeCanvas(400, 300);

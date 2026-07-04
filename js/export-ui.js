@@ -1,7 +1,7 @@
 // ── Export UI: popover, pattern PNG, canvas text ─────────────────────────────
 // Depends on globals from app.js (canvasData, buildFullSnapshot, _autosaveDB, …),
 // pro-gating.js (_syncProEffect, _windowIsProGated), and plans-modal.js
-// (openPlansModal — called at click time, not load time).
+// (openPlansModal - called at click time, not load time).
 // Load this script after js/app.js.
 
 // ── Export Pattern PNG ────────────────────────────────────────────────────────
@@ -314,7 +314,7 @@ async function exportDataToBlob(data, fmt, quality){
 
         indices.forEach(i => _syncProEffect(canvasData[i]));
 
-        // Safety net: Starter plan — silently drop any PRO-gated windows that slipped through
+        // Safety net: Starter plan - silently drop any PRO-gated windows that slipped through
         if(_userPlan === 'starter'){
             indices = indices.filter(i => !_windowIsProGated(canvasData[i]));
             if(!indices.length){
@@ -359,11 +359,11 @@ async function exportDataToBlob(data, fmt, quality){
                 URL.revokeObjectURL(url);
             } else {
                 // --- File mode ---
-                // Path A: File System Access API (Chrome/Edge) — save to folder
+                // Path A: File System Access API (Chrome/Edge) - save to folder
                 if(typeof window.showDirectoryPicker === 'function'){
                     let dirHandle;
                     try{ dirHandle = await window.showDirectoryPicker(); }
-                    catch(err){ return; }  // user cancelled — finally re-enables button
+                    catch(err){ return; }  // user cancelled - finally re-enables button
 
                     for(let i = 0; i < indices.length; i++){
                         const data = canvasData[indices[i]];
@@ -376,7 +376,7 @@ async function exportDataToBlob(data, fmt, quality){
                     }
                     alert('Exported ' + indices.length + ' file(s)!');
                 } else {
-                    // Path B: fallback <a download> — one download per file
+                    // Path B: fallback <a download> - one download per file
                     for(let i = 0; i < indices.length; i++){
                         const data = canvasData[indices[i]];
                         _setExportProgress('Exporting ' + (i + 1) + ' of ' + indices.length + '…');
@@ -398,7 +398,7 @@ async function exportDataToBlob(data, fmt, quality){
             }
         } catch(err) {
             console.error('Export failed:', err);
-            alert('Export failed — ' + (err.message || 'unknown error'));
+            alert('Export failed - ' + (err.message || 'unknown error'));
         } finally {
             goBtn.textContent = 'Export';
             goBtn.disabled = false;
@@ -422,7 +422,7 @@ async function exportDataToBlob(data, fmt, quality){
             return;
         }
 
-        // FREE users cannot export — open plans modal
+        // FREE users cannot export - open plans modal
         if(_userPlan === 'free'){
             if(typeof openPlansModal === 'function') openPlansModal();
             return;
@@ -446,7 +446,7 @@ async function exportDataToBlob(data, fmt, quality){
             ? _resolveExportIndices(indices)
             : indices;
 
-        // STARTER users: PRO-gated mockups — popover skip or plans modal fallback
+        // STARTER users: PRO-gated mockups - popover skip or plans modal fallback
         if(_userPlan === 'starter'){
             indices.forEach(i => _syncProEffect(canvasData[i]));
             const blocked    = indices.filter(i => _windowIsProGated(canvasData[i]));
@@ -474,7 +474,7 @@ async function exportDataToBlob(data, fmt, quality){
             }
         }
 
-        // Server-side export gate — verifies plan server-side so the export
+        // Server-side export gate - verifies plan server-side so the export
         // cannot be triggered by running the frontend code without the backend.
         _setExportProgress('Preparing export…');
         try {
@@ -493,13 +493,13 @@ async function exportDataToBlob(data, fmt, quality){
                 if (exportErr.error === 'upgrade_required') {
                     if (typeof openPlansModal === 'function') openPlansModal();
                 } else {
-                    alert('Export not available — please sign in and try again.');
+                    alert('Export not available - please sign in and try again.');
                 }
                 return;
             }
         } catch {
             _hideExportStatus();
-            alert('Export failed — could not reach the server. Please check your connection.');
+            alert('Export failed - could not reach the server. Please check your connection.');
             return;
         }
 

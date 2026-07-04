@@ -24,7 +24,7 @@ const fs  = require('fs');
 const vm  = require('vm');
 
 // ---------------------------------------------------------------------------
-// Helpers — server-side
+// Helpers - server-side
 // ---------------------------------------------------------------------------
 
 function makeReqRes({ body = {}, env = {}, headers = {} } = {}) {
@@ -62,7 +62,7 @@ const GOOD_ENV = {
     // Clerk plan-upgrade lookup below), so it must stay set here. The Clerk
     // lookup itself is handled by mockFetchClerkThenStripe(), which returns a
     // benign "free plan" response for the Clerk call and only simulates the
-    // Stripe error for the actual Stripe request — otherwise the Clerk call
+    // Stripe error for the actual Stripe request - otherwise the Clerk call
     // would consume the mocked error response first and short-circuit with
     // CLERK_ERROR before the Stripe call under test is ever reached.
     CLERK_SECRET_KEY: 'sk_test_dummy_clerk_for_checkout_tests',
@@ -90,7 +90,7 @@ function mockFetchClerkThenStripe(stripeResponse) {
 // Server-side tests
 // ---------------------------------------------------------------------------
 
-describe('POST /api/checkout — STRIPE_ERROR branch (server)', () => {
+describe('POST /api/checkout - STRIPE_ERROR branch (server)', () => {
     let handler;
 
     beforeAll(() => {
@@ -100,7 +100,7 @@ describe('POST /api/checkout — STRIPE_ERROR branch (server)', () => {
         jest.doMock('../api/_verify-clerk-token', () => ({
             verifyClerkToken:     jest.fn().mockResolvedValue('user_test_checkout'),
             verifyClerkTokenFull: jest.fn().mockResolvedValue(null),
-            // checkout.js gates on this flag before ever calling verifyClerkToken —
+            // checkout.js gates on this flag before ever calling verifyClerkToken -
             // without it the handler always short-circuits to the 503
             // "auth not configured" branch and the Stripe-error path under test
             // (mocked via global.fetch below) is never reached.
@@ -189,7 +189,7 @@ describe('POST /api/checkout — STRIPE_ERROR branch (server)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Helpers — client-side
+// Helpers - client-side
 // ---------------------------------------------------------------------------
 // _startCheckout is a plain top-level async function at the end of js/app.js.
 // Extract its source once, then run it in a minimal vm sandbox per test so we
@@ -225,7 +225,7 @@ function buildSandbox({ fetchImpl, alertMock } = {}) {
 // Client-side tests
 // ---------------------------------------------------------------------------
 
-describe('_startCheckout — client-side STRIPE_ERROR alert', () => {
+describe('_startCheckout - client-side STRIPE_ERROR alert', () => {
     test('alert fires with the Stripe-supplied error text when code is STRIPE_ERROR', async () => {
         const alerts = [];
         const sandbox = buildSandbox({

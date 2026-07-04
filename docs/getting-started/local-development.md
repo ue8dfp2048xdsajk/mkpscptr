@@ -5,9 +5,9 @@
 - **Node.js** 18+ (project tested on v24)
 - **npm** 9+
 - Accounts / credentials for services you want to exercise locally:
-  - [Clerk](https://clerk.com) — sign-in (required for auth-gated features)
-  - [MongoDB Atlas](https://www.mongodb.com/atlas) — cloud project save/load (optional but recommended)
-  - [Stripe](https://stripe.com) — checkout and billing (optional for editor-only work)
+  - [Clerk](https://clerk.com) - sign-in (required for auth-gated features)
+  - [MongoDB Atlas](https://www.mongodb.com/atlas) - cloud project save/load (optional but recommended)
+  - [Stripe](https://stripe.com) - checkout and billing (optional for editor-only work)
 
 Native dependencies (`canvas`, `sharp`, `onnxruntime-node`) may require build tools on some platforms. If `npm install` fails on native modules, install Xcode Command Line Tools (macOS) or equivalent.
 
@@ -49,7 +49,7 @@ This mirrors Vercel's `installCommand`: `npm install --prefix api`.
 |----------|-----|
 | `CLERK_JWKS_URL` | JWT verification for API routes |
 | `CLERK_SECRET_KEY` | Checkout, export gate, project save |
-| `CLERK_PUBLISHABLE_KEY` | Recommended — use `pk_test_...` locally instead of the hardcoded live key |
+| `CLERK_PUBLISHABLE_KEY` | Recommended - use `pk_test_...` locally instead of the hardcoded live key |
 
 Without Clerk vars, `server.js` starts but logs a config error and auth/checkout return 503.
 
@@ -122,7 +122,7 @@ Set the full Stripe + `BASE_URL` + `SET_PLAN_SECRET` vars. See [environment-vari
 
 ### Native module install warnings
 
-Packages like `canvas` and `sharp` run install scripts. On macOS with npm 11+, you may see `allow-scripts` warnings — approve scripts if those packages fail at runtime.
+Packages like `canvas` and `sharp` run install scripts. On macOS with npm 11+, you may see `allow-scripts` warnings - approve scripts if those packages fail at runtime.
 
 ## No hot reload
 

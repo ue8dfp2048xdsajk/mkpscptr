@@ -1,6 +1,6 @@
 const { getDb } = require('./_db');
 
-// 15 minutes — covers typical Stripe checkout session duration and matches
+// 15 minutes - covers typical Stripe checkout session duration and matches
 // the X-Timestamp freshness window enforced by api/set-plan.js.
 const NONCE_TTL_SECONDS = 900;
 
@@ -54,10 +54,10 @@ async function isNonceSeen(nonce) {
 }
 
 // recordNonce is the actual replay guard. MongoDB's unique _id index makes
-// the insert atomic even across concurrent serverless instances — exactly
+// the insert atomic even across concurrent serverless instances - exactly
 // one concurrent insertOne() for the same nonce succeeds; every other one
 // throws a duplicate-key error (code 11000). Any other error (e.g. Mongo
-// unreachable) also throws — this fails closed by design: the caller
+// unreachable) also throws - this fails closed by design: the caller
 // returns 500, no nonce is committed anywhere, and a legitimate retry is
 // safe once Mongo recovers. Mongo is already a hard requirement for this
 // entire pipeline (see api/webhooks/stripe.js's idempotency_keys and
@@ -74,7 +74,7 @@ async function recordNonce(nonce, userId, plan) {
         });
     } catch (err) {
         if (err && err.code === 11000) {
-            throw new Error('Duplicate nonce — already recorded');
+            throw new Error('Duplicate nonce - already recorded');
         }
         throw new Error(`Mongo recordNonce failed: ${err.message}`);
     }
@@ -91,7 +91,7 @@ async function deleteNonce(nonce, { userId, plan } = {}) {
         });
     } catch (err) {
         console.error(
-            `[ALERT] nonce-store: deleteNonce failed permanently for nonce=${nonce} userId=${userId || 'unknown'} plan=${plan || 'unknown'} — ` +
+            `[ALERT] nonce-store: deleteNonce failed permanently for nonce=${nonce} userId=${userId || 'unknown'} plan=${plan || 'unknown'} - ` +
             `the nonce is still recorded; Stripe retries will be rejected with 400 until the nonce expires (${NONCE_TTL_SECONDS}s) or is manually cleared via POST /api/admin/clear-nonce. ` +
             `Last error: ${err.message}`
         );

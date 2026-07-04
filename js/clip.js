@@ -182,7 +182,7 @@ function drawInactivePaths(canvas, data){
 
         path.forEach((point, ptIdx) => {
 
-            // anchor dot — blue-tinted to distinguish from active path (white)
+            // anchor dot - blue-tinted to distinguish from active path (white)
             const anchor = new fabric.Circle({
                 left:           point.x,
                 top:            point.y,
@@ -294,7 +294,7 @@ function buildCurvePathString(points, closed = true){
     return path;
 }
 
-// Returns [darkPath, lightPath] — two overlapping dashed paths that together
+// Returns [darkPath, lightPath] - two overlapping dashed paths that together
 // create Photoshop polygon-lasso "marching ants": black and white dashes
 // interleaved so the outline is visible on any background colour.
 // The animation loop (startMarchingAnts) scrolls strokeDashOffset over time.
@@ -316,7 +316,7 @@ function createCurveOverlay(
         objectCaching:    false
     };
 
-    // dark layer — black dashes
+    // dark layer - black dashes
     const dark = new fabric.Path(pathStr, {
         ...common,
         stroke:           'rgba(0,0,0,0.85)',
@@ -324,7 +324,7 @@ function createCurveOverlay(
         isMarchingDark:   true
     });
 
-    // light layer — white dashes, offset by half the dash cycle so they
+    // light layer - white dashes, offset by half the dash cycle so they
     // fill the gaps left by the dark dashes
     const light = new fabric.Path(pathStr, {
         ...common,

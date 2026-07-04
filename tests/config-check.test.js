@@ -68,7 +68,7 @@ function withEnv(overrides, fn) {
     }
 }
 
-describe('GET /api/admin/config-check — rate_limiter section', () => {
+describe('GET /api/admin/config-check - rate_limiter section', () => {
     test('no backend: warning is present and durable is false', async () => {
         let handler;
         withEnv({}, () => {

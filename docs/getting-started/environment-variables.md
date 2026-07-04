@@ -61,7 +61,7 @@ Clerk publishable key (`pk_test_...` or `pk_live_...`). `server.js` replaces the
 
 Connection string for MongoDB Atlas or local MongoDB.
 
-**If missing:** cloud project save/load fails; Stripe customer mapping and webhook idempotency degrade; `/api/set-plan` fails closed (returns 500) because the nonce store below has no backend to write to — payments succeed on Stripe's side but the user's plan is never activated.
+**If missing:** cloud project save/load fails; Stripe customer mapping and webhook idempotency degrade; `/api/set-plan` fails closed (returns 500) because the nonce store below has no backend to write to - payments succeed on Stripe's side but the user's plan is never activated.
 
 ### `MONGODB_DB_NAME`
 
@@ -69,10 +69,10 @@ Database name. Default: `mockupscripter`.
 
 Collections used:
 
-- `projects` — saved editor snapshots
-- `customers` — `stripeCustomerId` ↔ `clerkUserId` mapping
-- `idempotency_keys` — Stripe webhook deduplication (TTL 4 days)
-- `nonce_seen` — `/api/set-plan` replay-protection nonces (TTL 15 min). This is the entire durable backend for the payment-to-plan-update pipeline's replay protection — it no longer touches Upstash/Postgres at all (see the "Consolidate nonce store onto MongoDB" change).
+- `projects` - saved editor snapshots
+- `customers` - `stripeCustomerId` ↔ `clerkUserId` mapping
+- `idempotency_keys` - Stripe webhook deduplication (TTL 4 days)
+- `nonce_seen` - `/api/set-plan` replay-protection nonces (TTL 15 min). This is the entire durable backend for the payment-to-plan-update pipeline's replay protection - it no longer touches Upstash/Postgres at all (see the "Consolidate nonce store onto MongoDB" change).
 
 Run `node scripts/setup-mongo-indexes.js` after first setup.
 
@@ -132,11 +132,11 @@ Generate: `openssl rand -hex 32`
 
 ## Upstash Redis / PostgreSQL (rate limiting only)
 
-These are **optional**. They back the rate limiters only — `/api/checkout`,
+These are **optional**. They back the rate limiters only - `/api/checkout`,
 `/api/billing`, `/api/account-delete` request throttling and `/api/set-plan`
 auth-failure lockout tracking. They are **not** used by the payment-to-plan
 nonce store (`api/_nonce-store.js`), which is MongoDB-backed and always uses
-`MONGODB_URI` above — so a misconfigured or missing Upstash credential can
+`MONGODB_URI` above - so a misconfigured or missing Upstash credential can
 no longer block a customer's plan from activating after payment.
 
 ### `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`
@@ -145,7 +145,7 @@ Durable store for rate-limit counters across serverless instances.
 
 Create a free database at [console.upstash.com](https://console.upstash.com).
 
-**If missing in production:** rate limiting falls back to an in-memory counter — resets on cold start, not shared across instances — and fails **open** (requests are still served, just without durable lockout tracking). Safe to leave unset pre-launch; add it later for stronger abuse protection.
+**If missing in production:** rate limiting falls back to an in-memory counter - resets on cold start, not shared across instances - and fails **open** (requests are still served, just without durable lockout tracking). Safe to leave unset pre-launch; add it later for stronger abuse protection.
 
 ### `DATABASE_URL`
 

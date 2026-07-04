@@ -1,9 +1,9 @@
 /**
  * @jest-environment node
  *
- * Replay-attack protection — duplicate nonce rejection and recovery, exercised
+ * Replay-attack protection - duplicate nonce rejection and recovery, exercised
  * end-to-end through the api/set-plan.js handler with a mocked MongoDB
- * backend (api/_nonce-store.js is Mongo-only — see tests/nonce-store.test.js
+ * backend (api/_nonce-store.js is Mongo-only - see tests/nonce-store.test.js
  * for store-level unit tests).
  *
  * Covers:
@@ -18,7 +18,7 @@
  *    → 500, not 200; a legitimate retry once Mongo recovers succeeds, and a
  *    subsequent replay of the same nonce is then correctly rejected
  *
- * No real MongoDB or Clerk connections are made — all external I/O is mocked.
+ * No real MongoDB or Clerk connections are made - all external I/O is mocked.
  */
 
 'use strict';
@@ -71,10 +71,10 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// 1. END-TO-END — duplicate nonce rejected
+// 1. END-TO-END - duplicate nonce rejected
 // ---------------------------------------------------------------------------
 
-describe('set-plan handler — duplicate nonce rejected (MongoDB)', () => {
+describe('set-plan handler - duplicate nonce rejected (MongoDB)', () => {
     let handler;
 
     beforeEach(() => {
@@ -132,10 +132,10 @@ describe('set-plan handler — duplicate nonce rejected (MongoDB)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2. RECOVERY — nonce released after Clerk failure
+// 2. RECOVERY - nonce released after Clerk failure
 // ---------------------------------------------------------------------------
 
-describe('set-plan handler — nonce released after Clerk failure (MongoDB)', () => {
+describe('set-plan handler - nonce released after Clerk failure (MongoDB)', () => {
     let handler, fetchMock;
 
     beforeEach(() => {
@@ -196,10 +196,10 @@ describe('set-plan handler — nonce released after Clerk failure (MongoDB)', ()
 });
 
 // ---------------------------------------------------------------------------
-// 3. MONGO COMPLETELY UNREACHABLE — recordNonce fails closed (no replay slip-through)
+// 3. MONGO COMPLETELY UNREACHABLE - recordNonce fails closed (no replay slip-through)
 // ---------------------------------------------------------------------------
 
-describe('set-plan handler — Mongo completely unreachable returns 500 (fails closed)', () => {
+describe('set-plan handler - Mongo completely unreachable returns 500 (fails closed)', () => {
     let handler;
 
     beforeEach(() => {
@@ -215,7 +215,7 @@ describe('set-plan handler — Mongo completely unreachable returns 500 (fails c
         expect(res.body.error).toMatch(/Failed to record nonce/i);
     });
 
-    test('a retry with the same nonce also returns 500 while Mongo stays down — no replay slip-through', async () => {
+    test('a retry with the same nonce also returns 500 while Mongo stays down - no replay slip-through', async () => {
         const nonce = 'mongo-down-e2e-nonce-2';
         const { req: req1, res: res1 } = makeReqRes({ nonce });
         const { req: req2, res: res2 } = makeReqRes({ nonce });
@@ -223,7 +223,7 @@ describe('set-plan handler — Mongo completely unreachable returns 500 (fails c
         await handler(req1, res1);
         await handler(req2, res2);
 
-        // Both return 500 — neither request was processed, so no double-billing
+        // Both return 500 - neither request was processed, so no double-billing
         // and no replay attack succeeded.
         expect(res1.statusCode).toBe(500);
         expect(res2.statusCode).toBe(500);
@@ -242,11 +242,11 @@ describe('set-plan handler — Mongo completely unreachable returns 500 (fails c
 });
 
 // ---------------------------------------------------------------------------
-// 4. MID-REQUEST MONGO FAILURE, THEN RECOVERY — legitimate retry succeeds,
+// 4. MID-REQUEST MONGO FAILURE, THEN RECOVERY - legitimate retry succeeds,
 //    subsequent replay of the same nonce is rejected
 // ---------------------------------------------------------------------------
 
-describe('set-plan handler — same nonce cannot slip through after a transient Mongo failure', () => {
+describe('set-plan handler - same nonce cannot slip through after a transient Mongo failure', () => {
     test('attempt 1 fails closed (500); attempt 2 (legit retry) succeeds; attempt 3 (replay) is rejected', async () => {
         const fakeDb = makeFakeDb();
         let mongoRecovered = false;
@@ -261,7 +261,7 @@ describe('set-plan handler — same nonce cannot slip through after a transient 
 
         const nonce = 'mid-flight-retry-nonce';
 
-        // Attempt 1 — transient Mongo failure → 500, nonce committed nowhere.
+        // Attempt 1 - transient Mongo failure → 500, nonce committed nowhere.
         const { req: req1, res: res1 } = makeReqRes({ nonce });
         await handler(req1, res1);
         expect(res1.statusCode).toBe(500);
@@ -269,14 +269,14 @@ describe('set-plan handler — same nonce cannot slip through after a transient 
         // Mongo recovers.
         mongoRecovered = true;
 
-        // Attempt 2 — legitimate retry (the original request was never
+        // Attempt 2 - legitimate retry (the original request was never
         // processed) → must succeed.
         const { req: req2, res: res2 } = makeReqRes({ nonce });
         await handler(req2, res2);
         expect(res2.statusCode).toBe(200);
         expect(res2.body.ok).toBe(true);
 
-        // Attempt 3 — replay attack with the same nonce → rejected.
+        // Attempt 3 - replay attack with the same nonce → rejected.
         const { req: req3, res: res3 } = makeReqRes({ nonce });
         await handler(req3, res3);
         expect(res3.statusCode).toBe(400);

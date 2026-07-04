@@ -71,7 +71,7 @@ const REQUIRED = [
     {
         name: 'CLERK_JWKS_URL',
         description: 'Clerk JWKS endpoint (e.g. https://clerk.mockupscripter.com/.well-known/jwks.json). ' +
-            'Missing → all token verification returns null — every authenticated endpoint ' +
+            'Missing → all token verification returns null - every authenticated endpoint ' +
             '(checkout, export, save, billing) rejects requests with 401, and checkout blocks all purchases.',
         validate: (v) => v.startsWith('https://') || 'value should start with https://',
     },
@@ -80,7 +80,7 @@ const REQUIRED = [
         description: 'MongoDB connection string (mongodb://... or mongodb+srv://...). ' +
             'Missing → the checkout.session.completed webhook cannot store the Stripe customer ' +
             'mapping, claim webhook-event idempotency, or record the replay-protection nonce used ' +
-            'by /api/set-plan, and returns 500 before the user\'s plan is activated — the user pays ' +
+            'by /api/set-plan, and returns 500 before the user\'s plan is activated - the user pays ' +
             'but has to wait for Stripe\'s automatic webhook retries.',
         validate: (v) => v.startsWith('mongodb://') || v.startsWith('mongodb+srv://') ||
             'value should start with mongodb:// or mongodb+srv://',
@@ -92,7 +92,7 @@ const OPTIONAL = [
         name: 'UPSTASH_REDIS_REST_URL',
         description: 'Upstash Redis REST URL. Used only by the rate limiters ' +
             '(checkout/billing/account-delete and set-plan auth-failure lockout). ' +
-            'The payment-to-plan nonce store no longer depends on this — it is backed by ' +
+            'The payment-to-plan nonce store no longer depends on this - it is backed by ' +
             'MongoDB (already required above). Missing → rate limiting falls back to ' +
             'in-memory counters, which reset on cold start and are not shared across ' +
             'serverless instances; rate limiting fails OPEN in this case (requests are ' +

@@ -2,7 +2,7 @@
 
 Mockupscripter uses a **hybrid undo stack**: per-window property snapshots for value changes, typed entries for structural and special operations.
 
-## Buckets — pick one when adding a feature
+## Buckets - pick one when adding a feature
 
 | Bucket | API | When to use |
 |--------|-----|-------------|
@@ -61,5 +61,5 @@ Removal uses **data object identity**, not stale `originalIdx` slots.
 
 ## Tests
 
-- `tests/undo-structural.test.js` — insertion/delete helpers and data-ref removal
+- `tests/undo-structural.test.js` - insertion/delete helpers and data-ref removal
 - Manual: prelaunch checklist undo section

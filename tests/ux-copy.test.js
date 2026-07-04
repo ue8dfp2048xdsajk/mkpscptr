@@ -10,7 +10,7 @@ describe('UX copy contracts (app.html)', () => {
         expect(appHtml).not.toContain('Upload Backgrounds');
     });
 
-    test('reset is left-panel only — no top-bar reset', () => {
+    test('reset is left-panel only - no top-bar reset', () => {
         expect(appHtml).not.toContain('id="resetBtnTop"');
         expect(appHtml).toMatch(/Reset Selected[\s\S]*\(R\)/);
     });

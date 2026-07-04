@@ -14,7 +14,7 @@
  *
  * Required:
  *   STRIPE_WEBHOOK_SECRET   The whsec_... signing secret configured on Vercel.
- *   CLERK_SECRET_KEY        Clerk secret key — used to verify the metadata update.
+ *   CLERK_SECRET_KEY        Clerk secret key - used to verify the metadata update.
  *   CLERK_USER_ID           A real Clerk user ID (user_...) to test the update against.
  *                           The user's plan metadata will be patched to the requested plan.
  *
@@ -217,28 +217,28 @@ async function main() {
     if (res.status !== 200 || !parsed.ok) {
         console.log('');
         if (res.status === 400) {
-            console.error('✗ FAIL — Signature verification or payload parsing failed.');
+            console.error('✗ FAIL - Signature verification or payload parsing failed.');
             console.error('  Check that STRIPE_WEBHOOK_SECRET matches the value in Vercel.');
         } else if (res.status === 500) {
-            console.error('✗ FAIL — Server-side env var missing (STRIPE_WEBHOOK_SECRET, SET_PLAN_SECRET, BASE_URL).');
+            console.error('✗ FAIL - Server-side env var missing (STRIPE_WEBHOOK_SECRET, SET_PLAN_SECRET, BASE_URL).');
             console.error('  Run scripts/check-env.js on the server to diagnose.');
         } else if (res.status === 502) {
-            console.error('✗ FAIL — Signature OK but downstream call failed.');
+            console.error('✗ FAIL - Signature OK but downstream call failed.');
             console.error(`  Error: ${parsed.error || 'unknown'}`);
             console.error('  Most likely cause: CLERK_USER_ID does not exist in Clerk.');
             console.error('  Verify the user ID at https://dashboard.clerk.com > Users.');
         } else {
-            console.error(`✗ FAIL — Unexpected status ${res.status}: ${res.body}`);
+            console.error(`✗ FAIL - Unexpected status ${res.status}: ${res.body}`);
         }
         process.exit(1);
     }
 
     // Stage 3: Verify Clerk metadata was actually updated
-    console.log('[ 2/3 ] Webhook accepted — verifying Clerk publicMetadata.plan...');
+    console.log('[ 2/3 ] Webhook accepted - verifying Clerk publicMetadata.plan...');
     const clerkCheck = await verifyClerkMetadata(clerkUserId, plan, clerkSecretKey);
     if (!clerkCheck.ok) {
         console.log('');
-        console.error(`✗ FAIL — Webhook returned 200, but Clerk metadata check failed:`);
+        console.error(`✗ FAIL - Webhook returned 200, but Clerk metadata check failed:`);
         console.error(`  ${clerkCheck.error}`);
         console.error('  The webhook may have accepted the event without actually updating Clerk,');
         console.error('  or there is a CLERK_SECRET_KEY mismatch between local and Vercel.');
@@ -249,13 +249,13 @@ async function main() {
     // All stages passed
     console.log('[ 3/3 ] All checks passed.');
     console.log('');
-    console.log('✓ PASS — Full chain verified:');
+    console.log('✓ PASS - Full chain verified:');
     console.log('  1. Stripe-Signature validated      ✓');
     console.log('  2. Event parsed, /api/set-plan called ✓');
     console.log(`  3. Clerk publicMetadata.plan="${plan}" confirmed via Clerk API  ✓`);
     console.log('');
     console.log('The payment plan is live on this Clerk user.');
-    console.log('Reload the deployed app and sign in — watermarks should be gone.');
+    console.log('Reload the deployed app and sign in - watermarks should be gone.');
     process.exit(0);
 }
 
