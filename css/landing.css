@@ -498,15 +498,15 @@ img { max-width: 100%; display: block; }
     letter-spacing: 0.02em;
 }
 
-.billing-toggle .badge-lifetime {
+.billing-tab .badge-lifetime {
     position: absolute;
-    top: -8px;
-    right: 0;
-    background: #6366F1;
+    top: -10px;
+    left: calc(100% - 6px);
+    background: #10B981;
     color: #fff;
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 700;
-    padding: 1px 6px;
+    padding: 2px 6px;
     border-radius: 999px;
     letter-spacing: 0.02em;
     white-space: nowrap;
