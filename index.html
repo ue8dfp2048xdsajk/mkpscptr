@@ -209,7 +209,10 @@
                 Annual
                 <span class="badge-save" aria-label="Save up to 33%">Save 33%</span>
             </button>
-            <button class="billing-tab" data-period="lifetime" aria-pressed="false">Lifetime</button>
+            <button class="billing-tab" data-period="lifetime" aria-pressed="false">
+                Lifetime
+                <span class="badge-lifetime" aria-label="Pay once, yours forever">Pay once · yours forever</span>
+            </button>
         </div>
 
         <div class="pricing-grid">
@@ -243,8 +246,11 @@
                     <sup>$</sup><span id="starterPrice">16.99</span><span class="period" id="starterPeriod">/mo</span>
                 </div>
                 <p class="plan-billing-note" id="priceNoteStarter">Billed $199/year</p>
+                <p class="plan-earlybird-badge" data-lifetime-only hidden>🐦 Early Bird Price</p>
+                <p class="plan-lifetime-note" data-lifetime-only hidden>Price increases soon — lock in today&rsquo;s rate forever.</p>
                 <div class="plan-divider"></div>
                 <ul class="plan-features">
+                    <li class="plan-feature-highlight" data-lifetime-only hidden><span class="check">✓</span> Pays for itself in ~20 months, yours forever after</li>
                     <li><span class="check">✓</span> Everything in Free</li>
                     <li><span class="check">✓</span> Export PNG, JPEG, or ZIP — no watermark on flat lays</li>
                     <li><span class="check">✓</span> Export canvas text as .txt</li>
@@ -265,8 +271,11 @@
                     <sup>$</sup><span id="proPrice">24.99</span><span class="period" id="proPeriod">/mo</span>
                 </div>
                 <p class="plan-billing-note" id="priceNotePro">Billed $299/year</p>
+                <p class="plan-earlybird-badge" data-lifetime-only hidden>🐦 Early Bird Price</p>
+                <p class="plan-lifetime-note" data-lifetime-only hidden>Price increases soon — lock in today&rsquo;s rate forever.</p>
                 <div class="plan-divider"></div>
                 <ul class="plan-features">
+                    <li class="plan-feature-highlight" data-lifetime-only hidden><span class="check">✓</span> Pays for itself in ~20 months, yours forever after</li>
                     <li><span class="check">✓</span> Everything in Starter</li>
                     <li><span class="check">✓</span> Export all mockups — Pro effects included, no watermarks</li>
                     <li><span class="check">✓</span> Photorealistic Pro toolkit — warp, perspective, patterns &amp; more</li>
@@ -289,9 +298,13 @@
                 <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 Secure checkout via Stripe
             </div>
-            <div class="pricing-note-item">
+            <div class="pricing-note-item" id="pricingNoteCancel">
                 <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
                 Cancel anytime — no lock-in
+            </div>
+            <div class="pricing-note-item" id="pricingNoteLifetime" hidden>
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                Lifetime = pay once, yours forever
             </div>
         </div>
     </div>
@@ -501,6 +514,15 @@
                 tab.classList.toggle('active', active);
                 tab.setAttribute('aria-pressed', String(active));
             });
+
+            document.querySelectorAll('[data-lifetime-only]').forEach(function (el) {
+                el.hidden = (period !== 'lifetime');
+            });
+
+            var cancelNote = document.getElementById('pricingNoteCancel');
+            var lifetimeNote = document.getElementById('pricingNoteLifetime');
+            if (cancelNote) cancelNote.hidden = (period === 'lifetime');
+            if (lifetimeNote) lifetimeNote.hidden = (period !== 'lifetime');
         }
 
         document.querySelectorAll('.billing-tab').forEach(function (tab) {
