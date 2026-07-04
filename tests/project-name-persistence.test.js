@@ -12,6 +12,7 @@ const path = require('path');
 const APP_JS_PATH = path.join(__dirname, '../js/app.js');
 const SAVE_JS_PATH = path.join(__dirname, '../api/projects/save.js');
 const PROJECT_ID_PATH = path.join(__dirname, '../api/projects/[id].js');
+const SETTINGS_HTML_PATH = path.join(__dirname, '../settings.html');
 
 describe('project name persistence', () => {
     test('_cloudSave omits name on overwrite when _projectName is empty', () => {
@@ -51,5 +52,14 @@ describe('project name persistence', () => {
         const src = fs.readFileSync(PROJECT_ID_PATH, 'utf8');
         expect(src).toMatch(/name: project\.name \|\| null/);
         expect(src).toMatch(/snapshot: 1, name: 1/);
+    });
+
+    test('settings Projects tab supports rename and delete', () => {
+        const src = fs.readFileSync(SETTINGS_HTML_PATH, 'utf8');
+        expect(src).toMatch(/function renameProject\(/);
+        expect(src).toMatch(/function deleteProject\(/);
+        expect(src).toMatch(/method: 'PATCH'/);
+        expect(src).toMatch(/method: 'DELETE'/);
+        expect(src).toMatch(/Click to rename/);
     });
 });

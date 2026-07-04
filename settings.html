@@ -308,8 +308,20 @@
             font-size: 13px;
         }
         .project-row:last-child { border-bottom: none; }
-        .project-name { color: #E5E7EB; font-weight: 500; }
+        .project-info { flex: 1; min-width: 0; }
+        .project-name {
+            color: #E5E7EB;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .project-name:hover { color: #A5B4FC; }
         .project-date { color: #6B7280; font-size: 12px; }
+        .project-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
         .project-open {
             background: #6366F1;
             color: #fff;
@@ -319,6 +331,35 @@
             font-size: 12px;
             cursor: pointer;
         }
+        .project-open:hover { background: #4F46E5; }
+        .project-delete {
+            background: transparent;
+            color: #9CA3AF;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .project-delete:hover {
+            color: #FCA5A5;
+            border-color: #7F1D1D;
+            background: #1F1414;
+        }
+        .project-rename-input {
+            width: 100%;
+            background: #111827;
+            border: 1px solid #4B5563;
+            border-radius: 4px;
+            color: #E5E7EB;
+            font-size: 13px;
+            font-family: 'Inter', Arial, sans-serif;
+            font-weight: 500;
+            padding: 2px 6px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .project-rename-input:focus { border-color: #6366F1; }
     </style>
 </head>
 <body>
@@ -554,37 +595,143 @@ function switchSettingsTab(tab) {
     });
 }
 
+function projectsApiWithToken(url, opts) {
+    return window.Clerk.session.getToken().then(function(token) {
+        var headers = Object.assign({ 'Content-Type': 'application/json' }, (opts && opts.headers) || {});
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        return fetch(url, Object.assign({}, opts || {}, { headers: headers }));
+    });
+}
+
+function deleteProject(uuid, name) {
+    if (!confirm('Delete "' + name + '"? This cannot be undone.')) return;
+    projectsApiWithToken('/api/projects/' + encodeURIComponent(uuid), { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                if (localStorage.getItem('ms_project_uuid') === uuid) {
+                    localStorage.removeItem('ms_project_uuid');
+                }
+                loadProjects();
+            } else {
+                alert(d.error || 'Could not delete project.');
+            }
+        })
+        .catch(function() {
+            alert('Network error. Please try again.');
+        });
+}
+
+function renameProject(uuid, newName) {
+    return projectsApiWithToken('/api/projects/' + encodeURIComponent(uuid), {
+        method: 'PATCH',
+        body: JSON.stringify({ name: newName })
+    })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.ok) {
+                alert(d.error || 'Could not rename project.');
+            }
+            return d.ok;
+        })
+        .catch(function() {
+            alert('Network error. Please try again.');
+            return false;
+        });
+}
+
+function renderProjectRow(wrap, p) {
+    var name = p.name || 'Untitled';
+    var date = p.updatedAt
+        ? new Date(p.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+        : '';
+
+    var row = document.createElement('div');
+    row.className = 'project-row';
+
+    var info = document.createElement('div');
+    info.className = 'project-info';
+
+    var nameEl = document.createElement('div');
+    nameEl.className = 'project-name';
+    nameEl.textContent = name;
+    nameEl.title = 'Click to rename';
+
+    var dateEl = document.createElement('div');
+    dateEl.className = 'project-date';
+    dateEl.textContent = date;
+
+    info.appendChild(nameEl);
+    info.appendChild(dateEl);
+
+    var actions = document.createElement('div');
+    actions.className = 'project-actions';
+
+    var openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.className = 'project-open';
+    openBtn.textContent = 'Open in app';
+    openBtn.addEventListener('click', function() {
+        localStorage.setItem('ms_project_uuid', p.uuid);
+        try { sessionStorage.setItem('ms_open_cloud_uuid', p.uuid); } catch (_) {}
+        window.location.href = '/app.html';
+    });
+
+    var deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'project-delete';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', function() {
+        deleteProject(p.uuid, nameEl.textContent);
+    });
+
+    nameEl.addEventListener('click', function() {
+        var input = document.createElement('input');
+        input.className = 'project-rename-input';
+        input.type = 'text';
+        input.maxLength = 60;
+        input.value = nameEl.textContent;
+        info.replaceChild(input, nameEl);
+        input.focus();
+        input.select();
+
+        function commitRename() {
+            var newName = input.value.trim() || 'Untitled';
+            nameEl.textContent = newName;
+            info.replaceChild(nameEl, input);
+            renameProject(p.uuid, newName);
+        }
+
+        input.addEventListener('blur', commitRename);
+        input.addEventListener('keydown', function(ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+            if (ev.key === 'Escape') {
+                input.removeEventListener('blur', commitRename);
+                info.replaceChild(nameEl, input);
+            }
+        });
+    });
+
+    actions.appendChild(openBtn);
+    actions.appendChild(deleteBtn);
+    row.appendChild(info);
+    row.appendChild(actions);
+    wrap.appendChild(row);
+}
+
 function loadProjects() {
     var wrap = document.getElementById('projectsListWrap');
     if (!wrap) return;
-    window.Clerk.session.getToken().then(function(token) {
-        return fetch('/api/projects/list', {
-            headers: token ? { 'Authorization': 'Bearer ' + token } : {}
-        });
-    })
+    projectsApiWithToken('/api/projects/list', { method: 'GET', headers: {} })
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (!data.ok || !data.projects || !data.projects.length) {
             wrap.innerHTML = '<div class="empty-state">No saved projects yet.</div>';
             return;
         }
-        var html = '';
+        wrap.innerHTML = '';
         data.projects.forEach(function(p) {
-            var name = p.name || 'Untitled';
-            var date = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-            html += '<div class="project-row">' +
-                '<div><div class="project-name">' + name + '</div><div class="project-date">' + date + '</div></div>' +
-                '<button type="button" class="project-open" data-uuid="' + p.uuid + '">Open in app</button>' +
-            '</div>';
-        });
-        wrap.innerHTML = html;
-        wrap.querySelectorAll('.project-open').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var uuid = btn.getAttribute('data-uuid');
-                localStorage.setItem('ms_project_uuid', uuid);
-                try { sessionStorage.setItem('ms_open_cloud_uuid', uuid); } catch (_) {}
-                window.location.href = '/app.html';
-            });
+            renderProjectRow(wrap, p);
         });
     })
     .catch(function() {
