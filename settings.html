@@ -473,10 +473,21 @@ function initClerk() {
         }
 
         document.getElementById('openProfileBtn').addEventListener('click', function() {
-            if (typeof window.Clerk.openUserProfile === 'function') {
-                window.Clerk.openUserProfile();
-            } else {
+            if (!window.Clerk) return;
+            var hasClerkUi = window.Clerk.constructor && window.Clerk.constructor.mountComponentRenderer;
+            if (hasClerkUi) {
+                try {
+                    window.Clerk.openUserProfile();
+                    return;
+                } catch (e) {
+                    console.error('[Clerk] openUserProfile failed:', e);
+                }
+            }
+            try {
                 window.Clerk.redirectToUserProfile();
+            } catch (e) {
+                console.error('[Clerk] redirectToUserProfile failed:', e);
+                alert('Profile editor is temporarily unavailable \u2014 please refresh and try again.');
             }
         });
 
