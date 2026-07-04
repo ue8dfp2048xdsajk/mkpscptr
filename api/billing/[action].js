@@ -55,39 +55,69 @@ async function resolveStripeCustomer(clerkUserId, clerkSecretKey) {
     return { customerId, error: null };
 }
 
+async function stripeApiGet(stripeSecretKey, path) {
+    const res = await fetch(`https://api.stripe.com/v1/${path}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+        signal: AbortSignal.timeout(8000),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const err = new Error(data.error?.message || 'Stripe error');
+        err.status = res.status;
+        throw err;
+    }
+    return data;
+}
+
 async function handleInvoices(req, res, stripeCustomerId, stripeSecretKey) {
     if (req.method !== 'GET') {
         return res.status(405).json({ ok: false, error: 'Method not allowed' });
     }
 
-    let invoiceRes;
+    let invData;
+    let chargeData;
     try {
-        invoiceRes = await fetch(
-            `https://api.stripe.com/v1/invoices?customer=${encodeURIComponent(stripeCustomerId)}&limit=100&status=paid`,
-            {
-                headers: { Authorization: `Bearer ${stripeSecretKey}` },
-                signal: AbortSignal.timeout(8000),
-            }
-        );
-    } catch {
-        return res.status(502).json({ ok: false, error: 'Failed to reach Stripe API' });
+        [invData, chargeData] = await Promise.all([
+            stripeApiGet(
+                stripeSecretKey,
+                `invoices?customer=${encodeURIComponent(stripeCustomerId)}&limit=100&status=paid`
+            ),
+            stripeApiGet(
+                stripeSecretKey,
+                `charges?customer=${encodeURIComponent(stripeCustomerId)}&limit=100`
+            ),
+        ]);
+    } catch (err) {
+        return res.status(502).json({ ok: false, error: err.message || 'Failed to reach Stripe API' });
     }
 
-    const invData = await invoiceRes.json().catch(() => ({}));
-    if (!invoiceRes.ok) {
-        return res.status(502).json({ ok: false, error: invData.error?.message || 'Stripe error' });
-    }
+    const invoiceChargeIds = new Set();
+    const invoices = (invData.data || []).map((inv) => {
+        if (inv.charge) invoiceChargeIds.add(inv.charge);
+        return {
+            id: inv.id,
+            date: inv.created,
+            amount: inv.amount_paid,
+            currency: inv.currency,
+            pdfUrl: inv.invoice_pdf || null,
+            hostedUrl: inv.hosted_invoice_url || null,
+        };
+    });
 
-    const invoices = (invData.data || []).map(inv => ({
-        id: inv.id,
-        date: inv.created,
-        amount: inv.amount_paid,
-        currency: inv.currency,
-        pdfUrl: inv.invoice_pdf || null,
-        hostedUrl: inv.hosted_invoice_url || null,
-    }));
+    const receipts = (chargeData.data || [])
+        .filter((charge) => charge.paid && charge.receipt_url && !invoiceChargeIds.has(charge.id))
+        .map((charge) => ({
+            id: charge.id,
+            date: charge.created,
+            amount: charge.amount,
+            currency: charge.currency,
+            pdfUrl: null,
+            hostedUrl: charge.receipt_url,
+        }));
 
-    return res.status(200).json({ ok: true, invoices });
+    const merged = [...invoices, ...receipts].sort((a, b) => b.date - a.date);
+
+    return res.status(200).json({ ok: true, invoices: merged });
 }
 
 async function handlePortal(req, res, stripeCustomerId, stripeSecretKey) {

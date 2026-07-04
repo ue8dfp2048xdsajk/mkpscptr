@@ -329,7 +329,11 @@
                     html += '<div class="ms-invoice-row">' +
                         '<span class="ms-invoice-date">' + date + '</span>' +
                         '<span class="ms-invoice-amount">' + currency + '\u00a0' + amount + '</span>' +
-                        (inv.pdfUrl ? '<a class="ms-invoice-pdf" href="' + inv.pdfUrl + '" target="_blank" rel="noopener">PDF</a>' : '') +
+                        (inv.pdfUrl
+                            ? '<a class="ms-invoice-pdf" href="' + inv.pdfUrl + '" target="_blank" rel="noopener">PDF</a>'
+                            : (inv.hostedUrl
+                                ? '<a class="ms-invoice-pdf" href="' + inv.hostedUrl + '" target="_blank" rel="noopener">Receipt</a>'
+                                : '')) +
                     '</div>';
                 });
                 if (data.invoices.length > 3) {

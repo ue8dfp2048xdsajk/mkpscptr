@@ -53,7 +53,7 @@ async function tryClaimStripeEvent(eventId) {
 
 const VALID_PERIODS = new Set(['monthly', 'annual', 'lifetime']);
 
-async function expandCheckoutSessionLineItem(sessionId, stripeSecretKey) {
+async function fetchCheckoutSessionFromStripe(sessionId, stripeSecretKey) {
     const expandRes = await fetch(
         `https://api.stripe.com/v1/checkout/sessions/${sessionId}?expand[]=line_items`,
         {
@@ -62,12 +62,29 @@ async function expandCheckoutSessionLineItem(sessionId, stripeSecretKey) {
         }
     );
     if (!expandRes.ok) return null;
-    const expandedSession = await expandRes.json();
+    return expandRes.json();
+}
+
+async function expandCheckoutSessionLineItem(sessionId, stripeSecretKey) {
+    const expandedSession = await fetchCheckoutSessionFromStripe(sessionId, stripeSecretKey);
+    if (!expandedSession) return null;
     const lineItem = expandedSession.line_items?.data?.[0];
     const priceId = lineItem?.price?.id;
     if (!priceId) return null;
     const resolved = resolvePriceId(priceId);
     return resolved ? { plan: resolved.plan, period: resolved.period, priceId } : null;
+}
+
+async function resolveCheckoutCustomerId(session, period, stripeSecretKey) {
+    if (session.customer) return session.customer;
+    if (period !== 'lifetime' || !stripeSecretKey) return null;
+    try {
+        const expanded = await fetchCheckoutSessionFromStripe(session.id, stripeSecretKey);
+        return expanded?.customer || null;
+    } catch (err) {
+        console.error('stripe-webhook: failed to fetch session for customer id', err);
+        return null;
+    }
 }
 
 async function getClerkPublicMetadata(clerkUserId, clerkSecretKey) {
@@ -378,16 +395,21 @@ module.exports = async function handler(req, res) {
         // Store customer ID mapping so subscription events can look up the Clerk user.
         // If this write fails, return 500 so Stripe retries - a dropped mapping means
         // future subscription.updated / subscription.deleted events cannot find the user.
-        if (session.customer) {
+        const stripeCustomerId = await resolveCheckoutCustomerId(session, period, stripeSecretKey);
+        if (stripeCustomerId) {
             try {
-                await storeCustomerMapping(session.customer, userId);
+                await storeCustomerMapping(stripeCustomerId, userId);
             } catch (err) {
                 console.error('stripe-webhook: failed to store customer mapping - returning 500 so Stripe retries:', err);
                 await unclaimStripeEvent(event.id);
                 return res.status(500).json({ ok: false, error: 'Failed to store customer mapping' });
             }
             // Clerk metadata update is best-effort - non-fatal if it fails.
-            await storeStripeCustomerInClerk(userId, session.customer, clerkSecretKey);
+            await storeStripeCustomerInClerk(userId, stripeCustomerId, clerkSecretKey);
+        } else if (period === 'lifetime') {
+            console.warn(
+                `stripe-webhook: lifetime checkout session ${session.id} has no customer for userId=${userId}`
+            );
         }
 
         // Forward test hooks from the incoming request to set-plan (test mode only)
@@ -424,11 +446,11 @@ module.exports = async function handler(req, res) {
             await patchClerkPublicMetadata(userId, metaPatch, clerkSecretKey);
         }
 
-        if (stripeSecretKey && session.customer && period && VALID_PERIODS.has(period)) {
+        if (stripeSecretKey && stripeCustomerId && period && VALID_PERIODS.has(period)) {
             try {
                 const keepSubId = session.mode === 'subscription' ? session.subscription : null;
                 if (period === 'lifetime' || session.mode === 'subscription') {
-                    await cancelActiveSubscriptionsExcept(session.customer, keepSubId, stripeSecretKey);
+                    await cancelActiveSubscriptionsExcept(stripeCustomerId, keepSubId, stripeSecretKey);
                 }
             } catch (err) {
                 console.error('stripe-webhook: failed to cancel prior subscriptions (non-fatal)', err);

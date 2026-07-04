@@ -244,9 +244,12 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 ## Part 8 - Lifetime purchase
 
 - [ ] One-time payment (Stripe checkout `mode: payment`, not `subscription`)
+- [ ] Stripe Customer created (`customer_creation=always`) — not a Guest-only payment
+- [ ] Clerk `public_metadata.stripeCustomerId` set after purchase
+- [ ] Settings → **Manage Billing** opens Stripe portal (not “No billing account found”)
 - [ ] Correct webhook (`checkout.session.completed` - lifetime does not go through subscription events)
 - [ ] Clerk updated
-- [ ] Invoice available
+- [ ] Invoice or receipt available in Settings → Invoices (subscription = PDF invoice; lifetime = PDF invoice when created at checkout, otherwise hosted receipt link for older one-time charges)
 - [ ] No cancellation option (no subscription exists to cancel - confirm the billing portal reflects this sensibly rather than erroring)
 - [ ] Features unlocked permanently
 - [ ] Promo code field appears at checkout for monthly, annual, and lifetime (Stripe `allow_promotion_codes`)

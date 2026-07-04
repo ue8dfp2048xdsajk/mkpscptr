@@ -164,6 +164,12 @@ module.exports = async function handler(req, res) {
 
     const params = new URLSearchParams();
     params.set('mode', mode);
+    // Lifetime is one-time payment mode; default customer_creation is if_required,
+    // which leaves many buyers as Stripe Guests with no cus_ id for billing portal.
+    if (isLifetime) {
+        params.set('customer_creation', 'always');
+        params.set('invoice_creation[enabled]', 'true');
+    }
     params.set('success_url', successUrl);
     params.set('cancel_url', cancelUrl);
     params.set('line_items[0][price]', priceId);

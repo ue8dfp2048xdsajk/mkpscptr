@@ -429,7 +429,7 @@
             <div class="card-header">
                 <span class="card-title">Invoice History</span>
             </div>
-            <p class="card-desc">Download PDF receipts for all your past payments.</p>
+            <p class="card-desc">Download PDF invoices and receipts for all your past payments.</p>
             <div id="invoiceTableWrap">
                 <div class="empty-state">
                     <span class="spinner"></span> Loading invoices…
@@ -772,7 +772,9 @@ function loadInvoices() {
                 '<td>' +
                     (inv.pdfUrl
                         ? '<a href="' + inv.pdfUrl + '" target="_blank" rel="noopener">Download PDF</a>'
-                        : (inv.hostedUrl ? '<a href="' + inv.hostedUrl + '" target="_blank" rel="noopener">View</a>' : '')) +
+                        : (inv.hostedUrl
+                            ? '<a href="' + inv.hostedUrl + '" target="_blank" rel="noopener">View receipt</a>'
+                            : '')) +
                 '</td>' +
             '</tr>';
         });

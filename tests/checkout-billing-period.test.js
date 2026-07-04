@@ -151,6 +151,81 @@ describe('POST /api/checkout - billing period upgrades', () => {
         expect(stripeBodies.length).toBe(1);
         expect(stripeBodies[0]).toContain('allow_promotion_codes=true');
         expect(stripeBodies[0]).toContain('mode=payment');
+        expect(stripeBodies[0]).toContain('customer_creation=always');
+        expect(stripeBodies[0]).toContain('invoice_creation%5Benabled%5D=true');
+        restore();
+    });
+
+    test('lifetime checkout with existing Stripe customer reuses customer param', async () => {
+        const stripeBodies = [];
+        global.fetch = jest.fn(async (url, options) => {
+            if (String(url).includes('api.clerk.com')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({
+                        public_metadata: { plan: 'starter', billingPeriod: 'monthly', stripeCustomerId: 'cus_existing' },
+                        email_addresses: [{ email_address: 'test@example.com' }],
+                    }),
+                };
+            }
+            if (String(url).includes('api.stripe.com')) {
+                stripeBodies.push(options && options.body);
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({ url: 'https://checkout.stripe.test/session' }),
+                };
+            }
+            throw new Error(`Unexpected fetch: ${url}`);
+        });
+
+        const { req, res, restore } = makeReqRes({
+            body: { plan: 'starter', period: 'lifetime' },
+            env: BASE_ENV,
+        });
+
+        await handler(req, res);
+        expect(res._status).toBe(200);
+        expect(stripeBodies[0]).toContain('customer=cus_existing');
+        expect(stripeBodies[0]).toContain('customer_creation=always');
+        restore();
+    });
+
+    test('subscription checkout does not set customer_creation', async () => {
+        const stripeBodies = [];
+        global.fetch = jest.fn(async (url, options) => {
+            if (String(url).includes('api.clerk.com')) {
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({
+                        public_metadata: { plan: 'free' },
+                        email_addresses: [{ email_address: 'test@example.com' }],
+                    }),
+                };
+            }
+            if (String(url).includes('api.stripe.com')) {
+                stripeBodies.push(options && options.body);
+                return {
+                    ok: true,
+                    status: 200,
+                    json: async () => ({ url: 'https://checkout.stripe.test/session' }),
+                };
+            }
+            throw new Error(`Unexpected fetch: ${url}`);
+        });
+
+        const { req, res, restore } = makeReqRes({
+            body: { plan: 'starter', period: 'monthly' },
+            env: BASE_ENV,
+        });
+
+        await handler(req, res);
+        expect(res._status).toBe(200);
+        expect(stripeBodies[0]).toContain('mode=subscription');
+        expect(stripeBodies[0]).not.toContain('customer_creation');
         restore();
     });
 });
+
