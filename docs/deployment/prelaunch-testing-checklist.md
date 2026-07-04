@@ -249,7 +249,7 @@ For each effect, confirm the watermark appears **in the exported/downloaded file
 - [ ] Invoice available
 - [ ] No cancellation option (no subscription exists to cancel - confirm the billing portal reflects this sensibly rather than erroring)
 - [ ] Features unlocked permanently
-- [ ] Promo code field is correctly hidden/disabled at checkout (lifetime checkouts do not enable `allow_promotion_codes`)
+- [ ] Promo code field appears at checkout for monthly, annual, and lifetime (Stripe `allow_promotion_codes`)
 
 ---
 

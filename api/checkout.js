@@ -168,9 +168,7 @@ module.exports = async function handler(req, res) {
     params.set('cancel_url', cancelUrl);
     params.set('line_items[0][price]', priceId);
     params.set('line_items[0][quantity]', '1');
-    if (!isLifetime) {
-        params.set('allow_promotion_codes', 'true');
-    }
+    params.set('allow_promotion_codes', 'true');
     params.set('client_reference_id', clerkUserId);
     params.set('metadata[plan]', plan);
     params.set('metadata[period]', period);
