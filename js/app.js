@@ -8559,10 +8559,29 @@ function autoSaveSession(){
     const openCloudBtn = document.getElementById('openCloudBtn');
     if (!openCloudBtn) return;
 
-    openCloudBtn.addEventListener('click', e => {
+    openCloudBtn.addEventListener('click', async e => {
         e.stopPropagation();
         const filePopover = document.getElementById('fileMenuPopover');
         if (filePopover) filePopover.hidden = true;
+
+        if (window.Clerk && !window.Clerk.user) {
+            sessionStorage.setItem('ms_redirect_after_auth', 'cloud');
+            try { await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {}); } catch (err) {
+                console.error('[OpenCloud→SignIn] snapshot failed:', err);
+            }
+            try {
+                window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href });
+            } catch (err) {
+                alert('Sign-in is temporarily unavailable \u2014 please refresh the page.');
+            }
+            return;
+        }
+        if (_userPlan === 'free') {
+            if (typeof openPlansModal === 'function') {
+                openPlansModal({ context: 'Cloud projects require Starter or Pro \u2014 upgrade to save and open work in the cloud.' });
+            }
+            return;
+        }
         if (typeof window._openCloudProjectsUI === 'function') {
             window._openCloudProjectsUI();
         }

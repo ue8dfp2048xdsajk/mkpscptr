@@ -23,6 +23,16 @@ describe('local JSON gating', () => {
         expect(src).toMatch(/loadProgressInput[\s\S]*?!_canUseLocalJson\(\)/);
     });
 
+    test('open cloud requires sign-in or paid plan', () => {
+        const appSrc = fs.readFileSync(APP_JS_PATH, 'utf8');
+        expect(appSrc).toMatch(/openCloudBtn[\s\S]*?ms_redirect_after_auth', 'cloud'/);
+        expect(appSrc).toMatch(/openCloudBtn[\s\S]*?_userPlan === 'free'/);
+        expect(appSrc).toMatch(/openCloudBtn[\s\S]*?openPlansModal/);
+
+        const clerkSrc = fs.readFileSync(path.join(__dirname, '../js/clerk-auth.js'), 'utf8');
+        expect(clerkSrc).toMatch(/redirect === 'cloud'/);
+    });
+
     test('landing pricing moves local JSON to Starter column', () => {
         const src = fs.readFileSync(INDEX_HTML_PATH, 'utf8');
         const freeBlock = src.match(/data-plan="free"[\s\S]*?<\/ul>/);

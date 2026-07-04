@@ -443,6 +443,17 @@
                 if (typeof openPlansModal === 'function') openPlansModal();
             }, 400);
         }
+        if (redirect === 'cloud' && window.Clerk && window.Clerk.user) {
+            setTimeout(function () {
+                if ((window._userPlan || 'free') === 'free') {
+                    if (typeof openPlansModal === 'function') {
+                        openPlansModal({ context: 'Cloud projects require Starter or Pro \u2014 upgrade to save and open work in the cloud.' });
+                    }
+                } else if (typeof window._openCloudProjectsUI === 'function') {
+                    window._openCloudProjectsUI();
+                }
+            }, 400);
+        }
     }
 
     function _resumePendingCheckout() {
