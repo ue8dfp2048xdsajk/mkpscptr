@@ -202,8 +202,8 @@ img { max-width: 100%; display: block; }
 
 .hero-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    gap: 44px;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.93fr);
+    gap: 48px;
     align-items: center;
 }
 
@@ -304,8 +304,6 @@ img { max-width: 100%; display: block; }
     aspect-ratio: 854 / 640;
     padding: 0;
     display: block;
-    margin-left: -8px;
-    width: calc(100% + 8px);
 }
 
 .media-placeholder--demo::before {
