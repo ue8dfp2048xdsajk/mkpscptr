@@ -76,7 +76,7 @@
         if (window.__clerkLoadFailed) {
             var msg = document.createElement('span');
             msg.style.cssText = 'color:#9ca3af;font-size:13px';
-            msg.textContent = 'Sign in unavailable \u2014 please refresh';
+            msg.textContent = 'Sign in unavailable - please refresh';
             container.appendChild(msg);
             return;
         }
@@ -87,9 +87,9 @@
         btn.textContent = 'Sign in';
         btn.addEventListener('click', function () {
             sessionStorage.setItem('ms_redirect_after_auth', 'home');
-            if (!window.Clerk) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); return; }
+            if (!window.Clerk) { alert('Sign-in is temporarily unavailable - please refresh the page.'); return; }
             var snap; try { snap = buildFullSnapshot(); } catch(e) { console.error('[SignIn] snapshot failed:', e); }
-            var doSignIn = function () { try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { console.error('[Clerk] redirectToSignIn failed:', e); alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); } };
+            var doSignIn = function () { try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { console.error('[Clerk] redirectToSignIn failed:', e); alert('Sign-in is temporarily unavailable - please refresh the page.'); } };
             if (snap) {
                 _autosaveDB.set('session', snap).catch(function(){}).then(doSignIn);
             } else {
@@ -451,7 +451,7 @@
             setTimeout(function () {
                 if ((window._userPlan || 'free') === 'free') {
                     if (typeof openPlansModal === 'function') {
-                        openPlansModal({ context: 'Cloud projects require Starter or Pro \u2014 upgrade to save and open work in the cloud.' });
+                        openPlansModal({ context: 'Cloud projects require Starter or Pro - upgrade to save and open work in the cloud.' });
                     }
                 } else if (typeof window._openCloudProjectsUI === 'function') {
                     window._openCloudProjectsUI();
@@ -680,7 +680,7 @@
         toast.className = 'ms-upgrade-toast ms-upgrade-toast--pending';
 
         var msg = document.createElement('span');
-        msg.textContent = 'Payment received \u2014 still activating your plan.';
+        msg.textContent = 'Payment received - still activating your plan.';
         toast.appendChild(msg);
 
         var reloadBtn = document.createElement('button');

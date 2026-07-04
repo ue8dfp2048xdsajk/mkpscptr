@@ -275,7 +275,7 @@ function _exportPatternPNG(data) {
         exportSignInBtn.addEventListener('click', async () => {
             sessionStorage.setItem('ms_redirect_after_auth', 'export');
             await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {});
-            try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
+            try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
         });
     }
     var exportPlansBtn = document.getElementById('exportPlansBtn');
@@ -464,7 +464,7 @@ function _exportPatternPNG(data) {
             if (window.Clerk && !window.Clerk.user) {
                 sessionStorage.setItem('ms_redirect_after_auth', 'export');
                 await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
-                try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
+                try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
                 return;
             }
 
@@ -519,14 +519,14 @@ function _exportPatternPNG(data) {
             if (window.Clerk && !window.Clerk.user) {
                 sessionStorage.setItem('ms_redirect_after_auth', 'export');
                 try { await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {}); } catch (e) { console.error('[ExportPattern→SignIn] snapshot failed:', e); }
-                try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch (e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
+                try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch (e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
                 return;
             }
 
             if (_userPlan !== 'pro') {
                 if (typeof openPlansModal === 'function') {
                     openPlansModal({
-                        context: 'Export Pattern PNG requires Pro \u2014 pattern is a PRO effect.',
+                        context: 'Export Pattern PNG requires Pro - pattern is a PRO effect.',
                     });
                 }
                 return;
@@ -542,7 +542,7 @@ function _exportPatternPNG(data) {
             if (verifiedPlan !== 'pro') {
                 if (typeof openPlansModal === 'function') {
                     openPlansModal({
-                        context: 'Export Pattern PNG requires Pro \u2014 pattern is a PRO effect.',
+                        context: 'Export Pattern PNG requires Pro - pattern is a PRO effect.',
                     });
                 }
                 return;
@@ -558,7 +558,7 @@ document.getElementById('exportTextBtn').addEventListener('click', async () => {
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'export');
         try { await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}); } catch(e) { console.error('[Export→SignIn] snapshot failed:', e); }
-        try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
+        try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
         return;
     }
     if(_userPlan === 'free'){

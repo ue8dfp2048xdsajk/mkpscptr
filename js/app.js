@@ -82,7 +82,7 @@ async function _guardLocalJsonAccess(action) {
         try {
             window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href });
         } catch (e) {
-            alert('Sign-in is temporarily unavailable \u2014 please refresh the page.');
+            alert('Sign-in is temporarily unavailable - please refresh the page.');
         }
         return false;
     }
@@ -1420,7 +1420,7 @@ async function _promptUpgradeForPro(context) {
         try {
             window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href });
         } catch (e) {
-            alert('Sign-in is temporarily unavailable \u2014 please refresh the page.');
+            alert('Sign-in is temporarily unavailable - please refresh the page.');
         }
         return;
     }
@@ -7756,7 +7756,7 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
             if (!badge || _userPlan === 'pro') return;
             e.preventDefault();
             e.stopPropagation();
-            _promptUpgradeForPro('Pro effects require Pro \u2014 upgrade to export without watermarks.');
+            _promptUpgradeForPro('Pro effects require Pro - upgrade to export without watermarks.');
         });
     }
 
@@ -7764,7 +7764,7 @@ document.getElementById("redoBtn").addEventListener("click", () => performGlobal
     if (counter) {
         function onCounterActivate() {
             if (_userPlan === 'pro') return;
-            _promptUpgradeForPro('These mockups use Pro effects \u2014 upgrade to export them without watermarks.');
+            _promptUpgradeForPro('These mockups use Pro effects - upgrade to export them without watermarks.');
         }
         counter.addEventListener('click', onCounterActivate);
         counter.addEventListener('keydown', function (e) {
@@ -8593,13 +8593,13 @@ function autoSaveSession(){
             try {
                 window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href });
             } catch (err) {
-                alert('Sign-in is temporarily unavailable \u2014 please refresh the page.');
+                alert('Sign-in is temporarily unavailable - please refresh the page.');
             }
             return;
         }
         if (_userPlan === 'free') {
             if (typeof openPlansModal === 'function') {
-                openPlansModal({ context: 'Cloud projects require Starter or Pro \u2014 upgrade to save and open work in the cloud.' });
+                openPlansModal({ context: 'Cloud projects require Starter or Pro - upgrade to save and open work in the cloud.' });
             }
             return;
         }
@@ -8630,7 +8630,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'save');
         try { await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}); } catch(e) { console.error('[Save→SignIn] snapshot failed:', e); }
-        try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
+        try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
         return;
     }
     if(_userPlan === 'free'){
@@ -10998,9 +10998,9 @@ async function _startCheckout(plan, period) {
         try { sessionStorage.setItem('ms_pending_checkout_period', period || 'monthly'); } catch (_) {}
         await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
         if (window.Clerk) {
-            try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable \u2014 please refresh the page.'); }
+            try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
         } else {
-            alert('Sign-in is temporarily unavailable \u2014 please refresh the page.');
+            alert('Sign-in is temporarily unavailable - please refresh the page.');
         }
         return;
     }
@@ -11013,7 +11013,7 @@ async function _startCheckout(plan, period) {
         ? utils.isCheckoutBlocked(currentPlan, currentBillingPeriod, requestedPlan, period)
         : false;
     if (checkoutBlocked) {
-        alert('You\u2019re already on this plan and billing period \u2014 no need to purchase it again!');
+        alert('You\u2019re already on this plan and billing period - no need to purchase it again!');
         return;
     }
 
@@ -11036,22 +11036,22 @@ async function _startCheckout(plan, period) {
         if (!data.ok || !data.url) {
             console.error('Checkout error:', data.error);
             if (resp.status === 409) {
-                alert(data.error || 'You\u2019re already subscribed to this plan \u2014 no charge has been made.');
+                alert(data.error || 'You\u2019re already subscribed to this plan - no charge has been made.');
             } else if (data.code === 'CLERK_UNREACHABLE') {
-                alert('We couldn\u2019t verify your current plan \u2014 please refresh and try again.');
+                alert('We couldn\u2019t verify your current plan - please refresh and try again.');
             } else if (data.code === 'CLERK_ERROR') {
-                alert(data.error || 'We couldn\u2019t verify your current plan \u2014 please try again.');
+                alert(data.error || 'We couldn\u2019t verify your current plan - please try again.');
             } else if (data.code === 'STRIPE_ERROR') {
-                alert(data.error || 'Our payment provider returned an error \u2014 please try again in a moment.');
+                alert(data.error || 'Our payment provider returned an error - please try again in a moment.');
             } else {
-                alert('Could not start checkout \u2014 please try again.');
+                alert('Could not start checkout - please try again.');
             }
             return;
         }
         url = data.url;
     } catch (err) {
         console.error('Checkout fetch failed:', err);
-        alert('Could not start checkout \u2014 please try again.');
+        alert('Could not start checkout - please try again.');
         return;
     }
 
