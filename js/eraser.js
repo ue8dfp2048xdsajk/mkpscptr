@@ -198,9 +198,35 @@ function _resolveEraserTargetObject(data, item) {
     return null;
 }
 
+function _snapshotTrimMeta(trim) {
+    if (!trim || trim._trimX0 == null) return null;
+    return {
+        _trimX0:   trim._trimX0,
+        _trimY0:   trim._trimY0,
+        width:     trim.width,
+        height:    trim.height,
+        _trimSrcW: trim._trimSrcW,
+        _trimSrcH: trim._trimSrcH,
+    };
+}
+
+function _captureEraserStrokeMap(obj, srcEl) {
+    return {
+        elW:   obj.width  || srcEl?.width  || 0,
+        elH:   obj.height || srcEl?.height || 0,
+        trim:  _snapshotTrimMeta(obj._c_trimmed),
+        blurR: obj._c_blurR || 0,
+    };
+}
+
 function _beginEraserStroke(data, obj) {
     const isMain   = obj === data.designObject;
     const extraIdx = isMain ? -1 : (data.extraDesignObjects || []).indexOf(obj);
+    const srcEl    = _ensureErasableOriginal(data, obj);
+    _eraserStrokeCtx = {
+        map:        _captureEraserStrokeMap(obj, srcEl),
+        frozenTrim: obj._c_trimmed || null,
+    };
     return {
         idx:      canvasData.indexOf(data),
         snap:     _captureEraserSnapshot(data),
@@ -211,15 +237,17 @@ function _beginEraserStroke(data, obj) {
 }
 
 var _eraserStrokeGeo = null;
+var _eraserStrokeCtx = null;
 
 // Map element-local coords to designOriginal pixel coords (flip + trim + blur pad).
 function _localToOriginalPixel(obj, data, localX, localY, srcEl) {
-    const elW = obj.width  || srcEl.width;
-    const elH = obj.height || srcEl.height;
+    const strokeMap = _eraserStrokeCtx?.map;
+    const elW = strokeMap ? strokeMap.elW : (obj.width  || srcEl.width);
+    const elH = strokeMap ? strokeMap.elH : (obj.height || srcEl.height);
     let wx = localX + elW / 2;
     let wy = localY + elH / 2;
 
-    const trim = obj._c_trimmed;
+    const trim = strokeMap?.trim || obj._c_trimmed;
     if (trim && trim._trimX0 != null) {
         if (trim.width === elW && trim.height === elH) {
             wx = trim._trimX0 + wx;
@@ -230,7 +258,7 @@ function _localToOriginalPixel(obj, data, localX, localY, srcEl) {
         }
     }
 
-    const blurR = obj._c_blurR || 0;
+    const blurR = strokeMap ? (strokeMap.blurR || 0) : (obj._c_blurR || 0);
     const pad   = blurR > 0 ? Math.ceil(blurR * 4) : 0;
     let px = wx - pad;
     let py = wy - pad;
@@ -340,11 +368,8 @@ async function _restoreEraserUndoItem(d, item) {
     const obj = _resolveEraserTargetObject(d, item);
     if (obj) {
         _resetObjectPipelineCaches(obj);
-        _rebuildEraserTarget(d, obj, false);
-        if (item.geo) {
-            _applyFabricGeometry(obj, item.geo);
-            if (item.isMain) _syncMainDesignDataFromFabric(d);
-        }
+        _rebuildEraserTarget(d, obj, false, true);
+        if (item.isMain) _syncMainDesignDataFromFabric(d);
         d.fabricCanvas?.requestRenderAll();
     } else {
         await applyWarpToData(d, false);
@@ -359,20 +384,40 @@ function _invalidateEraserPipelineCaches(data, obj) {
     data._flipMap   = null;
     if (obj) obj._flipMap = null;
     data._tileEpoch = (data._tileEpoch || 0) + 1;
-    obj._c_src      = null;
-    obj._c_warpOk   = false;
+    obj._c_src          = null;
+    obj._c_warpOk       = false;
+    delete obj._c_trimmed;
+    delete obj._c_srcTrimmed;
+    delete obj._c_srcTrimSrc;
+}
+
+function _eraserRebuildOpts(preview) {
+    if (preview && _eraserStrokeCtx) {
+        return {
+            skipTrimComp:       true,
+            freezePipelineTrim: true,
+            frozenTrim:         _eraserStrokeCtx.frozenTrim,
+        };
+    }
+    return {
+        skipTrimComp:       false,
+        freezePipelineTrim: false,
+    };
 }
 
 // Rebuild display from erased source for one target layer only.
-function _rebuildEraserTarget(data, obj, lowQuality) {
+function _rebuildEraserTarget(data, obj, lowQuality, finalize) {
     const src = _eraserPipelineSource(data, obj);
     if (!src) return;
-    _applyWarpToOneObject(obj, data, _cachedFlipForLayer(data, src, obj), lowQuality, { skipTrimComp: true });
+    _applyWarpToOneObject(
+        obj, data, _cachedFlipForLayer(data, src, obj), lowQuality,
+        _eraserRebuildOpts(!finalize)
+    );
     data.fabricCanvas.requestRenderAll();
 }
 
 function _previewEraserTarget(data, obj) {
-    _rebuildEraserTarget(data, obj, true);
+    _rebuildEraserTarget(data, obj, true, false);
 }
 
 // Erase a soft stamp from obj at a Fabric canvas-space point (source pixels only).
@@ -398,15 +443,23 @@ function _flushEraserPendingRebuild() {
     const data = obj?._ownerData;
     if (data && data._erasePendingRebuild) {
         data._erasePendingRebuild = false;
-        _rebuildEraserTarget(data, obj, false);
-        const geo = _eraserStrokeGeo || _captureEraserObjectGeo(obj);
+        const geo = _eraserStrokeGeo;
+        _rebuildEraserTarget(data, obj, false, true);
         if (obj && geo) {
-            _applyFabricGeometry(obj, geo);
-            if (obj === data.designObject) _syncMainDesignDataFromFabric(data);
+            obj.set({
+                scaleX: geo.scaleX,
+                scaleY: geo.scaleY,
+                angle:  geo.angle,
+                skewX:  geo.skewX,
+                skewY:  geo.skewY,
+            });
+            obj.setCoords();
         }
+        if (obj === data.designObject) _syncMainDesignDataFromFabric(data);
         if (obj) _markObjectBakedPro(obj);
     }
     _eraserStrokeGeo = null;
+    _eraserStrokeCtx = null;
     canvasData.forEach(d => { if (d) d._erasePendingRebuild = false; });
 }
 
@@ -464,6 +517,7 @@ function enterDesignEraserMode() {
     designEraserMode = true;
     eraserTargetObject = gate.target;
     _eraserStrokeGeo = null;
+    _eraserStrokeCtx = null;
     document.getElementById('designEraserBtn').textContent = 'Exit Eraser Mode';
     document.getElementById('designEraserControls').style.display = 'inline-flex';
     // Disable object selection on every canvas so mouse events reach the eraser handler
@@ -503,6 +557,7 @@ function exitDesignEraserMode() {
     designEraserDown = false;
     eraserTargetObject = null;
     _eraserStrokeGeo = null;
+    _eraserStrokeCtx = null;
     document.getElementById('designEraserBtn').textContent = 'Eraser';
     document.getElementById('designEraserControls').style.display = 'none';
     canvasData.forEach(d => {

@@ -1703,7 +1703,9 @@ function _resetObjectPipelineCaches(obj) {
 function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality, opts){
 
     opts = opts || {};
-    const skipTrimComp = !!opts.skipTrimComp;
+    const skipTrimComp       = !!opts.skipTrimComp;
+    const freezePipelineTrim = !!opts.freezePipelineTrim;
+    const frozenTrim         = opts.frozenTrim || null;
 
     const fx = obj._fx || _defaultFx(data);
 
@@ -1768,8 +1770,11 @@ function _applyWarpToOneObject(obj, data, srcOriginal, lowQuality, opts){
 
     // ── Stage 4: trim ─────────────────────────────────────────────────────────
     // trimTransparentBorders calls getImageData (GPU readback) — cache when warp unchanged.
+    // Eraser preview passes freezePipelineTrim so trim box stays stable during a stroke.
     let trimmed;
-    if(!warpDirty && obj._c_trimmed){
+    if (freezePipelineTrim && frozenTrim) {
+        trimmed = frozenTrim;
+    } else if(!warpDirty && obj._c_trimmed){
         trimmed = obj._c_trimmed;
     } else {
         trimmed = trimTransparentBorders(obj._warpCanvas);

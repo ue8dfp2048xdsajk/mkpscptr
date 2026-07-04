@@ -81,7 +81,10 @@ describe('contentDeltaToCanvasDelta', () => {
 });
 
 describe('eraser source mapping', () => {
-    beforeEach(() => loadEraserMappingHelpers());
+    beforeEach(() => {
+        loadEraserMappingHelpers();
+        global._eraserStrokeCtx = null;
+    });
 
     function makeObj(overrides) {
         return Object.assign({
@@ -116,6 +119,33 @@ describe('eraser source mapping', () => {
         const hit = _localToOriginalPixel(obj, data, 0, 0, srcEl);
         expect(hit.px).toBe(5 + 40);
         expect(hit.py).toBe(10 + 30);
+    });
+
+    test('frozen stroke map ignores live element size changes', () => {
+        const srcEl = { width: 100, height: 80 };
+        const data  = { designObject: {}, flipX: false, flipY: false };
+        const obj   = makeObj({
+            width: 120,
+            height: 90,
+            _c_trimmed: { _trimX0: 99, _trimY0: 99, width: 10, height: 10 },
+        });
+        obj._ownerData = data;
+        data.designObject = obj;
+
+        global._eraserStrokeCtx = {
+            map: {
+                elW: 80,
+                elH: 60,
+                trim: { _trimX0: 5, _trimY0: 10, width: 80, height: 60, _trimSrcW: 100, _trimSrcH: 80 },
+                blurR: 0,
+            },
+            frozenTrim: null,
+        };
+
+        const hit = _localToOriginalPixel(obj, data, 0, 0, srcEl);
+        expect(hit.px).toBe(5 + 40);
+        expect(hit.py).toBe(10 + 30);
+        global._eraserStrokeCtx = null;
     });
 
     test('_localToOriginalPixel applies flipX', () => {
@@ -158,22 +188,37 @@ describe('eraser source mapping', () => {
     test('_beginEraserStroke captures geometry metadata', () => {
         global.canvasData = [{ designObject: null, extraDesignObjects: [] }];
         const data = canvasData[0];
-        const obj  = { left: 10, top: 20, scaleX: 2, scaleY: 2, angle: 5, skewX: 12, skewY: 0, _ownerData: data };
+        const obj  = {
+            left: 10, top: 20, scaleX: 2, scaleY: 2, angle: 5, skewX: 12, skewY: 0,
+            width: 80, height: 60,
+            _c_trimmed: { _trimX0: 5, _trimY0: 10, width: 80, height: 60 },
+            _c_blurR: 0,
+            _ownerData: data,
+        };
         data.designObject = obj;
         global._captureEraserSnapshot = () => ({ original: null, extraOriginals: [] });
+        global._ensureErasableOriginal = () => ({ width: 100, height: 80 });
 
         const item = _beginEraserStroke(data, obj);
         expect(item.geo.skewX).toBe(12);
         expect(item.isMain).toBe(true);
         expect(item.extraIdx).toBe(-1);
+        expect(_eraserStrokeCtx.map.elW).toBe(80);
+        expect(_eraserStrokeCtx.frozenTrim).toBe(obj._c_trimmed);
+        _eraserStrokeCtx = null;
     });
 
     test('_beginEraserStroke must receive fabric layer, not window data', () => {
         global.canvasData = [{ designObject: null, extraDesignObjects: [] }];
         const data = canvasData[0];
-        const obj  = { left: 10, top: 20, scaleX: 2, scaleY: 2, angle: 5, skewX: 0, skewY: 0, _ownerData: data };
+        const obj  = {
+            left: 10, top: 20, scaleX: 2, scaleY: 2, angle: 5, skewX: 0, skewY: 0,
+            width: 80, height: 60,
+            _ownerData: data,
+        };
         data.designObject = obj;
         global._captureEraserSnapshot = () => ({ original: null, extraOriginals: [] });
+        global._ensureErasableOriginal = () => ({ width: 100, height: 80 });
 
         const wrong = _beginEraserStroke(data, data);
         expect(wrong.geo.left).toBeUndefined();
@@ -183,5 +228,6 @@ describe('eraser source mapping', () => {
         expect(right.geo.left).toBe(10);
         expect(right.geo.top).toBe(20);
         expect(right.isMain).toBe(true);
+        _eraserStrokeCtx = null;
     });
 });
