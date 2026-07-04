@@ -963,7 +963,7 @@ function _attachWindowCanvasSelection(data) {
         if (!targetData || targetData !== data) return;
 
         if (!designEraserDown) {
-            const undoItem = _beginEraserStroke(data, targetData);
+            const undoItem = _beginEraserStroke(data, eraserTargetObject);
             _eraserStrokeGeo = undoItem.geo;
             globalUndoStack.push({ type: 'eraser', items: [undoItem] });
             if (globalUndoStack.length > MAX_UNDO_HISTORY) globalUndoStack.shift();

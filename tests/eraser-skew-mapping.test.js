@@ -167,4 +167,21 @@ describe('eraser source mapping', () => {
         expect(item.isMain).toBe(true);
         expect(item.extraIdx).toBe(-1);
     });
+
+    test('_beginEraserStroke must receive fabric layer, not window data', () => {
+        global.canvasData = [{ designObject: null, extraDesignObjects: [] }];
+        const data = canvasData[0];
+        const obj  = { left: 10, top: 20, scaleX: 2, scaleY: 2, angle: 5, skewX: 0, skewY: 0, _ownerData: data };
+        data.designObject = obj;
+        global._captureEraserSnapshot = () => ({ original: null, extraOriginals: [] });
+
+        const wrong = _beginEraserStroke(data, data);
+        expect(wrong.geo.left).toBeUndefined();
+        expect(wrong.isMain).toBe(false);
+
+        const right = _beginEraserStroke(data, obj);
+        expect(right.geo.left).toBe(10);
+        expect(right.geo.top).toBe(20);
+        expect(right.isMain).toBe(true);
+    });
 });
