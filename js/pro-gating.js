@@ -92,7 +92,7 @@ function _drawWatermarkOnCanvas(data) {
         var y   = r * rowPitch;
         var xOff = (r & 1) ? colPitch / 2 : 0; // brick offset on odd rows
         for (var c = -cols; c <= cols; c++) {
-            ctx.fillText('MOCKUP SCRIPTER', c * colPitch + xOff, y - 11);
+            ctx.fillText('MOCKUP RABBIT', c * colPitch + xOff, y - 11);
         }
     }
     // Draw all line-2 text

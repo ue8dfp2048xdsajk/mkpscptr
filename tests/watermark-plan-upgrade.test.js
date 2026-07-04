@@ -113,7 +113,7 @@ describe('_drawWatermarkOnCanvas - watermark by plan', () => {
 
         expect(fc.contextContainer.fillText).toHaveBeenCalled();
         const texts = fc.contextContainer.fillText.mock.calls.map(([t]) => t);
-        expect(texts).toContain('MOCKUP SCRIPTER');
+        expect(texts).toContain('MOCKUP RABBIT');
         expect(texts).toContain('mockuprabbit.com');
     });
 
@@ -263,7 +263,7 @@ describe('full upgrade simulation', () => {
         window._drawWatermarkOnCanvas(data);
         expect(fc.contextContainer.fillText).toHaveBeenCalled();
         expect(
-            fc.contextContainer.fillText.mock.calls.some(([t]) => t === 'MOCKUP SCRIPTER')
+            fc.contextContainer.fillText.mock.calls.some(([t]) => t === 'MOCKUP RABBIT')
         ).toBe(true);
 
         expect(document.getElementById('upgradePrompt').style.display).not.toBe('none');
