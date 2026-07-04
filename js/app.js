@@ -8036,7 +8036,6 @@ function _markDirty(){
     if(_unsaved) return;
     _unsaved = true;
     document.getElementById('saveProgressBtn')?.classList.add('has-unsaved');
-    if(!document.title.startsWith('• ')) document.title = '• ' + document.title;
 }
 
 // ── Cloud save ────────────────────────────────────────────────────────────────
@@ -8347,7 +8346,6 @@ function _markClean(){
     _unsaved = false;
     clearTimeout(_cloudAutoSaveTimer);
     document.getElementById('saveProgressBtn')?.classList.remove('has-unsaved');
-    document.title = document.title.replace(/^• /, '');
 }
 
 async function _loadProjectByUuid(uuid) {
