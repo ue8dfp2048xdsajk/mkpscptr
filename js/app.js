@@ -465,6 +465,22 @@ function _deselectAll(){
     updateSelectButtonState();
 }
 
+function _selectAllWindows(){
+    activeIndices = canvasData.map((_, i) => i);
+    selectedDesigns.clear();
+    canvasData.forEach(d => {
+        if(d?.designObject && !d.locked){
+            if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
+            selectedDesigns.add(d.designObject);
+        }
+    });
+    refreshFabricHandles();
+    updateWindowBorders();
+    updateLayerButtons();
+    syncSliders();
+    updateSelectButtonState();
+}
+
 function _isEmptyViewportMouseTarget(e) {
     if (e.button !== 0) return false;
     if (_vpSpaceDown) return false;
@@ -3770,7 +3786,7 @@ function updateSelectButtonState(){
 
     if(activeIndices.length > 0){
         btn.innerText = "Unselect All";
-        allSelected = true;
+        allSelected = activeIndices.length === canvasData.length && canvasData.length > 0;
     } else {
         btn.innerText = "Select All";
         allSelected = false;
@@ -5369,28 +5385,11 @@ document.getElementById("selectAllBtn").addEventListener("click", ()=>{
         return;
     }
 
-    if(activeIndices.length === canvasData.length && canvasData.length > 0){
-
-        activeIndices = [];
-        selectedDesigns.clear();
-
+    if(activeIndices.length > 0){
+        _deselectAll();
     } else {
-
-        activeIndices = canvasData.map((_,i)=>i);
-        selectedDesigns.clear();
-        canvasData.forEach(d => {
-            if(d?.designObject && !d.locked){
-                if(!d.designObject._fx) d.designObject._fx = _defaultFx(d);
-                selectedDesigns.add(d.designObject);
-            }
-        });
+        _selectAllWindows();
     }
-
-    refreshFabricHandles();
-    updateWindowBorders();
-    updateLayerButtons();
-    syncSliders();
-    updateSelectButtonState();
 });
 
 
@@ -6738,7 +6737,8 @@ document.addEventListener('keydown', function(e){
     const tag = document.activeElement?.tagName;
     if(tag === 'INPUT' || tag === 'TEXTAREA') return;
     e.preventDefault();
-    document.getElementById('selectAllBtn').click();
+    if(clipEditMode){ showClipModeNotice(); return; }
+    _selectAllWindows();
 });
 
 // Ctrl/Cmd+S - save progress
