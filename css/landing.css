@@ -930,49 +930,6 @@ details[open] > .faq-question { color: #fff; }
 }
 #cookieAcceptBtn:hover { background: #3A56D4; }
 
-/* ── Mobile overlay ───────────────────────────────────────────────────────── */
-#mobileOverlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: #0F1624;
-    z-index: 99999;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 32px;
-}
-
-#mobileOverlayContent {
-    max-width: 320px;
-}
-
-#mobileOverlayIcon { font-size: 48px; margin-bottom: 20px; }
-
-#mobileOverlay h1 {
-    font-size: 22px;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 12px;
-}
-
-#mobileOverlay p {
-    font-size: 15px;
-    color: #9CA3AF;
-    margin-bottom: 20px;
-}
-
-#mobileOverlayUrl {
-    display: inline-block;
-    background: rgba(79, 110, 247, 0.15);
-    border: 1px solid rgba(79, 110, 247, 0.30);
-    color: #818CF8;
-    padding: 8px 20px;
-    border-radius: 999px;
-    font-size: 14px;
-    font-weight: 600;
-}
-
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 960px) {
     .social-proof-inner {
