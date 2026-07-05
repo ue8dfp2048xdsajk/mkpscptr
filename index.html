@@ -35,6 +35,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/landing.css" />
+    <link rel="preload" as="video" href="/hero-demo.mp4" type="video/mp4" />
     <script
         async
         crossorigin="anonymous"
@@ -93,6 +94,7 @@
                     muted
                     playsinline
                     preload="auto"
+                    fetchpriority="high"
                     width="854"
                     height="640"
                     aria-label="Mockup Rabbit batch editor demo"
@@ -157,7 +159,7 @@
                             loop
                             muted
                             playsinline
-                            preload="auto"
+                            preload="none"
                             aria-label="Drag and drop demo"
                         >
                             <source src="/feature-1-drag-ndrop.mp4" type="video/mp4" />
@@ -186,7 +188,7 @@
                             loop
                             muted
                             playsinline
-                            preload="auto"
+                            preload="none"
                             aria-label="Batch edit demo"
                         >
                             <source src="/feature-2-batch-edit.mp4" type="video/mp4" />
@@ -203,7 +205,7 @@
                             loop
                             muted
                             playsinline
-                            preload="auto"
+                            preload="none"
                             aria-label="Photorealistic effects demo"
                         >
                             <source src="/feature-3-photorealistic.mp4" type="video/mp4" />
@@ -232,7 +234,7 @@
                             loop
                             muted
                             playsinline
-                            preload="auto"
+                            preload="none"
                             aria-label="Bulk warp demo"
                         >
                             <source src="/feature-4-warp.mp4" type="video/mp4" />
@@ -249,7 +251,7 @@
                             loop
                             muted
                             playsinline
-                            preload="auto"
+                            preload="none"
                             aria-label="Fabric blend demo"
                         >
                             <source src="/feature-5-fabric.mp4" type="video/mp4" />
@@ -278,7 +280,7 @@
                             loop
                             muted
                             playsinline
-                            preload="auto"
+                            preload="none"
                             aria-label="Free warp demo"
                         >
                             <source src="/feature-6-free-warp.mp4" type="video/mp4" />
@@ -687,6 +689,43 @@
         document.getElementById('cookieDeclineBtn').addEventListener('click', function () {
             localStorage.setItem(CONSENT_KEY, 'declined');
             bar.style.display = 'none';
+        });
+    })();
+
+    /* Lazy-load feature demo videos when scrolled into view */
+    (function () {
+        var videos = document.querySelectorAll('.feature-demo-video');
+        if (!videos.length) return;
+
+        var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function startVideo(video) {
+            if (video.dataset.lazyLoaded === 'true') return;
+            video.dataset.lazyLoaded = 'true';
+            if (reducedMotion) return;
+            video.load();
+            var playPromise = video.play();
+            if (playPromise && playPromise.catch) {
+                playPromise.catch(function () {});
+            }
+        }
+
+        if (!('IntersectionObserver' in window)) {
+            videos.forEach(startVideo);
+            return;
+        }
+
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    startVideo(entry.target);
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { rootMargin: '200px 0px', threshold: 0.01 });
+
+        videos.forEach(function (video) {
+            observer.observe(video);
         });
     })();
 </script>
