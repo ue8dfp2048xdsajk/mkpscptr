@@ -1069,6 +1069,31 @@ body.vpc-panel-collapsed #minimapTeaser {
     width: 52px;
     flex-shrink: 0;
 }
+.export-format-info {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-left: 3px;
+    border-radius: 50%;
+    border: 1px solid #9CA3AF;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    color: #6B7280;
+    cursor: help;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+.export-popover .export-format-info.instant-hint::after {
+    left: 0;
+    transform: none;
+    white-space: normal;
+    width: max-content;
+    max-width: 180px;
+    text-align: left;
+}
 .export-seg {
     display: inline-flex;
     align-items: center;
