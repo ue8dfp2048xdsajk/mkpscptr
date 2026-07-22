@@ -250,6 +250,10 @@ function _exportPatternPNG(data) {
         if (signInBlock) signInBlock.hidden = !anon;
         if (plansBlock) plansBlock.hidden = !free;
 
+        // Anon: only show Sign in — hide all export settings (UI only; auth gates unchanged)
+        var settingsPanel = document.getElementById('exportSettingsPanel');
+        if (settingsPanel) settingsPanel.hidden = !_isSignedIn();
+
         const summary = _formatSummaryLine();
         if (summaryEl) {
             if (summary && canvasData.length) {
