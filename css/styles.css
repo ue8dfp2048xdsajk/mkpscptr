@@ -1065,24 +1065,25 @@ body.vpc-panel-collapsed #minimapTeaser {
 .export-label {
     font-size: 12px;
     font-weight: 600;
-    color: #6B7280;
+    color: #1F2937;
     width: 52px;
     flex-shrink: 0;
 }
 .export-seg {
     display: inline-flex;
-    border: 1px solid #E5E7EB;
+    border: 1px solid #D1D5DB;
     border-radius: 5px;
     overflow: hidden;
 }
 .seg-btn {
     background: #f5f5f5;
     border: none;
-    border-right: 1px solid #E5E7EB;
+    border-right: 1px solid #D1D5DB;
     padding: 4px 11px;
     font-family: 'Inter', Arial, sans-serif;
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
+    color: #111827;
     cursor: pointer;
     transition: background .1s;
     line-height: 1.4;
@@ -1090,6 +1091,60 @@ body.vpc-panel-collapsed #minimapTeaser {
 .seg-btn:last-child { border-right: none; }
 .seg-btn:hover:not(.seg-active) { background: #e5e5e5; }
 .seg-btn.seg-active { background: #4F46E5; color: #fff; }
+.export-hint {
+    margin: -4px 0 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #374151;
+}
+.export-large-warn {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #92400E;
+    background: #FFFBEB;
+    border: 1px solid #F59E0B;
+}
+.export-large-warn.export-large-warn--strong {
+    color: #7C2D12;
+    background: #FFF7ED;
+    border-color: #EA580C;
+}
+.export-success-panel {
+    position: relative;
+    padding: 12px 28px 12px 12px;
+    border-radius: 8px;
+    background: #ECFDF5;
+    border: 1px solid #6EE7B7;
+}
+.export-success-panel[hidden] { display: none !important; }
+.export-success-msg {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #065F46;
+}
+.export-success-dismiss {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #065F46;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+.export-success-dismiss:hover {
+    background: rgba(6, 95, 70, 0.1);
+}
 #exportQualityRow { margin-bottom: 12px; }
 #exportQualitySlider { flex: 1; cursor: pointer; accent-color: #4F46E5; }
 #exportQualityVal {

@@ -201,6 +201,11 @@
                         Export ▾
                     </button>
                     <div id="exportPopover" class="export-popover" hidden>
+                        <div id="exportSuccessPanel" class="export-success-panel" hidden>
+                            <button type="button" id="exportSuccessDismiss" class="export-success-dismiss" aria-label="Dismiss">×</button>
+                            <p id="exportSuccessMsg" class="export-success-msg"></p>
+                        </div>
+                        <div id="exportOptionsBody">
                         <div id="exportSignInBlock" class="export-gate-block" hidden>
                             <p class="export-gate-msg">Sign in to export your mockups.</p>
                             <button type="button" id="exportSignInBtn" class="export-gate-btn">Sign in</button>
@@ -224,11 +229,13 @@
                                 >
                                     ZIP
                                 </button>
-                                <button class="seg-btn" data-val="file">
-                                    File
+                                <button class="seg-btn" data-val="file" id="exportFolderBtn" title="Save images to a folder (Chrome/Edge)">
+                                    Folder
                                 </button>
                             </span>
                         </div>
+                        <p id="exportOutputHint" class="export-hint"></p>
+                        <div id="exportLargeWarn" class="export-large-warn" hidden></div>
                         <div class="export-row">
                             <span class="export-label">Scope</span>
                             <span class="export-seg" id="exportScopeToggle">
@@ -277,6 +284,7 @@
                             </button>
                         </div>
                         <button id="exportGoBtn" class="export-go-btn-full">Export</button>
+                        </div>
                     </div>
                 </span>
             </div>

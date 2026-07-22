@@ -148,8 +148,16 @@ function _exportPatternPNG(data) {
     const summaryEl   = document.getElementById('exportSummary');
     const proGateRow  = document.getElementById('exportProGateRow');
     const proGateText = document.getElementById('exportProGateText');
+    const outputHintEl = document.getElementById('exportOutputHint');
+    const largeWarnEl  = document.getElementById('exportLargeWarn');
+    const successPanel = document.getElementById('exportSuccessPanel');
+    const successMsgEl = document.getElementById('exportSuccessMsg');
+    const successDismissBtn = document.getElementById('exportSuccessDismiss');
+    const optionsBody  = document.getElementById('exportOptionsBody');
 
     var _exportExcludeProGated = false;
+    var _folderPickerAvailable = typeof window.showDirectoryPicker === 'function';
+    var _lastExportSuccessKind = null; // 'zip' | 'folder' | 'files'
 
     function _isSignedIn() {
         return window.Clerk && window.Clerk.user;
@@ -174,16 +182,69 @@ function _exportPatternPNG(data) {
         const indices = _resolveScopeIndices();
         if (!indices || !indices.length) return '';
         const fmt = _exportFormat === 'jpeg' ? 'JPEG' : 'PNG';
-        const out = _exportOutput === 'zip' ? 'ZIP download' : 'individual files';
+        const out = _exportOutput === 'zip' ? 'ZIP download' : 'folder / files';
         const scopeBtn = document.querySelector('#exportScopeToggle .seg-active');
         const scopeLabel = scopeBtn && scopeBtn.dataset.val === 'all' ? 'All mockups' : 'Selected mockups';
         return scopeLabel + ': ' + indices.length + ' mockup' + (indices.length !== 1 ? 's' : '') +
             ' · ' + fmt + ' · ' + out;
     }
 
+    function _updateOutputHint() {
+        if (!outputHintEl) return;
+        if (_exportOutput === 'zip') {
+            outputHintEl.textContent = 'ZIP downloads to your Downloads folder (or wherever your browser saves files).';
+        } else if (_folderPickerAvailable) {
+            outputHintEl.textContent = 'Pick a folder (Chrome/Edge). Other browsers download files one-by-one to Downloads.';
+        } else {
+            outputHintEl.textContent = 'Folder picker needs Chrome/Edge. Here, images download one-by-one to your Downloads folder.';
+        }
+    }
+
+    function _updateLargeWarn() {
+        if (!largeWarnEl) return;
+        const indices = _resolveScopeIndices();
+        const count = indices ? indices.length : 0;
+        largeWarnEl.classList.remove('export-large-warn--strong');
+        if (_exportOutput !== 'zip' || count < 40) {
+            largeWarnEl.hidden = true;
+            largeWarnEl.textContent = '';
+            return;
+        }
+        largeWarnEl.hidden = false;
+        if (count >= 80) {
+            largeWarnEl.classList.add('export-large-warn--strong');
+            largeWarnEl.textContent = 'Large ZIP (' + count + ' mockups) — may take a while and use a lot of memory. Don't close this tab. Prefer Folder for big batches, or export in smaller groups.';
+        } else {
+            largeWarnEl.textContent = 'Large ZIP (' + count + ' mockups) — may take a while. Don't close this tab. For big batches, Folder is often smoother.';
+        }
+    }
+
+    function _showExportSuccess(kind) {
+        _lastExportSuccessKind = kind;
+        if (optionsBody) optionsBody.hidden = true;
+        if (successPanel) successPanel.hidden = false;
+        if (successMsgEl) {
+            if (kind === 'zip') {
+                successMsgEl.textContent = 'Exported! Check your Downloads folder for mockups.zip (or wherever your browser saves files).';
+            } else if (kind === 'folder') {
+                successMsgEl.textContent = 'Exported! Saved to the folder you chose.';
+            } else {
+                successMsgEl.textContent = 'Exported! Check your Downloads folder (or wherever your browser saves files).';
+            }
+        }
+        if (popover) popover.hidden = false;
+    }
+
+    function _hideExportSuccess() {
+        if (successPanel) successPanel.hidden = true;
+        if (optionsBody) optionsBody.hidden = false;
+        _lastExportSuccessKind = null;
+    }
+
     function refreshExportPopover(opts) {
         opts = opts || {};
         if (opts.resetProSkip) _exportExcludeProGated = false;
+        if (opts.clearSuccess) _hideExportSuccess();
         const anon = window.Clerk && !_isSignedIn();
         const free = _isSignedIn() && _userPlan === 'free';
         const canExport = _isSignedIn() && _userPlan !== 'free';
@@ -201,6 +262,9 @@ function _exportPatternPNG(data) {
                 summaryEl.textContent = '';
             }
         }
+
+        _updateOutputHint();
+        _updateLargeWarn();
 
         let blocked = [];
         if (_userPlan === 'starter' && canExport) {
@@ -258,9 +322,16 @@ function _exportPatternPNG(data) {
                 if (typeof openPlansModal === 'function') openPlansModal();
                 return;
             }
+            // Success panel stays until × — Export toggle returns to options instead of discarding it silently
+            if (successPanel && !successPanel.hidden) {
+                _hideExportSuccess();
+                popover.hidden = false;
+                refreshExportPopover({ resetProSkip: false });
+                return;
+            }
             const opening = popover.hidden;
             popover.hidden = !popover.hidden;
-            if (opening) refreshExportPopover({ resetProSkip: true });
+            if (opening) refreshExportPopover({ resetProSkip: true, clearSuccess: true });
         });
     }
 
@@ -269,6 +340,14 @@ function _exportPatternPNG(data) {
             if (!popover.hidden) setTimeout(function () { refreshExportPopover({ resetProSkip: false }); }, 0);
         });
     });
+
+    if (successDismissBtn) {
+        successDismissBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            _hideExportSuccess();
+            refreshExportPopover({ resetProSkip: false });
+        });
+    }
 
     var exportSignInBtn = document.getElementById('exportSignInBtn');
     if (exportSignInBtn) {
@@ -299,6 +378,8 @@ function _exportPatternPNG(data) {
     }
 
     document.addEventListener('click', e => {
+        // Keep success confirmation until × — ignore outside clicks while it is showing
+        if (successPanel && !successPanel.hidden) return;
         if(!popover.hidden && !popover.contains(e.target) && e.target !== triggerBtn){
             popover.hidden = true;
         }
@@ -347,11 +428,14 @@ function _exportPatternPNG(data) {
 
         goBtn.disabled = true;
         popover.hidden = true;
+        _hideExportSuccess();
 
         let exportSucceeded = false;
+        let successKind = 'files';
         try {
             _setExportProgress('Exporting…');
             if(_exportOutput === 'zip'){
+                successKind = 'zip';
                 const zip = new JSZip();
                 const usedNames = {};
                 for(let i = 0; i < indices.length; i++){
@@ -368,9 +452,24 @@ function _exportPatternPNG(data) {
                     }
                     zip.file(fileName, blob);
                 }
-                _setExportProgress('Zipping…');
-                // STORE: PNGs/JPEGs are already compressed; DEFLATE burns CPU for ~0% size win
-                const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+                const zipStarted = Date.now();
+                const zipTick = function () {
+                    const s = Math.max(0, Math.round((Date.now() - zipStarted) / 1000));
+                    _setExportProgress(
+                        s > 0
+                            ? ('Building ZIP… ' + s + 's — don't close this tab')
+                            : 'Building ZIP… don't close this tab'
+                    );
+                };
+                zipTick();
+                const zipTimer = setInterval(zipTick, 1000);
+                let zipBlob;
+                try {
+                    // STORE: PNGs/JPEGs are already compressed; DEFLATE burns CPU for ~0% size win
+                    zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+                } finally {
+                    clearInterval(zipTimer);
+                }
                 const url = URL.createObjectURL(zipBlob);
                 const a   = document.createElement('a');
                 a.href     = url;
@@ -379,11 +478,17 @@ function _exportPatternPNG(data) {
                 await new Promise(r => setTimeout(r, 200));
                 URL.revokeObjectURL(url);
             } else {
-                if(typeof window.showDirectoryPicker === 'function'){
+                if(_folderPickerAvailable){
                     let dirHandle;
                     try{ dirHandle = await window.showDirectoryPicker(); }
-                    catch(err){ return; }
+                    catch(err){
+                        // User cancelled folder picker — not a failure; reopen options.
+                        popover.hidden = false;
+                        refreshExportPopover({ resetProSkip: false });
+                        return;
+                    }
 
+                    successKind = 'folder';
                     for(let i = 0; i < indices.length; i++){
                         const data = canvasData[indices[i]];
                         _setExportProgress('Exporting ' + (i + 1) + ' of ' + indices.length + '…');
@@ -393,8 +498,8 @@ function _exportPatternPNG(data) {
                         await wr.write(blob);
                         await wr.close();
                     }
-                    alert('Exported ' + indices.length + ' file(s)!');
                 } else {
+                    successKind = 'files';
                     for(let i = 0; i < indices.length; i++){
                         const data = canvasData[indices[i]];
                         _setExportProgress('Exporting ' + (i + 1) + ' of ' + indices.length + '…');
@@ -416,14 +521,22 @@ function _exportPatternPNG(data) {
             }
         } catch(err) {
             console.error('Export failed:', err);
-            alert('Export failed - ' + (err.message || 'unknown error'));
+            const raw = (err && err.message) ? String(err.message) : 'unknown error';
+            const isMem = /array buffer|allocation failed|out of memory|oom/i.test(raw);
+            if (isMem) {
+                alert('Export failed — this batch is too large for one ZIP. Try Folder (Chrome/Edge), or export fewer mockups at a time.');
+            } else {
+                alert('Export failed - ' + raw);
+            }
         } finally {
             goBtn.textContent = 'Export';
             goBtn.disabled = false;
+            _hideExportStatus();
             if (exportSucceeded) {
-                setTimeout(_hideExportStatus, 800);
-            } else {
-                _hideExportStatus();
+                _showExportSuccess(successKind);
+            } else if (popover.hidden) {
+                popover.hidden = false;
+                refreshExportPopover({ resetProSkip: false });
             }
         }
     }

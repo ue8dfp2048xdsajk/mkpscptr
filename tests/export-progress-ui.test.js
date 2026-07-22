@@ -20,8 +20,9 @@ describe('export progress UI', () => {
         expect(src).toMatch(/getElementById\('loadingIndicator'\)/);
         expect(src).toMatch(/_setExportProgress\('Preparing export/);
         expect(src).toMatch(/_setExportProgress\('Exporting '/);
-        expect(src).toMatch(/_setExportProgress\('Zipping/);
-        expect(src).toMatch(/_setExportProgress\('Export complete/);
+        expect(src).toMatch(/Building ZIP/);
+        expect(src).toMatch(/_showExportSuccess/);
+        expect(src).toMatch(/export-success-panel|exportSuccessPanel/);
         expect(src).toMatch(/finally \{[\s\S]*?_hideExportStatus\(\)/);
     });
 });
