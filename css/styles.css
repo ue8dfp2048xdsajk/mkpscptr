@@ -1110,16 +1110,21 @@ body.vpc-panel-collapsed #minimapTeaser {
     margin: 0 0 10px;
     padding: 8px 10px;
     border-radius: 6px;
-    font-size: 11px;
-    line-height: 1.45;
     color: #92400E;
     background: #FFFBEB;
     border: 1px solid #F59E0B;
 }
-.export-large-warn.export-large-warn--strong {
-    color: #7C2D12;
-    background: #FFF7ED;
-    border-color: #EA580C;
+.export-large-warn-title {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.export-large-warn-sub {
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: #A16207;
 }
 .export-success-panel {
     position: relative;

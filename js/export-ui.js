@@ -202,21 +202,19 @@ function _exportPatternPNG(data) {
 
     function _updateLargeWarn() {
         if (!largeWarnEl) return;
+        const titleEl = document.getElementById('exportLargeWarnTitle');
+        const subEl = document.getElementById('exportLargeWarnSub');
         const indices = _resolveScopeIndices();
         const count = indices ? indices.length : 0;
-        largeWarnEl.classList.remove('export-large-warn--strong');
-        if (_exportOutput !== 'zip' || count < 40) {
+        if (_exportOutput !== 'zip' || count < 50) {
             largeWarnEl.hidden = true;
-            largeWarnEl.textContent = '';
+            if (titleEl) titleEl.textContent = '';
+            if (subEl) subEl.textContent = '';
             return;
         }
         largeWarnEl.hidden = false;
-        if (count >= 80) {
-            largeWarnEl.classList.add('export-large-warn--strong');
-            largeWarnEl.textContent = "Large ZIP (" + count + " mockups) may take a while and use a lot of memory. Don't close this tab. Prefer Folder for big batches, or export in smaller groups.";
-        } else {
-            largeWarnEl.textContent = "Large ZIP (" + count + " mockups) may take a while. Don't close this tab. For big batches, Folder is often smoother.";
-        }
+        if (titleEl) titleEl.textContent = "Large ZIP (" + count + " mockups). Don't close this tab.";
+        if (subEl) subEl.textContent = 'To export less at once: select fewer mockups → Scope: Selected → Export.';
     }
 
     function _showExportSuccess(kind) {
