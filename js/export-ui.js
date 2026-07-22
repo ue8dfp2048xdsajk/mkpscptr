@@ -213,9 +213,9 @@ function _exportPatternPNG(data) {
         largeWarnEl.hidden = false;
         if (count >= 80) {
             largeWarnEl.classList.add('export-large-warn--strong');
-            largeWarnEl.textContent = 'Large ZIP (' + count + ' mockups) — may take a while and use a lot of memory. Don't close this tab. Prefer Folder for big batches, or export in smaller groups.';
+            largeWarnEl.textContent = "Large ZIP (" + count + " mockups) — may take a while and use a lot of memory. Don't close this tab. Prefer Folder for big batches, or export in smaller groups.";
         } else {
-            largeWarnEl.textContent = 'Large ZIP (' + count + ' mockups) — may take a while. Don't close this tab. For big batches, Folder is often smoother.';
+            largeWarnEl.textContent = "Large ZIP (" + count + " mockups) — may take a while. Don't close this tab. For big batches, Folder is often smoother.";
         }
     }
 
@@ -457,8 +457,8 @@ function _exportPatternPNG(data) {
                     const s = Math.max(0, Math.round((Date.now() - zipStarted) / 1000));
                     _setExportProgress(
                         s > 0
-                            ? ('Building ZIP… ' + s + 's — don't close this tab')
-                            : 'Building ZIP… don't close this tab'
+                            ? ("Building ZIP… " + s + "s — don't close this tab")
+                            : "Building ZIP… don't close this tab"
                     );
                 };
                 zipTick();
