@@ -1071,27 +1071,35 @@ body.vpc-panel-collapsed #minimapTeaser {
 }
 .export-seg {
     display: inline-flex;
-    border: 1px solid #D1D5DB;
-    border-radius: 5px;
-    overflow: hidden;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    background: #D1D5DB;
+    border: none;
+    border-radius: 999px;
 }
 /* Beat .sticky-header button { color: #E5E7EB } so inactive options stay readable */
 .sticky-header .export-popover .seg-btn {
-    background: #f5f5f5;
+    background: transparent;
     border: none;
-    border-right: 1px solid #D1D5DB;
-    padding: 4px 11px;
+    border-radius: 999px;
+    padding: 5px 12px;
     font-family: 'Inter', Arial, sans-serif;
     font-size: 12px;
     font-weight: 600;
     color: #4F46E5;
     cursor: pointer;
-    transition: background .1s;
+    transition: background .12s, color .12s;
     line-height: 1.4;
 }
-.sticky-header .export-popover .seg-btn:last-child { border-right: none; }
-.sticky-header .export-popover .seg-btn:hover:not(.seg-active) { background: #e5e5e5; color: #4F46E5; }
-.sticky-header .export-popover .seg-btn.seg-active { background: #4F46E5; color: #fff; }
+.sticky-header .export-popover .seg-btn:hover:not(.seg-active) {
+    background: #EEF2FF;
+    color: #4F46E5;
+}
+.sticky-header .export-popover .seg-btn.seg-active {
+    background: #4F46E5;
+    color: #fff;
+}
 .export-hint {
     margin: -4px 0 10px;
     font-size: 11px;

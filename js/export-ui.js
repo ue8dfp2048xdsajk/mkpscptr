@@ -457,7 +457,7 @@ function _exportPatternPNG(data) {
                     const s = Math.max(0, Math.round((Date.now() - zipStarted) / 1000));
                     _setExportProgress(
                         s > 0
-                            ? ("Building ZIP… " + s + "s — don't close this tab")
+                            ? ("Building ZIP… " + s + "s - don't close this tab")
                             : "Building ZIP… don't close this tab"
                     );
                 };
@@ -524,7 +524,7 @@ function _exportPatternPNG(data) {
             const raw = (err && err.message) ? String(err.message) : 'unknown error';
             const isMem = /array buffer|allocation failed|out of memory|oom/i.test(raw);
             if (isMem) {
-                alert('Export failed — this batch is too large for one ZIP. Try Folder (Chrome/Edge), or export fewer mockups at a time.');
+                alert('Export failed - this batch is too large for one ZIP. Try Folder (Chrome/Edge), or export fewer mockups at a time.');
             } else {
                 alert('Export failed - ' + raw);
             }
