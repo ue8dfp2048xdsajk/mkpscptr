@@ -1066,7 +1066,8 @@ body.vpc-panel-collapsed #minimapTeaser {
     font-size: 12px;
     font-weight: 600;
     color: #1F2937;
-    width: 52px;
+    min-width: 52px;
+    width: auto;
     flex-shrink: 0;
 }
 .export-format-info {
