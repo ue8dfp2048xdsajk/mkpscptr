@@ -192,7 +192,7 @@ function _exportPatternPNG(data) {
     function _updateOutputHint() {
         if (!outputHintEl) return;
         if (_exportOutput === 'zip') {
-            outputHintEl.textContent = 'ZIP downloads to your Downloads folder (or wherever your browser saves files).';
+            outputHintEl.innerHTML = 'ZIP downloads to your <strong>Downloads folder</strong> (or wherever your browser saves files).';
         } else if (_folderPickerAvailable) {
             outputHintEl.textContent = 'Pick a folder (Chrome/Edge). Other browsers download files one-by-one to Downloads.';
         } else {
@@ -213,9 +213,9 @@ function _exportPatternPNG(data) {
         largeWarnEl.hidden = false;
         if (count >= 80) {
             largeWarnEl.classList.add('export-large-warn--strong');
-            largeWarnEl.textContent = "Large ZIP (" + count + " mockups) — may take a while and use a lot of memory. Don't close this tab. Prefer Folder for big batches, or export in smaller groups.";
+            largeWarnEl.textContent = "Large ZIP (" + count + " mockups) may take a while and use a lot of memory. Don't close this tab. Prefer Folder for big batches, or export in smaller groups.";
         } else {
-            largeWarnEl.textContent = "Large ZIP (" + count + " mockups) — may take a while. Don't close this tab. For big batches, Folder is often smoother.";
+            largeWarnEl.textContent = "Large ZIP (" + count + " mockups) may take a while. Don't close this tab. For big batches, Folder is often smoother.";
         }
     }
 
