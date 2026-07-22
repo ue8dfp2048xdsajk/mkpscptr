@@ -950,7 +950,7 @@ body.vpc-panel-collapsed #minimapTeaser {
         right: 8px;
     }
     /* Let button text wrap so long labels aren't clipped */
-    .export-popover button:not(.seg-btn):not(.export-success-dismiss) {
+    .export-popover button:not(.seg-btn):not(.export-success-dismiss):not(.export-text-link) {
         white-space: normal;
         height: auto;
         min-height: 32px;
@@ -961,7 +961,7 @@ body.vpc-panel-collapsed #minimapTeaser {
 }
 
 /* ── Popover inner buttons - neutral pill, matches toolbar base ─────────── */
-.export-popover button:not(.seg-btn):not(.export-success-dismiss) {
+.export-popover button:not(.seg-btn):not(.export-success-dismiss):not(.export-text-link) {
     height: 32px;
     padding: 0 14px;
     font-family: 'Inter', Arial, sans-serif;
@@ -981,7 +981,7 @@ body.vpc-panel-collapsed #minimapTeaser {
     width: 100%;
     box-sizing: border-box;
 }
-.export-popover button:not(.seg-btn):not(.export-success-dismiss):hover {
+.export-popover button:not(.seg-btn):not(.export-success-dismiss):not(.export-text-link):hover {
     background: #EEF2FF;
     border-color: #818CF8;
     color: #4338CA;
@@ -1186,7 +1186,7 @@ body.vpc-panel-collapsed #minimapTeaser {
     display: block;
     width: 100%;
     box-sizing: border-box;
-    margin-top: 10px;
+    margin-top: 8px;
     height: 38px;
     font-size: 14px;
     background: #4F46E5;
@@ -1200,8 +1200,33 @@ body.vpc-panel-collapsed #minimapTeaser {
     color: #fff;
 }
 
-/* Export Text Boxes button - extra top margin to separate from quality row */
-#exportTextBtn { margin-top: 2px; }
+/* Quiet secondary action under primary Export */
+.export-popover button.export-text-link,
+#exportTextBtn.export-text-link {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 0;
+    height: auto;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: #4F46E5;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: none;
+}
+.export-popover button.export-text-link:hover,
+#exportTextBtn.export-text-link:hover {
+    background: transparent;
+    border: none;
+    color: #3730A3;
+    text-decoration: underline;
+}
 
 
 #guideOverlay {
@@ -3402,11 +3427,15 @@ body:not(.user-plan-pro) .pro-badge-wrap .pro-badge {
 
 .export-summary {
     font-size: 12px;
-    color: #374151;
+    font-weight: 600;
+    color: #1F2937;
     line-height: 1.5;
-    margin-bottom: 8px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #E5E7EB;
+    margin: 10px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid #E5E7EB;
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
 }
 .export-summary[hidden] { display: none !important; }
 

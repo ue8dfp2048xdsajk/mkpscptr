@@ -214,7 +214,6 @@
                             <p class="export-gate-msg">Pick a plan to export.</p>
                             <button type="button" id="exportPlansBtn" class="export-gate-btn">See plans</button>
                         </div>
-                        <div id="exportSummary" class="export-summary" hidden></div>
                         <div id="exportProGateRow" class="export-pro-gate" hidden>
                             <span id="exportProGateText"></span>
                             <button type="button" id="exportProUpgradeBtn" class="export-gate-link">Upgrade</button>
@@ -278,15 +277,16 @@
                             />
                             <span id="exportQualityVal">92%</span>
                         </div>
-                        <div class="export-row">
-                            <button
-                                id="exportTextBtn"
-                                title="Export canvas text boxes as .txt"
-                            >
-                                Export Text Boxes
-                            </button>
-                        </div>
+                        <div id="exportSummary" class="export-summary" hidden></div>
                         <button id="exportGoBtn" class="export-go-btn-full">Export</button>
+                        <button
+                            type="button"
+                            id="exportTextBtn"
+                            class="export-text-link"
+                            title="Export canvas text boxes as .txt"
+                        >
+                            Export text boxes as .txt
+                        </button>
                         </div>
                     </div>
                 </span>
