@@ -950,7 +950,7 @@ body.vpc-panel-collapsed #minimapTeaser {
         right: 8px;
     }
     /* Let button text wrap so long labels aren't clipped */
-    .export-popover button:not(.seg-btn) {
+    .export-popover button:not(.seg-btn):not(.export-success-dismiss) {
         white-space: normal;
         height: auto;
         min-height: 32px;
