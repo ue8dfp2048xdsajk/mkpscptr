@@ -961,7 +961,7 @@ body.vpc-panel-collapsed #minimapTeaser {
 }
 
 /* ── Popover inner buttons - neutral pill, matches toolbar base ─────────── */
-.export-popover button:not(.seg-btn) {
+.export-popover button:not(.seg-btn):not(.export-success-dismiss) {
     height: 32px;
     padding: 0 14px;
     font-family: 'Inter', Arial, sans-serif;
@@ -981,7 +981,7 @@ body.vpc-panel-collapsed #minimapTeaser {
     width: 100%;
     box-sizing: border-box;
 }
-.export-popover button:not(.seg-btn):hover {
+.export-popover button:not(.seg-btn):not(.export-success-dismiss):hover {
     background: #EEF2FF;
     border-color: #818CF8;
     color: #4338CA;
@@ -1128,7 +1128,7 @@ body.vpc-panel-collapsed #minimapTeaser {
 }
 .export-success-panel {
     position: relative;
-    padding: 12px 28px 12px 12px;
+    padding: 12px 36px 12px 12px;
     border-radius: 8px;
     background: #ECFDF5;
     border: 1px solid #6EE7B7;
@@ -1141,23 +1141,35 @@ body.vpc-panel-collapsed #minimapTeaser {
     line-height: 1.45;
     color: #065F46;
 }
-.export-success-dismiss {
+.export-popover button.export-success-dismiss {
     position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 24px;
-    height: 24px;
+    top: 4px;
+    right: 4px;
+    width: 28px;
+    min-width: 28px;
+    max-width: 28px;
+    height: 28px;
     padding: 0;
+    margin: 0;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     background: transparent;
     color: #065F46;
     font-size: 18px;
+    font-weight: 600;
     line-height: 1;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    white-space: nowrap;
+    box-sizing: border-box;
 }
-.export-success-dismiss:hover {
-    background: rgba(6, 95, 70, 0.1);
+.export-popover button.export-success-dismiss:hover {
+    background: rgba(6, 95, 70, 0.12);
+    border: none;
+    color: #065F46;
 }
 #exportQualityRow { margin-bottom: 12px; }
 #exportQualitySlider { flex: 1; cursor: pointer; accent-color: #4F46E5; }
