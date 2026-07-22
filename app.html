@@ -134,8 +134,8 @@
                             type="button"
                             id="shortcutsTopBtn"
                             class="header-shortcuts-btn instant-hint"
-                            data-hint="Keyboard shortcuts (?)"
-                            aria-label="Keyboard shortcuts"
+                            data-hint="Help & shortcuts (?)"
+                            aria-label="Help and keyboard shortcuts"
                         >?</button>
                     </nav>
                 </div>
@@ -1283,11 +1283,16 @@
         <script src="js/pattern.js"></script>
         <script src="js/background.js"></script>
         <script src="js/alignment-guides.js"></script>
-        <!-- Keyboard shortcuts modal -->
+        <!-- Help modal: shortcuts + instructions -->
         <div id="shortcutsModal" class="shortcuts-overlay" hidden aria-hidden="true">
             <div class="shortcuts-dialog" role="dialog" aria-labelledby="shortcutsModalTitle">
                 <button type="button" class="shortcuts-close" id="shortcutsModalClose" aria-label="Close">&times;</button>
-                <h2 id="shortcutsModalTitle">Keyboard shortcuts</h2>
+                <h2 id="shortcutsModalTitle" class="shortcuts-sr-only">Help</h2>
+                <div class="shortcuts-tabs" role="tablist" aria-label="Help sections">
+                    <button type="button" class="shortcuts-tab shortcuts-tab--active" id="shortcutsTabBtn" role="tab" aria-selected="true" aria-controls="shortcutsPanel" data-help-tab="shortcuts">Keyboard shortcuts</button>
+                    <button type="button" class="shortcuts-tab" id="instructionsTabBtn" role="tab" aria-selected="false" aria-controls="instructionsPanel" data-help-tab="instructions">Instructions</button>
+                </div>
+                <div id="shortcutsPanel" class="shortcuts-panel" role="tabpanel" aria-labelledby="shortcutsTabBtn">
                 <dl class="shortcuts-list">
                     <dt>Save</dt><dd>Ctrl/Cmd+S</dd>
                     <dt>Export</dt><dd>Ctrl/Cmd+E</dd>
@@ -1315,6 +1320,59 @@
                     <dt>Guide lines</dt><dd>G</dd>
                     <dt>Fit selection</dt><dd>F</dd>
                 </dl>
+                </div>
+                <div id="instructionsPanel" class="shortcuts-panel instructions-panel" role="tabpanel" aria-labelledby="instructionsTabBtn" hidden>
+                    <ol class="instructions-list">
+                        <li>
+                            <strong>Start with mockups &amp; designs.</strong>
+                            Drag mockup photos (backgrounds) and designs onto the canvas, or use Upload mockup photos / Upload designs. Mockup Rabbit builds every combination of design × background for you.
+                        </li>
+                        <li>
+                            <strong>Navigate your workspace.</strong>
+                            Use the bottom-right controls for columns, gaps, zoom, and pan. Use the minimap to jump around large grids. Toggle alignment guidelines on/off. Fit selection and zoom help you focus on what you are editing.
+                        </li>
+                        <li>
+                            <strong>Select &amp; transform.</strong>
+                            Click and drag on the canvas to select designs across multiple mockup windows. Shift-click windows to multi-select. Ctrl/Cmd-click to add or remove individual designs. Use handles to scale, rotate, and move. Shift + drag a side handle to skew. Edits apply to everything you have selected.
+                        </li>
+                        <li>
+                            <strong>Make designs look realistic.</strong>
+                            Use the left panel for appearance and effects (warp, perspective, opacity, blends, and more). Any effect can be applied to multiple selected designs at once. Copy/paste effects between mockups when you want the same look everywhere.
+                        </li>
+                        <li>
+                            <strong>Manage windows &amp; layers.</strong>
+                            Delete unwanted windows or layers with Backspace / Delete. Duplicate with Duplicate Selected or D (Ctrl/Cmd+D). Reset Selected (R) restores selected mockups to defaults.
+                        </li>
+                        <li>
+                            <strong>Add more designs, logos, or labels.</strong>
+                            Use Add Design on the left (or its shortcut) to place another image or logo on selected windows. Select multiple windows first to add the same image to all of them in the same position, then edit them all together.
+                        </li>
+                        <li>
+                            <strong>All-over prints (PRO).</strong>
+                            Add your mockup backgrounds, create one or more clipping areas with the Clipping tool (PRO), then add your designs. The canvas multiplies out every design × background. Adjust clipping and designs afterward.
+                        </li>
+                        <li>
+                            <strong>Recolor something in the background (PRO).</strong>
+                            Clip around the object, then use Color Layer to change its color.
+                        </li>
+                        <li>
+                            <strong>Patterns (PRO).</strong>
+                            Turn on Pattern mode (P), adjust spacing, angle, and offsets, then bake the pattern. After baking, it is treated like a normal design you can keep editing.
+                        </li>
+                        <li>
+                            <strong>Save your work.</strong>
+                            Save / Load keeps project progress in the app. Save local downloads a JSON file to your computer. Open cloud opens a cloud-saved project. Cloud save: Starter has 1 project; Pro has up to 50. Save as New (Pro) saves a copy as a separate cloud project. Sign in is required for cloud features.
+                        </li>
+                        <li>
+                            <strong>Reset &amp; clear.</strong>
+                            Reset Selected undoes edits on selected mockups. Clear Session (in More) wipes the current session (use carefully). Clear text removes canvas text boxes.
+                        </li>
+                        <li>
+                            <strong>Export.</strong>
+                            Use Export (top right): choose Selected or All, then ZIP or Folder, PNG or JPEG. The export panel includes short tips (where files go, large ZIP advice, format tip). Paid plans are required to export. Pro effects need Pro (or skip those windows on Starter).
+                        </li>
+                    </ol>
+                </div>
             </div>
         </div>
 

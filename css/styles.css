@@ -3504,7 +3504,7 @@ body:not(.user-plan-pro) .pro-badge-wrap .pro-badge {
     background: #fff;
     border-radius: 12px;
     padding: 20px 24px;
-    max-width: 420px;
+    max-width: 520px;
     width: 100%;
     max-height: 85vh;
     overflow-y: auto;
@@ -3512,11 +3512,46 @@ body:not(.user-plan-pro) .pro-badge-wrap .pro-badge {
     position: relative;
     box-shadow: 0 12px 40px rgba(0,0,0,0.25);
 }
-.shortcuts-dialog h2 {
-    margin: 0 0 14px;
-    font-size: 18px;
-    color: #111827;
+.shortcuts-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
+.shortcuts-tabs {
+    display: flex;
+    gap: 4px;
+    margin: 0 28px 16px 0;
+    padding: 3px;
+    background: #E5E7EB;
+    border-radius: 999px;
+}
+.shortcuts-tab {
+    flex: 1;
+    border: none;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4F46E5;
+    background: transparent;
+    cursor: pointer;
+    line-height: 1.3;
+}
+.shortcuts-tab:hover:not(.shortcuts-tab--active) {
+    background: #EEF2FF;
+}
+.shortcuts-tab--active {
+    background: #4F46E5;
+    color: #fff;
+}
+.shortcuts-panel[hidden] { display: none !important; }
 .shortcuts-close {
     position: absolute;
     top: 10px;
@@ -3527,6 +3562,7 @@ body:not(.user-plan-pro) .pro-badge-wrap .pro-badge {
     color: #6B7280;
     cursor: pointer;
     line-height: 1;
+    z-index: 1;
 }
 .shortcuts-close:hover { color: #111; }
 .shortcuts-list {
@@ -3538,6 +3574,25 @@ body:not(.user-plan-pro) .pro-badge-wrap .pro-badge {
 }
 .shortcuts-list dt { color: #374151; font-weight: 500; margin: 0; }
 .shortcuts-list dd { color: #6B7280; margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.instructions-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #374151;
+}
+.instructions-list li {
+    margin-bottom: 12px;
+}
+.instructions-list li:last-child {
+    margin-bottom: 0;
+}
+.instructions-list strong {
+    display: block;
+    color: #111827;
+    margin-bottom: 2px;
+    font-weight: 600;
+}
 
 .settings-tabs {
     display: flex;

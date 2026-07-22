@@ -79,9 +79,25 @@
         if (coach) coach.hidden = true;
     };
 
+    function _setHelpTab(tab) {
+        var shortcutsBtn = document.getElementById('shortcutsTabBtn');
+        var instructionsBtn = document.getElementById('instructionsTabBtn');
+        var shortcutsPanel = document.getElementById('shortcutsPanel');
+        var instructionsPanel = document.getElementById('instructionsPanel');
+        if (!shortcutsBtn || !instructionsBtn || !shortcutsPanel || !instructionsPanel) return;
+        var showInstructions = tab === 'instructions';
+        shortcutsBtn.classList.toggle('shortcuts-tab--active', !showInstructions);
+        instructionsBtn.classList.toggle('shortcuts-tab--active', showInstructions);
+        shortcutsBtn.setAttribute('aria-selected', showInstructions ? 'false' : 'true');
+        instructionsBtn.setAttribute('aria-selected', showInstructions ? 'true' : 'false');
+        shortcutsPanel.hidden = showInstructions;
+        instructionsPanel.hidden = !showInstructions;
+    }
+
     function _openShortcuts() {
         var modal = document.getElementById('shortcutsModal');
         if (!modal) return;
+        _setHelpTab('shortcuts');
         modal.hidden = false;
         modal.setAttribute('aria-hidden', 'false');
     }
@@ -136,6 +152,12 @@
                 if (e.target === shortcutsModal) _closeShortcuts();
             });
         }
+
+        document.querySelectorAll('[data-help-tab]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                _setHelpTab(btn.getAttribute('data-help-tab'));
+            });
+        });
 
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {

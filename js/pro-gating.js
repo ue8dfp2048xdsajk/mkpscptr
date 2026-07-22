@@ -87,11 +87,11 @@ function _drawWatermarkOnCanvas(data) {
     ctx.rotate(-Math.PI / 5.5); // ~-32.7°
 
     // Set text style once for all instances
-    ctx.font          = 'bold 12px Arial, sans-serif';
+    ctx.font          = 'bold 14px Arial, sans-serif';
     ctx.textAlign     = 'center';
     ctx.textBaseline  = 'middle';
-    ctx.shadowColor   = 'rgba(0,0,0,0.50)';
-    ctx.shadowBlur    = 3;
+    ctx.shadowColor   = 'rgba(0,0,0,0.65)';
+    ctx.shadowBlur    = 4;
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 1;
 
@@ -106,7 +106,7 @@ function _drawWatermarkOnCanvas(data) {
     var cols = Math.ceil(diag / colPitch) + 1;
 
     // Draw all line-1 text first (batching same fillStyle avoids redundant GPU state changes)
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillStyle = 'rgba(255,255,255,0.58)';
     for (var r = -rows; r <= rows; r++) {
         var y   = r * rowPitch;
         var xOff = (r & 1) ? colPitch / 2 : 0; // brick offset on odd rows
@@ -115,7 +115,7 @@ function _drawWatermarkOnCanvas(data) {
         }
     }
     // Draw all line-2 text
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillStyle = 'rgba(255,255,255,0.48)';
     for (var r = -rows; r <= rows; r++) {
         var y   = r * rowPitch;
         var xOff = (r & 1) ? colPitch / 2 : 0;

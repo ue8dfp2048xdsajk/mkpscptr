@@ -26,6 +26,8 @@ describe('UX copy contracts (app.html)', () => {
         expect(appHtml).toContain('id="workflowBanner"');
         expect(appHtml).toContain('id="sidebarCoach"');
         expect(appHtml).toContain('id="shortcutsModal"');
+        expect(appHtml).toContain('id="instructionsPanel"');
+        expect(appHtml).toContain('data-help-tab="instructions"');
     });
 
     test('save button is visible in header top row (file nav)', () => {
