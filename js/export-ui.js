@@ -369,7 +369,8 @@ function _exportPatternPNG(data) {
                     zip.file(fileName, blob);
                 }
                 _setExportProgress('Zipping…');
-                const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+                // STORE: PNGs/JPEGs are already compressed; DEFLATE burns CPU for ~0% size win
+                const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
                 const url = URL.createObjectURL(zipBlob);
                 const a   = document.createElement('a');
                 a.href     = url;
