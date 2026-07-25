@@ -8091,10 +8091,12 @@ function buildSnapshot(){
 
 var _autoSaveTimer = null;
 var _cloudAutoSaveTimer = null;
-// Local draft autosave: longer idle debounce + idle-callback snapshot so bulk
+// Local draft autosave: quieter idle debounce + idle-callback snapshot so bulk
 // editing is not interrupted by frequent "Draft saved" toasts / main-thread work.
-var _AUTO_SAVE_IDLE_MS = 12000;
+// pagehide/visibility flush keeps refresh-from-losing-work behavior.
+var _AUTO_SAVE_IDLE_MS = 7000;
 var _autoSaveIdleHandle = null;
+var _draftAutosaveFlushBound = false;
 
 // ── IndexedDB autosave with localStorage fallback ─────────────────────────────
 // Design: IDB is the primary store (no size limit).  On ANY IDB failure (open
@@ -8690,6 +8692,42 @@ async function _runDraftAutosave() {
     // Silent on success - reassurance for signed-out users lives on the export gate.
 }
 
+// Immediate draft write for tab hide / refresh / close. Starts the IDB put
+// synchronously so the browser can finish it during unload; no toast.
+function _flushDraftAutosaveNow() {
+    clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = null;
+    _cancelPendingDraftAutosaveWork();
+    if (!canvasData.length && !_textBoxes.length) return;
+
+    let snap;
+    try {
+        snap = buildFullSnapshot();
+    } catch (e) {
+        console.error('[Autosave] flush buildFullSnapshot threw:', e);
+        return;
+    }
+    console.log('[Autosave] Flushing session -', snap.windows.length, 'window(s)');
+    _autosaveDB.set('session', snap).then(() => {
+        console.log('[Autosave] Flush saved ✓');
+    }).catch(e => {
+        console.error('[Autosave] Flush write failed:', e);
+    });
+}
+
+function _bindDraftAutosaveFlushListeners() {
+    if (_draftAutosaveFlushBound) return;
+    _draftAutosaveFlushBound = true;
+
+    window.addEventListener('pagehide', () => {
+        _flushDraftAutosaveNow();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') _flushDraftAutosaveNow();
+    });
+}
+
 function autoSaveSession(){
 
     if(!canvasData.length && !_textBoxes.length) return;
@@ -8698,6 +8736,7 @@ function autoSaveSession(){
     // _markClean() called later (e.g. after a project load) can suppress the
     // pending cloud-save timer via the _unsaved guard in the callback below.
     _markDirty();
+    _bindDraftAutosaveFlushListeners();
 
     clearTimeout(_autoSaveTimer);
     _cancelPendingDraftAutosaveWork();
