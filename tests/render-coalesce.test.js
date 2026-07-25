@@ -13,6 +13,8 @@ const APP_JS_PATH = path.join(__dirname, '../js/app.js');
 
 function loadRenderCoalesceHelpers() {
     global._renderPattern = jest.fn();
+    // Selection size gates peer throttle; default below threshold.
+    global.activeIndices = new Array(5).fill(0);
 
     const appSrc = fs.readFileSync(APP_JS_PATH, 'utf8');
     const match  = appSrc.match(
@@ -31,11 +33,16 @@ function makeData(id, { patternMode = false } = {}) {
     };
 }
 
+function setSelectionCount(n) {
+    global.activeIndices = new Array(n).fill(0);
+}
+
 describe('render coalesce', () => {
     beforeEach(() => {
         loadRenderCoalesceHelpers();
         _cancelCanvasRenderCoalesce();
         _renderPattern.mockClear();
+        setSelectionCount(5);
         jest.useFakeTimers();
     });
 
@@ -84,9 +91,27 @@ describe('render coalesce', () => {
         expect(_renderPattern).not.toHaveBeenCalled();
     });
 
-    test('peer renders paint every Nth flush while transform throttle is active', () => {
+    test('peer renders stay fully synced when selection is below 21', () => {
+        const driver = makeData('driver-small');
+        const peer   = makeData('peer-small');
+        setSelectionCount(20);
+
+        _beginDesignTransformPaintThrottle();
+
+        for (let i = 0; i < 3; i++) {
+            _scheduleCanvasRender(driver);
+            _scheduleCanvasRender(peer, { peer: true });
+            _flushCanvasRenderCoalesce();
+        }
+
+        expect(driver.fabricCanvas.requestRenderAll).toHaveBeenCalledTimes(3);
+        expect(peer.fabricCanvas.requestRenderAll).toHaveBeenCalledTimes(3);
+    });
+
+    test('peer renders paint every Nth flush when selection is 21+', () => {
         const driver = makeData('driver');
         const peer   = makeData('peer');
+        setSelectionCount(21);
 
         _beginDesignTransformPaintThrottle();
 
@@ -104,6 +129,7 @@ describe('render coalesce', () => {
     test('ending transform throttle promotes deferred peers before next flush', () => {
         const driver = makeData('driver2');
         const peer   = makeData('peer2');
+        setSelectionCount(21);
 
         _beginDesignTransformPaintThrottle();
         _scheduleCanvasRender(driver);
@@ -121,6 +147,7 @@ describe('render coalesce', () => {
 
     test('peer flag is ignored when transform throttle is inactive', () => {
         const peer = makeData('peer3');
+        setSelectionCount(21);
 
         _scheduleCanvasRender(peer, { peer: true });
         _flushCanvasRenderCoalesce();

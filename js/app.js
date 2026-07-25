@@ -572,10 +572,12 @@ var activeSliderType = null;
 var _renderCoalesceRaf = null;
 var _renderCoalesceQueue = new Map(); // fabricCanvas → { data, patternLQ }
 
-// During design transforms, peer windows keep live geometry but paint every Nth
-// RAF flush. The driver window always paints. Ending the transform promotes any
-// deferred peer paints so mouseup flush shows the final synced state.
+// During design transforms with a large multi-selection, peer windows keep live
+// geometry but paint every Nth RAF flush. Smaller selections stay fully synced.
+// The driver window always paints. Ending the transform promotes any deferred
+// peer paints so mouseup flush shows the final synced state.
 var _PEER_RENDER_INTERVAL = 3;
+var _PEER_THROTTLE_MIN_SELECTION = 21;
 var _designTransformPaintDepth = 0;
 var _peerRenderTick = 0;
 var _peerRenderPending = new Map(); // fabricCanvas → { data, patternLQ }
@@ -594,6 +596,14 @@ function _endDesignTransformPaintThrottle() {
     _peerRenderPending.clear();
 }
 
+function _shouldThrottlePeerRenders() {
+    if (_designTransformPaintDepth <= 0) return false;
+    var n = (typeof activeIndices !== 'undefined' && activeIndices)
+        ? activeIndices.length
+        : 0;
+    return n >= _PEER_THROTTLE_MIN_SELECTION;
+}
+
 function _enqueueCanvasRender(data, patternLQ) {
     const key = data.fabricCanvas;
     const prev = _renderCoalesceQueue.get(key);
@@ -607,7 +617,7 @@ function _enqueueCanvasRender(data, patternLQ) {
 function _scheduleCanvasRender(data, { patternLQ = false, peer = false } = {}) {
     if (!data?.fabricCanvas) return;
 
-    if (peer && _designTransformPaintDepth > 0) {
+    if (peer && _shouldThrottlePeerRenders()) {
         const key = data.fabricCanvas;
         const prev = _peerRenderPending.get(key);
         if (prev) {
@@ -627,7 +637,7 @@ function _scheduleCanvasRender(data, { patternLQ = false, peer = false } = {}) {
 function _flushCanvasRenderCoalesce() {
     _renderCoalesceRaf = null;
 
-    if (_designTransformPaintDepth > 0) {
+    if (_shouldThrottlePeerRenders()) {
         _peerRenderTick++;
         if (_peerRenderTick % _PEER_RENDER_INTERVAL === 0) {
             _peerRenderPending.forEach(({ data, patternLQ }) => {
