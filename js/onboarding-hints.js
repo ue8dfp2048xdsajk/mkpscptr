@@ -82,10 +82,22 @@
 
     window._markExportAttempted = _markExportAttempted;
 
-    // Kept as a no-op hook for export-ui.js (marks first export done; no toast).
+    function _showComboToast(msg) {
+        var el = document.getElementById('comboToast');
+        if (!el) return;
+        el.textContent = msg;
+        el.hidden = false;
+        clearTimeout(el._hideTimer);
+        el._hideTimer = setTimeout(function () { el.hidden = true; }, 5000);
+    }
+
+    // First successful export only - after export finishes (not during edit).
     window._onFirstExportSuccess = function () {
         if (_lsGet(LS_FIRST_EXPORT)) return;
         _lsSet(LS_FIRST_EXPORT, '1');
+        _showComboToast(
+            'Nice - your mockups are ready for your store listings. Tip: select multiple mockups to edit them all at once.'
+        );
     };
 
     window._showSidebarCoachIfNeeded = function () {

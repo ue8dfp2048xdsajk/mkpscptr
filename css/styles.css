@@ -3365,6 +3365,22 @@ body.user-plan-pro .pro-badge-tip {
 }
 .sidebar-coach button:hover { color: #fff; }
 
+.combo-toast {
+    position: fixed;
+    bottom: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1C2333;
+    color: #E5E7EB;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+    z-index: 5000;
+    pointer-events: none;
+}
+.combo-toast[hidden] { display: none !important; }
+
 .batch-edit-hint {
     font-size: 12px;
     color: #4B5563;

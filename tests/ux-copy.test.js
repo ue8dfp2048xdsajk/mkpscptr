@@ -44,8 +44,8 @@ describe('UX copy contracts (app.html)', () => {
         expect(appHtml).toContain('data-help-tab="instructions"');
     });
 
-    test('combo toast removed; large-session perf prompt present', () => {
-        expect(appHtml).not.toContain('id="comboToast"');
+    test('post-export tip toast and large-session perf prompt present', () => {
+        expect(appHtml).toContain('id="comboToast"');
         expect(appHtml).toContain('id="perfSessionPrompt"');
         expect(appHtml).toContain(
             'Large session - for smoother editing, close other browser tabs and heavy apps. Your work still autosaves.'
