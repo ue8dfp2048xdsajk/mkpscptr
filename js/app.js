@@ -8178,7 +8178,6 @@ const _autosaveDB = (() => {
     }
 
     async function set(key, value) {
-        let idbOk = false;
         try {
             const db = await _open();
             await new Promise((res, rej) => {
@@ -8187,12 +8186,16 @@ const _autosaveDB = (() => {
                 req.onsuccess = () => res();
                 req.onerror   = () => rej(req.error);
             });
-            idbOk = true;
+            return true;
         } catch(e) {
             console.warn('[Autosave] IDB write failed, falling back to localStorage:', e);
         }
-        if (!idbOk) {
-            try { localStorage.setItem(LS_KEY(key), JSON.stringify(value)); } catch(_) {}
+        try {
+            localStorage.setItem(LS_KEY(key), JSON.stringify(value));
+            return true;
+        } catch (e2) {
+            console.warn('[Autosave] localStorage fallback failed:', e2);
+            return false;
         }
     }
 
@@ -8348,6 +8351,81 @@ async function buildCloudSnapshot() {
     });
 
     return Object.assign({}, full, { windows: compressedWindows, imageMap });
+}
+
+// Local draft: dedupe repeated data-URL images into imageMap (no compression).
+// 170 windows sharing a few backgrounds must not clone each multi‑MB string
+// 170 times or IndexedDB structured-clone hits DataCloneError / OOM.
+function buildDraftSnapshot() {
+    const full = buildFullSnapshot();
+    const srcToKey = new Map();
+    let imgIdx = 0;
+    function _registerSrc(src) {
+        if (!src || typeof src !== 'string' || !src.startsWith('data:')) return;
+        if (!srcToKey.has(src)) srcToKey.set(src, '__img_' + (imgIdx++));
+    }
+    for (const w of full.windows) {
+        _registerSrc(w.bgSrc);
+        _registerSrc(w.designSrc);
+        _registerSrc(w.initialDesignSrc);
+        _registerSrc(w.colorLayerDataURL);
+        for (const d of (w.duplicates || [])) _registerSrc(d.src);
+    }
+
+    const imageMap = {};
+    srcToKey.forEach((key, src) => { imageMap[key] = src; });
+
+    function _toKey(src) {
+        if (!src || typeof src !== 'string') return src || null;
+        if (!src.startsWith('data:')) return src;
+        return srcToKey.get(src) || null;
+    }
+
+    const windows = full.windows.map(function (w) {
+        const sameBaseline = w.initialDesignSrc && w.initialDesignSrc === w.designSrc;
+        return Object.assign({}, w, {
+            bgSrc:             _toKey(w.bgSrc),
+            designSrc:         _toKey(w.designSrc),
+            initialDesignSrc:  sameBaseline ? null : _toKey(w.initialDesignSrc),
+            colorLayerDataURL: _toKey(w.colorLayerDataURL),
+            duplicates: (w.duplicates || []).map(function (d) {
+                return Object.assign({}, d, { src: _toKey(d.src) });
+            }),
+        });
+    });
+
+    return Object.assign({}, full, {
+        windows: windows,
+        imageMap: imageMap,
+        draftImagesDeduped: true,
+    });
+}
+
+// Resolve __img_N keys (draft or cloud imageMap) back to data URLs.
+function _expandImageMappedWindows(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    const imageMap = raw.imageMap || {};
+    const windows = raw.windows || [];
+    if (!Object.keys(imageMap).length) return windows;
+
+    function _fromKey(val) {
+        if (!val) return null;
+        if (typeof val === 'string' && val.startsWith('__img_')) return imageMap[val] || null;
+        return val;
+    }
+
+    return windows.map(function (w) {
+        return Object.assign({}, w, {
+            bgSrc:             _fromKey(w.bgSrc),
+            designSrc:         _fromKey(w.designSrc),
+            initialDesignSrc:  _fromKey(w.initialDesignSrc),
+            colorLayerDataURL: _fromKey(w.colorLayerDataURL),
+            duplicates: (w.duplicates || []).map(function (d) {
+                return Object.assign({}, d, { src: _fromKey(d.src) });
+            }),
+        });
+    });
 }
 
 async function _cloudSave({ isNew = false } = {}) {
@@ -8587,25 +8665,7 @@ async function _loadProjectByUuid(uuid) {
 
     // New format: images are deduplicated into an imageMap keyed by '__img_N'.
     // Resolve all keys back to data URLs before anything else.
-    const imageMap = (!isLegacy && raw.imageMap) ? raw.imageMap : {};
-    function _fromKey(val) {
-        if (!val) return null;
-        if (typeof val === 'string' && val.startsWith('__img_')) return imageMap[val] || null;
-        return val; // old format - already a data URL (or null)
-    }
-    if (Object.keys(imageMap).length > 0) {
-        windows = windows.map(function (w) {
-            return Object.assign({}, w, {
-                bgSrc:             _fromKey(w.bgSrc),
-                designSrc:         _fromKey(w.designSrc),
-                initialDesignSrc:  _fromKey(w.initialDesignSrc),
-                colorLayerDataURL: _fromKey(w.colorLayerDataURL),
-                duplicates: (w.duplicates || []).map(function (d) {
-                    return Object.assign({}, d, { src: _fromKey(d.src) });
-                }),
-            });
-        });
-    }
+    if (!isLegacy) windows = _expandImageMappedWindows(raw);
 
     // Cloud snapshots may still have null images (old saves before deduplication fix).
     // Try to restore those from local IndexedDB autosave by matching bgName.
@@ -8614,9 +8674,7 @@ async function _loadProjectByUuid(uuid) {
         try {
             const localSession = await _autosaveDB.get('session');
             if (localSession) {
-                const localWindows = Array.isArray(localSession)
-                    ? localSession
-                    : (localSession.windows || []);
+                const localWindows = _expandImageMappedWindows(localSession);
                 const localByName = {};
                 localWindows.forEach(function (lw) {
                     if (lw.bgName && lw.bgSrc) localByName[lw.bgName] = lw;
@@ -8713,15 +8771,17 @@ async function _runDraftAutosave() {
 
     let snap;
     try {
-        snap = buildFullSnapshot();
+        snap = buildDraftSnapshot();
     } catch (e) {
-        console.error('[Autosave] buildFullSnapshot threw:', e);
+        console.error('[Autosave] buildDraftSnapshot threw:', e);
         return;
     }
-    console.log('[Autosave] Saving session -', snap.windows.length, 'window(s)');
+    const imgCount = snap.imageMap ? Object.keys(snap.imageMap).length : 0;
+    console.log('[Autosave] Saving session -', snap.windows.length, 'window(s),', imgCount, 'unique image(s)');
     try {
-        await _autosaveDB.set('session', snap);
-        console.log('[Autosave] Session saved ✓');
+        const ok = await _autosaveDB.set('session', snap);
+        if (ok) console.log('[Autosave] Session saved ✓');
+        else console.warn('[Autosave] Session write failed (IDB + localStorage)');
     } catch (e) {
         console.error('[Autosave] Session write failed:', e);
     }
@@ -8738,18 +8798,20 @@ function _flushDraftAutosaveNow() {
 
     let snap;
     try {
-        snap = buildFullSnapshot();
+        snap = buildDraftSnapshot();
     } catch (e) {
-        console.error('[Autosave] flush buildFullSnapshot threw:', e);
+        console.error('[Autosave] flush buildDraftSnapshot threw:', e);
         return;
     }
-    console.log('[Autosave] Flushing session -', snap.windows.length, 'window(s)');
+    const imgCount = snap.imageMap ? Object.keys(snap.imageMap).length : 0;
+    console.log('[Autosave] Flushing session -', snap.windows.length, 'window(s),', imgCount, 'unique image(s)');
     if (_autosaveDB.putSync('session', snap)) {
         console.log('[Autosave] Flush put queued ✓');
         return;
     }
-    _autosaveDB.set('session', snap).then(() => {
-        console.log('[Autosave] Flush saved ✓');
+    _autosaveDB.set('session', snap).then((ok) => {
+        if (ok) console.log('[Autosave] Flush saved ✓');
+        else console.warn('[Autosave] Flush write failed (IDB + localStorage)');
     }).catch(e => {
         console.error('[Autosave] Flush write failed:', e);
     });
@@ -10882,7 +10944,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     }
 
     const isLegacy = Array.isArray(snapshot);
-    const windows  = isLegacy ? snapshot : (snapshot.windows  || []);
+    const windows  = isLegacy ? snapshot : _expandImageMappedWindows(snapshot);
     const tboxes   = isLegacy ? []       : (snapshot.textBoxes || []);
 
     if (!isLegacy && typeof snapshot.name === 'string') {
