@@ -24,11 +24,13 @@ describe('UX copy contracts (app.html)', () => {
 
     test('signed-out export gate mentions idle autosave under Sign in', () => {
         expect(appHtml).toContain(
-            'Your work is autosaved here 5s after your last edit. Sign in to export.'
+            'Your work is autosaved here 5s after your last edit.'
         );
         const block = appHtml.match(
             /id="exportSignInBlock"[\s\S]*?<\/div>/
         )?.[0] || '';
+        expect(block).toContain('Your work is autosaved here 5s after your last edit.');
+        expect(block).not.toContain('Sign in to export.');
         expect(block.indexOf('id="exportSignInBtn"')).toBeLessThan(
             block.indexOf('Your work is autosaved here 5s after your last edit')
         );
