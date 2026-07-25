@@ -16,6 +16,8 @@
     var SS_PERF_SESSION = 'ms_perf_hint_session_dismissed';
     // Keeps the one-shot selection tip visible until dismiss or deselect.
     var _selectTipActive = false;
+    // Last grid size seen via _onGridReady (rebuilds only).
+    var _prevGridReadyCount = 0;
 
     function _isTypingTarget(el) {
         if (!el) return false;
@@ -39,6 +41,10 @@
         try { sessionStorage.setItem(key, val); } catch (_) {}
     }
 
+    function _ssRemove(key) {
+        try { sessionStorage.removeItem(key); } catch (_) {}
+    }
+
     function _migratePerfOptOut() {
         if (_lsGet(LS_PERF_OPT_OUT)) return;
         if (_lsGet(LS_PERF_LEGACY)) {
@@ -54,6 +60,16 @@
     window._onGridReady = function (mockupCount, bgCount, designCount) {
         if (!mockupCount || !bgCount || !designCount) return;
         _updateWorkflowBanner();
+        // Rebuild finished with a new large grid size: re-arm tip even if ✕
+        // was used earlier this tab (e.g. 120 → 300 after replacing mockups).
+        if (
+            mockupCount >= 201 &&
+            mockupCount !== _prevGridReadyCount &&
+            !_perfOptedOut()
+        ) {
+            _ssRemove(SS_PERF_SESSION);
+        }
+        _prevGridReadyCount = mockupCount;
         if (typeof window._updatePerfSessionPrompt === 'function') {
             window._updatePerfSessionPrompt();
         }
@@ -110,7 +126,8 @@
         if (coach) coach.hidden = true;
     };
 
-    // Large grid (>=201): re-show every time unless session/opt-out.
+    // Large grid (>=201): show unless session/opt-out.
+    // Session dismiss is cleared on _onGridReady when size changes to a new >=201.
     // Large selection (>=31): once ever, then never for selection-only.
     window._updatePerfSessionPrompt = function () {
         var el = document.getElementById('perfSessionPrompt');
