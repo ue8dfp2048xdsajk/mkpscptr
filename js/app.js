@@ -3399,6 +3399,9 @@ function createCanvasPreviews(){
 
     container.innerHTML = "";
     canvasData = [];
+    if (typeof window._notifyPerfGridCleared === 'function') {
+        window._notifyPerfGridCleared();
+    }
 
     if(!backgrounds.length){ updateDropUI(); return; }
 
@@ -9068,6 +9071,9 @@ async function createCanvasPreviewsFromSnapshot(snapshot){
     container.innerHTML = "";
     canvasData = [];
     activeIndices = [];
+    if (typeof window._notifyPerfGridCleared === 'function') {
+        window._notifyPerfGridCleared();
+    }
 
     // rebuild source asset pools so future uploads
     // can multiply/populate correctly after JSON load
@@ -9684,6 +9690,9 @@ document.getElementById("clearSessionBtn").addEventListener("click", ()=>{
 
     // Reset all state
     canvasData = [];
+    if (typeof window._notifyPerfGridCleared === 'function') {
+        window._notifyPerfGridCleared();
+    }
     backgrounds = [];
     designs = [];
     activeIndices = [];

@@ -9,15 +9,15 @@
     // - ms_perf_hint_opt_out: never show again (Don't show again)
     // - ms_perf_hint_session_dismissed: hide for this tab (X)
     // - ms_perf_hint_select_seen: selection trigger already used once
-    // - ms_perf_hint_dismissed: legacy forever-dismiss -> migrated to opt-out
+    // - ms_perf_hint_dismissed: legacy (old forever ✕) - ignored; only Don't show again opts out
     var LS_PERF_OPT_OUT = 'ms_perf_hint_opt_out';
     var LS_PERF_LEGACY = 'ms_perf_hint_dismissed';
     var LS_PERF_SELECT_SEEN = 'ms_perf_hint_select_seen';
     var SS_PERF_SESSION = 'ms_perf_hint_session_dismissed';
     // Keeps the one-shot selection tip visible until dismiss or deselect.
     var _selectTipActive = false;
-    // Last grid size seen via _onGridReady (rebuilds only).
-    var _prevGridReadyCount = 0;
+    // Last window count for <201 → >=201 cross detection.
+    var _prevWindowCount = 0;
 
     function _isTypingTarget(el) {
         if (!el) return false;
@@ -45,34 +45,35 @@
         try { sessionStorage.removeItem(key); } catch (_) {}
     }
 
-    function _migratePerfOptOut() {
-        if (_lsGet(LS_PERF_OPT_OUT)) return;
-        if (_lsGet(LS_PERF_LEGACY)) {
-            _lsSet(LS_PERF_OPT_OUT, '1');
-        }
+    function _resetMistakenPerfOptOutOnce() {
+        // Early tip builds treated ✕ as forever and migrated that into
+        // ms_perf_hint_opt_out. Clear once so testers see the tip again;
+        // Don't show again after this still sticks.
+        if (_lsGet('ms_perf_hint_silence_reset_v1')) return;
+        try {
+            localStorage.removeItem(LS_PERF_OPT_OUT);
+            localStorage.removeItem(LS_PERF_LEGACY);
+            localStorage.setItem('ms_perf_hint_silence_reset_v1', '1');
+        } catch (_) {}
     }
 
     function _perfOptedOut() {
-        _migratePerfOptOut();
+        _resetMistakenPerfOptOutOnce();
         return !!_lsGet(LS_PERF_OPT_OUT);
     }
 
     window._onGridReady = function (mockupCount, bgCount, designCount) {
         if (!mockupCount || !bgCount || !designCount) return;
         _updateWorkflowBanner();
-        // Rebuild finished with a new large grid size: re-arm tip even if ✕
-        // was used earlier this tab (e.g. 120 → 300 after replacing mockups).
-        if (
-            mockupCount >= 201 &&
-            mockupCount !== _prevGridReadyCount &&
-            !_perfOptedOut()
-        ) {
-            _ssRemove(SS_PERF_SESSION);
-        }
-        _prevGridReadyCount = mockupCount;
         if (typeof window._updatePerfSessionPrompt === 'function') {
             window._updatePerfSessionPrompt();
         }
+    };
+
+    // Call when the grid is torn down so the next load can cross 201 again.
+    window._notifyPerfGridCleared = function () {
+        _prevWindowCount = 0;
+        _selectTipActive = false;
     };
 
     function _updateWorkflowBanner() {
@@ -126,27 +127,42 @@
         if (coach) coach.hidden = true;
     };
 
-    // Large grid (>=201): show unless session/opt-out.
-    // Session dismiss is cleared on _onGridReady when size changes to a new >=201.
+    // Large grid: show when count >= 201.
+    // Crossing <201 → >=201 always re-arms (clears ✕ session dismiss).
+    // "Don't show again" (opt-out) is the only permanent silence.
     // Large selection (>=31): once ever, then never for selection-only.
     window._updatePerfSessionPrompt = function () {
         var el = document.getElementById('perfSessionPrompt');
         if (!el) return;
 
-        if (_perfOptedOut() || _ssGet(SS_PERF_SESSION)) {
+        if (_perfOptedOut()) {
             el.hidden = true;
             _selectTipActive = false;
             return;
         }
 
-        var manyWindows = typeof canvasData !== 'undefined' && canvasData.length >= 201;
-        var manySelected = typeof activeIndices !== 'undefined' && activeIndices.length >= 31;
+        var count = (typeof canvasData !== 'undefined' && canvasData)
+            ? canvasData.length
+            : 0;
+        var crossedLarge = count >= 201 && _prevWindowCount < 201;
 
-        if (manyWindows) {
+        if (crossedLarge) {
+            _ssRemove(SS_PERF_SESSION);
+        }
+        _prevWindowCount = count;
+
+        if (_ssGet(SS_PERF_SESSION)) {
+            el.hidden = true;
+            _selectTipActive = false;
+            return;
+        }
+
+        if (count >= 201) {
             el.hidden = false;
             return;
         }
 
+        var manySelected = typeof activeIndices !== 'undefined' && activeIndices.length >= 31;
         if (manySelected) {
             if (!_lsGet(LS_PERF_SELECT_SEEN)) {
                 _lsSet(LS_PERF_SELECT_SEEN, '1');
