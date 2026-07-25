@@ -8091,10 +8091,9 @@ function buildSnapshot(){
 
 var _autoSaveTimer = null;
 var _cloudAutoSaveTimer = null;
-// Local draft autosave: quieter idle debounce + idle-callback snapshot so bulk
-// editing is not interrupted by frequent "Draft saved" toasts / main-thread work.
-// pagehide/visibility flush keeps refresh-from-losing-work behavior.
-var _AUTO_SAVE_IDLE_MS = 7000;
+// Local draft autosave: 5s idle debounce, silent writes, warm IDB connection so
+// refresh/tab-hide flushes can start a put without re-opening the database.
+var _AUTO_SAVE_IDLE_MS = 5000;
 var _autoSaveIdleHandle = null;
 var _draftAutosaveFlushBound = false;
 
@@ -8103,18 +8102,59 @@ var _draftAutosaveFlushBound = false;
 // OR put/get/delete), we fall back to localStorage (5 MB limit - sufficient for
 // most sessions).  get() also checks localStorage when IDB opens fine but the
 // key is absent, covering the case where a previous write fell back to LS.
+// A cached DB handle lets unload flushes put without awaiting indexedDB.open().
 const _autosaveDB = (() => {
     const DB_NAME = 'mockup_scripter';
     const STORE   = 'autosave';
     const LS_KEY  = (key) => 'mockup_autosave_' + key;
+    let _db = null;
+    let _opening = null;
 
     function _open() {
-        return new Promise((res, rej) => {
+        if (_db) return Promise.resolve(_db);
+        if (_opening) return _opening;
+        _opening = new Promise((res, rej) => {
             const req = indexedDB.open(DB_NAME, 1);
-            req.onupgradeneeded = e => e.target.result.createObjectStore(STORE);
-            req.onsuccess = e => res(e.target.result);
-            req.onerror   = e => rej(e.target.error);
+            req.onupgradeneeded = e => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+            };
+            req.onsuccess = e => {
+                _db = e.target.result;
+                _db.onclose = () => { _db = null; };
+                _db.onversionchange = () => {
+                    try { _db.close(); } catch (_) {}
+                    _db = null;
+                };
+                _opening = null;
+                res(_db);
+            };
+            req.onerror = e => {
+                _opening = null;
+                rej(e.target.error);
+            };
         });
+        return _opening;
+    }
+
+    function warm() {
+        return _open().catch(e => {
+            console.warn('[Autosave] IDB warm failed:', e);
+            return null;
+        });
+    }
+
+    // Start a put on the already-open DB (no await open). Returns true if queued.
+    function putSync(key, value) {
+        if (!_db) return false;
+        try {
+            _db.transaction(STORE, 'readwrite').objectStore(STORE).put(value, key);
+            return true;
+        } catch (e) {
+            console.warn('[Autosave] sync put failed:', e);
+            _db = null;
+            return false;
+        }
     }
 
     async function get(key) {
@@ -8171,7 +8211,7 @@ const _autosaveDB = (() => {
         try { localStorage.removeItem(LS_KEY(key)); } catch(_) {}
     }
 
-    return { get, set, del };
+    return { get, set, del, putSync, warm };
 })();
 
 // ── Unsaved changes indicator ─────────────────────────────────────────────────
@@ -8651,15 +8691,11 @@ function _isDraftAutosaveInteractionBusy() {
 
 function _scheduleDraftAutosaveWork() {
     _cancelPendingDraftAutosaveWork();
-    const run = () => {
+    // Debounce already waited for idle; write on the next task (no extra rIC delay).
+    _autoSaveIdleHandle = setTimeout(() => {
         _autoSaveIdleHandle = null;
         _runDraftAutosave();
-    };
-    if (typeof requestIdleCallback === 'function') {
-        _autoSaveIdleHandle = requestIdleCallback(run, { timeout: 5000 });
-    } else {
-        _autoSaveIdleHandle = setTimeout(run, 0);
-    }
+    }, 0);
 }
 
 async function _runDraftAutosave() {
@@ -8692,8 +8728,8 @@ async function _runDraftAutosave() {
     // Silent on success - reassurance for signed-out users lives on the export gate.
 }
 
-// Immediate draft write for tab hide / refresh / close. Starts the IDB put
-// synchronously so the browser can finish it during unload; no toast.
+// Immediate draft write for tab hide / refresh / close. Prefer a sync-started
+// put on the warm DB handle so unload does not race indexedDB.open().
 function _flushDraftAutosaveNow() {
     clearTimeout(_autoSaveTimer);
     _autoSaveTimer = null;
@@ -8708,6 +8744,10 @@ function _flushDraftAutosaveNow() {
         return;
     }
     console.log('[Autosave] Flushing session -', snap.windows.length, 'window(s)');
+    if (_autosaveDB.putSync('session', snap)) {
+        console.log('[Autosave] Flush put queued ✓');
+        return;
+    }
     _autosaveDB.set('session', snap).then(() => {
         console.log('[Autosave] Flush saved ✓');
     }).catch(e => {
@@ -8737,6 +8777,7 @@ function autoSaveSession(){
     // pending cloud-save timer via the _unsaved guard in the callback below.
     _markDirty();
     _bindDraftAutosaveFlushListeners();
+    _autosaveDB.warm();
 
     clearTimeout(_autoSaveTimer);
     _cancelPendingDraftAutosaveWork();
@@ -10814,6 +10855,8 @@ function _applyUndoHistoryFromSnapshot(history) {
 window.addEventListener('DOMContentLoaded', async ()=>{
 
     _installFabricTransformCursors();
+    _bindDraftAutosaveFlushListeners();
+    _autosaveDB.warm();
 
     // Settings → "Open in app" sets a one-shot flag; load cloud project instead of IDB draft.
     let pendingCloudUuid = null;
