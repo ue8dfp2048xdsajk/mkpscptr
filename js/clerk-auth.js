@@ -90,7 +90,7 @@
         btn.addEventListener('click', function () {
             sessionStorage.setItem('ms_redirect_after_auth', 'home');
             if (!window.Clerk) { alert('Sign-in is temporarily unavailable - please refresh the page.'); return; }
-            var snap; try { snap = buildFullSnapshot(); } catch(e) { console.error('[SignIn] snapshot failed:', e); }
+            var snap; try { snap = buildSessionSnapshotForIdb(); } catch(e) { console.error('[SignIn] snapshot failed:', e); }
             var doSignIn = function () { try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { console.error('[Clerk] redirectToSignIn failed:', e); alert('Sign-in is temporarily unavailable - please refresh the page.'); } };
             if (snap) {
                 _autosaveDB.set('session', snap).catch(function(){}).then(doSignIn);

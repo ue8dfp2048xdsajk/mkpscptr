@@ -83,7 +83,7 @@ function _promptLocalJsonUpgrade(action) {
 async function _guardLocalJsonAccess(action) {
     if (window.Clerk && !window.Clerk.user) {
         sessionStorage.setItem('ms_redirect_after_auth', action === 'load' ? 'load' : 'save');
-        try { await _autosaveDB.set('session', buildFullSnapshot()).catch(function () {}); } catch (e) {
+        try { await _autosaveDB.set('session', buildSessionSnapshotForIdb()).catch(function () {}); } catch (e) {
             console.error('[LocalJson→SignIn] snapshot failed:', e);
         }
         try {
@@ -1494,7 +1494,7 @@ function _updateHeaderProMockupCount() {
 async function _promptUpgradeForPro(context) {
     if (window.Clerk && !window.Clerk.user) {
         sessionStorage.setItem('ms_redirect_after_auth', 'plans');
-        try { await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {}); } catch (e) {
+        try { await _autosaveDB.set('session', buildSessionSnapshotForIdb()).catch(() => {}); } catch (e) {
             console.error('[Upgrade→SignIn] snapshot failed:', e);
         }
         try {
@@ -8407,6 +8407,12 @@ function buildDraftSnapshot() {
     });
 }
 
+// Prefer this for every IndexedDB `session` write (idle autosave + pre-auth).
+// Same expand-on-restore path; avoids cloning full data-URLs per window.
+function buildSessionSnapshotForIdb() {
+    return buildDraftSnapshot();
+}
+
 // Resolve __img_N keys (draft or cloud imageMap) back to data URLs.
 function _expandImageMappedWindows(raw) {
     if (!raw) return [];
@@ -8777,9 +8783,9 @@ async function _runDraftAutosave() {
 
     let snap;
     try {
-        snap = buildDraftSnapshot();
+        snap = buildSessionSnapshotForIdb();
     } catch (e) {
-        console.error('[Autosave] buildDraftSnapshot threw:', e);
+        console.error('[Autosave] buildSessionSnapshotForIdb threw:', e);
         return;
     }
     const imgCount = snap.imageMap ? Object.keys(snap.imageMap).length : 0;
@@ -8823,9 +8829,9 @@ function _flushDraftAutosaveNow() {
 
     let snap;
     try {
-        snap = buildDraftSnapshot();
+        snap = buildSessionSnapshotForIdb();
     } catch (e) {
-        console.error('[Autosave] flush buildDraftSnapshot threw:', e);
+        console.error('[Autosave] flush buildSessionSnapshotForIdb threw:', e);
         return;
     }
     const imgCount = snap.imageMap ? Object.keys(snap.imageMap).length : 0;
@@ -8920,7 +8926,7 @@ function autoSaveSession(){
 
         if (window.Clerk && !window.Clerk.user) {
             sessionStorage.setItem('ms_redirect_after_auth', 'cloud');
-            try { await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {}); } catch (err) {
+            try { await _autosaveDB.set('session', buildSessionSnapshotForIdb()).catch(() => {}); } catch (err) {
                 console.error('[OpenCloud→SignIn] snapshot failed:', err);
             }
             try {
@@ -8962,7 +8968,7 @@ document.getElementById("saveProgressBtn").addEventListener("click", async ()=>{
 
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'save');
-        try { await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}); } catch(e) { console.error('[Save→SignIn] snapshot failed:', e); }
+        try { await _autosaveDB.set('session', buildSessionSnapshotForIdb()).catch(()=>{}); } catch(e) { console.error('[Save→SignIn] snapshot failed:', e); }
         try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
         return;
     }
@@ -11337,7 +11343,7 @@ async function _startCheckout(plan, period) {
         sessionStorage.setItem('ms_redirect_after_auth', 'home');
         try { sessionStorage.setItem('ms_pending_checkout_plan', plan || ''); } catch (_) {}
         try { sessionStorage.setItem('ms_pending_checkout_period', period || 'monthly'); } catch (_) {}
-        await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
+        await _autosaveDB.set('session', buildSessionSnapshotForIdb()).catch(()=>{});
         if (window.Clerk) {
             try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
         } else {

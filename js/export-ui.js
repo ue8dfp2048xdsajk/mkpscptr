@@ -1,5 +1,5 @@
 // ── Export UI: popover, pattern PNG, canvas text ─────────────────────────────
-// Depends on globals from app.js (canvasData, buildFullSnapshot, _autosaveDB, …),
+// Depends on globals from app.js (canvasData, buildSessionSnapshotForIdb, _autosaveDB, …),
 // pro-gating.js (_syncProEffect, _windowIsProGated, _beginExportCapture), and
 // plans-modal.js (openPlansModal - called at click time, not load time).
 // Load this script after js/app.js.
@@ -355,7 +355,7 @@ function _exportPatternPNG(data) {
     if (exportSignInBtn) {
         exportSignInBtn.addEventListener('click', async () => {
             sessionStorage.setItem('ms_redirect_after_auth', 'export');
-            await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {});
+            await _autosaveDB.set('session', buildSessionSnapshotForIdb()).catch(() => {});
             try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
         });
     }
@@ -579,7 +579,7 @@ function _exportPatternPNG(data) {
 
             if (window.Clerk && !window.Clerk.user) {
                 sessionStorage.setItem('ms_redirect_after_auth', 'export');
-                await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{});
+                await _autosaveDB.set('session', buildSessionSnapshotForIdb()).catch(()=>{});
                 try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
                 return;
             }
@@ -634,7 +634,7 @@ function _exportPatternPNG(data) {
 
             if (window.Clerk && !window.Clerk.user) {
                 sessionStorage.setItem('ms_redirect_after_auth', 'export');
-                try { await _autosaveDB.set('session', buildFullSnapshot()).catch(() => {}); } catch (e) { console.error('[ExportPattern→SignIn] snapshot failed:', e); }
+                try { await _autosaveDB.set('session', buildSessionSnapshotForIdb()).catch(() => {}); } catch (e) { console.error('[ExportPattern→SignIn] snapshot failed:', e); }
                 try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch (e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
                 return;
             }
@@ -673,7 +673,7 @@ function _exportPatternPNG(data) {
 document.getElementById('exportTextBtn').addEventListener('click', async () => {
     if(window.Clerk && !window.Clerk.user){
         sessionStorage.setItem('ms_redirect_after_auth', 'export');
-        try { await _autosaveDB.set('session', buildFullSnapshot()).catch(()=>{}); } catch(e) { console.error('[Export→SignIn] snapshot failed:', e); }
+        try { await _autosaveDB.set('session', buildSessionSnapshotForIdb()).catch(()=>{}); } catch(e) { console.error('[Export→SignIn] snapshot failed:', e); }
         try { window.Clerk.redirectToSignIn({ forceRedirectUrl: window.location.href }); } catch(e) { alert('Sign-in is temporarily unavailable - please refresh the page.'); }
         return;
     }
