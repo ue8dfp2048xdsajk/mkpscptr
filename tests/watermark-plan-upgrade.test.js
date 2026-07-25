@@ -33,15 +33,18 @@ function loadWatermarkFunctions() {
 }
 
 function makeFakeCanvas(width, height) {
+    const pattern = { __wmPattern: true };
     return {
         width,
         height,
         contextContainer: {
-            save:        jest.fn(),
-            restore:     jest.fn(),
-            translate:   jest.fn(),
-            rotate:      jest.fn(),
-            fillText:    jest.fn(),
+            save:          jest.fn(),
+            restore:       jest.fn(),
+            translate:     jest.fn(),
+            rotate:        jest.fn(),
+            fillText:      jest.fn(),
+            fillRect:      jest.fn(),
+            createPattern: jest.fn(() => pattern),
             set font(_) {},
             set textAlign(_) {},
             set textBaseline(_) {},
@@ -104,47 +107,55 @@ beforeEach(() => {
 });
 
 describe('_drawWatermarkOnCanvas - watermark by plan', () => {
-    test('free plan: canvas context fillText is called with watermark text', () => {
+    test('free plan: stamps watermark via createPattern + fillRect', () => {
         window._userPlan = 'free';
         const fc   = makeFakeCanvas(800, 600);
         const data = makeCanvasData(fc);
 
         window._drawWatermarkOnCanvas(data);
 
-        expect(fc.contextContainer.fillText).toHaveBeenCalled();
-        const texts = fc.contextContainer.fillText.mock.calls.map(([t]) => t);
-        expect(texts).toContain('MOCKUP RABBIT');
-        expect(texts).toContain('mockuprabbit.com');
+        expect(fc.contextContainer.createPattern).toHaveBeenCalledWith(
+            expect.any(Object),
+            'repeat'
+        );
+        expect(fc.contextContainer.fillRect).toHaveBeenCalled();
+        const tile = window._ensureWatermarkTileCanvas();
+        expect(tile).toBeTruthy();
+        expect(tile.width).toBe(155);
+        expect(tile.height).toBe(104);
     });
 
-    test('after upgrade to starter (no PRO effect): fillText is NOT called', () => {
+    test('after upgrade to starter (no PRO effect): pattern stamp is NOT called', () => {
         window._userPlan = 'starter';
         const fc   = makeFakeCanvas(800, 600);
         const data = makeCanvasData(fc);
 
         window._drawWatermarkOnCanvas(data);
 
-        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+        expect(fc.contextContainer.createPattern).not.toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).not.toHaveBeenCalled();
     });
 
-    test('starter plan + PRO-effect canvas: fillText IS still called', () => {
+    test('starter plan + PRO-effect canvas: pattern stamp IS still called', () => {
         window._userPlan = 'starter';
         const fc   = makeFakeCanvas(800, 600);
         const data = makeCanvasData(fc, { warpAmount: 10 });
 
         window._drawWatermarkOnCanvas(data);
 
-        expect(fc.contextContainer.fillText).toHaveBeenCalled();
+        expect(fc.contextContainer.createPattern).toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).toHaveBeenCalled();
     });
 
-    test('after upgrade to pro: fillText is NOT called even for PRO-effect canvas', () => {
+    test('after upgrade to pro: pattern stamp is NOT called even for PRO-effect canvas', () => {
         window._userPlan = 'pro';
         const fc   = makeFakeCanvas(800, 600);
         const data = makeCanvasData(fc, { warpAmount: 10 });
 
         window._drawWatermarkOnCanvas(data);
 
-        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+        expect(fc.contextContainer.createPattern).not.toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).not.toHaveBeenCalled();
     });
 
     test('bails silently when fabricCanvas is absent', () => {
@@ -158,21 +169,22 @@ describe('_drawWatermarkOnCanvas - watermark by plan', () => {
         window._userPlan = 'free';
         const fc = makeFakeCanvas(200, 200);
         window._drawWatermarkOnCanvas({ fabricCanvas: fc, designObject: null });
-        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+        expect(fc.contextContainer.createPattern).not.toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).not.toHaveBeenCalled();
     });
 
-    test('skips drawing during pan/marquee interaction only', () => {
+    test('skips drawing during pan/transform interaction suppression', () => {
         window._userPlan = 'free';
         const fc   = makeFakeCanvas(800, 600);
         const data = makeCanvasData(fc);
 
         _beginWatermarkInteraction();
         window._drawWatermarkOnCanvas(data);
-        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).not.toHaveBeenCalled();
 
         _endWatermarkInteraction();
         window._drawWatermarkOnCanvas(data);
-        expect(fc.contextContainer.fillText).toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).toHaveBeenCalled();
     });
 
     test('_endWatermarkInteraction refreshes gated canvases when suppression ends', () => {
@@ -187,14 +199,14 @@ describe('_drawWatermarkOnCanvas - watermark by plan', () => {
         expect(fc.requestRenderAll).toHaveBeenCalledTimes(1);
     });
 
-    test('still draws during Fabric transform (design drag/scale)', () => {
+    test('Fabric _currentTransform alone does not suppress pattern stamp', () => {
         window._userPlan = 'free';
         const fc   = makeFakeCanvas(800, 600);
         fc._currentTransform = { action: 'drag' };
         const data = makeCanvasData(fc);
 
         window._drawWatermarkOnCanvas(data);
-        expect(fc.contextContainer.fillText).toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).toHaveBeenCalled();
     });
 });
 
@@ -262,7 +274,7 @@ describe('_drawWatermarkOnCanvas - export capture plan override', () => {
         window._drawWatermarkOnCanvas(data);
         window._endExportCapture();
 
-        expect(fc.contextContainer.fillText).toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).toHaveBeenCalled();
     });
 
     test('export capture with verified starter plan skips watermark on plain mockups', () => {
@@ -274,7 +286,7 @@ describe('_drawWatermarkOnCanvas - export capture plan override', () => {
         window._drawWatermarkOnCanvas(data);
         window._endExportCapture();
 
-        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).not.toHaveBeenCalled();
     });
 
     test('preview still uses _userPlan when export capture is inactive', () => {
@@ -284,7 +296,7 @@ describe('_drawWatermarkOnCanvas - export capture plan override', () => {
 
         window._drawWatermarkOnCanvas(data);
 
-        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).not.toHaveBeenCalled();
     });
 });
 
@@ -297,10 +309,8 @@ describe('full upgrade simulation', () => {
         global.canvasData = [data];
 
         window._drawWatermarkOnCanvas(data);
-        expect(fc.contextContainer.fillText).toHaveBeenCalled();
-        expect(
-            fc.contextContainer.fillText.mock.calls.some(([t]) => t === 'MOCKUP RABBIT')
-        ).toBe(true);
+        expect(fc.contextContainer.fillRect).toHaveBeenCalled();
+        expect(fc.contextContainer.createPattern).toHaveBeenCalled();
 
         expect(document.getElementById('upgradePrompt').style.display).not.toBe('none');
 
@@ -310,9 +320,11 @@ describe('full upgrade simulation', () => {
         expect(document.getElementById('upgradePrompt').style.display).toBe('none');
         expect(fc.requestRenderAll).toHaveBeenCalledTimes(1);
 
-        fc.contextContainer.fillText.mockClear();
+        fc.contextContainer.fillRect.mockClear();
+        fc.contextContainer.createPattern.mockClear();
         window._drawWatermarkOnCanvas(data);
-        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).not.toHaveBeenCalled();
+        expect(fc.contextContainer.createPattern).not.toHaveBeenCalled();
     });
 
     test('free → starter (no PRO effect): upgradePrompt hidden AND no watermark', () => {
@@ -322,15 +334,15 @@ describe('full upgrade simulation', () => {
         global.canvasData = [data];
 
         window._drawWatermarkOnCanvas(data);
-        expect(fc.contextContainer.fillText).toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).toHaveBeenCalled();
 
         window._userPlan = 'starter';
         window._refreshAllProStarBadges();
 
         expect(document.getElementById('upgradePrompt').style.display).toBe('none');
 
-        fc.contextContainer.fillText.mockClear();
+        fc.contextContainer.fillRect.mockClear();
         window._drawWatermarkOnCanvas(data);
-        expect(fc.contextContainer.fillText).not.toHaveBeenCalled();
+        expect(fc.contextContainer.fillRect).not.toHaveBeenCalled();
     });
 });

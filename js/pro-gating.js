@@ -62,11 +62,48 @@ function getAllDesignObjects(data){
     return objs;
 }
 
+// Baked once: 2-row brick tile matching the old fillText grid (col 155 / row 52).
+// Per-frame draw is createPattern + one fillRect instead of hundreds of shadowed texts.
+var _wmTileCanvas = null;
+var _WM_COL_PITCH = 155;
+var _WM_ROW_PITCH = 52;
+
+function _ensureWatermarkTileCanvas() {
+    if (_wmTileCanvas) return _wmTileCanvas;
+    if (typeof document === 'undefined') return null;
+    var colPitch = _WM_COL_PITCH;
+    var rowPitch = _WM_ROW_PITCH;
+    var c = document.createElement('canvas');
+    c.width  = colPitch;
+    c.height = rowPitch * 2;
+    var t = c.getContext('2d');
+    if (!t) return null;
+
+    t.font         = 'bold 14px Arial, sans-serif';
+    t.textAlign    = 'center';
+    t.textBaseline = 'middle';
+    t.shadowColor  = 'rgba(0,0,0,0.65)';
+    t.shadowBlur   = 4;
+    t.shadowOffsetX = 1;
+    t.shadowOffsetY = 1;
+
+    function drawPair(x, y) {
+        t.fillStyle = 'rgba(255,255,255,0.58)';
+        t.fillText('MOCKUP RABBIT', x, y - 11);
+        t.fillStyle = 'rgba(255,255,255,0.48)';
+        t.fillText('mockuprabbit.com', x, y + 7);
+    }
+    // Even row centered on the tile seam (x=0); odd row brick-shifted by half pitch.
+    drawPair(0, rowPitch * 0.5);
+    drawPair(colPitch / 2, rowPitch * 1.5);
+
+    _wmTileCanvas = c;
+    return _wmTileCanvas;
+}
+
 // Draw watermark over a canvas (called from after:render).
 // Applies to: all free-plan canvases with a design, AND
 //             any starred (PRO-feature) windows on the Starter plan.
-// Uses direct rotated-grid drawing (no tile repeat) so density is
-// uniform across the whole canvas with no edge-clipping gaps.
 function _drawWatermarkOnCanvas(data) {
     var plan      = _effectivePlanForGating();
     var isFree    = plan === 'free';
@@ -80,50 +117,18 @@ function _drawWatermarkOnCanvas(data) {
     var W   = fc.width;
     var H   = fc.height;
 
-    ctx.save();
+    var tile = _ensureWatermarkTileCanvas();
+    if (!tile || typeof ctx.createPattern !== 'function') return;
+    var pattern = ctx.createPattern(tile, 'repeat');
+    if (!pattern) return;
 
-    // Rotate the whole drawing context so all text lays out diagonally
+    ctx.save();
+    // Rotate so the axis-aligned pattern stamps on a diagonal, same as before.
     ctx.translate(W / 2, H / 2);
     ctx.rotate(-Math.PI / 5.5); // ~-32.7°
-
-    // Set text style once for all instances
-    ctx.font          = 'bold 14px Arial, sans-serif';
-    ctx.textAlign     = 'center';
-    ctx.textBaseline  = 'middle';
-    ctx.shadowColor   = 'rgba(0,0,0,0.65)';
-    ctx.shadowBlur    = 4;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 1;
-
-    // rowPitch: spacing between rows (perpendicular to text direction).
-    // Smaller = denser.  52px gives ~25% gap between rows → ~80% coverage.
-    var rowPitch = 52;
-    // colPitch: spacing between text blocks along the text direction.
-    var colPitch = 155;
-
+    ctx.fillStyle = pattern;
     var diag = Math.sqrt(W * W + H * H);
-    var rows = Math.ceil(diag / rowPitch) + 1;
-    var cols = Math.ceil(diag / colPitch) + 1;
-
-    // Draw all line-1 text first (batching same fillStyle avoids redundant GPU state changes)
-    ctx.fillStyle = 'rgba(255,255,255,0.58)';
-    for (var r = -rows; r <= rows; r++) {
-        var y   = r * rowPitch;
-        var xOff = (r & 1) ? colPitch / 2 : 0; // brick offset on odd rows
-        for (var c = -cols; c <= cols; c++) {
-            ctx.fillText('MOCKUP RABBIT', c * colPitch + xOff, y - 11);
-        }
-    }
-    // Draw all line-2 text
-    ctx.fillStyle = 'rgba(255,255,255,0.48)';
-    for (var r = -rows; r <= rows; r++) {
-        var y   = r * rowPitch;
-        var xOff = (r & 1) ? colPitch / 2 : 0;
-        for (var c = -cols; c <= cols; c++) {
-            ctx.fillText('mockuprabbit.com', c * colPitch + xOff, y + 7);
-        }
-    }
-
+    ctx.fillRect(-diag, -diag, diag * 2, diag * 2);
     ctx.restore();
 }
 
