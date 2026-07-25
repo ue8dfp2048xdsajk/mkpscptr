@@ -22,6 +22,10 @@ describe('UX copy contracts (app.html)', () => {
         expect(appHtml).toContain('export-go-btn-full');
     });
 
+    test('signed-out export gate mentions local autosave', () => {
+        expect(appHtml).toContain('Your work is autosaved in this browser');
+    });
+
     test('onboarding elements present', () => {
         expect(appHtml).toContain('id="workflowBanner"');
         expect(appHtml).toContain('id="sidebarCoach"');

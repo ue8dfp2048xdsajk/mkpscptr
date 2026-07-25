@@ -8091,6 +8091,10 @@ function buildSnapshot(){
 
 var _autoSaveTimer = null;
 var _cloudAutoSaveTimer = null;
+// Local draft autosave: longer idle debounce + idle-callback snapshot so bulk
+// editing is not interrupted by frequent "Draft saved" toasts / main-thread work.
+var _AUTO_SAVE_IDLE_MS = 12000;
+var _autoSaveIdleHandle = null;
 
 // ── IndexedDB autosave with localStorage fallback ─────────────────────────────
 // Design: IDB is the primary store (no size limit).  On ANY IDB failure (open
@@ -8627,6 +8631,65 @@ async function _loadProjectByUuid(uuid) {
     }
 }
 
+function _cancelPendingDraftAutosaveWork() {
+    if (_autoSaveIdleHandle == null) return;
+    if (typeof cancelIdleCallback === 'function') {
+        try { cancelIdleCallback(_autoSaveIdleHandle); } catch (_) {}
+    }
+    clearTimeout(_autoSaveIdleHandle);
+    _autoSaveIdleHandle = null;
+}
+
+function _isDraftAutosaveInteractionBusy() {
+    if (typeof _designTransformPaintDepth !== 'undefined' && _designTransformPaintDepth > 0) return true;
+    if (typeof _watermarkInteractionDepth !== 'undefined' && _watermarkInteractionDepth > 0) return true;
+    if (typeof _vpPanning !== 'undefined' && _vpPanning) return true;
+    return false;
+}
+
+function _scheduleDraftAutosaveWork() {
+    _cancelPendingDraftAutosaveWork();
+    const run = () => {
+        _autoSaveIdleHandle = null;
+        _runDraftAutosave();
+    };
+    if (typeof requestIdleCallback === 'function') {
+        _autoSaveIdleHandle = requestIdleCallback(run, { timeout: 5000 });
+    } else {
+        _autoSaveIdleHandle = setTimeout(run, 0);
+    }
+}
+
+async function _runDraftAutosave() {
+    if (!canvasData.length && !_textBoxes.length) return;
+
+    // Avoid snapshot cost mid-drag / pan; retry shortly after the gesture ends.
+    if (_isDraftAutosaveInteractionBusy()) {
+        clearTimeout(_autoSaveTimer);
+        _autoSaveTimer = setTimeout(() => {
+            _autoSaveTimer = null;
+            _scheduleDraftAutosaveWork();
+        }, 1500);
+        return;
+    }
+
+    let snap;
+    try {
+        snap = buildFullSnapshot();
+    } catch (e) {
+        console.error('[Autosave] buildFullSnapshot threw:', e);
+        return;
+    }
+    console.log('[Autosave] Saving session -', snap.windows.length, 'window(s)');
+    try {
+        await _autosaveDB.set('session', snap);
+        console.log('[Autosave] Session saved ✓');
+    } catch (e) {
+        console.error('[Autosave] Session write failed:', e);
+    }
+    // Silent on success - reassurance for signed-out users lives on the export gate.
+}
+
 function autoSaveSession(){
 
     if(!canvasData.length && !_textBoxes.length) return;
@@ -8637,15 +8700,12 @@ function autoSaveSession(){
     _markDirty();
 
     clearTimeout(_autoSaveTimer);
+    _cancelPendingDraftAutosaveWork();
 
-    _autoSaveTimer = setTimeout(async ()=>{
-        let snap;
-        try { snap = buildFullSnapshot(); } catch(e) { console.error('[Autosave] buildFullSnapshot threw:', e); return; }
-        console.log('[Autosave] Saving session -', snap.windows.length, 'window(s)');
-        await _autosaveDB.set('session', snap);
-        console.log('[Autosave] Session saved ✓');
-        _showSaveToast('Draft saved ✓');
-    }, 2500);
+    _autoSaveTimer = setTimeout(()=>{
+        _autoSaveTimer = null;
+        _scheduleDraftAutosaveWork();
+    }, _AUTO_SAVE_IDLE_MS);
 
     // Cloud backup - only when signed in and a UUID is already stored.
     // The callback re-checks _unsaved so that a _markClean() call (e.g. after a
