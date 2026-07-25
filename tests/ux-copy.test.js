@@ -50,6 +50,9 @@ describe('UX copy contracts (app.html)', () => {
         expect(appHtml).toContain(
             'Large session - for smoother editing, close other browser tabs and heavy apps. Your work still autosaves.'
         );
+        expect(appHtml).toContain('id="perfSessionPromptOptOut"');
+        expect(appHtml).toContain("Don't show again");
+        expect(appHtml).toContain('id="perfSessionPromptClose"');
     });
 
     test('save button is visible in header top row (file nav)', () => {

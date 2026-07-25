@@ -2147,6 +2147,24 @@ body.sidebar-expanded #contextPanelBody {
     flex-shrink: 0;
 }
 .perf-session-prompt[hidden] { display: none !important; }
+.perf-session-prompt-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.perf-session-prompt-optout {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.85);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: underline;
+    padding: 2px 4px;
+    white-space: nowrap;
+}
+.perf-session-prompt-optout:hover { color: #fff; }
 .perf-session-prompt-close {
     background: transparent;
     border: none;

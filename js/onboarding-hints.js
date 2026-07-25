@@ -1,17 +1,55 @@
 // Onboarding banners, coach marks, shortcuts modal, large-session perf hint.
-// Non-blocking: overlays use pointer-events:none except dismiss buttons.
+// Non-blocking: tip is a thin header bar only (no modal / no workflow gate).
 
 (function () {
     var LS_BANNER = 'ms_banner_dismissed';
     var LS_COACH = 'ms_coach_sidebar_seen';
     var LS_FIRST_EXPORT = 'ms_first_export_done';
     var LS_BATCH_HINT = 'ms_batch_hint_dismissed';
-    var LS_PERF_HINT = 'ms_perf_hint_dismissed';
+    // Perf tip storage (fail-open if storage throws):
+    // - ms_perf_hint_opt_out: never show again (Don't show again)
+    // - ms_perf_hint_session_dismissed: hide for this tab (X)
+    // - ms_perf_hint_select_seen: selection trigger already used once
+    // - ms_perf_hint_dismissed: legacy forever-dismiss -> migrated to opt-out
+    var LS_PERF_OPT_OUT = 'ms_perf_hint_opt_out';
+    var LS_PERF_LEGACY = 'ms_perf_hint_dismissed';
+    var LS_PERF_SELECT_SEEN = 'ms_perf_hint_select_seen';
+    var SS_PERF_SESSION = 'ms_perf_hint_session_dismissed';
+    // Keeps the one-shot selection tip visible until dismiss or deselect.
+    var _selectTipActive = false;
 
     function _isTypingTarget(el) {
         if (!el) return false;
         var tag = el.tagName;
         return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+    }
+
+    function _lsGet(key) {
+        try { return localStorage.getItem(key); } catch (_) { return null; }
+    }
+
+    function _lsSet(key, val) {
+        try { localStorage.setItem(key, val); } catch (_) {}
+    }
+
+    function _ssGet(key) {
+        try { return sessionStorage.getItem(key); } catch (_) { return null; }
+    }
+
+    function _ssSet(key, val) {
+        try { sessionStorage.setItem(key, val); } catch (_) {}
+    }
+
+    function _migratePerfOptOut() {
+        if (_lsGet(LS_PERF_OPT_OUT)) return;
+        if (_lsGet(LS_PERF_LEGACY)) {
+            _lsSet(LS_PERF_OPT_OUT, '1');
+        }
+    }
+
+    function _perfOptedOut() {
+        _migratePerfOptOut();
+        return !!_lsGet(LS_PERF_OPT_OUT);
     }
 
     window._onGridReady = function (mockupCount, bgCount, designCount) {
@@ -25,11 +63,11 @@
     function _updateWorkflowBanner() {
         var banner = document.getElementById('workflowBanner');
         if (!banner) return;
-        if (localStorage.getItem(LS_BANNER)) {
+        if (_lsGet(LS_BANNER)) {
             banner.hidden = true;
             return;
         }
-        if (localStorage.getItem('ms_export_attempted')) {
+        if (_lsGet('ms_export_attempted')) {
             banner.hidden = true;
             return;
         }
@@ -38,7 +76,7 @@
     }
 
     function _markExportAttempted() {
-        try { localStorage.setItem('ms_export_attempted', '1'); } catch (_) {}
+        _lsSet('ms_export_attempted', '1');
         _updateWorkflowBanner();
     }
 
@@ -46,33 +84,64 @@
 
     // Kept as a no-op hook for export-ui.js (marks first export done; no toast).
     window._onFirstExportSuccess = function () {
-        if (localStorage.getItem(LS_FIRST_EXPORT)) return;
-        try { localStorage.setItem(LS_FIRST_EXPORT, '1'); } catch (_) {}
+        if (_lsGet(LS_FIRST_EXPORT)) return;
+        _lsSet(LS_FIRST_EXPORT, '1');
     };
 
     window._showSidebarCoachIfNeeded = function () {
-        if (localStorage.getItem(LS_COACH)) return;
+        if (_lsGet(LS_COACH)) return;
         var coach = document.getElementById('sidebarCoach');
         if (coach) coach.hidden = false;
     };
 
     window._dismissSidebarCoach = function () {
-        try { localStorage.setItem(LS_COACH, '1'); } catch (_) {}
+        _lsSet(LS_COACH, '1');
         var coach = document.getElementById('sidebarCoach');
         if (coach) coach.hidden = true;
     };
 
+    // Large grid (>=201): re-show every time unless session/opt-out.
+    // Large selection (>=31): once ever, then never for selection-only.
     window._updatePerfSessionPrompt = function () {
         var el = document.getElementById('perfSessionPrompt');
         if (!el) return;
-        if (localStorage.getItem(LS_PERF_HINT)) {
+
+        if (_perfOptedOut() || _ssGet(SS_PERF_SESSION)) {
+            el.hidden = true;
+            _selectTipActive = false;
+            return;
+        }
+
+        var manyWindows = typeof canvasData !== 'undefined' && canvasData.length >= 201;
+        var manySelected = typeof activeIndices !== 'undefined' && activeIndices.length >= 31;
+
+        if (manyWindows) {
+            el.hidden = false;
+            return;
+        }
+
+        if (manySelected) {
+            if (!_lsGet(LS_PERF_SELECT_SEEN)) {
+                _lsSet(LS_PERF_SELECT_SEEN, '1');
+                _selectTipActive = true;
+            }
+            if (_selectTipActive) {
+                el.hidden = false;
+                return;
+            }
             el.hidden = true;
             return;
         }
-        var manyWindows = typeof canvasData !== 'undefined' && canvasData.length >= 201;
-        var manySelected = typeof activeIndices !== 'undefined' && activeIndices.length >= 31;
-        el.hidden = !(manyWindows || manySelected);
+
+        _selectTipActive = false;
+        el.hidden = true;
     };
+
+    function _hidePerfPrompt() {
+        _selectTipActive = false;
+        var prompt = document.getElementById('perfSessionPrompt');
+        if (prompt) prompt.hidden = true;
+    }
 
     function _setHelpTab(tab) {
         var shortcutsBtn = document.getElementById('shortcutsTabBtn');
@@ -110,7 +179,7 @@
         var bannerClose = document.getElementById('workflowBannerClose');
         if (bannerClose) {
             bannerClose.addEventListener('click', function () {
-                try { localStorage.setItem(LS_BANNER, '1'); } catch (_) {}
+                _lsSet(LS_BANNER, '1');
                 var banner = document.getElementById('workflowBanner');
                 if (banner) banner.hidden = true;
             });
@@ -132,18 +201,27 @@
         var batchHintClose = document.getElementById('batchEditHintClose');
         if (batchHintClose) {
             batchHintClose.addEventListener('click', function () {
-                try { localStorage.setItem(LS_BATCH_HINT, '1'); } catch (_) {}
+                _lsSet(LS_BATCH_HINT, '1');
                 var hint = document.getElementById('batchEditHint');
                 if (hint) hint.hidden = true;
             });
         }
 
+        // X = hide for this tab only (can return next session on 201+).
         var perfClose = document.getElementById('perfSessionPromptClose');
         if (perfClose) {
             perfClose.addEventListener('click', function () {
-                try { localStorage.setItem(LS_PERF_HINT, '1'); } catch (_) {}
-                var prompt = document.getElementById('perfSessionPrompt');
-                if (prompt) prompt.hidden = true;
+                _ssSet(SS_PERF_SESSION, '1');
+                _hidePerfPrompt();
+            });
+        }
+
+        // Explicit permanent silence.
+        var perfOptOut = document.getElementById('perfSessionPromptOptOut');
+        if (perfOptOut) {
+            perfOptOut.addEventListener('click', function () {
+                _lsSet(LS_PERF_OPT_OUT, '1');
+                _hidePerfPrompt();
             });
         }
 

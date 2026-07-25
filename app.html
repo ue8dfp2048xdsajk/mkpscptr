@@ -147,7 +147,10 @@
             </div>
             <div id="perfSessionPrompt" class="perf-session-prompt" hidden>
                 <span>Large session - for smoother editing, close other browser tabs and heavy apps. Your work still autosaves.</span>
-                <button id="perfSessionPromptClose" type="button" aria-label="Dismiss performance tip" class="perf-session-prompt-close">✕</button>
+                <span class="perf-session-prompt-actions">
+                    <button id="perfSessionPromptOptOut" type="button" class="perf-session-prompt-optout">Don't show again</button>
+                    <button id="perfSessionPromptClose" type="button" aria-label="Dismiss performance tip" class="perf-session-prompt-close">✕</button>
+                </span>
             </div>
             <div id="workflowBanner" class="workflow-banner" hidden>
                 <span class="workflow-banner-steps">
