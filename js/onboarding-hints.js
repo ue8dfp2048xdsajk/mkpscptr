@@ -4,7 +4,6 @@
 (function () {
     var LS_BANNER = 'ms_banner_dismissed';
     var LS_COACH = 'ms_coach_sidebar_seen';
-    var LS_FIRST_EXPORT = 'ms_first_export_done';
     var LS_BATCH_HINT = 'ms_batch_hint_dismissed';
     // Perf tip storage (fail-open if storage throws):
     // - ms_perf_hint_opt_out: never show again (Don't show again)
@@ -91,10 +90,9 @@
         el._hideTimer = setTimeout(function () { el.hidden = true; }, 5000);
     }
 
-    // First successful export only - after export finishes (not during edit).
+    // After every successful export (hook name kept for export-ui.js).
+    // Lightweight toast only - runs after export finishes, not during edit.
     window._onFirstExportSuccess = function () {
-        if (_lsGet(LS_FIRST_EXPORT)) return;
-        _lsSet(LS_FIRST_EXPORT, '1');
         _showComboToast(
             'Nice - your mockups are ready for your store listings. Tip: select multiple mockups to edit them all at once.'
         );
