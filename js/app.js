@@ -13,8 +13,15 @@ var _colGap = 20;
 var _visibleWrappers = new Set();
 var _visibilityObserver = new IntersectionObserver(entries => {
     entries.forEach(e => {
-        if(e.isIntersecting) _visibleWrappers.add(e.target);
-        else                 _visibleWrappers.delete(e.target);
+        if(e.isIntersecting) {
+            _visibleWrappers.add(e.target);
+            // Fabric props (e.g. opacity/blend) may have changed while off-screen;
+            // repaint so scrolled-in windows match current object state.
+            const d = canvasData.find(cd => cd && cd.wrapperEl === e.target);
+            if (d?.fabricCanvas) d.fabricCanvas.requestRenderAll();
+        } else {
+            _visibleWrappers.delete(e.target);
+        }
     });
 }, { rootMargin: '300px 0px' });
 var clipCopySelectMode = false;   // true while user is picking copy targets
@@ -2291,12 +2298,14 @@ function _lqRenderSliders(){
                 d.blendMode       = newFx.blendMode;
             }
 
-            // Skip render work for off-screen objects - state is already updated above.
-            if(!_visibleWrappers.has(d.wrapperEl || d.fabricCanvas.lowerCanvasEl.parentElement)) return;
-
             const isMain   = obj === d.designObject;
             const inPattern = isMain && d.patternMode && d.patternFabricObj;
+            const wrapper = d.wrapperEl || d.fabricCanvas.lowerCanvasEl.parentElement;
+            const isVisible = _visibleWrappers.has(wrapper);
 
+            // Opacity/blend are cheap Fabric props - apply to every selected object so
+            // off-screen windows stay correct for scroll-in and export. Only paint
+            // visible canvases during the live LQ pass.
             if(!requiresWarp){
                 if(inPattern){
                     // Effects target the whole tiled canvas, not the invisible master tile
@@ -2311,9 +2320,12 @@ function _lqRenderSliders(){
                         globalCompositeOperation: _blendToGCO(newFx.blendMode)
                     });
                 }
-                d.fabricCanvas.requestRenderAll();
+                if(isVisible) d.fabricCanvas.requestRenderAll();
                 return;
             }
+
+            // Skip expensive warp/blur/noise work for off-screen objects.
+            if(!isVisible) return;
 
             const extraIdx    = isMain ? -1 : (d.extraDesignObjects||[]).indexOf(obj);
             const srcOriginal = isMain
@@ -2393,22 +2405,7 @@ function _lqRenderSliders(){
         const _proBlendActive = (_blendV || 'normal') !== 'normal';
         _syncProEffect(data);
 
-        // Skip all expensive render work for off-screen windows (O(1) Set lookup).
-        const wrapper = data.wrapperEl || data.fabricCanvas.lowerCanvasEl.parentElement;
-        if(!_visibleWrappers.has(wrapper)) return;
-
-        // Sync live Fabric object transforms into data.* only for visible windows
-        // (captureWindowState now reads from Fabric directly, so this is only
-        // needed to keep applyWarpToData's left/top positioning correct).
-        if(data.designObject){
-            data.x        = data.designObject.left;
-            data.y        = data.designObject.top;
-            data.rotation = data.designObject.angle;
-            data.scaleX   = data.designObject.scaleX / data.previewScale;
-            data.scaleY   = data.designObject.scaleY / data.previewScale;
-        }
-
-        // Keep main design's _fx in sync with window-level properties
+        // Keep main design's _fx in sync for every window (including off-screen).
         if(data.designObject?._fx){
             data.designObject._fx.warpAmount     = _warpV;
             data.designObject._fx.arcAmount      = _arcV;
@@ -2421,7 +2418,10 @@ function _lqRenderSliders(){
             data.designObject._fx.blendMode       = _blendV;
         }
 
-        // Fast path: opacity/blend only - no warp recomputation needed
+        const wrapper = data.wrapperEl || data.fabricCanvas.lowerCanvasEl.parentElement;
+        const isVisible = _visibleWrappers.has(wrapper);
+
+        // Opacity/blend: cheap Fabric props on all windows; paint only if visible.
         if(!requiresWarp){
             if(data.patternMode && data.patternFabricObj){
                 data.patternFabricObj.set({
@@ -2435,8 +2435,22 @@ function _lqRenderSliders(){
                     globalCompositeOperation: _blendToGCO(_blendV)
                 });
             }
-            data.fabricCanvas.requestRenderAll();
+            if(isVisible) data.fabricCanvas.requestRenderAll();
             return;
+        }
+
+        // Skip expensive warp/blur/noise work for off-screen windows.
+        if(!isVisible) return;
+
+        // Sync live Fabric object transforms into data.* only for visible windows
+        // (captureWindowState now reads from Fabric directly, so this is only
+        // needed to keep applyWarpToData's left/top positioning correct).
+        if(data.designObject){
+            data.x        = data.designObject.left;
+            data.y        = data.designObject.top;
+            data.rotation = data.designObject.angle;
+            data.scaleX   = data.designObject.scaleX / data.previewScale;
+            data.scaleY   = data.designObject.scaleY / data.previewScale;
         }
 
         // Warp path: use _applyWarpToOneObject (with stage cache) for both main
