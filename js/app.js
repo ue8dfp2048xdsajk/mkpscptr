@@ -3500,6 +3500,21 @@ function _isMainDesignObject(obj, data) {
     return !!(obj && data && obj === data.designObject);
 }
 
+// Suppress Free/Starter watermarks for the duration of a design transform.
+// Paired begin/end via a per-object flag so click-without-drag and double
+// mouseup cannot leave _watermarkInteractionDepth stuck.
+function _beginDesignTransformWatermarkSuppress(obj) {
+    if (!obj || obj._wmInteractionHeld) return;
+    obj._wmInteractionHeld = true;
+    _beginWatermarkInteraction();
+}
+
+function _endDesignTransformWatermarkSuppress(obj) {
+    if (!obj || !obj._wmInteractionHeld) return;
+    obj._wmInteractionHeld = false;
+    _endWatermarkInteraction();
+}
+
 function attachFabricEvents(data, targetObject = null){
 
     const designTarget = targetObject || data.designObject;
@@ -3514,6 +3529,7 @@ function attachFabricEvents(data, targetObject = null){
 
     designTarget.on('moving', ()=>{
         designTarget._hadDragMovement = true;
+        _beginDesignTransformWatermarkSuppress(designTarget);
 
         const deltaX = designTarget.left - (designTarget.lastLeft || designTarget.left);
         const deltaY = designTarget.top  - (designTarget.lastTop  || designTarget.top);
@@ -3551,6 +3567,7 @@ function attachFabricEvents(data, targetObject = null){
     });
 
     designTarget.on('mouseup', ()=>{
+        _endDesignTransformWatermarkSuppress(designTarget);
         _flushCanvasRenderCoalesce();
         if(designTarget._hadDragMovement && designTarget._preDragUndoEntry){
             globalUndoStack.push(designTarget._preDragUndoEntry);
@@ -3566,6 +3583,7 @@ function attachFabricEvents(data, targetObject = null){
 
     designTarget.on('scaling', ()=>{
         designTarget._hadDragMovement = true;
+        _beginDesignTransformWatermarkSuppress(designTarget);
 
         const scaleX = designTarget.scaleX;
         const scaleY = designTarget.scaleY;
@@ -3693,6 +3711,7 @@ function attachFabricEvents(data, targetObject = null){
 
     designTarget.on('rotating', ()=>{
         designTarget._hadDragMovement = true;
+        _beginDesignTransformWatermarkSuppress(designTarget);
 
         const angle = designTarget.angle;
         if (angle === (designTarget.lastAngle ?? angle)) return;

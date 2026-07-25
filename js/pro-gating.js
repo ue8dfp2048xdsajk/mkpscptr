@@ -37,7 +37,7 @@ function _canvasNeedsWatermark(data) {
     return false;
 }
 
-// Re-paint watermarks after pan/marquee suppression ends (after:render skips while active).
+// Re-paint watermarks after pan/transform suppression ends (after:render skips while active).
 function _refreshWatermarkedCanvases() {
     if (typeof canvasData === 'undefined') return;
     canvasData.forEach(d => {
@@ -72,7 +72,7 @@ function _drawWatermarkOnCanvas(data) {
     var isFree    = plan === 'free';
     var isStarred = plan === 'starter' && _windowIsProGated(data);
     if (!isFree && !isStarred) return;
-    // Suppress only during viewport/hand pan and shift+drag marquee - not design transforms.
+    // Suppress during viewport/hand pan and design move/scale/rotate transforms.
     if (_watermarkInteractionActive()) return;
     if (!data.fabricCanvas || !data.designObject) return;
     var fc  = data.fabricCanvas;
