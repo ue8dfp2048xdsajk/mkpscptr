@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  *
- * Unit tests for Tier A canvas render coalescing in js/app.js.
+ * Unit tests for Tier A canvas render coalescing + peer paint throttle in js/app.js.
  */
 
 'use strict';
@@ -78,8 +78,53 @@ describe('render coalesce', () => {
         _cancelCanvasRenderCoalesce();
 
         expect(_renderCoalesceQueue.size).toBe(0);
+        expect(_peerRenderPending.size).toBe(0);
         expect(_renderCoalesceRaf).toBeNull();
         expect(data.fabricCanvas.requestRenderAll).not.toHaveBeenCalled();
         expect(_renderPattern).not.toHaveBeenCalled();
+    });
+
+    test('peer renders paint every Nth flush while transform throttle is active', () => {
+        const driver = makeData('driver');
+        const peer   = makeData('peer');
+
+        _beginDesignTransformPaintThrottle();
+
+        for (let i = 0; i < 3; i++) {
+            _scheduleCanvasRender(driver);
+            _scheduleCanvasRender(peer, { peer: true });
+            _flushCanvasRenderCoalesce();
+        }
+
+        // Driver paints every flush; peer only on the 3rd (interval).
+        expect(driver.fabricCanvas.requestRenderAll).toHaveBeenCalledTimes(3);
+        expect(peer.fabricCanvas.requestRenderAll).toHaveBeenCalledTimes(1);
+    });
+
+    test('ending transform throttle promotes deferred peers before next flush', () => {
+        const driver = makeData('driver2');
+        const peer   = makeData('peer2');
+
+        _beginDesignTransformPaintThrottle();
+        _scheduleCanvasRender(driver);
+        _scheduleCanvasRender(peer, { peer: true });
+        _flushCanvasRenderCoalesce();
+
+        expect(driver.fabricCanvas.requestRenderAll).toHaveBeenCalledTimes(1);
+        expect(peer.fabricCanvas.requestRenderAll).not.toHaveBeenCalled();
+
+        _endDesignTransformPaintThrottle();
+        _flushCanvasRenderCoalesce();
+
+        expect(peer.fabricCanvas.requestRenderAll).toHaveBeenCalledTimes(1);
+    });
+
+    test('peer flag is ignored when transform throttle is inactive', () => {
+        const peer = makeData('peer3');
+
+        _scheduleCanvasRender(peer, { peer: true });
+        _flushCanvasRenderCoalesce();
+
+        expect(peer.fabricCanvas.requestRenderAll).toHaveBeenCalledTimes(1);
     });
 });

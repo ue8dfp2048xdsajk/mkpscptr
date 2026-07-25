@@ -572,8 +572,29 @@ var activeSliderType = null;
 var _renderCoalesceRaf = null;
 var _renderCoalesceQueue = new Map(); // fabricCanvas → { data, patternLQ }
 
-function _scheduleCanvasRender(data, { patternLQ = false } = {}) {
-    if (!data?.fabricCanvas) return;
+// During design transforms, peer windows keep live geometry but paint every Nth
+// RAF flush. The driver window always paints. Ending the transform promotes any
+// deferred peer paints so mouseup flush shows the final synced state.
+var _PEER_RENDER_INTERVAL = 3;
+var _designTransformPaintDepth = 0;
+var _peerRenderTick = 0;
+var _peerRenderPending = new Map(); // fabricCanvas → { data, patternLQ }
+
+function _beginDesignTransformPaintThrottle() {
+    _designTransformPaintDepth++;
+}
+
+function _endDesignTransformPaintThrottle() {
+    _designTransformPaintDepth = Math.max(0, _designTransformPaintDepth - 1);
+    if (_designTransformPaintDepth !== 0) return;
+    _peerRenderTick = 0;
+    _peerRenderPending.forEach(({ data, patternLQ }) => {
+        _enqueueCanvasRender(data, patternLQ);
+    });
+    _peerRenderPending.clear();
+}
+
+function _enqueueCanvasRender(data, patternLQ) {
     const key = data.fabricCanvas;
     const prev = _renderCoalesceQueue.get(key);
     if (prev) {
@@ -581,6 +602,23 @@ function _scheduleCanvasRender(data, { patternLQ = false } = {}) {
     } else {
         _renderCoalesceQueue.set(key, { data, patternLQ });
     }
+}
+
+function _scheduleCanvasRender(data, { patternLQ = false, peer = false } = {}) {
+    if (!data?.fabricCanvas) return;
+
+    if (peer && _designTransformPaintDepth > 0) {
+        const key = data.fabricCanvas;
+        const prev = _peerRenderPending.get(key);
+        if (prev) {
+            prev.patternLQ = prev.patternLQ || patternLQ;
+        } else {
+            _peerRenderPending.set(key, { data, patternLQ });
+        }
+    } else {
+        _enqueueCanvasRender(data, patternLQ);
+    }
+
     if (_renderCoalesceRaf === null) {
         _renderCoalesceRaf = requestAnimationFrame(_flushCanvasRenderCoalesce);
     }
@@ -588,6 +626,22 @@ function _scheduleCanvasRender(data, { patternLQ = false } = {}) {
 
 function _flushCanvasRenderCoalesce() {
     _renderCoalesceRaf = null;
+
+    if (_designTransformPaintDepth > 0) {
+        _peerRenderTick++;
+        if (_peerRenderTick % _PEER_RENDER_INTERVAL === 0) {
+            _peerRenderPending.forEach(({ data, patternLQ }) => {
+                _enqueueCanvasRender(data, patternLQ);
+            });
+            _peerRenderPending.clear();
+        }
+    } else if (_peerRenderPending.size) {
+        _peerRenderPending.forEach(({ data, patternLQ }) => {
+            _enqueueCanvasRender(data, patternLQ);
+        });
+        _peerRenderPending.clear();
+    }
+
     if (!_renderCoalesceQueue.size) return;
     const entries = Array.from(_renderCoalesceQueue.values());
     _renderCoalesceQueue.clear();
@@ -603,6 +657,9 @@ function _cancelCanvasRenderCoalesce() {
         _renderCoalesceRaf = null;
     }
     _renderCoalesceQueue.clear();
+    _peerRenderPending.clear();
+    _peerRenderTick = 0;
+    _designTransformPaintDepth = 0;
 }
 
 // marching ants animation
@@ -1133,7 +1190,10 @@ function _applyCrossWindowGeometrySync(driverObj, driverData) {
         const peer = _selectedLayersForWindow(d)[0];
         if (!peer || peer === driverObj) return;
         _applyFabricGeometry(peer, geo);
-        _scheduleCanvasRender(d, { patternLQ: d.patternMode && peer === d.designObject });
+        _scheduleCanvasRender(d, {
+            patternLQ: d.patternMode && peer === d.designObject,
+            peer: true,
+        });
     });
 }
 
@@ -1174,7 +1234,7 @@ function _applyDesignMoveDelta(data, driverObj, deltaX, deltaY) {
                 obj.top  += deltaY;
             });
 
-            _scheduleCanvasRender(target, { patternLQ: target.patternMode });
+            _scheduleCanvasRender(target, { patternLQ: target.patternMode, peer: true });
         });
 
     } else {
@@ -1202,7 +1262,7 @@ function _applyDesignMoveDelta(data, driverObj, deltaX, deltaY) {
                 peer.setCoords();
             }
 
-            _scheduleCanvasRender(canvasData[index]);
+            _scheduleCanvasRender(canvasData[index], { peer: true });
         });
     }
 }
@@ -3501,17 +3561,20 @@ function _isMainDesignObject(obj, data) {
 }
 
 // Suppress Free/Starter watermarks for the duration of a design transform.
-// Paired begin/end via a per-object flag so click-without-drag and double
-// mouseup cannot leave _watermarkInteractionDepth stuck.
+// Also enables peer paint throttling for the same gesture. Paired begin/end
+// via a per-object flag so click-without-drag and double mouseup cannot leave
+// interaction depth stuck.
 function _beginDesignTransformWatermarkSuppress(obj) {
     if (!obj || obj._wmInteractionHeld) return;
     obj._wmInteractionHeld = true;
     _beginWatermarkInteraction();
+    _beginDesignTransformPaintThrottle();
 }
 
 function _endDesignTransformWatermarkSuppress(obj) {
     if (!obj || !obj._wmInteractionHeld) return;
     obj._wmInteractionHeld = false;
+    _endDesignTransformPaintThrottle();
     _endWatermarkInteraction();
 }
 
@@ -3658,7 +3721,7 @@ function attachFabricEvents(data, targetObject = null){
                     obj.setCoords();
                 });
 
-                _scheduleCanvasRender(target, { patternLQ: target.patternMode });
+                _scheduleCanvasRender(target, { patternLQ: target.patternMode, peer: true });
             });
 
         } else {
@@ -3695,7 +3758,7 @@ function attachFabricEvents(data, targetObject = null){
                     peer.setCoords();
                 }
 
-                _scheduleCanvasRender(canvasData[index]);
+                _scheduleCanvasRender(canvasData[index], { peer: true });
             });
         }
 
@@ -3753,7 +3816,7 @@ function attachFabricEvents(data, targetObject = null){
                     obj.setCoords();
                 });
 
-                _scheduleCanvasRender(target, { patternLQ: target.patternMode });
+                _scheduleCanvasRender(target, { patternLQ: target.patternMode, peer: true });
             });
 
         } else {
@@ -3780,7 +3843,7 @@ function attachFabricEvents(data, targetObject = null){
                     peer.setCoords();
                 }
 
-                _scheduleCanvasRender(canvasData[index]);
+                _scheduleCanvasRender(canvasData[index], { peer: true });
             });
         }
 
