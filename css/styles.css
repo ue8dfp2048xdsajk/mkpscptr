@@ -2132,6 +2132,33 @@ body.sidebar-expanded #contextPanelBody {
 }
 .upgrade-prompt-close:hover { color: #fff; }
 
+.perf-session-prompt {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(90deg, #334155 0%, #475569 100%);
+    color: #fff;
+    font-size: 13px;
+    padding: 8px 16px;
+    width: 100%;
+    box-sizing: border-box;
+    z-index: 200;
+    flex-shrink: 0;
+}
+.perf-session-prompt[hidden] { display: none !important; }
+.perf-session-prompt-close {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 6px;
+    flex-shrink: 0;
+}
+.perf-session-prompt-close:hover { color: #fff; }
+
 /* ⭐ PRO badge on sidebar section titles */
 .pro-badge-wrap {
     position: relative;
@@ -3320,22 +3347,6 @@ body.user-plan-pro .pro-badge-tip {
 }
 .sidebar-coach button:hover { color: #fff; }
 
-.combo-toast {
-    position: fixed;
-    bottom: 72px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #1C2333;
-    color: #E5E7EB;
-    padding: 10px 18px;
-    border-radius: 8px;
-    font-size: 13px;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.25);
-    z-index: 5000;
-    pointer-events: none;
-}
-.combo-toast[hidden] { display: none !important; }
-
 .batch-edit-hint {
     font-size: 12px;
     color: #4B5563;
@@ -3439,7 +3450,7 @@ body:not(.user-plan-pro) .pro-badge-wrap .pro-badge {
 .export-gate-block[hidden] { display: none !important; }
 .export-gate-msg { margin: 0 0 6px; font-size: 12px; color: #92400E; }
 .export-gate-note {
-    margin: 0 0 10px;
+    margin: 8px 0 0;
     font-size: 11px;
     line-height: 1.4;
     color: #78716C;
@@ -3630,4 +3641,42 @@ body:not(.user-plan-pro) .pro-badge-wrap .pro-badge {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+.ms-signin-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.ms-signin-q {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid #9CA3AF;
+    color: #6B7280;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    cursor: help;
+    user-select: none;
+}
+.ms-signin-q:hover,
+.ms-signin-q:focus {
+    color: #374151;
+    border-color: #6B7280;
+    outline: none;
+}
+.ms-signin-q.instant-hint::after {
+    white-space: normal;
+    width: 220px;
+    text-align: left;
+    left: auto;
+    right: 0;
+    transform: none;
+}
+.ms-signin-q.instant-hint:focus::after {
+    visibility: visible;
+    opacity: 1;
 }

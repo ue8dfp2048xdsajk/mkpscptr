@@ -80,10 +80,12 @@
             container.appendChild(msg);
             return;
         }
+        var wrap = document.createElement('span');
+        wrap.className = 'ms-signin-wrap';
+
         var btn = document.createElement('button');
         btn.id = 'clerkSignInBtn';
-        btn.className = 'header-file-btn instant-hint';
-        btn.setAttribute('data-hint', 'Sign in to save and export');
+        btn.className = 'header-file-btn';
         btn.textContent = 'Sign in';
         btn.addEventListener('click', function () {
             sessionStorage.setItem('ms_redirect_after_auth', 'home');
@@ -96,7 +98,24 @@
                 doSignIn();
             }
         });
-        container.appendChild(btn);
+
+        var tip = document.createElement('span');
+        tip.className = 'ms-signin-q instant-hint';
+        tip.setAttribute(
+            'data-hint',
+            'Your work is autosaved here 5s after your last edit. Sign in to export.'
+        );
+        tip.setAttribute('tabindex', '0');
+        tip.setAttribute('role', 'img');
+        tip.setAttribute(
+            'aria-label',
+            'Your work is autosaved here 5s after your last edit. Sign in to export.'
+        );
+        tip.textContent = '?';
+
+        wrap.appendChild(btn);
+        wrap.appendChild(tip);
+        container.appendChild(wrap);
     }
 
     function _renderUserAvatar(user) {

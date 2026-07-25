@@ -145,6 +145,10 @@
                 <span>Remove watermarks and export mockups - <a href="#plans" id="upgradePromptLink">see plans</a></span>
                 <button id="upgradePromptClose" aria-label="Dismiss" class="upgrade-prompt-close">✕</button>
             </div>
+            <div id="perfSessionPrompt" class="perf-session-prompt" hidden>
+                <span>Large session - for smoother editing, close other browser tabs and heavy apps. Your work still autosaves.</span>
+                <button id="perfSessionPromptClose" type="button" aria-label="Dismiss performance tip" class="perf-session-prompt-close">✕</button>
+            </div>
             <div id="workflowBanner" class="workflow-banner" hidden>
                 <span class="workflow-banner-steps">
                     <span>1. Upload mockup photos</span>
@@ -208,8 +212,8 @@
                         <div id="exportOptionsBody">
                         <div id="exportSignInBlock" class="export-gate-block" hidden>
                             <p class="export-gate-msg">Sign in to export your mockups.</p>
-                            <p class="export-gate-note">Your work is autosaved in this browser. After you sign in, you can pick up where you left off and export.</p>
                             <button type="button" id="exportSignInBtn" class="export-gate-btn">Sign in</button>
+                            <p class="export-gate-note">Your work is autosaved here 5s after your last edit. Sign in to export.</p>
                         </div>
                         <div id="exportPlansBlock" class="export-gate-block" hidden>
                             <p class="export-gate-msg">Pick a plan to export.</p>
@@ -388,8 +392,6 @@
             >
                 Preparing designs...
             </div>
-
-            <div id="comboToast" class="combo-toast" hidden aria-live="polite"></div>
 
             <div id="canvasContainer"></div>
             <div id="textLayer"></div>

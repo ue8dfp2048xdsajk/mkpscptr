@@ -1,4 +1,4 @@
-// Onboarding banners, coach marks, combo toast, shortcuts modal.
+// Onboarding banners, coach marks, shortcuts modal, large-session perf hint.
 // Non-blocking: overlays use pointer-events:none except dismiss buttons.
 
 (function () {
@@ -6,7 +6,7 @@
     var LS_COACH = 'ms_coach_sidebar_seen';
     var LS_FIRST_EXPORT = 'ms_first_export_done';
     var LS_BATCH_HINT = 'ms_batch_hint_dismissed';
-    var _lastComboKey = '';
+    var LS_PERF_HINT = 'ms_perf_hint_dismissed';
 
     function _isTypingTarget(el) {
         if (!el) return false;
@@ -14,29 +14,12 @@
         return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
     }
 
-    function _showComboToast(msg) {
-        var el = document.getElementById('comboToast');
-        if (!el) return;
-        el.textContent = msg;
-        el.hidden = false;
-        clearTimeout(el._hideTimer);
-        el._hideTimer = setTimeout(function () { el.hidden = true; }, 5000);
-    }
-
     window._onGridReady = function (mockupCount, bgCount, designCount) {
         if (!mockupCount || !bgCount || !designCount) return;
-        var key = bgCount + 'x' + designCount + '=' + mockupCount;
-        if (key === _lastComboKey) return;
-        _lastComboKey = key;
-        var pluralM = mockupCount !== 1 ? 's' : '';
-        var pluralBg = bgCount !== 1 ? 's' : '';
-        var pluralDs = designCount !== 1 ? 's' : '';
-        _showComboToast(
-            mockupCount + ' mockup' + pluralM + ' ready - ' +
-            bgCount + ' mockup photo' + pluralBg + ' × ' +
-            designCount + ' design' + pluralDs
-        );
         _updateWorkflowBanner();
+        if (typeof window._updatePerfSessionPrompt === 'function') {
+            window._updatePerfSessionPrompt();
+        }
     };
 
     function _updateWorkflowBanner() {
@@ -61,10 +44,10 @@
 
     window._markExportAttempted = _markExportAttempted;
 
+    // Kept as a no-op hook for export-ui.js (marks first export done; no toast).
     window._onFirstExportSuccess = function () {
         if (localStorage.getItem(LS_FIRST_EXPORT)) return;
         try { localStorage.setItem(LS_FIRST_EXPORT, '1'); } catch (_) {}
-        _showComboToast('Nice - your mockups are ready for your store listings. Tip: select multiple mockups to edit them all at once.');
     };
 
     window._showSidebarCoachIfNeeded = function () {
@@ -77,6 +60,18 @@
         try { localStorage.setItem(LS_COACH, '1'); } catch (_) {}
         var coach = document.getElementById('sidebarCoach');
         if (coach) coach.hidden = true;
+    };
+
+    window._updatePerfSessionPrompt = function () {
+        var el = document.getElementById('perfSessionPrompt');
+        if (!el) return;
+        if (localStorage.getItem(LS_PERF_HINT)) {
+            el.hidden = true;
+            return;
+        }
+        var manyWindows = typeof canvasData !== 'undefined' && canvasData.length >= 201;
+        var manySelected = typeof activeIndices !== 'undefined' && activeIndices.length >= 31;
+        el.hidden = !(manyWindows || manySelected);
     };
 
     function _setHelpTab(tab) {
@@ -143,6 +138,15 @@
             });
         }
 
+        var perfClose = document.getElementById('perfSessionPromptClose');
+        if (perfClose) {
+            perfClose.addEventListener('click', function () {
+                try { localStorage.setItem(LS_PERF_HINT, '1'); } catch (_) {}
+                var prompt = document.getElementById('perfSessionPrompt');
+                if (prompt) prompt.hidden = true;
+            });
+        }
+
         var shortcutsClose = document.getElementById('shortcutsModalClose');
         if (shortcutsClose) shortcutsClose.addEventListener('click', _closeShortcuts);
 
@@ -180,5 +184,6 @@
         }
 
         _updateWorkflowBanner();
+        window._updatePerfSessionPrompt();
     });
 })();

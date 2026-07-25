@@ -1446,6 +1446,9 @@ function updateWindowBorders(){
     }
     _scheduleMinimapUpdate();
     _updateWindowCountBadge();
+    if (typeof window._updatePerfSessionPrompt === 'function') {
+        window._updatePerfSessionPrompt();
+    }
 }
 
 function _updateWindowCountBadge(){
@@ -8780,12 +8783,31 @@ async function _runDraftAutosave() {
     console.log('[Autosave] Saving session -', snap.windows.length, 'window(s),', imgCount, 'unique image(s)');
     try {
         const ok = await _autosaveDB.set('session', snap);
-        if (ok) console.log('[Autosave] Session saved ✓');
-        else console.warn('[Autosave] Session write failed (IDB + localStorage)');
+        if (ok) {
+            console.log('[Autosave] Session saved ✓');
+            _pulseDraftSavedHint();
+        } else {
+            console.warn('[Autosave] Session write failed (IDB + localStorage)');
+        }
     } catch (e) {
         console.error('[Autosave] Session write failed:', e);
     }
-    // Silent on success - reassurance for signed-out users lives on the export gate.
+    // Silent on success - reassurance for signed-out users lives on the export gate / Sign in ?.
+}
+
+function _pulseDraftSavedHint() {
+    var btn = document.getElementById('saveProgressBtn');
+    if (!btn) return;
+    var prevHint = btn.getAttribute('data-hint') || 'Save Progress (Ctrl/Cmd+S)';
+    var prevTitle = btn.getAttribute('title') || '';
+    btn.setAttribute('data-hint', 'Draft saved');
+    btn.setAttribute('title', 'Draft saved');
+    clearTimeout(btn._draftSavedHintTimer);
+    btn._draftSavedHintTimer = setTimeout(function () {
+        btn.setAttribute('data-hint', prevHint);
+        if (prevTitle) btn.setAttribute('title', prevTitle);
+        else btn.removeAttribute('title');
+    }, 2000);
 }
 
 // Immediate draft write for tab hide / refresh / close. Prefer a sync-started

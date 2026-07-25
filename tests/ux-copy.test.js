@@ -22,8 +22,16 @@ describe('UX copy contracts (app.html)', () => {
         expect(appHtml).toContain('export-go-btn-full');
     });
 
-    test('signed-out export gate mentions local autosave', () => {
-        expect(appHtml).toContain('Your work is autosaved in this browser');
+    test('signed-out export gate mentions idle autosave under Sign in', () => {
+        expect(appHtml).toContain(
+            'Your work is autosaved here 5s after your last edit. Sign in to export.'
+        );
+        const block = appHtml.match(
+            /id="exportSignInBlock"[\s\S]*?<\/div>/
+        )?.[0] || '';
+        expect(block.indexOf('id="exportSignInBtn"')).toBeLessThan(
+            block.indexOf('Your work is autosaved here 5s after your last edit')
+        );
     });
 
     test('onboarding elements present', () => {
@@ -32,6 +40,14 @@ describe('UX copy contracts (app.html)', () => {
         expect(appHtml).toContain('id="shortcutsModal"');
         expect(appHtml).toContain('id="instructionsPanel"');
         expect(appHtml).toContain('data-help-tab="instructions"');
+    });
+
+    test('combo toast removed; large-session perf prompt present', () => {
+        expect(appHtml).not.toContain('id="comboToast"');
+        expect(appHtml).toContain('id="perfSessionPrompt"');
+        expect(appHtml).toContain(
+            'Large session - for smoother editing, close other browser tabs and heavy apps. Your work still autosaves.'
+        );
     });
 
     test('save button is visible in header top row (file nav)', () => {
