@@ -8,7 +8,7 @@ function buildDOM() {
     document.body.innerHTML = `
       <div id="plansModal">
         <h2 id="plansModalTitle">Choose your plan</h2>
-        <p class="ms-plans-subtitle">Upgrade anytime. No hidden fees.</p>
+        <p class="ms-plans-subtitle">Unlimited mockups. No credits, caps, or hidden fees.</p>
         <div class="ms-billing-tab" data-period="monthly">Monthly</div>
         <div class="ms-billing-tab active" data-period="annual">Annual</div>
         <div class="ms-billing-tab" data-period="lifetime">Lifetime</div>

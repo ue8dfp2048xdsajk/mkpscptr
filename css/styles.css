@@ -2686,8 +2686,8 @@ body.user-plan-pro .pro-badge-tip {
     margin-top: 1px;
 }
 .ms-plan-features li.ms-feature-no {
-    color: #d1d5db;
-    text-decoration: line-through;
+    color: #6B7280;
+    text-decoration: none;
 }
 .ms-plan-features li.ms-feature-highlight {
     color: #16a34a;
@@ -2698,7 +2698,7 @@ body.user-plan-pro .pro-badge-tip {
 }
 .ms-plan-features li.ms-feature-no::before {
     content: '✕';
-    color: #d1d5db;
+    color: #6B7280;
     font-weight: 400;
 }
 

@@ -5,7 +5,7 @@
     var MODAL_COPY = {
         full: {
             title: 'Choose your plan',
-            subtitle: 'Built for POD and digital sellers. Upgrade anytime. No hidden fees.',
+            subtitle: 'Unlimited mockups. No credits, caps, or hidden fees.',
         },
         starter: {
             title: 'Upgrade your plan',
