@@ -3608,6 +3608,136 @@ function _endDesignTransformWatermarkSuppress(obj) {
     _endWatermarkInteraction();
 }
 
+// Shared by Fabric `scaling` and `skewing` (Shift + side handle). Skew fires a
+// separate event in Fabric 5.3, so both must run the same peer-sync path.
+function _syncDesignScaleSkewFromDriver(data, designTarget) {
+    designTarget._hadDragMovement = true;
+    _beginDesignTransformWatermarkSuppress(designTarget);
+
+    const scaleX = designTarget.scaleX;
+    const scaleY = designTarget.scaleY;
+    const skewX  = designTarget.skewX || 0;
+    const skewY  = designTarget.skewY || 0;
+    const left   = designTarget.left;
+    const top    = designTarget.top;
+
+    // Compute delta so cross-window peers move relative to their own position
+    // (avoids "jump" where other windows' designs teleport to this window's coords).
+    const deltaX = left - (designTarget.lastLeft || left);
+    const deltaY = top  - (designTarget.lastTop  || top);
+
+    if (deltaX === 0 && deltaY === 0 &&
+        scaleX === (designTarget.lastScaleX ?? scaleX) &&
+        scaleY === (designTarget.lastScaleY ?? scaleY) &&
+        skewX  === (designTarget.lastSkewX  ?? skewX) &&
+        skewY  === (designTarget.lastSkewY  ?? skewY)) return;
+
+    if (_canCrossWindowSync()) {
+        _syncAttachedLayersInDriverWindow(data, designTarget);
+        _applyCrossWindowGeometrySync(designTarget, data);
+        designTarget.lastLeft = left;
+        designTarget.lastTop  = top;
+        designTarget.lastScaleX = scaleX;
+        designTarget.lastScaleY = scaleY;
+        designTarget.lastSkewX  = skewX;
+        designTarget.lastSkewY  = skewY;
+        _scheduleCanvasRender(data);
+        return;
+    }
+
+    if (_isMainDesignObject(designTarget, data)) {
+
+        // Same-window: set absolute - all layers share one coordinate space.
+        // Extra design layers only scale/move if they're also selected.
+        getAllDesignObjects(data).forEach(obj=>{
+            if(obj === designTarget) return;
+            if((data.extraDesignObjects||[]).includes(obj) && !selectedDesigns.has(obj)) return;
+            obj.scaleX = scaleX;
+            obj.scaleY = scaleY;
+            obj.skewX  = skewX;
+            obj.skewY  = skewY;
+            obj.left   = left;
+            obj.top    = top;
+            obj.setCoords();
+        });
+
+        // Cross-window: apply delta so remote designs don't jump.
+        activeIndices.forEach(index=>{
+
+            if(canvasData[index] === data) return;
+            if(canvasData[index].locked) return;
+
+            const target = canvasData[index];
+            const targetExtras = target.extraDesignObjects || [];
+            const targetExtraIndex = new Map();
+            targetExtras.forEach((obj, i) => targetExtraIndex.set(obj, i));
+
+            getAllDesignObjects(target).forEach(obj=>{
+                if(targetExtraIndex.has(obj)){
+                    const idx = targetExtraIndex.get(obj);
+                    const srcPeer = (data.extraDesignObjects||[])[idx];
+                    if(srcPeer && !selectedDesigns.has(srcPeer)) return;
+                }
+                obj.scaleX  = scaleX;
+                obj.scaleY  = scaleY;
+                obj.skewX   = skewX;
+                obj.skewY   = skewY;
+                obj.left   += deltaX;
+                obj.top    += deltaY;
+                obj.setCoords();
+            });
+
+            _scheduleCanvasRender(target, { patternLQ: target.patternMode, peer: true });
+        });
+
+    } else {
+
+        const layerIdx = (data.extraDesignObjects || []).indexOf(designTarget);
+
+        // Scale other selected objects in the SAME window first
+        selectedDesigns.forEach(obj => {
+            if(obj === designTarget) return;
+            if(obj._ownerData !== data) return;
+            obj.scaleX  = scaleX;
+            obj.scaleY  = scaleY;
+            obj.skewX   = skewX;
+            obj.skewY   = skewY;
+            obj.left   += deltaX;
+            obj.top    += deltaY;
+            obj.setCoords();
+        });
+
+        activeIndices.forEach(index=>{
+
+            if(canvasData[index] === data) return;
+            if(canvasData[index].locked) return;
+
+            const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
+
+            if(peer){
+                peer.scaleX  = scaleX;
+                peer.scaleY  = scaleY;
+                peer.skewX   = skewX;
+                peer.skewY   = skewY;
+                peer.left   += deltaX;
+                peer.top    += deltaY;
+                peer.setCoords();
+            }
+
+            _scheduleCanvasRender(canvasData[index], { peer: true });
+        });
+    }
+
+    designTarget.lastLeft = left;
+    designTarget.lastTop  = top;
+    designTarget.lastScaleX = scaleX;
+    designTarget.lastScaleY = scaleY;
+    designTarget.lastSkewX  = skewX;
+    designTarget.lastSkewY  = skewY;
+
+    _scheduleCanvasRender(data);
+}
+
 function attachFabricEvents(data, targetObject = null){
 
     const designTarget = targetObject || data.designObject;
@@ -3675,131 +3805,11 @@ function attachFabricEvents(data, targetObject = null){
     });
 
     designTarget.on('scaling', ()=>{
-        designTarget._hadDragMovement = true;
-        _beginDesignTransformWatermarkSuppress(designTarget);
+        _syncDesignScaleSkewFromDriver(data, designTarget);
+    });
 
-        const scaleX = designTarget.scaleX;
-        const scaleY = designTarget.scaleY;
-        const skewX  = designTarget.skewX || 0;
-        const skewY  = designTarget.skewY || 0;
-        const left   = designTarget.left;
-        const top    = designTarget.top;
-
-        // Compute delta so cross-window peers move relative to their own position
-        // (avoids "jump" where other windows' designs teleport to this window's coords).
-        const deltaX = left - (designTarget.lastLeft || left);
-        const deltaY = top  - (designTarget.lastTop  || top);
-
-        if (deltaX === 0 && deltaY === 0 &&
-            scaleX === (designTarget.lastScaleX ?? scaleX) &&
-            scaleY === (designTarget.lastScaleY ?? scaleY) &&
-            skewX  === (designTarget.lastSkewX  ?? skewX) &&
-            skewY  === (designTarget.lastSkewY  ?? skewY)) return;
-
-        if (_canCrossWindowSync()) {
-            _syncAttachedLayersInDriverWindow(data, designTarget);
-            _applyCrossWindowGeometrySync(designTarget, data);
-            designTarget.lastLeft = left;
-            designTarget.lastTop  = top;
-            designTarget.lastScaleX = scaleX;
-            designTarget.lastScaleY = scaleY;
-            designTarget.lastSkewX  = skewX;
-            designTarget.lastSkewY  = skewY;
-            _scheduleCanvasRender(data);
-            return;
-        }
-
-        if (_isMainDesignObject(designTarget, data)) {
-
-            // Same-window: set absolute - all layers share one coordinate space.
-            // Extra design layers only scale/move if they're also selected.
-            getAllDesignObjects(data).forEach(obj=>{
-                if(obj === designTarget) return;
-                if((data.extraDesignObjects||[]).includes(obj) && !selectedDesigns.has(obj)) return;
-                obj.scaleX = scaleX;
-                obj.scaleY = scaleY;
-                obj.skewX  = skewX;
-                obj.skewY  = skewY;
-                obj.left   = left;
-                obj.top    = top;
-                obj.setCoords();
-            });
-
-            // Cross-window: apply delta so remote designs don't jump.
-            activeIndices.forEach(index=>{
-
-                if(canvasData[index] === data) return;
-                if(canvasData[index].locked) return;
-
-                const target = canvasData[index];
-                const targetExtras = target.extraDesignObjects || [];
-                const targetExtraIndex = new Map();
-                targetExtras.forEach((obj, i) => targetExtraIndex.set(obj, i));
-
-                getAllDesignObjects(target).forEach(obj=>{
-                    if(targetExtraIndex.has(obj)){
-                        const idx = targetExtraIndex.get(obj);
-                        const srcPeer = (data.extraDesignObjects||[])[idx];
-                        if(srcPeer && !selectedDesigns.has(srcPeer)) return;
-                    }
-                    obj.scaleX  = scaleX;
-                    obj.scaleY  = scaleY;
-                    obj.skewX   = skewX;
-                    obj.skewY   = skewY;
-                    obj.left   += deltaX;
-                    obj.top    += deltaY;
-                    obj.setCoords();
-                });
-
-                _scheduleCanvasRender(target, { patternLQ: target.patternMode, peer: true });
-            });
-
-        } else {
-
-            const layerIdx = (data.extraDesignObjects || []).indexOf(designTarget);
-
-            // Scale other selected objects in the SAME window first
-            selectedDesigns.forEach(obj => {
-                if(obj === designTarget) return;
-                if(obj._ownerData !== data) return;
-                obj.scaleX  = scaleX;
-                obj.scaleY  = scaleY;
-                obj.skewX   = skewX;
-                obj.skewY   = skewY;
-                obj.left   += deltaX;
-                obj.top    += deltaY;
-                obj.setCoords();
-            });
-
-            activeIndices.forEach(index=>{
-
-                if(canvasData[index] === data) return;
-                if(canvasData[index].locked) return;
-
-                const peer = (canvasData[index].extraDesignObjects || [])[layerIdx];
-
-                if(peer){
-                    peer.scaleX  = scaleX;
-                    peer.scaleY  = scaleY;
-                    peer.skewX   = skewX;
-                    peer.skewY   = skewY;
-                    peer.left   += deltaX;
-                    peer.top    += deltaY;
-                    peer.setCoords();
-                }
-
-                _scheduleCanvasRender(canvasData[index], { peer: true });
-            });
-        }
-
-        designTarget.lastLeft = left;
-        designTarget.lastTop  = top;
-        designTarget.lastScaleX = scaleX;
-        designTarget.lastScaleY = scaleY;
-        designTarget.lastSkewX  = skewX;
-        designTarget.lastSkewY  = skewY;
-
-        _scheduleCanvasRender(data);
+    designTarget.on('skewing', ()=>{
+        _syncDesignScaleSkewFromDriver(data, designTarget);
     });
 
     designTarget.on('rotating', ()=>{
