@@ -1,9 +1,10 @@
 'use strict';
 
-// Alignment guides - off by default; toggle via control panel or G.
+// Alignment guides - on by default; toggle via control panel or G.
 // Visible only while dragging or nudging a design layer.
+// Explicit false in a saved session is preserved; missing flag uses this default.
 
-var alignmentGuidesEnabled = false;
+var alignmentGuidesEnabled = true;
 
 var _guideRafPending = false;
 var _guidePendingData = null;
@@ -266,7 +267,12 @@ function toggleAlignmentGuides() {
 }
 
 function applyAlignmentGuidesFromSnapshot(snapshot) {
-    alignmentGuidesEnabled = !!(snapshot && snapshot.alignmentGuidesEnabled);
+    // Default on when no snapshot / legacy / flag absent. Honor explicit false.
+    if (!snapshot || typeof snapshot.alignmentGuidesEnabled === 'undefined') {
+        alignmentGuidesEnabled = true;
+    } else {
+        alignmentGuidesEnabled = !!snapshot.alignmentGuidesEnabled;
+    }
     syncAlignmentGuidesToggleUI();
     clearAlignmentGuides();
 }
