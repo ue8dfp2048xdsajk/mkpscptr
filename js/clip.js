@@ -452,7 +452,7 @@ function addClipOverlay(data){
 
     data.clipPolygonClosed = true;
 
-    allMasks.forEach(path=>{
+    allMasks.forEach((path, pathIdx)=>{
 
         const overlays =
             createCurveOverlay(
@@ -462,6 +462,7 @@ function addClipOverlay(data){
             );
 
         overlays.forEach(o=>{
+            o.clipOverlayPathIndex = pathIdx;
             data.clipOverlays.push(o);
             data.fabricCanvas.add(o);
             o.bringToFront();

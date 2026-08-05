@@ -278,6 +278,15 @@ function _redrawAllClipEditors() {
             drawInactivePaths(targetCanvas, target);
         }
 
+        // Hide the finalized overlay for the path in the editor so it does not
+        // stack under the live preview. Other paths stay visible.
+        (target.clipOverlays || []).forEach(o => {
+            const hideActive = clipPolygonClosed &&
+                typeof currentMaskIndex === 'number' &&
+                o.clipOverlayPathIndex === currentMaskIndex;
+            o.visible = !hideActive;
+        });
+
         const overlays = createCurveOverlay(points, clipPolygonClosed);
         if (i === driverIdx) activeCurvePreview = overlays;
         overlays.forEach(o => targetCanvas.add(o));
