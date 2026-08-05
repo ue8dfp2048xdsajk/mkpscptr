@@ -270,13 +270,19 @@ function _redrawAllClipEditors() {
             return;
         }
 
+        // Helpers first: drawBezierHelpers → clearBezierHelpers removes temp
+        // curve overlays. Add the live marching-ants path after that clear so
+        // curvature-handle drags preview the dotted outline in real time.
+        if (clipPolygonClosed) {
+            if (i === driverIdx) drawBezierHelpers(targetCanvas, points);
+            drawInactivePaths(targetCanvas, target);
+        }
+
         const overlays = createCurveOverlay(points, clipPolygonClosed);
         if (i === driverIdx) activeCurvePreview = overlays;
         overlays.forEach(o => targetCanvas.add(o));
 
         if (clipPolygonClosed) {
-            if (i === driverIdx) drawBezierHelpers(targetCanvas, points);
-            drawInactivePaths(targetCanvas, target);
             overlays.forEach(o => o.bringToFront());
             if (i === driverIdx) {
                 activeBezierHelpers.forEach(obj => obj.bringToFront());
